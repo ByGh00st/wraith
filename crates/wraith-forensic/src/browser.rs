@@ -2,9 +2,8 @@
 //! Injects anti-fingerprinting and WebRTC/WebGL kill switches into Firefox profile user.js files.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tracing::info;
-use walkdir::WalkDir;
 use wraith_core::error::Result;
 
 pub const FIREFOX_HARDENING_HEADER: &str = "\
@@ -49,28 +48,7 @@ pub const FIREFOX_PREFERENCES: &[(&str, &str)] = &[
 ];
 
 pub fn find_firefox_profiles() -> Vec<PathBuf> {
-    let mut profiles = Vec::new();
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
-    let search_roots = [
-        format!("{home}/.mozilla/firefox"),
-        "/root/.mozilla/firefox".to_string(),
-    ];
-
-    for root_str in &search_roots {
-        let root = Path::new(root_str);
-        if root.exists() && root.is_dir() {
-            for entry in WalkDir::new(root).max_depth(2).into_iter().flatten() {
-                let path = entry.path();
-                if path.is_dir() && (path.join("prefs.js").exists() || path.to_string_lossy().contains(".default")) {
-                    profiles.push(path.to_path_buf());
-                }
-            }
-        }
-    }
-
-    profiles.sort();
-    profiles.dedup();
-    profiles
+    crate::anti_fingerprint::find_all_firefox_profiles().unwrap_or_default()
 }
 
 pub fn apply_firefox_hardening() -> Result<usize> {

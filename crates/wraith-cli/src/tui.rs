@@ -115,7 +115,7 @@ impl SovereignDashboard {
                             }
                         }
                         KeyCode::Char('c') | KeyCode::Char('C') => {
-                            let _ = wraith_forensic::run_full_cleanup(true);
+                            let _ = wraith_forensic::run_full_cleanup(true, false);
                         }
                         _ => {}
                     }

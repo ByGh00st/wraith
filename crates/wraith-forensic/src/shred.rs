@@ -37,6 +37,10 @@ pub fn secure_delete_file(path: &Path, passes: u8) -> Result<()> {
     }
 
     fs::remove_file(path)?;
+
+    // Force filesystem sync to mitigate cached write-back on journaling filesystems
+    let _ = std::process::Command::new("sync").status();
+
     debug!("Cryptographically purged: {}", path.display());
     Ok(())
 }

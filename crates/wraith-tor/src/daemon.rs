@@ -94,12 +94,13 @@ pub fn restore_dns() -> Result<()> {
 }
 
 pub fn stop_existing_tor() {
-    let _ = Command::new("systemctl").args(["stop", "tor"]).status();
+    // Target only Wraith-managed Tor processes matching our specific torrc configuration
+    let _ = Command::new("pkill").args(["-f", &format!("tor.*-f.*{TORRC_PATH}")]).status();
     let _ = Command::new("fuser").args(["-k", &format!("{TOR_CONTROL_PORT}/tcp")]).status();
     std::thread::sleep(Duration::from_millis(500));
 }
 
-pub async fn start_tor_daemon() -> Result<()> {
+pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
     stop_existing_tor();
 
     let tor_bin = if Path::new("/usr/bin/tor").exists() {
@@ -123,7 +124,7 @@ pub async fn start_tor_daemon() -> Result<()> {
     }
 
     // Wait for Tor bootstrap on ControlPort
-    for _ in 0..30 {
+    for _ in 0..timeout_secs {
         sleep(Duration::from_secs(1)).await;
         let mut client = TorControlClient::default();
         if client.connect().await.is_ok() && client.is_alive().await {
@@ -132,7 +133,11 @@ pub async fn start_tor_daemon() -> Result<()> {
         }
     }
 
-    Err(WraithError::Tor("Tor daemon started but failed to bootstrap within 30s".into()))
+    Err(WraithError::Tor(format!("Tor daemon started but failed to bootstrap within {timeout_secs}s")))
+}
+
+pub async fn start_tor_daemon() -> Result<()> {
+    start_tor_daemon_with_timeout(45).await
 }
 
 pub fn stop_tor_daemon() {

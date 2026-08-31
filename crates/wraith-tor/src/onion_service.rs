@@ -64,11 +64,16 @@ impl OnionServiceManager {
         directives
     }
 
-    /// Injects ephemeral Hidden Service configuration into torrc
+    /// Injects ephemeral Hidden Service configuration into torrc (Idempotent)
     pub fn arm_onion_service(config: &OnionServiceConfig) -> Result<()> {
         let torrc = Path::new(TORRC_PATH);
         if torrc.exists() {
             let mut content = fs::read_to_string(torrc)?;
+            let marker = format!("HiddenServiceDir {ONION_SERVICE_DIR}");
+            if content.contains(&marker) {
+                info!("Ephemeral Onion v3 Hidden Service already configured in {TORRC_PATH}");
+                return Ok(());
+            }
             let directives = Self::render_service_directives(config);
             content.push_str(&directives);
             fs::write(torrc, content)?;

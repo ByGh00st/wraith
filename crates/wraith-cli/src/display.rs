@@ -18,13 +18,13 @@ pub fn print_banner() {
     println!("{}", WRAITH_BANNER.bold().magenta());
     println!(
         "  ┌── {} ──────────────────────────────────────────────────────────┐",
-        "WRAITH-PRIME // GEN-4 SOVEREIGN KERNEL ANONYMIZATION MATRIX".bold().cyan()
+        "WRAITH-PRIME // HIGH-ASSURANCE LINUX ANONYMIZATION ENGINE".bold().cyan()
     );
     println!(
         "  │  {} {}  │  {} {}  │  {} {}  │",
         "CORE:".dimmed(), "Rust 2021".bold().green(),
         "TARGET:".dimmed(), "Kali Linux x86_64".bold().yellow(),
-        "SECURITY:".dimmed(), "BLACK-LEVEL".bold().red()
+        "MODE:".dimmed(), "FAIL-CLOSED".bold().green()
     );
     println!("  └───────────────────────────────────────────────────────────────────────────────────────────────┘\n");
 }
@@ -85,7 +85,7 @@ pub fn show_status_dashboard(state: &StateData, is_tor: bool, ip: &str, circuits
         Cell::new("○ Watchdog Disabled").fg(Color::Yellow)
     };
 
-    table.add_row(vec![Cell::new("Sovereign State"), status_cell]);
+    table.add_row(vec![Cell::new("Anonymization State"), status_cell]);
     table.add_row(vec![Cell::new("Public Exit IP"), Cell::new(ip).fg(Color::White).add_attribute(Attribute::Bold)]);
     table.add_row(vec![Cell::new("Tor Network Routing"), tor_cell]);
     table.add_row(vec![Cell::new("KillSwitch Gate"), ks_cell]);

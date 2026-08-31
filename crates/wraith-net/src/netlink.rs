@@ -608,13 +608,13 @@ impl NetlinkSocket {
                 return Err(WraithError::Custom("Truncated Netlink response".into()));
             }
 
-            let nl_hdr: NlMsgHdr = unsafe { std::ptr::read(resp_buf.as_ptr() as *const _) };
+            let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(resp_buf.as_ptr() as *const _) };
 
             if nl_hdr.nlmsg_type == NLMSG_ERROR {
                 if bytes_read < size_of::<NlMsgErr>() {
                     return Err(WraithError::Custom("Truncated NLMSG_ERROR payload".into()));
                 }
-                let err_msg: NlMsgErr = unsafe { std::ptr::read(resp_buf.as_ptr() as *const _) };
+                let err_msg: NlMsgErr = unsafe { std::ptr::read_unaligned(resp_buf.as_ptr() as *const _) };
                 if err_msg.error != 0 {
                     let os_err = Error::from_raw_os_error(-err_msg.error);
                     return Err(WraithError::Custom(format!(
@@ -689,7 +689,7 @@ impl NetlinkSocket {
                 let mut offset = 0;
 
                 while offset + size_of::<NlMsgHdr>() <= bytes_read {
-                    let nl_hdr: NlMsgHdr = unsafe { std::ptr::read(recv_buf[offset..].as_ptr() as *const _) };
+                    let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(recv_buf[offset..].as_ptr() as *const _) };
                     let msg_len = nl_hdr.nlmsg_len as usize;
 
                     if msg_len < size_of::<NlMsgHdr>() || offset + msg_len > bytes_read {
@@ -701,7 +701,7 @@ impl NetlinkSocket {
                     }
 
                     if nl_hdr.nlmsg_type == NLMSG_ERROR {
-                        let err_msg: NlMsgErr = unsafe { std::ptr::read(recv_buf[offset..].as_ptr() as *const _) };
+                        let err_msg: NlMsgErr = unsafe { std::ptr::read_unaligned(recv_buf[offset..].as_ptr() as *const _) };
                         if err_msg.error != 0 {
                             return Err(WraithError::Custom(format!("Dump error: {}", -err_msg.error)));
                         }
@@ -1011,7 +1011,7 @@ impl NetlinkSocket {
             }
 
             let ifinfo_offset = size_of::<NlMsgHdr>();
-            let ifinfo: IfInfoMsg = unsafe { std::ptr::read(frame[ifinfo_offset..].as_ptr() as *const _) };
+            let ifinfo: IfInfoMsg = unsafe { std::ptr::read_unaligned(frame[ifinfo_offset..].as_ptr() as *const _) };
 
             let mut ifname = String::new();
             let mut mac_address = None;
@@ -1020,7 +1020,7 @@ impl NetlinkSocket {
 
             let mut offset = ifinfo_offset + size_of::<IfInfoMsg>();
             while offset + size_of::<RtAttr>() <= frame.len() {
-                let attr: RtAttr = unsafe { std::ptr::read(frame[offset..].as_ptr() as *const _) };
+                let attr: RtAttr = unsafe { std::ptr::read_unaligned(frame[offset..].as_ptr() as *const _) };
                 let attr_len = attr.rta_len as usize;
                 if attr_len < size_of::<RtAttr>() || offset + attr_len > frame.len() {
                     break;

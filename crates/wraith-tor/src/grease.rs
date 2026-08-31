@@ -169,7 +169,7 @@ pub struct DynamicTlsFingerprint {
     pub browser: BrowserType,
     pub name: &'static str,
     pub ja3_raw: String,
-    pub ja3_hash: &'static str,
+    pub ja3_hash: String,
     pub ja4_hash: &'static str,
     pub user_agent: &'static str,
     pub cipher_suites: Vec<u16>,
@@ -243,12 +243,13 @@ impl DynamicTlsFingerprint {
                     extensions.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("-"),
                     supported_groups.iter().map(|g| g.to_string()).collect::<Vec<_>>().join("-"),
                 );
+                let ja3_hash = wraith_core::crypto::md5_hex(ja3_raw.as_bytes());
 
                 Self {
                     browser,
                     name: "Google Chrome v131 (Windows 11 x86_64)",
                     ja3_raw,
-                    ja3_hash: "cd08e31494f9531f560d64c695473da9",
+                    ja3_hash,
                     ja4_hash: "t13d1516h2_8daaf6152771_b186095e22b6",
                     user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
                     cipher_suites: ciphers,
@@ -295,12 +296,13 @@ impl DynamicTlsFingerprint {
                     extensions.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("-"),
                     supported_groups.iter().map(|g| g.to_string()).collect::<Vec<_>>().join("-"),
                 );
+                let ja3_hash = wraith_core::crypto::md5_hex(ja3_raw.as_bytes());
 
                 Self {
                     browser,
                     name: "Mozilla Firefox v132 (Linux x86_64 Sovereign)",
                     ja3_raw,
-                    ja3_hash: "28e08d67c515a2826e79ad0419fe0b66",
+                    ja3_hash,
                     ja4_hash: "t13d1711h2_550b4e068e1c_e4468f7f2fb4",
                     user_agent: "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0",
                     cipher_suites: ciphers,
@@ -347,12 +349,13 @@ impl DynamicTlsFingerprint {
                     extensions.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("-"),
                     supported_groups.iter().map(|g| g.to_string()).collect::<Vec<_>>().join("-"),
                 );
+                let ja3_hash = wraith_core::crypto::md5_hex(ja3_raw.as_bytes());
 
                 Self {
                     browser,
                     name: "Apple Safari v18 (macOS Sonoma)",
                     ja3_raw,
-                    ja3_hash: "28e08d67c515a2826e79ad0419fe0b66",
+                    ja3_hash,
                     ja4_hash: "t13d1812h2_550b4e068e1c_e4468f7f2fb4",
                     user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
                     cipher_suites: ciphers,
@@ -391,12 +394,13 @@ impl DynamicTlsFingerprint {
                     extensions.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("-"),
                     supported_groups.iter().map(|g| g.to_string()).collect::<Vec<_>>().join("-"),
                 );
+                let ja3_hash = wraith_core::crypto::md5_hex(ja3_raw.as_bytes());
 
                 Self {
                     browser,
                     name: "Microsoft Edge v131 (Windows 11 x86_64)",
                     ja3_raw,
-                    ja3_hash: "9ef62e088d8b94a2fa368297b830d6bf",
+                    ja3_hash,
                     ja4_hash: "t13d1516h2_8daaf6152771_f00cd096f8c7",
                     user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
                     cipher_suites: ciphers,

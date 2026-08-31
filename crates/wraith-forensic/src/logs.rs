@@ -75,7 +75,7 @@ pub fn clear_system_logs() -> Result<usize> {
     Ok(cleared)
 }
 
-pub fn run_full_cleanup(thorough: bool) -> Result<usize> {
+pub fn run_full_cleanup(thorough: bool, is_emergency: bool) -> Result<usize> {
     let mut total_ops = 0;
 
     let _ = clear_dns_and_arp_caches();
@@ -90,7 +90,7 @@ pub fn run_full_cleanup(thorough: bool) -> Result<usize> {
             total_ops += count;
         }
         let _ = crate::memory::clear_memory_caches();
-        let _ = crate::memory::overwrite_swap();
+        let _ = crate::memory::overwrite_swap(is_emergency);
         total_ops += 2;
     }
 
@@ -99,7 +99,7 @@ pub fn run_full_cleanup(thorough: bool) -> Result<usize> {
 
 pub fn panic_emergency_purge(self_destruct: bool) -> Result<usize> {
     info!("EXECUTING EMERGENCY PANIC PURGE (Ctrl+C / SIGINT)");
-    let mut ops = run_full_cleanup(true)?;
+    let mut ops = run_full_cleanup(true, true)?;
 
     // Shred state and config artifacts
     let ephemeral_targets = [

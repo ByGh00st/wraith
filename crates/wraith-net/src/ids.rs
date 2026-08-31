@@ -782,11 +782,11 @@ impl EgressIntrusionDetector {
                             let n = res as usize;
                             telemetry.packets_inspected.fetch_add(1, Ordering::Relaxed);
 
-                            // In-flight DPI tool signature sanitization & unrecognized UA detection
+                            // Passive DPI tool signature detection & unrecognized UA flagging
                             let (sanitized, unrecognized) = HttpToolSanitizer::sanitize_in_flight(&mut buf[..n]);
                             if sanitized > 0 {
                                 telemetry.signatures_auto_sanitized.fetch_add(sanitized as u64, Ordering::Relaxed);
-                                info!("⚔️ DPI SANITIZER: Automatically rewritten {sanitized} offensive tool signature(s) to authentic browser headers");
+                                info!("🔍 DPI MONITOR: Detected {sanitized} offensive tool signature(s) during packet inspection");
                             }
 
                             if let Some(custom_ua) = unrecognized {

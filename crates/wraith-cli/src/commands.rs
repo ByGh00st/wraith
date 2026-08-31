@@ -31,23 +31,64 @@ use crate::display::{
     show_status_dashboard,
 };
 use crate::tui::SovereignDashboard;
+use tokio_util::sync::CancellationToken;
 
-pub async fn cmd_start(
-    mac: bool,
-    bridge: bool,
-    namespace: bool,
-    profile: Option<String>,
-    harden: bool,
-    shield: bool,
-    font_jail: bool,
-    tcp_mask: bool,
-    cloaking: bool,
-    jitter: bool,
-    black_level: bool,
-    gen4: bool,
-    self_destruct: bool,
-    no_killswitch: bool,
-) -> Result<()> {
+#[derive(Default)]
+struct BackgroundServices {
+    jitter: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+    tls: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+    dns: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+    ids: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+    killswitch: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+}
+
+impl BackgroundServices {
+    pub async fn shutdown_and_join(mut self) {
+        // 1. Signal cancellation to all running tasks
+        if let Some((ct, _)) = &self.jitter {
+            ct.cancel();
+        }
+        if let Some((ct, _)) = &self.tls {
+            ct.cancel();
+        }
+        if let Some((ct, _)) = &self.dns {
+            ct.cancel();
+        }
+        if let Some((ct, _)) = &self.ids {
+            ct.cancel();
+        }
+        if let Some((ct, _)) = &self.killswitch {
+            ct.cancel();
+        }
+
+        // 2. Wait for handles to terminate with a bounded graceful timeout (1500ms)
+        let join_task = |name: &'static str, handle: tokio::task::JoinHandle<()>| async move {
+            match tokio::time::timeout(Duration::from_millis(1500), handle).await {
+                Ok(Ok(())) => tracing::debug!("Background service '{name}' stopped cleanly"),
+                Ok(Err(e)) => tracing::warn!("Background service '{name}' task error: {e}"),
+                Err(_) => tracing::warn!("Background service '{name}' shutdown timed out (1500ms)"),
+            }
+        };
+
+        if let Some((_, h)) = self.jitter.take() {
+            join_task("Traffic Jitter", h).await;
+        }
+        if let Some((_, h)) = self.tls.take() {
+            join_task("TLS Camouflage", h).await;
+        }
+        if let Some((_, h)) = self.dns.take() {
+            join_task("DNS Engine", h).await;
+        }
+        if let Some((_, h)) = self.ids.take() {
+            join_task("IDS Sniffer", h).await;
+        }
+        if let Some((_, h)) = self.killswitch.take() {
+            join_task("KillSwitch Watchdog", h).await;
+        }
+    }
+}
+
+pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     print_banner();
     let state_mgr = StateManager::default();
 
@@ -56,22 +97,58 @@ pub async fn cmd_start(
         return Ok(());
     }
 
-    let is_apex = black_level || gen4;
+    let is_apex = args.strict_hardening;
     let mut state_data = StateData::default();
+    let mut bg_services = BackgroundServices::default();
 
-    // 0. Sovereign Process Memory & Kernel Lockdown (GEN-4 DMA / Anti-PTRACE)
+    // 0. Kernel Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)
     print_step("Enforcing Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)...", "info");
-    let _ = enforce_process_lockdown();
-    print_step("Process memory secured against debuggers & forensic memory dumpers", "ok");
+    match enforce_process_lockdown() {
+        Ok(()) => print_step("Process memory secured against dumpers (PR_SET_DUMPABLE=0, mlockall)", "ok"),
+        Err(e) => print_step(&format!("Process memory lockdown warning: {e}"), "warn"),
+    }
 
     if is_apex {
         print_step("Enforcing Linux Kernel Lockdown & DMA Hardware Defense...", "info");
-        let _ = enforce_kernel_lockdown();
-        print_step("Kernel Lockdown evaluated (/dev/mem & DMA IOMMU protection verified)", "ok");
+        match enforce_kernel_lockdown() {
+            Ok(lockdown) => print_step(&format!("Kernel Lockdown evaluated ({:?}, /dev/mem & DMA IOMMU verified)", lockdown), "ok"),
+            Err(e) => print_step(&format!("Kernel Lockdown warning: {e}"), "warn"),
+        }
+    }
+
+    // 0a. Explicit Anti-Debug Suicide Trap (Aggressive Defense Opt-In)
+    if args.aggressive_anti_debug {
+        print_step("Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...", "info");
+        match wraith_forensic::AntiDebugProbe::enforce_anti_debug_trap(is_apex) {
+            Ok(()) => print_step("Anti-debug trap armed [EXPLICIT OPT-IN]", "ok"),
+            Err(e) => print_step(&format!("Anti-debug probe warning: {e}"), "warn"),
+        }
+    }
+
+    // 0b. Explicit Process Masquerading (Red Team / Evasion Opt-In)
+    if args.aggressive_masquerade {
+        print_step("Masking process name in kernel scheduler ([kworker/u16:0])...", "info");
+        match wraith_forensic::cloaked_process_masquerade("[kworker/u16:0]") {
+            Ok(()) => print_step("Process identity cloaked as kernel worker [EXPLICIT OPT-IN]", "ok"),
+            Err(e) => print_step(&format!("Process masquerade warning: {e}"), "warn"),
+        }
+    }
+
+    // 0c. Explicit Destructive Log & History Wipe (Destructive Cleanup Opt-In)
+    if args.forensic_wipe_logs {
+        print_step("Executing destructive system event log and history wipe...", "warn");
+        match wraith_forensic::scrub_system_logs() {
+            Ok(count) => print_step(&format!("Scrubbed {count} system log file(s)"), "ok"),
+            Err(e) => print_step(&format!("System log scrub failed: {e}"), "warn"),
+        }
+        match wraith_forensic::wipe_all_user_histories() {
+            Ok(count) => print_step(&format!("Wiped {count} shell history file(s) [EXPLICIT OPT-IN]"), "ok"),
+            Err(e) => print_step(&format!("History wipe failed: {e}"), "warn"),
+        }
     }
 
     // 1. MAC & Hostname Randomization
-    if mac || is_apex {
+    if args.mac || is_apex {
         print_step("Randomizing hardware L2 MAC address...", "info");
         match change_mac(None, None) {
             Ok((iface, old_m, new_m)) => {
@@ -83,43 +160,50 @@ pub async fn cmd_start(
             Err(e) => print_step(&format!("MAC randomization skipped: {e}"), "warn"),
         }
 
-        if let Ok((old_h, new_h)) = randomize_hostname() {
-            print_step(&format!("Hostname randomized: {old_h} ➔ {new_h}"), "ok");
-            state_data.hostname_old = Some(old_h);
+        match randomize_hostname() {
+            Ok((old_h, new_h)) => {
+                print_step(&format!("Hostname randomized: {old_h} ➔ {new_h}"), "ok");
+                state_data.hostname_old = Some(old_h);
+            }
+            Err(e) => print_step(&format!("Hostname randomization warning: {e}"), "warn"),
         }
     }
 
     // 2. Machine-ID & Hardware DMI Cloaking
-    if cloaking || is_apex {
+    if args.machine_id_rotation || is_apex {
         print_step("Rotating OS /etc/machine-id unique hardware identifier...", "info");
-        if let Ok((old_mid, new_mid)) = rotate_machine_id() {
-            print_step(&format!("Machine-ID rotated: {old_mid} ➔ {new_mid}"), "ok");
-            state_data.machine_id_old = Some(old_mid);
+        match rotate_machine_id() {
+            Ok((old_mid, new_mid)) => {
+                print_step(&format!("Machine-ID rotated: {old_mid} ➔ {new_mid}"), "ok");
+                state_data.machine_id_old = Some(old_mid);
+            }
+            Err(e) => print_step(&format!("Machine-ID rotation warning: {e}"), "warn"),
         }
     }
 
     // 3. TCP/IP Stack Normalization (p0f OS Fingerprint Evasion)
-    if tcp_mask || is_apex {
+    if args.tcp_mask || is_apex {
         print_step("Normalizing TCP/IP L4 Stack (p0f/TTL/Window Evasion)...", "info");
-        if backup_and_apply_tcp_mask().is_ok() {
-            print_step("TCP/IP stack forged: TTL=128 (Windows Profile), timestamps=0", "ok");
-            state_data.tcp_stack_masked = true;
+        match backup_and_apply_tcp_mask() {
+            Ok(_backup_map) => {
+                print_step("TCP/IP stack forged: TTL=128 (Windows Profile), timestamps=0", "ok");
+                state_data.tcp_stack_masked = true;
+            }
+            Err(e) => print_step(&format!("TCP/IP stack normalization warning: {e}"), "warn"),
         }
     }
 
-    // 4. JA3/JA4 TLS ClientHello Camouflage SOCKS5 Proxy (GEN-4)
-    let (_tls_server, tls_cancel) = if is_apex {
+    // 4. JA3/JA4 TLS ClientHello Camouflage SOCKS5 Proxy
+    if is_apex {
         let (server, ct) = TlsCamouflageServer::new(None);
-        server.spawn_server();
+        let handle = server.spawn_server();
         let prof = get_active_tls_profile();
         print_step(&format!("Armed JA3/JA4 TLS Camouflage Proxy on 127.0.0.1:9055 ({}, JA4: {})", prof.name, prof.ja4_hash), "ok");
-        (Some(()), Some(ct))
-    } else {
-        (None, None)
-    };
+        bg_services.tls = Some((ct, handle));
+    }
 
     // 5. Tor Configuration & Bridges
-    if bridge {
+    if args.bridge {
         print_step("Configuring censorship-resistant obfs4 bridges...", "info");
         match write_bridge_torrc(None) {
             Ok(count) => {
@@ -140,7 +224,9 @@ pub async fn cmd_start(
 
     // 6. DNS Configuration
     print_step("Configuring local Tor transparent DNS...", "info");
-    let _ = backup_resolv();
+    if let Err(e) = backup_resolv() {
+        tracing::warn!("Failed creating resolv.conf backup: {e}");
+    }
     configure_dns()?;
     print_step("DNS bound to 127.0.0.1 (Tor Port 5353)", "ok");
 
@@ -150,17 +236,20 @@ pub async fn cmd_start(
     print_step("Tor daemon active & verified", "ok");
 
     // 8. Exit Node Profile
-    let exit_prof = if is_apex && profile.is_none() {
+    let exit_prof = if is_apex && args.profile.is_none() {
         Some("stealth".to_string())
     } else {
-        profile
+        args.profile
     };
 
     if let Some(prof_name) = &exit_prof {
         print_step(&format!("Applying geographic exit profile: {prof_name}..."), "info");
-        if let Ok(p) = apply_exit_profile(prof_name).await {
-            print_step(&format!("Profile '{}' active ({})", p.name, p.desc), "ok");
-            state_data.exit_profile = Some(prof_name.clone());
+        match apply_exit_profile(prof_name).await {
+            Ok(p) => {
+                print_step(&format!("Profile '{}' active ({})", p.name, p.desc), "ok");
+                state_data.exit_profile = Some(prof_name.clone());
+            }
+            Err(e) => print_step(&format!("Exit profile error: {e}"), "warn"),
         }
     }
 
@@ -178,51 +267,72 @@ pub async fn cmd_start(
     block_stun_ports()?;
     print_step("STUN/TURN ports blocked", "ok");
 
-    // 10. eBPF / TC Egress Fastpath (GEN-4 Ring 0 Driver Filter)
+    // 10. eBPF / TC Egress Fastpath Filter
     if is_apex {
         print_step("Injecting Linux Traffic Control (TC) / eBPF Egress Fastpath...", "info");
-        if let Ok(mut fp) = EgressFastpath::new(None) {
-            let _ = fp.attach();
+        match EgressFastpath::new(None) {
+            Ok(mut fp) => {
+                if let Err(e) = fp.attach() {
+                    print_step(&format!("eBPF Fastpath attach warning: {e}"), "warn");
+                } else {
+                    print_step("eBPF TC Egress Fastpath attached", "ok");
+                }
+            }
+            Err(e) => print_step(&format!("eBPF Fastpath init error: {e}"), "warn"),
         }
     }
 
-    // 11. Seccomp-BPF Syscall Sandboxing (GEN-4 Raw Socket Killer)
+    // 11. Seccomp-BPF Syscall Sandboxing (Raw Socket Filter)
     if is_apex {
         print_step("Arming Seccomp-BPF Syscall Filter (SOCK_RAW / AF_PACKET hook trap)...", "info");
-        let _ = enforce_seccomp_socket_jail();
-        print_step("Syscall filter active: Rogue raw sockets will trigger immediate SIGSYS", "ok");
-    }
-
-    // 12. Sovereign Hardware, GPU, Font & Resolution Shield
-    if shield || harden || is_apex {
-        print_step("Deploying GPU, WebGL, Font & Resolution Anti-Fingerprint Shield...", "info");
-        if let Ok(count) = deploy_hardware_and_font_shield() {
-            print_step(&format!("Injected anti-fingerprint shield into {count} browser profile(s)"), "ok");
-            state_data.browser_hardened = count;
+        match enforce_seccomp_socket_jail() {
+            Ok(()) => print_step("Syscall filter active: Rogue raw sockets will trigger immediate SIGSYS", "ok"),
+            Err(e) => print_step(&format!("Seccomp-BPF jail warning: {e}"), "warn"),
         }
     }
 
-    // 13. System-level Font Jail
-    if font_jail || is_apex {
+    // 12. Hardware, GPU, Font & Resolution Browser Shield
+    if args.browser_shield || is_apex {
+        print_step("Deploying GPU, WebGL, Font & Resolution Anti-Fingerprint Shield...", "info");
+        match deploy_hardware_and_font_shield() {
+            Ok(count) => {
+                print_step(&format!("Injected anti-fingerprint shield into {count} browser profile(s)"), "ok");
+                state_data.browser_hardened = count;
+            }
+            Err(e) => print_step(&format!("Browser shield warning: {e}"), "warn"),
+        }
+    }
+
+    // 13. System-level Font Sandbox
+    if args.font_sandbox || is_apex {
         print_step("Restricting OS-level font discovery (fontconfig sandbox)...", "info");
-        if enforce_font_jail().is_ok() {
-            print_step("System-level font sandbox active", "ok");
+        match enforce_font_jail() {
+            Ok(()) => print_step("System-level font sandbox active", "ok"),
+            Err(e) => print_step(&format!("Font sandbox warning: {e}"), "warn"),
         }
     }
 
     // 14. cgroup2 Network Socket Jail
     if is_apex {
-        let _ = create_cgroup_jail();
-        let _ = wraith_net::attach_pid_to_cgroup(std::process::id());
-        print_step("cgroup2 network socket jail active", "ok");
+        if let Err(e) = create_cgroup_jail() {
+            tracing::warn!("cgroup2 jail creation warning: {e}");
+        }
+        if let Err(e) = wraith_net::attach_pid_to_cgroup(std::process::id()) {
+            tracing::warn!("cgroup2 attach pid warning: {e}");
+        } else {
+            print_step("cgroup2 network socket jail active", "ok");
+        }
     }
 
     // 15. Network Namespace
-    if namespace || is_apex {
+    if args.namespace || is_apex {
         print_step("Creating isolated Linux Network Namespace...", "info");
-        if create_namespace().is_ok() {
-            print_step("Process namespace jail armed (10.200.1.0/24)", "ok");
-            state_data.namespace_active = true;
+        match create_namespace() {
+            Ok(()) => {
+                print_step("Process namespace jail armed (10.200.1.0/24)", "ok");
+                state_data.namespace_active = true;
+            }
+            Err(e) => print_step(&format!("Network namespace warning: {e}"), "warn"),
         }
     }
 
@@ -238,65 +348,66 @@ pub async fn cmd_start(
     }
 
     // 17. Background Traffic Padding & Anti-Correlation Jitter
-    let (_jitter_engine, jitter_cancel) = if jitter || is_apex {
+    if args.jitter || is_apex {
         print_step("Spawning Traffic Padding & Anti-Correlation Jitter engine...", "info");
         let (je, ct) = TrafficJitterEngine::new();
-        je.spawn_obfuscator();
+        let handle = je.spawn_obfuscator();
         print_step("Synthetic traffic padding active (200-1400ms Poisson jitter)", "ok");
-        (Some(()), Some(ct))
-    } else {
-        (None, None)
-    };
+        bg_services.jitter = Some((ct, handle));
+    }
 
     // 18. Encrypted In-Memory Ephemeral RAMFS Vault
     let _ram_vault = if is_apex {
-        print_step("Constructing Sovereign In-Memory ChaCha20-Poly1305 Encrypted Vault (/dev/shm)...", "info");
-        if let Ok(mut vault) = EncryptedRamVault::init() {
-            let secret_payload = serde_json::to_vec(&state_data).unwrap_or_default();
-            let _ = vault.write_secret("session.state.enc", &secret_payload);
-            print_step("Encrypted RAMFS Vault active (MADV_DONTDUMP memory locked)", "ok");
-            Some(vault)
-        } else {
-            None
+        print_step("Constructing In-Memory ChaCha20-Poly1305 Encrypted Vault (/dev/shm)...", "info");
+        match EncryptedRamVault::init() {
+            Ok(mut vault) => {
+                let secret_payload = serde_json::to_vec(&state_data).unwrap_or_default();
+                if let Err(e) = vault.write_secret("session.state.enc", &secret_payload) {
+                    tracing::warn!("Encrypted vault write warning: {e}");
+                }
+                print_step("Encrypted RAMFS Vault active (MADV_DONTDUMP memory locked)", "ok");
+                Some(vault)
+            }
+            Err(e) => {
+                print_step(&format!("Encrypted RAMFS Vault init warning: {e}"), "warn");
+                None
+            }
         }
     } else {
         None
     };
 
-    // 19. Sovereign Async DNS Engine with EDNS0 Padding & Sinkhole
-    let (_dns_engine, dns_cancel) = if is_apex {
-        print_step("Spawning Sovereign RFC 1035 DNS Proxy Engine with EDNS0 Padding...", "info");
+    // 19. Async DNS Engine with EDNS0 Padding & Sinkhole
+    if is_apex {
+        print_step("Spawning RFC 1035 DNS Proxy Engine with EDNS0 Padding...", "info");
         let (dns_srv, ct) = SovereignDnsEngine::new(None, None);
-        dns_srv.spawn_server();
-        print_step("Sovereign DNS Engine active on 127.0.0.1:53 (EDNS0 468B Padded + Telemetry Sinkhole)", "ok");
-        (Some(()), Some(ct))
-    } else {
-        (None, None)
-    };
+        let handle = dns_srv.spawn_server();
+        print_step("DNS Engine active on 127.0.0.1:53 (EDNS0 468B Padded + Telemetry Sinkhole)", "ok");
+        bg_services.dns = Some((ct, handle));
+    }
 
     // 20. Zero-Copy IDS Raw Packet Sniffer & Egress Watchdog
-    let (_ids_sniffer, ids_cancel) = if is_apex {
-        print_step("Arming Sovereign Zero-Copy IDS Raw Packet Sniffer (AF_PACKET)...", "info");
+    if is_apex {
+        print_step("Arming Zero-Copy IDS Raw Packet Sniffer (AF_PACKET)...", "info");
         let (ids, _telemetry, ct) = EgressIntrusionDetector::new();
-        ids.spawn_sniffer();
+        let handle = ids.spawn_sniffer();
         print_step("Zero-Copy IDS Egress Watchdog active: Real-time clearnet leak traps armed", "ok");
-        (Some(()), Some(ct))
-    } else {
-        (None, None)
-    };
+        bg_services.ids = Some((ct, handle));
+    }
 
     // 21. KillSwitch Daemon
     state_data.ip = tor_ip;
-    state_data.kill_switch = !no_killswitch;
+    state_data.kill_switch = !args.no_ks;
     state_mgr.activate(state_data)?;
 
-    print_success("Wraith GEN-4 Sovereign Black-Level Anonymization Established");
+    print_success("Wraith High-Assurance Privacy Engine Established");
     print_pentest_notice();
 
-    if !no_killswitch {
+    if !args.no_ks {
         print_step("Arming async Fail-Closed watchdog...", "info");
         let (ks, cancel_token) = KillSwitch::new();
-        ks.spawn_monitor();
+        let ks_handle = ks.spawn_monitor();
+        bg_services.killswitch = Some((cancel_token, ks_handle));
         print_step("Watchdog active (SIGINT/SIGTERM/SIGHUP will trigger Panic Purge & Clean Shutdown)\n", "ok");
 
         #[cfg(unix)]
@@ -306,7 +417,7 @@ pub async fn cmd_start(
 
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
-                println!("\n  [🚨 EMERGENCY SIGNAL: SIGINT (Ctrl+C)] Executing Sovereign Panic Purge...");
+                println!("\n  [🚨 EMERGENCY SIGNAL: SIGINT (Ctrl+C)] Executing Panic Purge...");
             }
             _ = async {
                 #[cfg(unix)]
@@ -318,7 +429,7 @@ pub async fn cmd_start(
                 #[cfg(not(unix))]
                 std::future::pending::<()>().await;
             } => {
-                println!("\n  [🚨 EMERGENCY SIGNAL: SIGTERM] Executing Sovereign Panic Purge...");
+                println!("\n  [🚨 EMERGENCY SIGNAL: SIGTERM] Executing Panic Purge...");
             }
             _ = async {
                 #[cfg(unix)]
@@ -330,24 +441,14 @@ pub async fn cmd_start(
                 #[cfg(not(unix))]
                 std::future::pending::<()>().await;
             } => {
-                println!("\n  [🚨 EMERGENCY SIGNAL: SIGHUP] Executing Sovereign Panic Purge...");
+                println!("\n  [🚨 EMERGENCY SIGNAL: SIGHUP] Executing Panic Purge...");
             }
         }
 
-        if let Some(jc) = jitter_cancel {
-            jc.cancel();
-        }
-        if let Some(tc) = tls_cancel {
-            tc.cancel();
-        }
-        if let Some(dc) = dns_cancel {
-            dc.cancel();
-        }
-        if let Some(ic) = ids_cancel {
-            ic.cancel();
-        }
-        cancel_token.cancel();
-        cmd_stop(self_destruct).await?;
+        // Gracefully cancel and wait on all background task join handles
+        bg_services.shutdown_and_join().await;
+
+        cmd_stop(args.forensic_self_destruct).await?;
     } else {
         println!("  Run 'sudo wraith stop' to restore network.\n");
     }
@@ -361,13 +462,23 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let state_info = state_mgr.read();
 
     print_step("Flushing netfilter firewall rules...", "info");
-    let _ = flush_rules();
-    let _ = flush_ipv6_block();
-    let _ = unblock_stun_ports();
-    let _ = destroy_cgroup_jail();
+    if let Err(e) = flush_rules() {
+        tracing::warn!("Flush rules warning: {e}");
+    }
+    if let Err(e) = flush_ipv6_block() {
+        tracing::warn!("Flush IPv6 warning: {e}");
+    }
+    if let Err(e) = unblock_stun_ports() {
+        tracing::warn!("Unblock STUN warning: {e}");
+    }
+    if let Err(e) = destroy_cgroup_jail() {
+        tracing::warn!("Destroy cgroup warning: {e}");
+    }
 
     if let Ok(mut fp) = EgressFastpath::new(None) {
-        let _ = fp.detach();
+        if let Err(e) = fp.detach() {
+            tracing::warn!("Fastpath detach warning: {e}");
+        }
     }
     print_step("Firewall reset to default ACCEPT", "ok");
 
@@ -376,13 +487,19 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     print_step("Tor daemon offline", "ok");
 
     print_step("Restoring system DNS resolution...", "info");
-    let _ = restore_dns();
-    print_step("DNS restored", "ok");
+    if let Err(e) = restore_dns() {
+        print_step(&format!("Restore DNS warning: {e}"), "warn");
+    } else {
+        print_step("DNS restored", "ok");
+    }
 
     if let (Some(iface), Some(old_mac)) = (&state_info.mac_interface, &state_info.mac_old) {
         print_step("Restoring hardware MAC address...", "info");
-        let _ = restore_mac(iface, old_mac);
-        print_step("Hardware MAC restored", "ok");
+        if let Err(e) = restore_mac(iface, old_mac) {
+            print_step(&format!("Restore MAC warning: {e}"), "warn");
+        } else {
+            print_step("Hardware MAC restored", "ok");
+        }
     }
 
     if let Some(old_host) = &state_info.hostname_old {
@@ -392,8 +509,11 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
     if let Some(old_mid) = &state_info.machine_id_old {
         print_step("Restoring original OS machine-id...", "info");
-        let _ = restore_machine_id(old_mid);
-        print_step("Machine-ID restored", "ok");
+        if let Err(e) = restore_machine_id(old_mid) {
+            print_step(&format!("Restore machine-id warning: {e}"), "warn");
+        } else {
+            print_step("Machine-ID restored", "ok");
+        }
     }
 
     if state_info.tcp_stack_masked {
@@ -401,28 +521,42 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         let mut default_map = std::collections::HashMap::new();
         default_map.insert("net.ipv4.ip_default_ttl".to_string(), "64".to_string());
         default_map.insert("net.ipv4.tcp_timestamps".to_string(), "1".to_string());
-        let _ = restore_tcp_stack(&default_map);
-        print_step("TCP/IP stack restored", "ok");
+        if let Err(e) = restore_tcp_stack(&default_map) {
+            print_step(&format!("Restore TCP stack warning: {e}"), "warn");
+        } else {
+            print_step("TCP/IP stack restored", "ok");
+        }
     }
 
     if state_info.namespace_active {
         print_step("Demolishing network namespace...", "info");
-        let _ = destroy_namespace();
-        print_step("Namespace purged", "ok");
+        if let Err(e) = destroy_namespace() {
+            print_step(&format!("Destroy namespace warning: {e}"), "warn");
+        } else {
+            print_step("Namespace purged", "ok");
+        }
     }
 
     if state_info.browser_hardened > 0 {
         print_step("Removing hardware and font shield...", "info");
-        let _ = remove_hardware_and_font_shield();
-        let _ = restore_font_jail();
+        if let Err(e) = remove_hardware_and_font_shield() {
+            print_step(&format!("Remove browser shield warning: {e}"), "warn");
+        }
+        if let Err(e) = restore_font_jail() {
+            print_step(&format!("Restore font sandbox warning: {e}"), "warn");
+        }
         print_step("Browser profiles and font config reverted", "ok");
     }
 
     print_step("Executing anti-forensic memory & volatile state purge...", "info");
-    let _ = panic_emergency_purge(self_destruct);
+    if let Err(e) = panic_emergency_purge(self_destruct) {
+        print_step(&format!("Emergency purge warning: {e}"), "warn");
+    }
     print_step("RAM caches, ARP tables, logs, and volatile state eradicated", "ok");
 
-    let _ = state_mgr.deactivate();
+    if let Err(e) = state_mgr.deactivate() {
+        tracing::warn!("State manager deactivation error: {e}");
+    }
     sleep(Duration::from_secs(1)).await;
     let real_ip = get_current_ip().await.unwrap_or_else(|| "Unknown".into());
 
@@ -485,7 +619,7 @@ pub async fn cmd_cleanup(full: bool) -> Result<()> {
     let mode = if full { "FULL (Thorough RAM + Swap + Logs)" } else { "Quick (Logs + Caches)" };
     print_step(&format!("Executing {mode} anti-forensic purge..."), "info");
 
-    let count = run_full_cleanup(full)?;
+    let count = run_full_cleanup(full, false)?;
     print_success(&format!("Anti-forensic purge complete ({count} operations executed)"));
     Ok(())
 }

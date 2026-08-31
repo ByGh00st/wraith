@@ -65,7 +65,7 @@ impl TlsCamouflageServer {
             let addr = format!("127.0.0.1:{}", self.port);
             let listener = match TcpListener::bind(&addr).await {
                 Ok(l) => {
-                    info!("JA3/JA4 TLS Camouflage SOCKS5 Proxy listening on {addr} (Bridging to Tor :{TOR_SOCKS_PORT})");
+                    info!("JA3/JA4 TLS Camouflage SOCKS5 Proxy listening on {addr} (Bridging to Tor :{TOR_SOCKS_PORT}) [EXPERIMENTAL: passive relay only, ClientHello not yet rewritten]");
                     l
                 }
                 Err(e) => {

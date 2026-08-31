@@ -137,9 +137,31 @@ impl TorControlClient {
 
     pub async fn get_info(&mut self, key: &str) -> Result<String> {
         let lines = self.send_command(&format!("GETINFO {key}")).await?;
+        if lines.is_empty() {
+            return Ok(String::new());
+        }
+
+        // Check for multiline response: 250+key= \n lines... \n . \n 250 OK
+        if let Some(first_line) = lines.first() {
+            if first_line.starts_with(&format!("250+{key}=")) || first_line.starts_with("250+") {
+                let mut data_lines = Vec::new();
+                for line in &lines[1..] {
+                    if line == "." || line == "250 OK" || line.starts_with("250 ") {
+                        break;
+                    }
+                    data_lines.push(line.as_str());
+                }
+                return Ok(data_lines.join("\n"));
+            }
+        }
+
+        // Single line response 250-key=val or 250 key=val
         for line in lines {
             if let Some(pos) = line.find('=') {
-                return Ok(line[pos + 1..].to_string());
+                let val = line[pos + 1..].trim();
+                if !val.is_empty() {
+                    return Ok(val.to_string());
+                }
             }
         }
         Ok(String::new())

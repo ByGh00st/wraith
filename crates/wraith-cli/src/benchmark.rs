@@ -1,5 +1,5 @@
-//! Wraith Sovereign Cryptographic & Kernel Subsystem Benchmark Suite
-//! Measures real-time throughput (MB/s) and latency of ChaCha20, SHA256, HMAC, and Netlink encoders.
+//! Wraith Cryptographic & Kernel Subsystem Benchmark Suite
+//! Measures real-time throughput (MB/s) and latency of ChaCha20-Poly1305, SHA256, HMAC, and Netlink encoders.
 
 #![allow(dead_code)]
 
@@ -7,7 +7,7 @@ use std::time::Instant;
 use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
 use owo_colors::OwoColorize;
 use wraith_core::crypto::{HmacSha256, Sha256};
-use wraith_core::vault::chacha20_xor;
+use wraith_core::vault::chacha20_poly1305_encrypt;
 use wraith_guard::dns_engine::DnsPacket;
 use wraith_net::netlink::{NetlinkSocket, IFLA_ADDRESS};
 
@@ -27,9 +27,9 @@ impl BenchmarkSuite {
     pub fn run_all() -> Vec<BenchmarkResult> {
         let mut results = Vec::new();
 
-        println!("\n  {} {}", "🚀".bright_cyan(), "RUNNING WRAITH HIGH-PERFORMANCE KERNEL BENCHMARKS...".bright_cyan().bold());
+        println!("\n  {} {}", "🚀".bright_cyan(), "RUNNING HIGH-PERFORMANCE CRYPTOGRAPHIC & KERNEL BENCHMARKS...".bright_cyan().bold());
 
-        results.push(Self::bench_chacha20());
+        results.push(Self::bench_chacha20_poly1305());
         results.push(Self::bench_sha256());
         results.push(Self::bench_hmac_sha256());
         results.push(Self::bench_dns_parser());
@@ -38,16 +38,17 @@ impl BenchmarkSuite {
         results
     }
 
-    fn bench_chacha20() -> BenchmarkResult {
+    fn bench_chacha20_poly1305() -> BenchmarkResult {
         let key = [0x5au8; 32];
         let nonce = [0xa5u8; 12];
+        let aad = b"auth_header";
         let block_size = 64 * 1024; // 64 KB
         let iterations = 2_000;     // 128 MB total
-        let mut data = vec![0x33u8; block_size];
+        let data = vec![0x33u8; block_size];
 
         let start = Instant::now();
         for _ in 0..iterations {
-            chacha20_xor(&key, &nonce, &mut data);
+            let _ = chacha20_poly1305_encrypt(&key, &nonce, aad, &data);
         }
         let elapsed = start.elapsed();
         let total_bytes = block_size * iterations;
@@ -56,7 +57,7 @@ impl BenchmarkSuite {
         let ops = iterations as f64 / elapsed_secs;
 
         BenchmarkResult {
-            engine: "ChaCha20 Stream Cipher",
+            engine: "ChaCha20-Poly1305 AEAD",
             iterations,
             total_bytes,
             elapsed_millis: elapsed_secs * 1000.0,

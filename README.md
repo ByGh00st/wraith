@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/LANGUAGE-PURE_RUST_2021-00d4ff?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/TARGET-x86__64--unknown--linux--gnu-ff3366?style=for-the-badge&logo=linux&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/SECURITY-ENTERPRISE_PRIVACY_STANDARD-00ff88?style=for-the-badge&logo=matrix&logoColor=white" alt="Standard">
-  <img src="https://img.shields.io/badge/TEST_SUITE-26%2F26_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/TEST_SUITE-27%2F27_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
 </p>
 
 ```ascii
@@ -17,7 +17,7 @@
 
 <h3 align="center">High-Assurance Kernel-Level Network Privacy & Anti-Fingerprinting Engine</h3>
 <p align="center">
-  <b>Engineered in Pure Rust (12,484 Lines) for Linux Systems & Security Engineering</b><br>
+  <b>Engineered in Pure Rust (9,840 Lines • 6 Crates) for Linux Systems & Security Engineering</b><br>
   <i>Ring 0/3 Hardened • Netlink FIB Engine • Zero-Copy IDS • 50+ Tool DPI Sanitizer • JA3/JA4 GREASE TLS • Encrypted RAMFS Vault</i>
 </p>
 
@@ -31,6 +31,32 @@ Built completely from scratch in pure Rust across **6 modular crates**, Wraith o
 
 ---
 
+## 📊 Codebase Metrics & Language Breakdown
+
+Verification of the complete workspace codebase generated via `tokei`:
+
+```text
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Language              Files        Lines         Code     Comments       Blanks
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Shell                     1           75           55           11            9
+ TOML                      7          182          170            0           12
+─────────────────────────────────────────────────────────────────────────────────
+ Markdown                  1          254            0          193           61
+ |- BASH                   1           28           13            8            7
+ |- Rust                   1           10           10            0            0
+ (Total)                              292           23          201           68
+─────────────────────────────────────────────────────────────────────────────────
+ Rust                     54         9048         7410          377         1261
+ |- Markdown              47          243            0          243            0
+ (Total)                             9291         7410          620         1261
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Total                    63         9840         7658          832         1350
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
 ## ⚡ Core Architectural Pillars
 
 ```mermaid
@@ -40,7 +66,7 @@ graph LR
     classDef tBox fill:#0f172a,stroke:#c084fc,stroke-width:1.5px,color:#f8fafc;
 
     subgraph G1["1. Wire & Hardware Gate"]
-        L0["🔒 RAMFS Vault & Shredder<br/><sub>ChaCha20 • mlockall • DMI Cloak</sub>"]:::kBox
+        L0["🔒 RAMFS Vault & Shredder<br/><sub>ChaCha20-Poly1305 • mlockall • DMI Cloak</sub>"]:::kBox
         L1["⚡ Netlink FIB & Seccomp<br/><sub>AF_NETLINK • Fail-Closed Gate</sub>"]:::kBox
     end
 
@@ -91,10 +117,10 @@ wraith/
 ├── build.sh                                # Production Linux Build & Installation Script
 └── crates/
     ├── wraith-core/                        # [Core & Memory Security Layer]
-    │   ├── src/crypto.rs                   # Constant-Time Cryptography (ChaCha20, Poly1305, SHA-256)
-    │   ├── src/vault.rs                    # Encrypted RAMFS Vault (mlockall, MADV_DONTDUMP, XOR Scrambler)
+    │   ├── src/crypto.rs                   # Constant-Time Cryptography (Audited SHA-256, HMAC, Poly1305)
+    │   ├── src/vault.rs                    # Encrypted RAMFS Vault (RFC 8439 ChaCha20-Poly1305, mlockall, ZeroizeOnDrop)
     │   ├── src/kernel_lockdown.rs          # Kernel Hardening (kexec disable, ptrace scope, sysctl lockdown)
-    │   ├── src/process_lockdown.rs         # Process Capability Stripping (PR_SET_NO_NEW_PRIVS)
+    │   ├── src/process_lockdown.rs         # Process Memory Lockdown (PR_SET_DUMPABLE=0, PR_SET_NO_NEW_PRIVS)
     │   └── src/state.rs                    # Atomic State Lifecycle & Safe Persistence
     │
     ├── wraith-net/                         # [Kernel Networking & DPI Layer]
@@ -107,32 +133,36 @@ wraith/
     │   ├── src/nftables.rs                 # Transactional Netfilter & iptables Fail-Closed Rule Manager
     │   └── src/traffic_shaper.rs           # Kernel TC/Netem Traffic Shaping (Jitter & Latency Obfuscation)
     │
-    ├── wraith-guard/                       # [Sovereign Defense & DNS Engine]
+    ├── wraith-guard/                       # [Defense & DNS Engine]
     │   ├── src/dns_engine.rs               # RFC 1035 UDP DNS Server + EDNS0 (468B) Padding + Sinkhole
     │   ├── src/killswitch.rs               # Fail-Closed Async Watchdog Engine (<1ms Panic Drop)
+    │   ├── src/traffic_jitter.rs           # Synthetic Poisson Traffic Cell Generator & Egress Padding
     │   ├── src/bpf_filter_engine.rs        # Classic BPF / eBPF Raw Packet Assembly & Filtering
     │   ├── src/seccomp_jail.rs             # Strict Seccomp-BPF Syscall Allowlist Filter
     │   └── src/leak.rs                     # Multi-Vector Egress Leak Auditor
     │
     ├── wraith-tor/                         # [Tor Transport & TLS Camouflage Layer]
     │   ├── src/grease.rs                   # RFC 8701 GREASE JA3/JA4 TLS 1.3 ClientHello Synthesizer
+    │   ├── src/tls_camouflage.rs           # SOCKS5 Camouflage Proxy with Dynamic JA3/JA4 Fingerprints
     │   ├── src/circuit.rs                  # Multi-Hop Circuit Topology & Geographic Profiler
     │   ├── src/control.rs                  # Tor Control Protocol Interface (SIGNAL NEWNYM, Telemetry)
     │   ├── src/onion_service.rs            # Ephemeral v3 Onion Hidden Service Controller
     │   └── src/bridge.rs                   # obfs4 / Snowflake Pluggable Transport Manager
     │
     ├── wraith-forensic/                    # [Anti-Forensics & Hardware Cloaking Layer]
-    │   ├── src/shred.rs                    # DoD 5220.22-M 7-Pass Magnetic Zeroizer
+    │   ├── src/shred.rs                    # Multi-Pass Crypto Shredder with FS Sync & Zeroization
+    │   ├── src/memory.rs                   # Volatile RAM & Swap Partition Cleaner (with 5s Emergency Timeout)
     │   ├── src/anti_debug_probe.rs         # Dynamic RE Detection (PTRACE_TRACEME, TracerPid Probe)
+    │   ├── src/display_jail.rs             # Xvfb Standardized 1920x1080@24bit Virtual Display Sandbox
     │   ├── src/hardware_cloaker.rs         # Hardware Serial & /etc/machine-id Mutator
     │   ├── src/browser.rs                  # Browser Profile Hardener (Canvas, WebGL, Audio Shield)
     │   └── src/logs.rs                     # System Journal, Bash History & Memory Dump Sanitizer
     │
     └── wraith-cli/                         # [Command Interface & TUI Dashboard]
-        ├── src/display.rs                  # Cyberpunk Terminal Presentation Engine & Telemetry Cards
-        ├── src/commands.rs                 # Subcommand Handlers (start, stop, doctor, bench, pentest)
+        ├── src/display.rs                  # Terminal Presentation Engine & Status Dashboards
+        ├── src/commands.rs                 # Subcommand Handlers with Graceful Task Handle Join
         ├── src/tui.rs                      # Interactive Real-Time Circuit & Threat Telemetry TUI
-        └── src/benchmark.rs                # Sovereign Cryptographic Throughput Benchmark
+        └── src/benchmark.rs                # High-Performance Cryptographic & Kernel Benchmark Suite
 ```
 
 ---
@@ -161,43 +191,69 @@ sudo cp target/release/wraith /usr/local/bin/wraith
 sudo wraith [COMMAND] [OPTIONS]
 ```
 
-### ⚡ Operational Modes
+### 📋 Primary Subcommands
 
 | Command | Operational Action |
 | :--- | :--- |
-| `sudo wraith --gen4` | **Apex GEN-4 Mode**: Deploys all 21 privacy layers simultaneously (Netlink, DNS Proxy, Zero-Copy IDS, DPI Sanitizer, GREASE, Seccomp, RAMFS Vault, Browser Shield). |
-| `sudo wraith --black-level` | **Maximum Hardening**: Full-spectrum network anonymization, hardware signature cloaking, and TCP stack normalization. |
-| `sudo wraith --gen4 -d` | **Ephemeral Execution**: Auto-shreds session artifacts, temporary logs, and state files via DoD 7-Pass on termination. |
-| `sudo wraith doctor` | **Kernel & System Integrity Auditor**: Verifies IPv4/IPv6 sysctls, Tor daemon state, Netlink connectivity, and seccomp features. |
-| `sudo wraith bench` | **Cryptographic Benchmark**: Evaluates ChaCha20 and SHA-256 throughput in GB/s. |
-| `sudo wraith pentest` | **Security Research Guide**: Displays guidance for running network assessment tools over anonymized circuits. |
+| `sudo wraith start [OPTIONS]` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
+| `sudo wraith stop` | **Stop Wraith**: Restores original network configuration, interfaces, and DNS. |
+| `sudo wraith switch` | **Circuit Rotation**: Issues `SIGNAL NEWNYM` to request a fresh Tor exit node identity. |
+| `sudo wraith test` | **Leak Verification Suite**: Executes active tests for DNS, IPv6, and WebRTC leaks. |
+| `sudo wraith info` | **Status Dashboard**: Displays live connection status, active exit IP, and circuit topology. |
+| `sudo wraith dashboard` | **Interactive TUI Dashboard**: Launches terminal TUI displaying real-time telemetry. |
+| `sudo wraith doctor` | **Kernel Integrity Auditor**: Audits IPv4/IPv6 sysctls, Tor daemon state, Netlink, and Seccomp. |
+| `sudo wraith benchmark` | **Cryptographic Benchmark**: Evaluates ChaCha20-Poly1305, SHA-256, HMAC, and Netlink throughput. |
+| `sudo wraith cleanup` | **Anti-Forensic Purge**: Clears volatile RAM caches, temporary state, and session traces. |
+| `sudo wraith profile <NAME>` | **Geographic Exit Profiler**: Enforces Tor exit nodes by region (`stealth`, `speed`, `research`, `darkweb`). |
+| `sudo wraith pentest` | **Security Audit Guide**: Displays guidelines for routing security assessment tools over Tor. |
 
-### 🛠️ Granular Control Flags
+---
 
-```bash
-# Maximum Stealth: MAC Randomize + NetNS Jail + Five Eyes Excluded Exits + Full GPU/Font/Resolution Shield
-sudo wraith -s -m -n -p stealth --shield --font-jail
+### 🛠️ Granular Control Flags Matrix
 
-# Hardware Cloaking & TCP/IP p0f Masking + Network Jitter
-sudo wraith -s --cloaking --tcp-mask --jitter
+```text
+Options:
+  -s, --start                      Quick start shortcut
+  -x, --stop                       Quick stop shortcut
+  -r, --switch                     Request new Tor exit node identity
+  -t, --test                       Run comprehensive leak tests
+  -i, --info                       Display telemetry dashboard & circuits
+      --dashboard                  Launch interactive terminal telemetry dashboard
+      --doctor                     Run deep multi-tier kernel diagnostics auditor
+      --bench                      Run high-performance benchmarks
+      --pentest                    Display security tool sanitization guide
+  -c, --cleanup                    Anti-forensic cleanup
+      --cleanup-full               Thorough anti-forensic purge (wipes swap, RAM caches, logs)
+  -v, --verbose                    Enable verbose debug logging
 
-# Standard Start (Fail-Closed KillSwitch ON)
-sudo wraith -s
+Network Isolation:
+  -m, --mac                        Randomize network interface L2 MAC address and hostname
+  -b, --bridge                     Route traffic through censorship-resistant obfs4 Tor bridges
+  -n, --namespace                  Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)
+  -p, --profile <PROFILE>          Enforce geographic Tor exit node profile (stealth, speed, research, darkweb)
+      --jitter                     Inject synthetic traffic cells & Poisson timing jitter (200-1400ms)
+      --no-killswitch [--no-ks]    Disable the Fail-Closed KillSwitch watchdog monitor
 
-# Censorship Bypass with obfs4 Pluggable Transports
-sudo wraith -s -b
+System Hardening:
+      --browser-shield             Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint profiles
+                                   [aliases: --shield, --harden]
+      --font-sandbox               Restrict OS-level font discovery via Fontconfig sandbox
+                                   [alias: --font-jail]
+      --tcp-mask                   Normalize TCP/IP L4 stack parameters (TTL=128, TS=0) for p0f evasion
+      --machine-id                 Rotate unique OS /etc/machine-id and system hardware identifiers
+                                   [alias: --cloaking]
+      --strict-hardening           Engage ALL 16 non-destructive hardening layers
+                                   [aliases: --black-level, --gen4, --full-defense, --apex]
 
-# Multi-Vector Leak Verification Probe
-sudo wraith -t
-
-# Live Circuit Telemetry & Active IP Check
-sudo wraith -i
-
-# Forensic Eradication (Wipe RAM caches, Swap partition, and session logs)
-sudo wraith -c --cleanup-full
-
-# Clean Stop & Restore Original Network Interface State
-sudo wraith -x
+High-Risk & Forensic Operations (Explicit Opt-In Only):
+      --forensic-wipe-logs         ⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs, and shell history
+                                   [aliases: --destructive-cleanup, --wipe-logs]
+  -d, --forensic-self-destruct     ⚠ IRREVERSIBLE: Cryptographically shred binary from disk and wipe memory on exit
+                                   [alias: --self-destruct]
+      --aggressive-masquerade      ⚠ EVASIVE: Spoof process name in scheduler as kernel worker ([kworker/u16:0])
+                                   [aliases: --process-masquerade, --cloaked-process]
+      --aggressive-anti-debug      ⚠ DEFENSIVE SUICIDE: Immediately triggers SIGKILL if attached to a debugger
+                                   [aliases: --anti-debug, --anti-ptrace]
 ```
 
 ---
@@ -267,6 +323,14 @@ What happens if an auditor uses a custom Python script, proprietary Go client, o
   ║  • Operator Control   : To pass verbatim headers, configure dedicated transparent proxy rule.  ║
   ╚════════════════════════════════════════════════════════════════════════════════════════════════╝
 ```
+
+---
+
+## 🔒 In-Memory Cryptographic Security Specifications
+
+* **RFC 8439 ChaCha20-Poly1305 AEAD**: Hardware-accelerated authenticated symmetric encryption with 256-bit keys and 96-bit nonces.
+* **Kernel Memory Protection**: All secret payloads in RAM are pinned using `libc::mlockall(MCL_CURRENT | MCL_FUTURE)` to prevent paging to swap, and protected with `libc::prctl(PR_SET_DUMPABLE, 0)` against `/proc/$PID/mem` extraction.
+* **Zeroize-On-Drop**: All in-memory cryptographic keys implement the `Zeroize` and `ZeroizeOnDrop` traits, ensuring immediate volatile memory sanitization upon variable disposal.
 
 ---
 

@@ -18,16 +18,22 @@ impl VirtualDisplay {
     pub fn spawn_standard(display: Option<&str>) -> Result<Self> {
         let disp = display.unwrap_or(DEFAULT_VIRTUAL_DISPLAY);
 
-        // Check if Xvfb is available
-        if Command::new("which").arg("Xvfb").output().is_err() {
+        // Check if Xvfb is available in PATH or standard system directories
+        let xvfb_bin = if std::path::Path::new("/usr/bin/Xvfb").exists() {
+            "/usr/bin/Xvfb"
+        } else if std::path::Path::new("/usr/local/bin/Xvfb").exists() {
+            "/usr/local/bin/Xvfb"
+        } else if Command::new("which").arg("Xvfb").output().map(|o| o.status.success()).unwrap_or(false) {
+            "Xvfb"
+        } else {
             return Err(WraithError::Forensic(
                 "Xvfb binary not found. Install with: sudo apt install xvfb".into(),
             ));
-        }
+        };
 
         info!("Spawning standardized X11 Virtual Display on {} ({STANDARD_GEOMETRY})", disp);
 
-        let child = Command::new("Xvfb")
+        let child = Command::new(xvfb_bin)
             .args([disp, "-screen", "0", STANDARD_GEOMETRY, "-ac", "+extension", "RANDR"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())

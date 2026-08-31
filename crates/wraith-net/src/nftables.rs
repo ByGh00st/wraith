@@ -82,20 +82,20 @@ pub fn apply_tor_rules() -> Result<String> {
         // --- NAT Table: Redirect DNS and TCP to Tor ---
         // 1. Exclude Tor's own process traffic
         vec!["iptables", "-t", "nat", "-A", "OUTPUT", "-m", "owner", "--uid-owner", &tor_uid_str, "-j", "RETURN"],
-
-        // 2. Redirect standard DNS queries to Tor DNSPort
-        vec!["iptables", "-t", "nat", "-A", "OUTPUT", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", &dns_port_str],
-        vec!["iptables", "-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", &dns_port_str],
     ];
 
     for cmd in commands {
         execute_command(cmd[0], &cmd[1..])?;
     }
 
-    // 3. Bypass NAT for local/loopback networks
+    // 2. Bypass NAT for local and loopback networks FIRST
     for net in LOCAL_NETWORKS.iter().chain(LOOPBACK_NETWORKS.iter()) {
         execute_command("iptables", &["-t", "nat", "-A", "OUTPUT", "-d", net, "-j", "RETURN"])?;
     }
+
+    // 3. Redirect remaining DNS queries to Tor DNSPort
+    execute_command("iptables", &["-t", "nat", "-A", "OUTPUT", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", &dns_port_str])?;
+    execute_command("iptables", &["-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", &dns_port_str])?;
 
     // 4. Redirect remaining SYN TCP traffic to Tor TransPort
     execute_command("iptables", &[

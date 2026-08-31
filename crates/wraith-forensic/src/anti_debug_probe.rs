@@ -35,9 +35,14 @@ impl AntiDebugProbe {
         {
             let res = unsafe { libc::ptrace(libc::PTRACE_TRACEME, 0, 1, 0) };
             if res < 0 {
-                // If PTRACE_TRACEME fails with -1, a debugger is already controlling our process
-                error!("🚨 FORENSIC THREAT: PTRACE_TRACEME failed — Process is under active inspection!");
-                return true;
+                // If TracerPid is actively set (> 0), an actual debugger is controlling the process
+                if Self::check_tracer_pid() {
+                    error!("🚨 FORENSIC THREAT: PTRACE_TRACEME failed with active TracerPid — Process is under active inspection!");
+                    return true;
+                }
+                // If TracerPid is 0, failure is caused by Seccomp BPF policy blocking ptrace
+                tracing::debug!("PTRACE_TRACEME returned non-zero (Seccomp BPF jail active)");
+                return false;
             }
         }
         false
@@ -55,13 +60,21 @@ impl AntiDebugProbe {
         false
     }
 
-    /// Enforces continuous anti-debugging probe. If a debugger is found, instantly terminates with SIGKILL
-    pub fn enforce_anti_debug_trap() -> Result<()> {
-        if Self::check_tracer_pid() || Self::probe_ptrace_hook() || Self::check_wchan_suspension() {
+    /// Enforces continuous anti-debugging probe. If a debugger is found, instantly terminates with SIGKILL.
+    /// When seccomp is active (e.g. is_apex mode), probe_ptrace_hook() is skipped to avoid trapped syscall faults.
+    pub fn enforce_anti_debug_trap(seccomp_active: bool) -> Result<()> {
+        let is_compromised = if seccomp_active {
+            // Under active Seccomp BPF jail, only use file-based / non-syscall procfs checks
+            Self::check_tracer_pid() || Self::check_wchan_suspension()
+        } else {
+            Self::check_tracer_pid() || Self::probe_ptrace_hook() || Self::check_wchan_suspension()
+        };
+
+        if is_compromised {
             error!("🚨 ACTIVE RECONNAISSANCE DETECTED — Executing Immediate Process Suicide");
             process::exit(137); // 128 + 9 (SIGKILL)
         }
-        info!("Anti-Debugging & Dynamic Instrumentation defenses verified");
+        info!("Anti-Debugging defenses verified (seccomp_active: {seccomp_active})");
         Ok(())
     }
 }
