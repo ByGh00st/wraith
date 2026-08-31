@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WRAITH v1.0.0 — KALI LINUX AUTOMATED FORGE & COMPILER SCRIPT
-# Sovereign Kernel Anonymization Framework
-# Built by WRAITH-PRIME / ByGhost // Sovereign Core Engine
+# WRAITH v1.1.0 — KALI LINUX AUTOMATED FORGE & COMPILER SCRIPT
+# High-Assurance Kernel Anonymization Framework
+# Built by WRAITH-PRIME / ByGhost // Core Engine
 # ==============================================================================
 
 set -euo pipefail
@@ -20,7 +20,7 @@ echo "   ██║ █╗ ██║██████╔╝███████
 echo "   ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║"
 echo "   ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║"
 echo "    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝"
-echo -e "   ${CYAN}Kernel-Grade Network Anonymization Engine for Kali Linux${NC}\n"
+echo -e "   ${CYAN}High-Assurance Network Anonymization Engine for Kali Linux${NC}\n"
 
 # 1. Check Root / Sudo
 if [ "$EUID" -ne 0 ]; then
@@ -64,10 +64,8 @@ fi
 echo -e "\n${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}[DEPLOYMENT COMPLETE] You can now execute:${NC}"
 echo -e "${CYAN}  sudo wraith -s                  # Standard Tor Fail-Closed Anonymization"
-echo -e "  sudo wraith --gen4              # GEN-4 SOVEREIGN: Seccomp-BPF + eBPF/TC + JA4 Camouflage + DMA Shield"
-echo -e "  sudo wraith --black-level       # BLACK-LEVEL: Max vectors (Shield + NetNS + MAC + TCP-Mask + Jitter)"
-echo -e "  sudo wraith --gen4 -d           # Self-Destruct: Shred all traces and binary from disk/RAM on exit"
-echo -e "  sudo wraith -s -p stealth       # Five Eyes Exclusion exit routing"
+echo -e "  sudo wraith --strict-hardening  # Maximum Hardening: All 16 defense layers active"
+echo -e "  sudo wraith -s -m -n -p stealth # Maximum Stealth: MAC + NetNS + Five Eyes Excluded Exits"
 echo -e "  sudo wraith -t                  # Multi-vector leak test (DNS, IPv6, WebRTC)"
 echo -e "  sudo wraith -i                  # Real-time telemetry dashboard & circuits"
 echo -e "  sudo wraith -x                  # Clean stop & restore original network"
