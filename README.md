@@ -252,7 +252,7 @@ High-Risk & Forensic Operations (Explicit Opt-In Only):
                                    [alias: --self-destruct]
       --aggressive-masquerade      ⚠ EVASIVE: Spoof process name in scheduler as kernel worker ([kworker/u16:0])
                                    [aliases: --process-masquerade, --cloaked-process]
-      --aggressive-anti-debug      ⚠ DEFENSIVE SUICIDE: Immediately triggers SIGKILL if attached to a debugger
+      --aggressive-anti-debug      ⚠ EMERGENCY ABORT: Immediately triggers SIGKILL if attached to a debugger
                                    [aliases: --anti-debug, --anti-ptrace]
 ```
 

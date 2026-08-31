@@ -89,12 +89,8 @@ pub struct StartArgs {
     )]
     pub aggressive_masquerade: bool,
 
-    /// ⚠ DEFENSIVE SUICIDE: Enforce anti-debugging probe; immediately triggers SIGKILL if attached to a debugger
-    #[arg(
-        long = "aggressive-anti-debug", 
-        visible_aliases = ["anti-debug", "anti-ptrace"],
-        help_heading = "High-Risk & Forensic Operations"
-    )]
+    /// ⚠ EMERGENCY ABORT: Enforce anti-debugging probe; immediately triggers SIGKILL if attached to a debugger
+    #[arg(long, visible_aliases = ["anti-debug", "anti-ptrace"], help_heading = "High-Risk & Forensic Operations")]
     pub aggressive_anti_debug: bool,
 }
 

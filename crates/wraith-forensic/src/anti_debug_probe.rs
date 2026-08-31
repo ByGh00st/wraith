@@ -71,8 +71,8 @@ impl AntiDebugProbe {
         };
 
         if is_compromised {
-            error!("🚨 ACTIVE RECONNAISSANCE DETECTED — Executing Immediate Process Suicide");
-            process::exit(137); // 128 + 9 (SIGKILL)
+            error!("🚨 ACTIVE RECONNAISSANCE DETECTED — Executing Immediate Process Abort (SIGKILL)");
+            process::abort();
         }
         info!("Anti-Debugging defenses verified (seccomp_active: {seccomp_active})");
         Ok(())

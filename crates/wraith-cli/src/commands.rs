@@ -116,7 +116,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         }
     }
 
-    // 0a. Explicit Anti-Debug Suicide Trap (Aggressive Defense Opt-In)
+    // 0a. Explicit Anti-Debug Abort Trap (Aggressive Defense Opt-In)
     if args.aggressive_anti_debug {
         print_step("Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...", "info");
         match wraith_forensic::AntiDebugProbe::enforce_anti_debug_trap(is_apex) {
