@@ -263,6 +263,19 @@ sudo wraith [COMMAND] [OPTIONS]
 
 ---
 
+### 🌐 Enterprise Internationalization (i18n) Architecture (65 Locales)
+
+Wraith integrates an enterprise-grade multi-language runtime engine powered by native compile-time dictionaries. The operational language is persistently configured during deployment (`/etc/wraith/lang`) and can be overridden dynamically per command:
+
+* **Persistent Deployment Binding**: Automatically configured via the interactive installer and stored in `/etc/wraith/lang`.
+* **Runtime Language Override**: Dynamically execute any command in any locale via `wraith --lang <CODE> [COMMAND]` (e.g., `wraith --lang tr -h` or `wraith --lang de start`).
+* **Supported Locale Matrix (65 Standard Enterprise Locales)**:
+  * **Pan-Turkic Language Group**: Turkish (`tr`), Azerbaijani (`az`), Kazakh (`kk`), Uzbek (`uz`), Kyrgyz (`ky`), Turkmen (`tk`), Uyghur (`ug`), Tatar (`tt`), Bashkir (`ba`), Chuvash (`cv`), Sakha (`sah`), Gagauz (`gag`), Crimean Tatar (`crh`), Altai (`alt`), Tuvan (`tyv`), Khakas (`kjh`), Karachay-Balkar (`krc`), Kumyk (`kum`), Nogai (`nog`).
+  * **Slavic & Eastern European**: Russian (`ru`), Ukrainian (`uk`), Bulgarian (`bg`), Serbian (`sr`), Croatian (`hr`), Bosnian (`bs`), Macedonian (`mk`), Slovenian (`sl`), Slovak (`sk`), Czech (`cs`), Polish (`pl`).
+  * **Global Strategic Locales**: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Portuguese (`pt`), Chinese (`zh`), Japanese (`ja`), Korean (`ko`), Dutch (`nl`), Swedish (`sv`), Norwegian (`no`), Danish (`da`), Finnish (`fi`), Hungarian (`hu`), Romanian (`ro`), Greek (`el`), Vietnamese (`vi`), Thai (`th`), Indonesian (`id`), Malay (`ms`), Tagalog (`tl`), Hindi (`hi`), Bengali (`bn`), Tamil (`ta`), Telugu (`te`), Mongolian (`mn`), Georgian (`ka`), Irish (`ga`), Icelandic (`is`), Estonian (`et`), Latvian (`lv`), Lithuanian (`lt`), Maltese (`mt`), Albanian (`sq`).
+
+---
+
 ### 🛠️ Granular Control Flags Matrix
 
 <details open>

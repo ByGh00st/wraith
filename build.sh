@@ -189,7 +189,8 @@ select_language_tui() {
     local CURSOR=0
     local PAGE_SIZE=10
 
-    # Hide cursor
+    # Enter Alternate Screen Buffer (isolated terminal session like htop/vim)
+    tput smcup 2>/dev/null || true
     echo -ne "\033[?25l"
 
     while true; do
@@ -200,13 +201,14 @@ select_language_tui() {
         [ "$MAX_TOP" -lt 0 ] && MAX_TOP=0
         [ "$TOP" -gt "$MAX_TOP" ] && TOP=$MAX_TOP
 
-        # Clear terminal cleanly to prevent spam/scrolling across all Linux terminals
-        tput clear 2>/dev/null || clear 2>/dev/null || printf "\033[2J\033[H"
+        # Reset screen to (0,0) with clean buffer
+        tput cup 0 0 2>/dev/null || printf "\033[H"
+        tput ed 2>/dev/null || printf "\033[J"
 
-        # Draw UI Box
-        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 SYSTEM DEFAULT LANGUAGE SELECTION // 65 LANGUAGES ] ────────────────────────┐${CLR_RESET}"
-        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigation: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Scroll │ ${CLR_WHITE}[← / → / PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm   ${CLR_CYAN}│${CLR_RESET}"
-        echo -e "${CLR_CYAN}  ├────────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+        # Draw Clean Corporate UI Box
+        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 ENTERPRISE DEFAULT LANGUAGE CONFIGURATION // 65 LOCALES ] ─────────────┐${CLR_RESET}"
+        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Controls: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Navigate │ ${CLR_WHITE}[PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm Selection  ${CLR_CYAN}│${CLR_RESET}"
+        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
 
         for ((i=TOP; i<TOP+PAGE_SIZE && i<TOTAL; i++)); do
             local item="${LANGUAGES[$i]}"
@@ -222,9 +224,9 @@ select_language_tui() {
         done
 
         local curr_fmt=$(printf "%02d" $((CURSOR + 1)))
-        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
-        echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}Selected: [${curr_fmt}/${TOTAL}] [${LANGUAGES[$CURSOR]%%:*}]${CLR_RESET}"
-        echo -e "${CLR_CYAN}  └───────────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
+        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+        echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}Active Selection: [${curr_fmt}/${TOTAL}] [${LANGUAGES[$CURSOR]%%:*}]${CLR_RESET}"
+        echo -e "${CLR_CYAN}  └───────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
 
         # Read keypress
         IFS= read -rsn1 key
@@ -256,7 +258,9 @@ select_language_tui() {
         fi
     done
 
+    # Exit Alternate Screen Buffer & Restore Cursor
     echo -ne "\033[?25h"
+    tput rmcup 2>/dev/null || true
 }
 
 SELECTED_LANG="en"
@@ -264,9 +268,22 @@ if [ -t 0 ]; then
     select_language_tui
 fi
 
+# Persistent System-Wide and User-Level Language Configuration
+mkdir -p /etc/wraith 2>/dev/null || true
+echo "$SELECTED_LANG" > /etc/wraith/lang 2>/dev/null || true
+chmod 644 /etc/wraith/lang 2>/dev/null || true
+
+for user_home in /home/* /root; do
+    if [ -d "$user_home" ]; then
+        mkdir -p "$user_home/.config/wraith" 2>/dev/null || true
+        echo "$SELECTED_LANG" > "$user_home/.config/wraith/lang" 2>/dev/null || true
+        chmod 644 "$user_home/.config/wraith/lang" 2>/dev/null || true
+    fi
+done
+
 echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 export WRAITH_LANG="$SELECTED_LANG"
-echo -e "\n        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Default System Language set to: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
+echo -e "\n        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Default System Language persistently bound to: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET} (/etc/wraith/lang)"
 
 echo -e "\n${CLR_RED}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
 echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"

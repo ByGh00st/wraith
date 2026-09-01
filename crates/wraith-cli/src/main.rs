@@ -329,18 +329,48 @@ fn check_root() -> Result<()> {
     Ok(())
 }
 
+fn detect_system_language(raw_args: &[String]) -> String {
+    // 1. CLI argument override: --lang <code>
+    for i in 0..raw_args.len() {
+        if raw_args[i] == "--lang" && i + 1 < raw_args.len() {
+            return raw_args[i + 1].clone();
+        }
+    }
+    // 2. Environment variable: WRAITH_LANG
+    if let Ok(lang) = std::env::var("WRAITH_LANG") {
+        let trimmed = lang.trim().to_string();
+        if !trimmed.is_empty() {
+            return trimmed;
+        }
+    }
+    // 3. Persistent system-wide config: /etc/wraith/lang
+    if let Ok(content) = std::fs::read_to_string("/etc/wraith/lang") {
+        let trimmed = content.trim().to_string();
+        if !trimmed.is_empty() {
+            return trimmed;
+        }
+    }
+    // 4. Persistent user config: ~/.config/wraith/lang
+    if let Ok(home) = std::env::var("HOME") {
+        let path = format!("{home}/.config/wraith/lang");
+        if let Ok(content) = std::fs::read_to_string(path) {
+            let trimmed = content.trim().to_string();
+            if !trimmed.is_empty() {
+                return trimmed;
+            }
+        }
+    }
+    // 5. Fallback
+    "en".to_string()
+}
+
 #[tokio::main]
 pub async fn main() -> Result<()> {
     install_emergency_panic_sentry();
 
-    // 1. Initialize multi-language i18n from argv or environment variable
+    // 1. Initialize multi-language i18n from argv, env, or /etc/wraith/lang
     let raw_args: Vec<String> = std::env::args().collect();
-    let mut initial_lang = std::env::var("WRAITH_LANG").unwrap_or_else(|_| "en".to_string());
-    for i in 0..raw_args.len() {
-        if raw_args[i] == "--lang" && i + 1 < raw_args.len() {
-            initial_lang = raw_args[i + 1].clone();
-        }
-    }
+    let initial_lang = detect_system_language(&raw_args);
     rust_i18n::set_locale(&initial_lang);
 
     // 2. Intercept -h / --help / help to show fully localized help screen
