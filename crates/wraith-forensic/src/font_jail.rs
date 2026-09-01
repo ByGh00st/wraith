@@ -11,21 +11,22 @@ pub const FONT_CONFIG_BACKUP: &str = "/etc/fonts/local.conf.wraith.bak";
 
 pub const RESTRICTED_FONT_XML: &str = r#"<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<!-- WRAITH SYSTEM-LEVEL FONT ENUMERATION SHIELD -->
+<!-- WRAITH SYSTEM-LEVEL FONT ENUMERATION SHIELD (STRICT WHITELIST) -->
 <fontconfig>
   <description>Wraith Base System Font Mask</description>
   <selectfont>
+    <!-- Block ALL fonts on the system -->
     <rejectfont>
-      <pattern><patelt name="family"><string>Arial</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Helvetica</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Times New Roman</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Courier New</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Verdana</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Georgia</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Comic Sans MS</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Trebuchet MS</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Impact</string></patelt></pattern>
+      <glob>*</glob>
     </rejectfont>
+    <!-- Only allow standard generic fallbacks to prevent broken rendering -->
+    <acceptfont>
+      <pattern><patelt name="family"><string>DejaVu Sans</string></patelt></pattern>
+      <pattern><patelt name="family"><string>DejaVu Serif</string></patelt></pattern>
+      <pattern><patelt name="family"><string>DejaVu Sans Mono</string></patelt></pattern>
+      <pattern><patelt name="family"><string>Liberation Sans</string></patelt></pattern>
+      <pattern><patelt name="family"><string>Noto Color Emoji</string></patelt></pattern>
+    </acceptfont>
   </selectfont>
 </fontconfig>
 "#;
@@ -47,6 +48,12 @@ pub fn enforce_font_jail() -> Result<()> {
     fs::write(target, RESTRICTED_FONT_XML).map_err(|e| {
         WraithError::Forensic(format!("Failed writing font jail configuration: {e}"))
     })?;
+
+    let _ = std::process::Command::new("fc-cache")
+        .arg("-f")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 
     info!("System-level font discovery restricted via fontconfig shield");
     Ok(())
@@ -78,5 +85,12 @@ pub fn restore_font_jail() -> Result<()> {
             }
         }
     }
+    
+    let _ = std::process::Command::new("fc-cache")
+        .arg("-f")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+
     Ok(())
 }
