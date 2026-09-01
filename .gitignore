@@ -1,0 +1,81 @@
+# ==============================================================================
+# WRAITH-PRIME SOVEREIGN .GITIGNORE MATRIX
+# Black-Level Exclusion: Binaries, Secrets, Caches, OS Artifacts, Session Dumps
+# ==============================================================================
+
+# 1. Rust Build Artifacts & Intermediate Targets
+/target/
+**/target/
+*.rlib
+*.rmeta
+*.d
+*.pdb
+*.exe
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# 2. Local State, Temporary Files & Test Suites / Residue
+tests/
+**/tests/
+crates/**/tests/
+*_test.rs
+*tests.rs
+wraith_test_*
+*.tmp
+*.temp
+*.bak
+*.bk
+*.swp
+*.swo
+*~
+.wraith.state.*
+.wraith.state
+/var/run/wraith.state
+
+# 3. Encrypted Vaults, Ephemeral Keys & Tor Artifacts
+/dev/shm/.wraith_vault/
+.wraith_vault/
+*.key
+*.pem
+*.crt
+*.p12
+*.priv
+*.secret
+hs_ed25519_secret_key
+hs_ed25519_public_key
+hostname
+auth_private_keys/
+torrc.custom
+torrc.backup
+
+# 4. Logs, Dumps & Forensics
+*.log
+logs/
+*.out
+*.core
+*.dump
+core.*
+vgcore.*
+
+# 5. Environment & Credentials
+.env
+.env.*
+!.env.example
+
+# 6. IDE, Editor & Agent Caches
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.gemini/
+.agents/
+.system_generated/
+
+# 7. OS Metadata & Filesystem Artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
