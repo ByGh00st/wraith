@@ -48,18 +48,31 @@ impl SovereignDashboard {
                 }
             };
 
+            let is_strict = state_data.namespace_active && state_data.tcp_stack_masked;
+
             // Clear screen
             print!("\x1B[2J\x1B[1;1H");
 
             // 1. Header Pane
-            println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
-            println!("  {}  {} | {} | {}",
-                "⚡ WRAITH".bold().purple(),
-                "REAL-TIME TELEMETRY DASHBOARD".bold().cyan(),
-                format!("PID: {}", std::process::id()).dimmed(),
-                "FAIL-CLOSED: ARMED".bold().green()
-            );
-            println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
+            if is_strict {
+                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().red());
+                println!("  {}  {} | {} | {}",
+                    "⚡ WRAITH".bold().red(),
+                    "MAXIMUM DEFENSE TELEMETRY HUD".bold().red(),
+                    format!("PID: {}", std::process::id()).dimmed(),
+                    "ALL LAYERS ARMED".bold().red()
+                );
+                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().red());
+            } else {
+                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
+                println!("  {}  {} | {} | {}",
+                    "⚡ WRAITH".bold().purple(),
+                    "REAL-TIME TELEMETRY DASHBOARD".bold().cyan(),
+                    format!("PID: {}", std::process::id()).dimmed(),
+                    "FAIL-CLOSED: ARMED".bold().green()
+                );
+                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
+            }
 
             // 2. Identity & Routing Grid
             println!("\n  ┌── [ IDENTITY & EXIT NODE ] ────────────────────────────────────────────────────────────┐");

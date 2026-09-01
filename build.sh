@@ -26,18 +26,18 @@ fi
 ARCH=$(uname -m)
 KERNEL_REL=$(uname -r)
 
-echo -e "\n${CLR_PURPLE}${CLR_BOLD}"
+echo -e "\n${CLR_RED}${CLR_BOLD}"
 echo "   ██╗    ██╗██████╗  █████╗ ██╗████████╗██╗  ██╗"
 echo "   ██║    ██║██╔══██╗██╔══██╗██║╚══██╔══╝██║  ██║"
 echo "   ██║ █╗ ██║██████╔╝███████║██║   ██║   ███████║"
 echo "   ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║"
 echo "   ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║"
 echo "    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝"
-echo -e "${CLR_CYAN}  ╭── [ ⚔ WRAITH-PRIME // SOVEREIGN FORGE & COMPILER ] ──────────────────────────╮"
-echo -e "  │  ${CLR_SLATE}CORE ENGINE :${CLR_RESET} ${CLR_PURPLE}${CLR_BOLD}WRAITH v1.2.0 // KERNEL ANONYMIZATION GATE${CLR_RESET}                 ${CLR_CYAN}│"
-echo -e "  │  ${CLR_SLATE}TARGET HOST :${CLR_RESET} ${CLR_EMERALD}${TARGET_OS} [${ARCH}]${CLR_RESET}                                      ${CLR_CYAN}│"
-echo -e "  │  ${CLR_SLATE}KERNEL SPEC :${CLR_RESET} ${CLR_WHITE}Linux ${KERNEL_REL}${CLR_RESET}                                             ${CLR_CYAN}│"
-echo -e "  │  ${CLR_SLATE}FORGE MODE  :${CLR_RESET} ${CLR_AMBER}${CLR_BOLD}LTO + SIMD OPTIMIZED RELEASE // FAIL-CLOSED BY DEFAULT${CLR_RESET}       ${CLR_CYAN}│"
+echo -e "${CLR_AMBER}  ╭── [ ⚔ WRAITH-PRIME // SOVEREIGN FORGE & COMPILER ] ──────────────────────────╮"
+echo -e "  │  ${CLR_SLATE}CORE ENGINE :${CLR_RESET} ${CLR_RED}${CLR_BOLD}WRAITH v1.2.0 // KERNEL ANONYMIZATION GATE${CLR_RESET}                  ${CLR_AMBER}│"
+echo -e "  │  ${CLR_SLATE}TARGET HOST :${CLR_RESET} ${CLR_EMERALD}${TARGET_OS} [${ARCH}]${CLR_RESET}                                      ${CLR_AMBER}│"
+echo -e "  │  ${CLR_SLATE}KERNEL SPEC :${CLR_RESET} ${CLR_WHITE}Linux ${KERNEL_REL}${CLR_RESET}                                             ${CLR_AMBER}│"
+echo -e "  │  ${CLR_SLATE}FORGE MODE  :${CLR_RESET} ${CLR_RED}${CLR_BOLD}LTO + SIMD OPTIMIZED RELEASE // MAXIMUM DEFENSE ARMED${CLR_RESET}        ${CLR_AMBER}│"
 echo -e "  ╰──────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
 
 # 1. Root Clearance Check
@@ -100,17 +100,17 @@ else
     exit 1
 fi
 
-echo -e "\n${CLR_PURPLE}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │                                                                               │${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_AMBER}${CLR_BOLD}sudo wraith -Fs${CLR_RESET}                 ${CLR_WHITE}➔ FULL DEFENSE: All 16 Security Layers Armed${CLR_RESET}    ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -s${CLR_RESET}                  ${CLR_WHITE}➔ Standard Fail-Closed Tor Egress Proxy${CLR_RESET}         ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -s --rotate 60${CLR_RESET}      ${CLR_WHITE}➔ Automatic Tor Circuit Rotation (60s)${CLR_RESET}          ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -r${CLR_RESET}                  ${CLR_WHITE}➔ Instant Manual Circuit & Identity Shift${CLR_RESET}       ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -i${CLR_RESET}                  ${CLR_WHITE}➔ Live GeoIP, Exit Node & Circuit Telemetry${CLR_RESET}     ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith --dashboard${CLR_RESET}         ${CLR_WHITE}➔ Interactive Terminal Telemetry HUD (TUI)${CLR_RESET}      ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -t${CLR_RESET}                  ${CLR_WHITE}➔ Multi-Vector DNS, WebRTC & IPv6 Leak Test${CLR_RESET}     ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -u${CLR_RESET}                  ${CLR_WHITE}➔ Atomic In-Place Self-Healing Updater${CLR_RESET}          ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -x${CLR_RESET}                  ${CLR_WHITE}➔ Instant Shutdown & Clean Network Restore${CLR_RESET}      ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │                                                                               │${CLR_RESET}"
-echo -e "${CLR_PURPLE}  ╰───────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
+echo -e "\n${CLR_RED}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
+echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_AMBER}${CLR_BOLD}sudo wraith -Fs${CLR_RESET}                 ${CLR_WHITE}➔ FULL DEFENSE: All 16 Security Layers Armed${CLR_RESET}    ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -s${CLR_RESET}                  ${CLR_WHITE}➔ Standard Fail-Closed Tor Egress Proxy${CLR_RESET}         ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -s --rotate 60${CLR_RESET}      ${CLR_WHITE}➔ Automatic Tor Circuit Rotation (60s)${CLR_RESET}          ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -r${CLR_RESET}                  ${CLR_WHITE}➔ Instant Manual Circuit & Identity Shift${CLR_RESET}       ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -i${CLR_RESET}                  ${CLR_WHITE}➔ Live GeoIP, Exit Node & Circuit Telemetry${CLR_RESET}     ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith --dashboard${CLR_RESET}         ${CLR_WHITE}➔ Interactive Terminal Telemetry HUD (TUI)${CLR_RESET}      ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -t${CLR_RESET}                  ${CLR_WHITE}➔ Multi-Vector DNS, WebRTC & IPv6 Leak Test${CLR_RESET}     ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -u${CLR_RESET}                  ${CLR_WHITE}➔ Atomic In-Place Self-Healing Updater${CLR_RESET}          ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │  ${CLR_CYAN}${CLR_BOLD}sudo wraith -x${CLR_RESET}                  ${CLR_WHITE}➔ Instant Shutdown & Clean Network Restore${CLR_RESET}      ${CLR_RED}│${CLR_RESET}"
+echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"
+echo -e "${CLR_RED}  ╰───────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
 

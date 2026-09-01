@@ -35,6 +35,7 @@ use crate::display::{
 };
 use crate::tui::SovereignDashboard;
 use tokio_util::sync::CancellationToken;
+use owo_colors::OwoColorize;
 
 #[derive(Default)]
 struct BackgroundServices {
@@ -99,7 +100,7 @@ impl BackgroundServices {
 }
 
 pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
-    print_banner();
+    print_banner(args.strict_hardening);
     let state_mgr = StateManager::default();
 
     if state_mgr.is_active() {
@@ -704,7 +705,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
 pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
-    print_banner();
+    print_banner(false);
     let state_mgr = StateManager::default();
     let state_info = state_mgr.read();
 
@@ -860,7 +861,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 }
 
 pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
-    print_banner();
+    print_banner(false);
     print_step(
         &format!("Executing DoD 5220.22-M shredding ({passes} passes) on {target}..."),
         "info",
@@ -907,7 +908,7 @@ fn find_cargo_bin() -> String {
 }
 
 pub async fn cmd_update() -> Result<()> {
-    print_banner();
+    print_banner(false);
     println!("  ┌── [ 🚀 WRAITH AUTONOMOUS SYSTEM INSTALLER & UPDATER ] ────────┐");
     println!("  │ • Target Binary : /usr/local/bin/wraith                        │");
     println!("  │ • Upstream Repo : https://github.com/ByGh00st/wraith.git       │");
@@ -1059,7 +1060,7 @@ pub async fn cmd_update() -> Result<()> {
 }
 
 pub async fn cmd_switch() -> Result<()> {
-    print_banner();
+    print_banner(false);
     let state_mgr = StateManager::default();
     if !state_mgr.is_active() {
         print_error("Wraith is not running. Start first with: sudo wraith start");
@@ -1078,7 +1079,7 @@ pub async fn cmd_switch() -> Result<()> {
 }
 
 pub async fn cmd_test() -> Result<()> {
-    print_banner();
+    print_banner(false);
     print_step("Running multi-vector leak verification suite...", "info");
     let report = run_full_leak_test().await;
     show_leak_report(&report);
@@ -1086,7 +1087,7 @@ pub async fn cmd_test() -> Result<()> {
 }
 
 pub async fn cmd_info() -> Result<()> {
-    print_banner();
+    print_banner(false);
     let state_mgr = StateManager::default();
     let state = state_mgr.read();
 
@@ -1117,7 +1118,7 @@ pub async fn cmd_dashboard() -> Result<()> {
 }
 
 pub async fn cmd_cleanup(full: bool) -> Result<()> {
-    print_banner();
+    print_banner(false);
     let mode = if full {
         "FULL (Thorough RAM + Swap + Logs)"
     } else {
@@ -1133,7 +1134,7 @@ pub async fn cmd_cleanup(full: bool) -> Result<()> {
 }
 
 pub fn cmd_pentest() -> Result<()> {
-    print_banner();
+    print_banner(false);
     println!("  ╭── [ ⚔️ WRAITH-PRIME // OFFENSIVE SECURITY & PENTEST SANITIZATION ] ────────╮");
     println!("  │  SOCKS5 PROXY      : 127.0.0.1:9050 (Tor Native SOCKS5 Transport)          │");
     println!("  │  HTTP CAMOUFLAGE   : 127.0.0.1:9055 (JA3/JA4 Chrome v130+ Spoofing Proxy)   │");
@@ -1236,7 +1237,7 @@ pub fn spawn_monitor_terminal() -> bool {
 }
 
 pub async fn cmd_monitor() -> Result<()> {
-    print_banner();
+    print_banner(false);
     println!("  ╭── [ 🛡️ WRAITH-PRIME // REAL-TIME DPI & IDS PACKET INTERCEPTOR ] ──────────╮");
     println!("  │  ENGINE STATUS : LIVE PROMISCUOUS SNIFFER (AF_PACKET Zero-Copy Ring-0)    │");
     println!("  │  HOTKEYS       : Press [Q] or [Ctrl+C] to close this monitor window       │");

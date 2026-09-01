@@ -355,7 +355,7 @@ async fn main() -> Result<()> {
     } else if cli.monitor {
         Commands::Monitor
     } else {
-        display::print_banner();
+        display::print_banner(false);
         println!("  Use 'wraith --help' or 'wraith -h' for available commands and options.\n");
         return Ok(());
     };

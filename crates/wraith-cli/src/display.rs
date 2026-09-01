@@ -31,14 +31,24 @@ pub fn detect_target_os() -> String {
     format!("Linux ({})", std::env::consts::ARCH)
 }
 
-pub fn print_banner() {
-    println!("{}", WRAITH_BANNER.bold().bright_purple());
-    let target = detect_target_os();
-    println!("  ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮");
-    println!("  │  {} {}", "ENGINE SPEC :".dimmed(), "WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)".bold().bright_cyan());
-    println!("  │  {} {}", "TARGET HOST :".dimmed(), target.bold().bright_yellow());
-    println!("  │  {} {}", "GATE STATUS :".dimmed(), "FAIL-CLOSED (Kernel-Level Egress Enforcement)".bold().bright_green());
-    println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
+pub fn print_banner(is_strict: bool) {
+    if is_strict {
+        println!("{}", WRAITH_BANNER.bold().bright_red());
+        let target = detect_target_os();
+        println!("{}", "  ╭── [ 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE ARMED ] ───────────────────────╮".bright_red());
+        println!("  │  {} {}", "ENGINE SPEC :".dimmed(), "WRAITH v1.2.0 (CYBERPUNK STRICT MODE)".bold().bright_red());
+        println!("  │  {} {}", "TARGET HOST :".dimmed(), target.bold().bright_yellow());
+        println!("  │  {} {}", "GATE STATUS :".dimmed(), "FAIL-CLOSED (All 16 Security Layers Active)".bold().bright_red());
+        println!("{}", "  ╰──────────────────────────────────────────────────────────────────────────╯\n".bright_red());
+    } else {
+        println!("{}", WRAITH_BANNER.bold().bright_purple());
+        let target = detect_target_os();
+        println!("  ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮");
+        println!("  │  {} {}", "ENGINE SPEC :".dimmed(), "WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)".bold().bright_cyan());
+        println!("  │  {} {}", "TARGET HOST :".dimmed(), target.bold().bright_yellow());
+        println!("  │  {} {}", "GATE STATUS :".dimmed(), "FAIL-CLOSED (Kernel-Level Egress Enforcement)".bold().bright_green());
+        println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
+    }
 }
 
 pub fn print_step(msg: &str, status: &str) {
@@ -58,10 +68,17 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_content_arrangement(ContentArrangement::Dynamic);
 
-    table.set_header(vec![
-        Cell::new("🛡️ WRAITH-PRIME // ACTIVE ANONYMIZATION HUD").fg(Color::Cyan).add_attribute(Attribute::Bold),
-        Cell::new("OPERATIONAL STATUS & METRIC").fg(Color::Cyan).add_attribute(Attribute::Bold),
-    ]);
+    if is_strict {
+        table.set_header(vec![
+            Cell::new("🛡️ WRAITH-PRIME // MAXIMUM DEFENSE HUD").fg(Color::Red).add_attribute(Attribute::Bold),
+            Cell::new("OPERATIONAL STATUS & METRIC").fg(Color::Red).add_attribute(Attribute::Bold),
+        ]);
+    } else {
+        table.set_header(vec![
+            Cell::new("🛡️ WRAITH-PRIME // ACTIVE ANONYMIZATION HUD").fg(Color::Cyan).add_attribute(Attribute::Bold),
+            Cell::new("OPERATIONAL STATUS & METRIC").fg(Color::Cyan).add_attribute(Attribute::Bold),
+        ]);
+    }
 
     let cc = geo.country_code.as_deref().unwrap_or("??");
     let cname = geo.country_name.as_deref().unwrap_or("Unknown");

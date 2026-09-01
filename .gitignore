@@ -1,6 +1,5 @@
 # ==============================================================================
 # WRAITH-PRIME SOVEREIGN .GITIGNORE MATRIX
-# Black-Level Exclusion: Binaries, Secrets, Caches, OS Artifacts, Session Dumps
 # ==============================================================================
 
 # 1. Rust Build Artifacts & Intermediate Targets
