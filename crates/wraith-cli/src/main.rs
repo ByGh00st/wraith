@@ -238,6 +238,10 @@ struct Cli {
     /// Generate shell auto-completion script (bash, zsh, fish, powershell)
     #[arg(long = "generate-completions", value_name = "SHELL", hide = true)]
     completions: Option<clap_complete::Shell>,
+
+    /// Print demonstration showcase screen with all 16 layers armed
+    #[arg(long = "demo", hide = true)]
+    demo: bool,
 }
 
 #[derive(Subcommand)]
@@ -419,6 +423,11 @@ pub async fn main() -> Result<()> {
     if let Some(shell) = cli.completions {
         let mut cmd = display::build_localized_command();
         clap_complete::generate(shell, &mut cmd, "wraith", &mut std::io::stdout());
+        return Ok(());
+    }
+
+    if cli.demo {
+        display::print_demo_showcase();
         return Ok(());
     }
 

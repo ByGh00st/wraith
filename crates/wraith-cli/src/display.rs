@@ -639,3 +639,49 @@ pub fn build_localized_command() -> clap::Command {
     cmd
 }
 
+pub fn print_demo_showcase() {
+    print_banner(true);
+
+    print_step("Enforcing Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)...", "info");
+    print_step("Process memory secured against dumpers (PR_SET_DUMPABLE=0, mlockall)", "ok");
+
+    print_step("Enforcing Linux Kernel Lockdown & DMA Hardware Defense...", "info");
+    print_step("Kernel Lockdown integrity verified (Confidentiality mode active, DMA protected)", "ok");
+
+    print_step("Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...", "info");
+    print_step("Anti-hata ayıklama tuzağı devrede [AÇIK ONAYLI]", "ok");
+
+    print_step("Masking process name in kernel scheduler ([kworker/u16:0])...", "info");
+    print_step("Process identity cloaked as kernel worker [ARMED]", "ok");
+
+    print_step("Donanım L2 MAC adresi ve Hostname rastgeleleştiriliyor...", "info");
+    print_step("Hardware MAC randomized (e2:4a:91:bc:55:18) & Hostname set to [dark-core-42]", "ok");
+
+    print_step("Rotating OS /etc/machine-id unique hardware identifier...", "info");
+    print_step("Machine-ID rotated: unknown ➔ 9f928f32d42299fb1bdfde337e014b3d", "ok");
+
+    print_step("Normalizing TCP/IP L4 Stack (p0f/TTL/Window Evasion)...", "info");
+    print_step("TCP/IP stack forged: TTL=128 (Windows 11 Profile), timestamps=0", "ok");
+
+    print_step("Initializing In-Flight DPI Sanitization Engine & AF_PACKET Zero-Copy Sniffer...", "info");
+    print_step("50+ Offensive tools (Nmap, Sqlmap, Ffuf) sanitized to modern Chrome/131 User-Agents", "ok");
+
+    print_step("Establishing Multi-Hop WireGuard Cryptographic Encapsulation...", "info");
+    print_step("WireGuard tunnel [ChaCha20-Poly1305] active over Tor 3-Hop Circuit", "ok");
+
+    print_step("Applying Geographic Exit Node Profile [stealth]...", "info");
+    print_step("Five Eyes Alliance excluded ({us},{gb},{au},{ca},{nz}) | Exit Nodes: {ch},{is},{ro},{md},{pa}", "ok");
+
+    print_step("Enforcing Fail-Closed Netfilter TransProxy & eBPF clsact Driver...", "info");
+    print_step("Netfilter TransProxy rules loaded (Fail-Closed Drop on 9040/5353)", "ok");
+    print_step("IPv6 leak prevention active (Kernel IPv6 stack completely dropped)", "ok");
+
+    print_step("Configuring Sovereign DNS Engine & EDNS0 468B Padding...", "info");
+    print_step("Sovereign DNS active (127.0.0.1:5353) with QNAME minimization", "ok");
+
+    print_step("Activating Live IDS Traffic Watchdog...", "info");
+    print_step("Real-time zero-copy traffic sniffer & watchdog active", "ok");
+
+    print_success("WRAITH ENGINE FULLY ARMED // ALL 16 SECURITY LAYERS ACTIVE");
+}
+
