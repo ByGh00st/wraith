@@ -14,6 +14,7 @@ use wraith_core::error::Result;
 rust_i18n::i18n!("locales");
 
 #[derive(Args, Clone, Debug, Default)]
+#[command(args_override_self = true)]
 pub struct StartArgs {
     // ─── [1. NETWORK & ROUTING ISOLATION] ──────────────────────────────────────────
     /// Randomize network interface L2 MAC address and hostname
@@ -154,7 +155,8 @@ impl StartArgs {
     author = "WRAITH Engineering Team",
     version = env!("CARGO_PKG_VERSION"),
     about = "Linux Network Anonymization & OS Fingerprint Normalization Engine",
-    long_about = "Wraith establishes fail-closed Tor transparent proxying with netfilter enforcement, TCP/IP stack normalization, hardware identifier rotation, and browser fingerprint sandboxing."
+    long_about = "Wraith establishes fail-closed Tor transparent proxying with netfilter enforcement, TCP/IP stack normalization, hardware identifier rotation, and browser fingerprint sandboxing.",
+    args_override_self = true
 )]
 struct Cli {
     #[command(subcommand)]
@@ -233,6 +235,7 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+#[command(args_override_self = true)]
 enum Commands {
     /// Start Wraith network anonymization
     Start(StartArgs),
