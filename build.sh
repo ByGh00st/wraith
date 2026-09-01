@@ -200,9 +200,12 @@ select_language_tui() {
         [ "$MAX_TOP" -lt 0 ] && MAX_TOP=0
         [ "$TOP" -gt "$MAX_TOP" ] && TOP=$MAX_TOP
 
+        # Clear terminal cleanly to prevent spam/scrolling
+        printf "\033[2J\033[H"
+
         # Draw UI Box
         echo -e "\n${CLR_CYAN}  ┌── [ 🌐 SYSTEM DEFAULT LANGUAGE SELECTION // 65 LANGUAGES ] ──────────────────────┐${CLR_RESET}"
-        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigation: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Scroll │ ${CLR_WHITE}[← / → / PgUp / PgDn]${CLR_SLATE} Fast Scroll │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm ${CLR_CYAN}│${CLR_RESET}"
+        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigation: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Scroll │ ${CLR_WHITE}[← / → / PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm ${CLR_CYAN}│${CLR_RESET}"
         echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
 
         for ((i=TOP; i<TOP+PAGE_SIZE && i<TOTAL; i++)); do
@@ -212,15 +215,15 @@ select_language_tui() {
             local idx_fmt=$(printf "%02d" $((i + 1)))
 
             if [ "$i" -eq "$CURSOR" ]; then
-                printf "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_EMERALD}${CLR_BOLD}➔  [%s]  %-6s : %-56s${CLR_RESET} ${CLR_CYAN}│${CLR_RESET}\n" "$idx_fmt" "$code" "$name"
+                echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_EMERALD}${CLR_BOLD}➔  [${idx_fmt}]  [${code}]  ${name}${CLR_RESET}"
             else
-                printf "  ${CLR_CYAN}│${CLR_RESET}     [%s]  %-6s : %-56s ${CLR_CYAN}│${CLR_RESET}\n" "$idx_fmt" "$code" "$name"
+                echo -e "  ${CLR_CYAN}│${CLR_RESET}     [${idx_fmt}]  [${code}]  ${name}"
             fi
         done
 
         local curr_fmt=$(printf "%02d" $((CURSOR + 1)))
         echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
-        printf "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}Selected: [%s/%02d] [%s]${CLR_RESET}                                                             ${CLR_CYAN}│${CLR_RESET}\n" "$curr_fmt" "$TOTAL" "${LANGUAGES[$CURSOR]%%:*}"
+        echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}Selected: [${curr_fmt}/${TOTAL}] [${LANGUAGES[$CURSOR]%%:*}]${CLR_RESET}"
         echo -e "${CLR_CYAN}  └───────────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
 
         # Read keypress
@@ -251,10 +254,6 @@ select_language_tui() {
             SELECTED_LANG="en"
             break
         fi
-
-        # Move cursor up to redraw cleanly (PAGE_SIZE + 6 lines)
-        local total_lines=$((PAGE_SIZE + 6))
-        echo -ne "\033[${total_lines}A"
     done
 
     echo -ne "\033[?25h"
