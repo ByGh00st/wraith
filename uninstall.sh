@@ -63,9 +63,10 @@ hash -r 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [ERADICATED]${CLR_RESET} Binaries removed."
 
 echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Wiping configurations, logs, and artifacts...${CLR_RESET}"
-rm -rf /etc/wraith
-rm -rf /var/log/wraith
-rm -f /etc/tor/wraithrc
+rm -rf /etc/wraith 2>/dev/null || true
+rm -rf /var/log/wraith 2>/dev/null || true
+rm -f /etc/tor/wraithrc 2>/dev/null || true
+rm -f /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [CLEARED]${CLR_RESET} Persistent data obliterated."
 
 echo -e "\n${CLR_PURPLE}  ╭── [ 🛡️ WRAITH PURGE COMPLETE // SYSTEM RESTORED TO DEFAULT ] ─────────╮${CLR_RESET}"
