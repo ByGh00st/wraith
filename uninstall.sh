@@ -35,27 +35,38 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Force remount root and /usr as read-write to prevent read-only filesystem locks
+mount -o remount,rw / 2>/dev/null || true
+mount -o remount,rw /usr 2>/dev/null || true
+mount -o remount,rw /usr/local 2>/dev/null || true
+
 echo -e "  ${CLR_CYAN}◈ [1/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Halting any active Wraith instances...${CLR_RESET}"
 killall -9 wraith 2>/dev/null || true
-pkill -9 -f "wraith monitor" 2>/dev/null || true
+pkill -9 -f "wraith" 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [KILLED]${CLR_RESET} Processes terminated."
 
 echo -e "\n  ${CLR_CYAN}◈ [2/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Restoring network restrictions and DNS...${CLR_RESET}"
 nft flush ruleset 2>/dev/null || true
 iptables -F 2>/dev/null || true
-chattr -i /etc/resolv.conf 2>/dev/null || true
+iptables -X 2>/dev/null || true
+iptables -t nat -F 2>/dev/null || true
+iptables -t nat -X 2>/dev/null || true
+chattr -R -i -a /etc/resolv.conf 2>/dev/null || true
 (echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf) 2>/dev/null || true
 systemctl restart NetworkManager 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [RESTORED]${CLR_RESET} Network tables flushed & DNS unlocked."
 
 echo -e "\n  ${CLR_CYAN}◈ [3/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Purging binary artifacts from system paths...${CLR_RESET}"
+chattr -R -i -a /usr/local/bin/wraith /usr/bin/wraith /bin/wraith /root/.cargo/bin/wraith /root/.local/bin/wraith 2>/dev/null || true
 rm -f /usr/local/bin/wraith \
       /usr/bin/wraith \
       /bin/wraith \
-      /root/.cargo/bin/wraith 2>/dev/null || true
+      /root/.cargo/bin/wraith \
+      /root/.local/bin/wraith 2>/dev/null || true
 
 for user_home in /home/*; do
     if [ -d "$user_home/.cargo/bin" ]; then
+        chattr -R -i -a "$user_home/.cargo/bin/wraith" 2>/dev/null || true
         rm -f "$user_home/.cargo/bin/wraith" 2>/dev/null || true
     fi
 done
@@ -63,6 +74,7 @@ hash -r 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [ERADICATED]${CLR_RESET} Binaries removed."
 
 echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Wiping configurations, logs, and artifacts...${CLR_RESET}"
+chattr -R -i -a /etc/wraith /var/log/wraith /etc/tor/wraithrc /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 rm -rf /etc/wraith 2>/dev/null || true
 rm -rf /var/log/wraith 2>/dev/null || true
 rm -f /etc/tor/wraithrc 2>/dev/null || true
