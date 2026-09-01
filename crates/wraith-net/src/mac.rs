@@ -119,8 +119,8 @@ pub fn change_mac(interface: Option<&str>, target_mac: Option<&str>) -> Result<(
 
     // Flush stale addresses and obtain fresh lease for spoofed MAC
     let _ = Command::new("ip").args(["addr", "flush", "dev", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("dhclient").args(["-r", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("dhclient").args(["-v", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+    let _ = Command::new("pkill").args(["-9", "dhclient"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+    let _ = Command::new("nmcli").args(["device", "connect", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = Command::new("nmcli").args(["device", "reapply", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
 
     let verified_mac = get_current_mac(&iface)?;

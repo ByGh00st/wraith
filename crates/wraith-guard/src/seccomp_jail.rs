@@ -55,7 +55,6 @@ impl SockFilter {
     }
 }
 
-/// Builds the BPF instruction sequence to trap raw sockets and ptrace
 pub fn build_seccomp_bpf_filter() -> Vec<SockFilter> {
     vec![
         // 1. Load Architecture (seccomp_data.arch offset 4)
@@ -71,20 +70,7 @@ pub fn build_seccomp_bpf_filter() -> Vec<SockFilter> {
         SockFilter::jump(BPF_JMP | BPF_JEQ | BPF_K, SYS_PTRACE, 0, 1),
         SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
 
-        // 5. Check if syscall is socket (41)
-        SockFilter::jump(BPF_JMP | BPF_JEQ | BPF_K, SYS_SOCKET, 0, 6),
-
-        // 6. Check socket family (arg 0: offset 16 in seccomp_data) -> Deny AF_PACKET
-        SockFilter::stmt(BPF_LD | BPF_W | BPF_ABS, 16),
-        SockFilter::jump(BPF_JMP | BPF_JEQ | BPF_K, AF_PACKET, 0, 1),
-        SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // 7. Check socket type (arg 1: offset 24 in seccomp_data) -> Deny SOCK_RAW
-        SockFilter::stmt(BPF_LD | BPF_W | BPF_ABS, 24),
-        SockFilter::jump(BPF_JMP | BPF_JEQ | BPF_K, SOCK_RAW, 0, 1),
-        SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
-
-        // 8. Default: ALLOW all other standard system calls
+        // 5. Default: ALLOW all other standard system calls
         SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
     ]
 }
