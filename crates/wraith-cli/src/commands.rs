@@ -1113,7 +1113,8 @@ pub async fn cmd_update() -> Result<()> {
         let path = Path::new(target);
         if let Some(parent) = path.parent() {
             if parent.exists() {
-                // Remove old binary first
+                // Strip immutable attributes and remove old binary first
+                let _ = Command::new("chattr").args(["-i", "-a", target]).status();
                 let _ = fs::remove_file(target);
                 let _ = Command::new("rm").args(["-f", target]).status();
 
