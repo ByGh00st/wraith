@@ -32,23 +32,99 @@ pub fn detect_target_os() -> String {
     format!("Linux ({})", std::env::consts::ARCH)
 }
 
+pub fn visible_width(s: &str) -> usize {
+    let mut width = 0;
+    let mut in_escape = false;
+
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            continue;
+        }
+        if in_escape {
+            if c.is_ascii_alphabetic() {
+                in_escape = false;
+            }
+            continue;
+        }
+        if c == '\u{fe0f}' || c == '\u{fe0e}' || ('\u{200b}'..='\u{200d}').contains(&c) {
+            continue;
+        }
+        let u = c as u32;
+        if (0x1F300..=0x1FAFF).contains(&u)
+            || (0x2600..=0x27BF).contains(&u)
+            || (0x2E80..=0x9FFF).contains(&u)
+            || (0xAC00..=0xD7AF).contains(&u)
+            || (0xF900..=0xFAFF).contains(&u)
+            || (0xFF01..=0xFF60).contains(&u)
+        {
+            width += 2;
+        } else {
+            width += 1;
+        }
+    }
+    width
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BoxCorner {
+    Rounded, // ╭ ╮ ╰ ╯
+    Square,  // ┌ ┐ └ ┘
+}
+
+pub fn render_box_top(title: &str, total_width: usize, corner: BoxCorner) -> String {
+    let (top_left, top_right) = match corner {
+        BoxCorner::Rounded => ("╭", "╮"),
+        BoxCorner::Square => ("┌", "┐"),
+    };
+
+    let clean_title = if let (Some(start), Some(end)) = (title.find('['), title.rfind(']')) {
+        title[start + 1..end].trim()
+    } else {
+        title.trim()
+    };
+
+    let title_w = visible_width(clean_title);
+    let fixed_w = 2 /* spaces */ + 1 /* corner */ + 2 /* ── */ + 3 /* " [ " */ + title_w + 3 /* " ] " */ + 1 /* corner */;
+    let dash_count = if total_width > fixed_w { total_width - fixed_w } else { 2 };
+    let dashes = "─".repeat(dash_count);
+    format!("  {top_left}── [ {clean_title} ] {dashes}{top_right}")
+}
+
+pub fn render_box_bottom(total_width: usize, corner: BoxCorner) -> String {
+    let (bottom_left, bottom_right) = match corner {
+        BoxCorner::Rounded => ("╰", "╯"),
+        BoxCorner::Square => ("└", "┘"),
+    };
+    let dash_count = if total_width > 4 { total_width - 4 } else { 2 };
+    let dashes = "─".repeat(dash_count);
+    format!("  {bottom_left}{dashes}{bottom_right}")
+}
+
+pub fn render_box_row(content: &str, total_width: usize) -> String {
+    let inner_w = if total_width > 7 { total_width - 7 } else { 1 };
+    let v_w = visible_width(content);
+    let padding_count = if inner_w > v_w { inner_w - v_w } else { 0 };
+    let padding = " ".repeat(padding_count);
+    format!("  │  {content}{padding} │")
+}
+
 pub fn print_banner(is_strict: bool) {
+    let target = detect_target_os();
     if is_strict {
         println!("{}", WRAITH_BANNER.bold().bright_red());
-        let target = detect_target_os();
-        println!("{}", format!("{}", t!("banner.max_defense")).bright_red());
-        println!("  │  {} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_strict").bold().bright_red());
-        println!("  │  {} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow());
-        println!("  │  {} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_strict").bold().bright_red());
-        println!("{}", "  ╰──────────────────────────────────────────────────────────────────────────╯\n".bright_red());
+        println!("{}", render_box_top(&t!("banner.max_defense"), 78, BoxCorner::Rounded).bright_red());
+        println!("{}", render_box_row(&format!("{} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_strict").bold().bright_red()), 78));
+        println!("{}", render_box_row(&format!("{} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow()), 78));
+        println!("{}", render_box_row(&format!("{} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_strict").bold().bright_red()), 78));
+        println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_red());
     } else {
         println!("{}", WRAITH_BANNER.bold().bright_purple());
-        let target = detect_target_os();
-        println!("{}", t!("banner.telemetry"));
-        println!("  │  {} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_normal").bold().bright_cyan());
-        println!("  │  {} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow());
-        println!("  │  {} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_normal").bold().bright_green());
-        println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
+        println!("{}", render_box_top(&t!("banner.telemetry"), 78, BoxCorner::Rounded).bright_cyan());
+        println!("{}", render_box_row(&format!("{} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_normal").bold().bright_cyan()), 78));
+        println!("{}", render_box_row(&format!("{} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow()), 78));
+        println!("{}", render_box_row(&format!("{} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_normal").bold().bright_green()), 78));
+        println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_cyan());
     }
 }
 
@@ -134,27 +210,28 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
 
     println!("\n{table}");
 
-    println!("{}", t!("hud.keys"));
-    println!("  │  {} │ {} │ {} │ {} │ {}  │", 
+    println!("{}", render_box_top(&t!("hud.keys"), 96, BoxCorner::Square).bright_cyan());
+    let keys_content = format!("{} │ {} │ {} │ {} │ {}", 
         t!("hud.k_rotate").bold().bright_cyan(),
         t!("hud.k_audit").bold().bright_green(),
         t!("hud.k_monitor").bold().bright_purple(),
         t!("hud.k_purge").bold().bright_yellow(),
         t!("hud.k_quit").bold().bright_red()
     );
-    println!("  └────────────────────────────────────────────────────────────────────────────────────────────────┘\n");
+    println!("{}", render_box_row(&keys_content, 96));
+    println!("{}\n", render_box_bottom(96, BoxCorner::Square).bright_cyan());
 }
 
 pub fn print_success(msg: &str) {
-    println!("\n  ╭── [ ✔ WRAITH SYSTEM RESTORED ] ──────────────────────────────────────────╮");
-    println!("  │  {:<72} │", msg.bold().bright_green());
-    println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
+    println!("\n{}", render_box_top("✔ WRAITH SYSTEM RESTORED", 78, BoxCorner::Rounded).bold().bright_green());
+    println!("{}", render_box_row(&msg.bold().bright_green().to_string(), 78));
+    println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bold().bright_green());
 }
 
 pub fn print_error(msg: &str) {
-    println!("\n  ╭── [ ✖ CRITICAL SECURITY FAULT ] ─────────────────────────────────────────╮");
-    println!("  │  {:<72} │", msg.bold().bright_red());
-    println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
+    println!("\n{}", render_box_top("✖ CRITICAL SECURITY FAULT", 78, BoxCorner::Rounded).bold().bright_red());
+    println!("{}", render_box_row(&msg.bold().bright_red().to_string(), 78));
+    println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bold().bright_red());
 }
 
 pub fn show_status_dashboard(state: &StateData, is_tor: bool, ip: &str, circuits: usize) {

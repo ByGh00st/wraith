@@ -31,8 +31,9 @@ use wraith_tor::{
 
 use crate::display::{
     print_banner, print_error, print_step, print_success, show_circuit_telemetry, show_leak_report,
-    show_status_dashboard,
+    show_status_dashboard, render_box_top, render_box_bottom, render_box_row, BoxCorner,
 };
+use owo_colors::OwoColorize;
 use crate::tui::SovereignDashboard;
 use tokio_util::sync::CancellationToken;
 use rust_i18n::t;
@@ -938,13 +939,53 @@ fn find_cargo_bin() -> String {
     "cargo".to_string()
 }
 
+fn determine_cargo_home() -> Option<String> {
+    if let Ok(cargo_home) = std::env::var("CARGO_HOME") {
+        if !cargo_home.trim().is_empty() && Path::new(&cargo_home).exists() {
+            return Some(cargo_home);
+        }
+    }
+    if Path::new("/root/.cargo").exists() {
+        return Some("/root/.cargo".to_string());
+    }
+    if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+        let user_cargo_home = format!("/home/{sudo_user}/.cargo");
+        if Path::new(&user_cargo_home).exists() {
+            return Some(user_cargo_home);
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        let user_cargo_home = format!("{home}/.cargo");
+        if Path::new(&user_cargo_home).exists() {
+            return Some(user_cargo_home);
+        }
+    }
+    None
+}
+
+fn determine_build_dir() -> String {
+    let pid = std::process::id();
+    let candidates = [
+        format!("/var/tmp/wraith_autoinstall_{pid}"),
+        format!("/tmp/wraith_autoinstall_{pid}"),
+    ];
+    for dir in candidates {
+        if let Some(parent) = Path::new(&dir).parent() {
+            if parent.exists() {
+                return dir;
+            }
+        }
+    }
+    format!("/var/tmp/wraith_autoinstall_{pid}")
+}
+
 pub async fn cmd_update() -> Result<()> {
     print_banner(false);
-    println!("  ┌── [ 🚀 WRAITH AUTONOMOUS SYSTEM INSTALLER & UPDATER ] ────────┐");
-    println!("  │ • Target Binary : /usr/local/bin/wraith                        │");
-    println!("  │ • Upstream Repo : https://github.com/ByGh00st/wraith.git       │");
-    println!("  │ • Pipeline      : Clean Git Clone ➔ Cargo Release ➔ Deploy    │");
-    println!("  └────────────────────────────────────────────────────────────────┘\n");
+    println!("{}", render_box_top("🚀 WRAITH AUTONOMOUS SYSTEM INSTALLER & UPDATER", 78, BoxCorner::Square).bright_cyan());
+    println!("{}", render_box_row("• Target Binary : /usr/local/bin/wraith", 78));
+    println!("{}", render_box_row("• Upstream Repo : https://github.com/ByGh00st/wraith.git", 78));
+    println!("{}", render_box_row("• Pipeline      : Clean Git Clone ➔ Cargo Release ➔ Deploy", 78));
+    println!("{}\n", render_box_bottom(78, BoxCorner::Square).bright_cyan());
 
     print_step(&t!("commands.cmd_step_40"), "info");
 
@@ -964,7 +1005,7 @@ pub async fn cmd_update() -> Result<()> {
     );
 
     let cargo_bin = find_cargo_bin();
-    let temp_build_dir = format!("/tmp/wraith_autoinstall_{}", std::process::id());
+    let temp_build_dir = determine_build_dir();
 
     // 2. Clean previous build residue
     let _ = fs::remove_dir_all(&temp_build_dir);
@@ -1000,18 +1041,23 @@ pub async fn cmd_update() -> Result<()> {
         }
     }
 
-    // 4. Compile in isolated workspace with isolated writable CARGO_HOME
+    // 4. Compile in workspace reusing persistent cargo home or fallback
     print_step(
         &format!("Compiling optimized release binary with {cargo_bin}..."),
         "info",
     );
-    let isolated_cargo_home = format!("{temp_build_dir}/.cargo_home");
-    let _ = fs::create_dir_all(&isolated_cargo_home);
 
     let mut cmd = Command::new(&cargo_bin);
-    cmd.args(["build", "--release", "--workspace"])
-        .current_dir(&temp_build_dir)
-        .env("CARGO_HOME", &isolated_cargo_home);
+    cmd.args(["build", "--release", "--bin", "wraith"])
+        .current_dir(&temp_build_dir);
+
+    if let Some(cargo_home) = determine_cargo_home() {
+        cmd.env("CARGO_HOME", cargo_home);
+    } else {
+        let fallback_cargo_home = format!("{temp_build_dir}/.cargo_home");
+        let _ = fs::create_dir_all(&fallback_cargo_home);
+        cmd.env("CARGO_HOME", fallback_cargo_home);
+    }
 
     let build_status = cmd.status();
 
@@ -1170,32 +1216,32 @@ pub async fn cmd_cleanup(full: bool) -> Result<()> {
 
 pub fn cmd_pentest() -> Result<()> {
     print_banner(false);
-    println!("  ╭── [ ⚔️ WRAITH-PRIME // OFFENSIVE SECURITY & PENTEST SANITIZATION ] ────────╮");
-    println!("  │  SOCKS5 PROXY      : 127.0.0.1:9050 (Tor Native SOCKS5 Transport)          │");
-    println!("  │  HTTP CAMOUFLAGE   : 127.0.0.1:9055 (JA3/JA4 Chrome v130+ Spoofing Proxy)   │");
-    println!("  │  DNS SINKHOLE GATE : 127.0.0.1:5353 (Tor TransProxy DNS Resolver)          │");
-    println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
+    println!("{}", render_box_top("⚔️ WRAITH-PRIME // OFFENSIVE SECURITY & PENTEST SANITIZATION", 78, BoxCorner::Rounded).bright_yellow());
+    println!("{}", render_box_row("SOCKS5 PROXY      : 127.0.0.1:9050 (Tor Native SOCKS5 Transport)", 78));
+    println!("{}", render_box_row("HTTP CAMOUFLAGE   : 127.0.0.1:9055 (JA3/JA4 Chrome v130+ Spoofing Proxy)", 78));
+    println!("{}", render_box_row("DNS SINKHOLE GATE : 127.0.0.1:5353 (Tor TransProxy DNS Resolver)", 78));
+    println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_yellow());
 
-    println!("  ┌── [ 🎯 RECOMMENDED OFFENSIVE STRIKE COMMAND WRAPPERS ] ────────┐");
-    println!("  │                                                                │");
-    println!("  │ [NMAP STEALTH TCP SYN SCAN OVER SOCKS5]:                       │");
-    println!("  │   nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>   │");
-    println!("  │                                                                │");
-    println!("  │ [CURL / WEB FUZZING WITH JA4 TLS EVASION]:                     │");
-    println!("  │   curl -x http://127.0.0.1:9055 https://target.com/login       │");
-    println!("  │        -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64)\"   │");
-    println!("  │                                                                │");
-    println!("  │ [SQLMAP EXPLOITATION OVER TOR SOCKS5]:                         │");
-    println!("  │   sqlmap -u \"http://<target>/id=1\" \\                           │");
-    println!("  │          --proxy=\"socks5://127.0.0.1:9050\" --random-agent      │");
-    println!("  │                                                                │");
-    println!("  │ [METASPLOIT FRAMEWORK SOCKS5 TUNNELING]:                       │");
-    println!("  │   set Proxies socks5:127.0.0.1:9050                            │");
-    println!("  │   set HTTP_USER_AGENT Mozilla/5.0 (Windows NT 10.0; Win64)      │");
-    println!("  │                                                                │");
-    println!("  │ [HYDRA / SSH BRUTE-FORCE OVER TOR]:                            │");
-    println!("  │   hydra -s 22 -l root -P pass.txt -t 4 <target_ip> ssh         │");
-    println!("  └────────────────────────────────────────────────────────────────┘\n");
+    println!("{}", render_box_top("🎯 RECOMMENDED OFFENSIVE STRIKE COMMAND WRAPPERS", 78, BoxCorner::Square).bright_cyan());
+    println!("{}", render_box_row("", 78));
+    println!("{}", render_box_row("[NMAP STEALTH TCP SYN SCAN OVER SOCKS5]:", 78));
+    println!("{}", render_box_row("  nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>", 78));
+    println!("{}", render_box_row("", 78));
+    println!("{}", render_box_row("[CURL / WEB FUZZING WITH JA4 TLS EVASION]:", 78));
+    println!("{}", render_box_row("  curl -x http://127.0.0.1:9055 https://target.com/login", 78));
+    println!("{}", render_box_row("       -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64)\"", 78));
+    println!("{}", render_box_row("", 78));
+    println!("{}", render_box_row("[SQLMAP EXPLOITATION OVER TOR SOCKS5]:", 78));
+    println!("{}", render_box_row("  sqlmap -u \"http://<target>/id=1\" \\", 78));
+    println!("{}", render_box_row("         --proxy=\"socks5://127.0.0.1:9050\" --random-agent", 78));
+    println!("{}", render_box_row("", 78));
+    println!("{}", render_box_row("[METASPLOIT FRAMEWORK SOCKS5 TUNNELING]:", 78));
+    println!("{}", render_box_row("  set Proxies socks5:127.0.0.1:9050", 78));
+    println!("{}", render_box_row("  set HTTP_USER_AGENT Mozilla/5.0 (Windows NT 10.0; Win64)", 78));
+    println!("{}", render_box_row("", 78));
+    println!("{}", render_box_row("[HYDRA / SSH BRUTE-FORCE OVER TOR]:", 78));
+    println!("{}", render_box_row("  hydra -s 22 -l root -P pass.txt -t 4 <target_ip> ssh", 78));
+    println!("{}\n", render_box_bottom(78, BoxCorner::Square).bright_cyan());
 
     Ok(())
 }
@@ -1273,10 +1319,10 @@ pub fn spawn_monitor_terminal() -> bool {
 
 pub async fn cmd_monitor() -> Result<()> {
     print_banner(false);
-    println!("  ╭── [ 🛡️ WRAITH-PRIME // REAL-TIME DPI & IDS PACKET INTERCEPTOR ] ──────────╮");
-    println!("  │  ENGINE STATUS : LIVE PROMISCUOUS SNIFFER (AF_PACKET Zero-Copy Ring-0)    │");
-    println!("  │  HOTKEYS       : Press [Q] or [Ctrl+C] to close this monitor window       │");
-    println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
+    println!("{}", render_box_top("🛡️ WRAITH-PRIME // REAL-TIME DPI & IDS PACKET INTERCEPTOR", 78, BoxCorner::Rounded).bright_cyan());
+    println!("{}", render_box_row("ENGINE STATUS : LIVE PROMISCUOUS SNIFFER (AF_PACKET Zero-Copy Ring-0)", 78));
+    println!("{}", render_box_row("HOTKEYS       : Press [Q] or [Ctrl+C] to close this monitor window", 78));
+    println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_cyan());
 
     println!("  ◈ [MONITOR ARMED] Listening for Layer-4 HTTP / Offensive Tool Egress on wire...\n");
 

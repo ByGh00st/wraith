@@ -68,7 +68,17 @@ if ! command -v cargo &> /dev/null; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null 2>&1
     export PATH="$HOME/.cargo/bin:/root/.cargo/bin:$PATH"
 fi
-export CARGO_HOME="${CARGO_HOME:-/tmp/.cargo}"
+if [ -z "$CARGO_HOME" ]; then
+    if [ -d "/root/.cargo" ]; then
+        export CARGO_HOME="/root/.cargo"
+    elif [ -n "$SUDO_USER" ] && [ -d "/home/$SUDO_USER/.cargo" ]; then
+        export CARGO_HOME="/home/$SUDO_USER/.cargo"
+    elif [ -d "$HOME/.cargo" ]; then
+        export CARGO_HOME="$HOME/.cargo"
+    else
+        export CARGO_HOME="/var/tmp/.cargo"
+    fi
+fi
 mkdir -p "$CARGO_HOME" 2>/dev/null || true
 RUST_VER=$(rustc --version 2>/dev/null || echo "Rust Toolchain 2021")
 echo -e "        ${CLR_EMERALD}✔ [ACTIVE]${CLR_RESET} Toolchain verified: ${CLR_SLATE}${RUST_VER}${CLR_RESET}"
@@ -81,7 +91,7 @@ echo -e "        ${CLR_EMERALD}✔ [ARMED]${CLR_RESET} Dependencies online: ${CL
 
 # 4. Compile Release Workspace with LTO Optimizations
 echo -e "\n  ${CLR_CYAN}◈ [3/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Forging Sovereign Workspace in Release Mode (LTO & SIMD Opt)...${CLR_RESET}"
-CARGO_HOME="${CARGO_HOME:-/tmp/.cargo}" cargo build --release --workspace
+cargo build --release --workspace
 
 # 5. Global Multi-Path Deployment
 echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Deploying binary to universal system execution PATHs...${CLR_RESET}"
@@ -205,10 +215,10 @@ select_language_tui() {
         tput cup 0 0 2>/dev/null || printf "\033[H"
         tput ed 2>/dev/null || printf "\033[J"
 
-        # Draw Clean Corporate UI Box
-        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 ENTERPRISE DEFAULT LANGUAGE CONFIGURATION // 65 LOCALES ] ─────────────┐${CLR_RESET}"
-        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Controls: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Navigate │ ${CLR_WHITE}[PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm Selection  ${CLR_CYAN}│${CLR_RESET}"
-        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+        # Draw Clean Corporate UI Box (Total Width: 82 columns)
+        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 ENTERPRISE DEFAULT LANGUAGE CONFIGURATION // 65 LOCALES ] ───────────┐${CLR_RESET}"
+        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Controls: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Navigate │ ${CLR_WHITE}[PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Select             ${CLR_CYAN}│${CLR_RESET}"
+        echo -e "${CLR_CYAN}  ├──────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
 
         for ((i=TOP; i<TOP+PAGE_SIZE && i<TOTAL; i++)); do
             local item="${LANGUAGES[$i]}"
@@ -217,16 +227,19 @@ select_language_tui() {
             local idx_fmt=$(printf "%02d" $((i + 1)))
 
             if [ "$i" -eq "$CURSOR" ]; then
-                echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_EMERALD}${CLR_BOLD}➔  [${idx_fmt}]  [${code}]  ${name}${CLR_RESET}"
+                local line_str=$(printf "➔  [%s]  [%-4s]  %-58s" "$idx_fmt" "$code" "$name")
+                echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_EMERALD}${CLR_BOLD}${line_str}${CLR_RESET}  ${CLR_CYAN}│${CLR_RESET}"
             else
-                echo -e "  ${CLR_CYAN}│${CLR_RESET}     [${idx_fmt}]  [${code}]  ${name}"
+                local line_str=$(printf "   [%s]  [%-4s]  %-58s" "$idx_fmt" "$code" "$name")
+                echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${line_str}  ${CLR_CYAN}│${CLR_RESET}"
             fi
         done
 
         local curr_fmt=$(printf "%02d" $((CURSOR + 1)))
-        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
-        echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}Active Selection: [${curr_fmt}/${TOTAL}] [${LANGUAGES[$CURSOR]%%:*}]${CLR_RESET}"
-        echo -e "${CLR_CYAN}  └───────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
+        local status_str=$(printf "Active Selection: [%s/%02d] [%-4s] %-48s" "$curr_fmt" "$TOTAL" "${LANGUAGES[$CURSOR]%%:*}" "${LANGUAGES[$CURSOR]#*:}")
+        echo -e "${CLR_CYAN}  ├──────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+        echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}${status_str}${CLR_RESET}  ${CLR_CYAN}│${CLR_RESET}"
+        echo -e "${CLR_CYAN}  └──────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
 
         # Read keypress
         IFS= read -rsn1 key

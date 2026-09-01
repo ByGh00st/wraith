@@ -56,7 +56,7 @@ pub fn dod_7pass_shred(file_path: &Path) -> Result<()> {
     let is_ssd = !crate::shred::is_rotational_device(file_path);
     if is_ssd {
         let discard_success = std::process::Command::new("fallocate")
-            .args(["-d", "-p", "-o", "0", "-l", &size.to_string(), file_path.to_string_lossy().as_ref()])
+            .args(["-p", "-n", "-o", "0", "-l", &size.to_string(), file_path.to_string_lossy().as_ref()])
             .status()
             .map(|s| s.success())
             .unwrap_or(false);

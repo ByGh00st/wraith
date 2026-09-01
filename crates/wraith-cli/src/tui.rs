@@ -75,40 +75,42 @@ impl SovereignDashboard {
                 println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
             }
 
+            const TUI_BOX_WIDTH: usize = 92;
+
             // 2. Identity & Routing Grid
-            println!("\n  {}", t!("tui.identity_box"));
-            println!("  │  {:<20} : {:<60} │", t!("tui.public_ip"), ip_display.bold().white());
-            println!("  │  {:<20} : {:<60} │", t!("tui.tor_network"), if is_tor { t!("tui.verified").bold().green().to_string() } else { t!("tui.unverified").bold().red().to_string() });
-            println!("  │  {:<20} : {:<60} │", t!("tui.hardware_mac"), state_data.mac_new.as_deref().unwrap_or(&*t!("tui.static")).bold().magenta());
-            println!("  │  {:<20} : {:<60} │", t!("tui.machine_id"), if state_data.machine_id_old.is_some() { t!("tui.rotated").bold().green().to_string() } else { t!("tui.original").dimmed().to_string() });
-            println!("  │  {:<20} : {:<60} │", t!("tui.tcp_stack"), if state_data.tcp_stack_masked { t!("tui.win_profile").bold().green().to_string() } else { t!("tui.linux_std").dimmed().to_string() });
-            println!("  │  {:<20} : {:<60} │", t!("tui.exit_policy"), state_data.exit_profile.as_deref().unwrap_or(&*t!("tui.stealth")).bold().blue());
-            println!("  │  {:<20} : {:<60} │", "Multi-Hop Tunnel", if state_data.multihop_enabled { "ACTIVE (WireGuard ➔ Tor [3 Hops])".bold().green().to_string() } else { "OFF (Standard Tor Onion)".dimmed().to_string() });
-            println!("  └────────────────────────────────────────────────────────────────────────────────────────┘");
+            println!("\n{}", crate::display::render_box_top(&t!("tui.identity_box"), TUI_BOX_WIDTH, crate::display::BoxCorner::Square).bright_cyan());
+            println!("{}", crate::display::render_box_row(&format!("{:<20} : {}", t!("tui.public_ip"), ip_display.bold().white()), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&format!("{:<20} : {}", t!("tui.tor_network"), if is_tor { t!("tui.verified").bold().green().to_string() } else { t!("tui.unverified").bold().red().to_string() }), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&format!("{:<20} : {}", t!("tui.hardware_mac"), state_data.mac_new.as_deref().unwrap_or(&*t!("tui.static")).bold().magenta()), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&format!("{:<20} : {}", t!("tui.machine_id"), if state_data.machine_id_old.is_some() { t!("tui.rotated").bold().green().to_string() } else { t!("tui.original").dimmed().to_string() }), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&format!("{:<20} : {}", t!("tui.tcp_stack"), if state_data.tcp_stack_masked { t!("tui.win_profile").bold().green().to_string() } else { t!("tui.linux_std").dimmed().to_string() }), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&format!("{:<20} : {}", t!("tui.exit_policy"), state_data.exit_profile.as_deref().unwrap_or(&*t!("tui.stealth")).bold().blue()), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&format!("{:<20} : {}", "Multi-Hop Tunnel", if state_data.multihop_enabled { "ACTIVE (WireGuard ➔ Tor [3 Hops])".bold().green().to_string() } else { "OFF (Standard Tor Onion)".dimmed().to_string() }), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_bottom(TUI_BOX_WIDTH, crate::display::BoxCorner::Square).bright_cyan());
 
             // 3. Multi-Layer Defense Matrix
-            println!("\n  {}", t!("tui.defense_matrix"));
-            println!("  │  {:<91} │", t!("tui.def_netfilter"));
-            println!("  │  {:<91} │", t!("tui.def_seccomp"));
-            println!("  │  {:<91} │", t!("tui.def_ebpf"));
-            println!("  │  {:<91} │", t!("tui.def_lockdown"));
-            println!("  │  {:<91} │", t!("tui.def_dns"));
-            println!("  │  {:<91} │", t!("tui.def_tls"));
-            println!("  │  {:<91} │", t!("tui.def_ramfs"));
-            println!("  │  {:<91} │", t!("tui.def_ids"));
-            println!("  └────────────────────────────────────────────────────────────────────────────────────────┘");
+            println!("\n{}", crate::display::render_box_top(&t!("tui.defense_matrix"), TUI_BOX_WIDTH, crate::display::BoxCorner::Square).bright_yellow());
+            println!("{}", crate::display::render_box_row(&t!("tui.def_netfilter"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&t!("tui.def_seccomp"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&t!("tui.def_ebpf"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&t!("tui.def_lockdown"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&t!("tui.def_dns"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&t!("tui.def_tls"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&t!("tui.def_ramfs"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_row(&t!("tui.def_ids"), TUI_BOX_WIDTH));
+            println!("{}", crate::display::render_box_bottom(TUI_BOX_WIDTH, crate::display::BoxCorner::Square).bright_yellow());
 
             // 4. Active Tor Circuit Map
-            println!("\n  {}", t!("tui.circuits_box"));
+            println!("\n{}", crate::display::render_box_top(&t!("tui.circuits_box"), TUI_BOX_WIDTH, crate::display::BoxCorner::Square).bright_green());
             if telemetry.circuits.is_empty() {
-                println!("  │  {:<91} │", t!("tui.syncing"));
+                println!("{}", crate::display::render_box_row(&t!("tui.syncing"), TUI_BOX_WIDTH));
             } else {
                 for circ in telemetry.circuits.iter().take(4) {
                     let path = circ.path.join(" ➔ ");
-                    println!("  │  Circuit #{:<3} [{:<7}] : {:<54} │", circ.id.bold().yellow(), circ.purpose.dimmed(), path.bold().green());
+                    println!("{}", crate::display::render_box_row(&format!("Circuit #{:<3} [{:<7}] : {}", circ.id.bold().yellow(), circ.purpose.dimmed(), path.bold().green()), TUI_BOX_WIDTH));
                 }
             }
-            println!("  └────────────────────────────────────────────────────────────────────────────────────────┘");
+            println!("{}", crate::display::render_box_bottom(TUI_BOX_WIDTH, crate::display::BoxCorner::Square).bright_green());
 
             // 5. Bandwidth Stats
             println!(

@@ -33,7 +33,7 @@ pub fn clear_memory_caches() -> Result<()> {
 }
 
 pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
-    if let Ok(output) = Command::new("swapon").args(["--show=NAME,SIZE", "--noheadings", "--bytes"]).output() {
+    if let Ok(output) = Command::new("swapon").args(["--show=NAME,SIZE,USED", "--noheadings", "--bytes"]).output() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
             let parts: Vec<&str> = line.split_whitespace().collect();
@@ -43,8 +43,12 @@ pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
                     .and_then(|s| s.parse::<u64>().ok())
                     .map(|b| (b / (1024 * 1024)).max(1))
                     .unwrap_or(100);
+                let used_bytes = parts.get(2)
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .unwrap_or(0);
+                let used_mb = (used_bytes / (1024 * 1024)).max(1);
 
-                info!("Securing and wiping swap space: {device} (emergency_mode: {is_emergency})");
+                info!("Securing and wiping swap space: {device} (size: {size_mb}MB, used: {used_bytes}B, emergency: {is_emergency})");
 
                 let wipe_fn = move || {
                     let _ = Command::new("swapoff").arg(&device).status();
@@ -56,10 +60,11 @@ pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
                         .map(|s| s.success())
                         .unwrap_or(false);
 
-                    // 2. Fallback: Zero-fill partition
-                    if !discard_success {
+                    // 2. Fast Zero-fill only if used or non-SSD
+                    if !discard_success && used_bytes > 0 {
+                        let wipe_count = if is_emergency { used_mb.min(256) } else { size_mb };
                         let _ = Command::new("dd")
-                            .args(["if=/dev/zero", &format!("of={device}"), "bs=1M", &format!("count={size_mb}"), "status=none"])
+                            .args(["if=/dev/zero", &format!("of={device}"), "bs=1M", &format!("count={wipe_count}"), "status=none"])
                             .status();
                     }
 

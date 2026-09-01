@@ -43,7 +43,7 @@ pub fn secure_delete_file(path: &Path, passes: u8) -> Result<()> {
             
             if is_ssd {
                 let discard_success = std::process::Command::new("fallocate")
-                    .args(["-d", "-p", "-o", "0", "-l", &size.to_string(), path.to_string_lossy().as_ref()])
+                    .args(["-p", "-n", "-o", "0", "-l", &size.to_string(), path.to_string_lossy().as_ref()])
                     .status()
                     .map(|s| s.success())
                     .unwrap_or(false);

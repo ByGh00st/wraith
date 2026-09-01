@@ -25,9 +25,9 @@ echo "   ██║ █╗ ██║██████╔╝███████
 echo "   ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║"
 echo "   ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║"
 echo "    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝"
-echo -e "${CLR_CYAN}  ╭── [ ⚔ WRAITH-PRIME // UNINSTALLER & SYSTEM RESTORE ] ────────────────────────╮"
-echo -e "  │  ${CLR_SLATE}TARGET :${CLR_RESET} ${CLR_AMBER}Complete removal of binaries, configs, and network constraints${CLR_RESET} ${CLR_CYAN}│"
-echo -e "  ╰──────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
+echo -e "${CLR_CYAN}  ╭── [ ⚔️ WRAITH-PRIME // UNINSTALLER & SYSTEM RESTORE ] ──────────────────╮"
+echo -e "  │  ${CLR_SLATE}TARGET :${CLR_RESET} ${CLR_AMBER}Complete removal of binaries, configs, and network constraints${CLR_RESET} │"
+echo -e "  ╰──────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
 
 if [ "$EUID" -ne 0 ]; then
     echo -e "  ${CLR_RED}${CLR_BOLD}✖ [ACCESS DENIED]${CLR_RESET} Root clearance required for uninstall."
@@ -81,6 +81,6 @@ rm -f /etc/tor/wraithrc 2>/dev/null || true
 rm -f /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [CLEARED]${CLR_RESET} Persistent data obliterated."
 
-echo -e "\n${CLR_PURPLE}  ╭── [ 🛡️ WRAITH PURGE COMPLETE // SYSTEM RESTORED TO DEFAULT ] ─────────╮${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_WHITE}All Wraith traces have been removed from the system.                   ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  ╰───────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
+echo -e "\n${CLR_PURPLE}  ╭── [ 🛡️ WRAITH PURGE COMPLETE // SYSTEM RESTORED TO DEFAULT ] ────────────╮${CLR_RESET}"
+echo -e "${CLR_PURPLE}  │  ${CLR_WHITE}All Wraith traces have been successfully removed from the host system.  ${CLR_PURPLE}│${CLR_RESET}"
+echo -e "${CLR_PURPLE}  ╰──────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
