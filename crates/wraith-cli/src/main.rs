@@ -29,8 +29,14 @@ pub struct StartArgs {
     #[arg(short = 'n', long = "namespace", help_heading = "Network Isolation")]
     pub namespace: bool,
 
-    /// Enforce geographic Tor exit node profile (e.g. stealth, speed, research, darkweb)
-    #[arg(short = 'p', long = "profile", value_name = "PROFILE", help_heading = "Network Isolation")]
+    /// Enforce geographic Tor exit node profile (stealth, speed, journalists, research, darkweb)
+    #[arg(
+        short = 'p',
+        long = "profile",
+        value_name = "PROFILE",
+        value_parser = ["stealth", "speed", "journalists", "research", "darkweb"],
+        help_heading = "Network Isolation"
+    )]
     pub profile: Option<String>,
 
     /// Inject synthetic traffic cells & Poisson timing jitter to resist traffic flow correlation
@@ -264,6 +270,8 @@ enum Commands {
     Mac,
     /// Apply geographic exit profile
     Profile {
+        /// Profile name (stealth, speed, journalists, research, darkweb)
+        #[arg(value_parser = ["stealth", "speed", "journalists", "research", "darkweb"])]
         name: String,
     },
     /// Display offensive security & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
