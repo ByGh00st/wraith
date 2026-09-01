@@ -15,9 +15,12 @@ pub const RESTRICTED_FONT_XML: &str = r#"<?xml version="1.0"?>
 <fontconfig>
   <description>Wraith Base System Font Mask</description>
   <selectfont>
-    <!-- Block ALL fonts on the system -->
+    <!-- Block ALL font directories on Linux -->
     <rejectfont>
-      <glob>*</glob>
+      <glob>/usr/share/fonts/*</glob>
+      <glob>/usr/local/share/fonts/*</glob>
+      <glob>~/.fonts/*</glob>
+      <glob>~/.local/share/fonts/*</glob>
     </rejectfont>
     <!-- Only allow standard generic fallbacks to prevent broken rendering -->
     <acceptfont>
