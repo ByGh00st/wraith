@@ -31,7 +31,7 @@ use wraith_tor::{
 
 use crate::display::{
     print_banner, print_error, print_step, print_success, show_circuit_telemetry, show_leak_report,
-    show_status_dashboard, render_box_top, render_box_bottom, render_box_row, BoxCorner,
+    show_status_dashboard, render_box, render_box_top, render_box_bottom, render_box_row, BoxCorner,
 };
 use owo_colors::OwoColorize;
 use crate::tui::SovereignDashboard;
@@ -981,11 +981,17 @@ fn determine_build_dir() -> String {
 
 pub async fn cmd_update() -> Result<()> {
     print_banner(false);
-    println!("{}", render_box_top("🚀 WRAITH AUTONOMOUS SYSTEM INSTALLER & UPDATER", 78, BoxCorner::Square).bright_cyan());
-    println!("{}", render_box_row("• Target Binary : /usr/local/bin/wraith", 78));
-    println!("{}", render_box_row("• Upstream Repo : https://github.com/ByGh00st/wraith.git", 78));
-    println!("{}", render_box_row("• Pipeline      : Clean Git Clone ➔ Cargo Release ➔ Deploy", 78));
-    println!("{}\n", render_box_bottom(78, BoxCorner::Square).bright_cyan());
+    let update_rows = vec![
+        "• Target Binary : /usr/local/bin/wraith".to_string(),
+        "• Upstream Repo : https://github.com/ByGh00st/wraith.git".to_string(),
+        "• Pipeline      : Clean Git Clone ➔ Cargo Release ➔ Deploy".to_string(),
+    ];
+    let update_box = render_box("🚀 WRAITH AUTONOMOUS SYSTEM INSTALLER & UPDATER", &update_rows, BoxCorner::Square, 78);
+    println!("{}", update_box[0].bright_cyan());
+    for row in &update_box[1..update_box.len() - 1] {
+        println!("{row}");
+    }
+    println!("{}\n", update_box.last().unwrap().bright_cyan());
 
     print_step(&t!("commands.cmd_step_40"), "info");
 
@@ -1230,32 +1236,44 @@ pub async fn cmd_cleanup(full: bool) -> Result<()> {
 
 pub fn cmd_pentest() -> Result<()> {
     print_banner(false);
-    println!("{}", render_box_top("⚔️ WRAITH-PRIME // OFFENSIVE SECURITY & PENTEST SANITIZATION", 78, BoxCorner::Rounded).bright_yellow());
-    println!("{}", render_box_row("SOCKS5 PROXY      : 127.0.0.1:9050 (Tor Native SOCKS5 Transport)", 78));
-    println!("{}", render_box_row("HTTP CAMOUFLAGE   : 127.0.0.1:9055 (JA3/JA4 Chrome v130+ Spoofing Proxy)", 78));
-    println!("{}", render_box_row("DNS SINKHOLE GATE : 127.0.0.1:5353 (Tor TransProxy DNS Resolver)", 78));
-    println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_yellow());
+    let p_rows1 = vec![
+        "SOCKS5 PROXY      : 127.0.0.1:9050 (Tor Native SOCKS5 Transport)".to_string(),
+        "HTTP CAMOUFLAGE   : 127.0.0.1:9055 (JA3/JA4 Chrome v130+ Spoofing Proxy)".to_string(),
+        "DNS SINKHOLE GATE : 127.0.0.1:5353 (Tor TransProxy DNS Resolver)".to_string(),
+    ];
+    let p_box1 = render_box("⚔️ WRAITH-PRIME // OFFENSIVE SECURITY & PENTEST SANITIZATION", &p_rows1, BoxCorner::Rounded, 78);
+    println!("{}", p_box1[0].bright_yellow());
+    for row in &p_box1[1..p_box1.len() - 1] {
+        println!("{row}");
+    }
+    println!("{}\n", p_box1.last().unwrap().bright_yellow());
 
-    println!("{}", render_box_top("🎯 RECOMMENDED OFFENSIVE STRIKE COMMAND WRAPPERS", 78, BoxCorner::Square).bright_cyan());
-    println!("{}", render_box_row("", 78));
-    println!("{}", render_box_row("[NMAP STEALTH TCP SYN SCAN OVER SOCKS5]:", 78));
-    println!("{}", render_box_row("  nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>", 78));
-    println!("{}", render_box_row("", 78));
-    println!("{}", render_box_row("[CURL / WEB FUZZING WITH JA4 TLS EVASION]:", 78));
-    println!("{}", render_box_row("  curl -x http://127.0.0.1:9055 https://target.com/login", 78));
-    println!("{}", render_box_row("       -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64)\"", 78));
-    println!("{}", render_box_row("", 78));
-    println!("{}", render_box_row("[SQLMAP EXPLOITATION OVER TOR SOCKS5]:", 78));
-    println!("{}", render_box_row("  sqlmap -u \"http://<target>/id=1\" \\", 78));
-    println!("{}", render_box_row("         --proxy=\"socks5://127.0.0.1:9050\" --random-agent", 78));
-    println!("{}", render_box_row("", 78));
-    println!("{}", render_box_row("[METASPLOIT FRAMEWORK SOCKS5 TUNNELING]:", 78));
-    println!("{}", render_box_row("  set Proxies socks5:127.0.0.1:9050", 78));
-    println!("{}", render_box_row("  set HTTP_USER_AGENT Mozilla/5.0 (Windows NT 10.0; Win64)", 78));
-    println!("{}", render_box_row("", 78));
-    println!("{}", render_box_row("[HYDRA / SSH BRUTE-FORCE OVER TOR]:", 78));
-    println!("{}", render_box_row("  hydra -s 22 -l root -P pass.txt -t 4 <target_ip> ssh", 78));
-    println!("{}\n", render_box_bottom(78, BoxCorner::Square).bright_cyan());
+    let p_rows2 = vec![
+        "".to_string(),
+        "[NMAP STEALTH TCP SYN SCAN OVER SOCKS5]:".to_string(),
+        "  nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>".to_string(),
+        "".to_string(),
+        "[CURL / WEB FUZZING WITH JA4 TLS EVASION]:".to_string(),
+        "  curl -x http://127.0.0.1:9055 https://target.com/login".to_string(),
+        "       -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64)\"".to_string(),
+        "".to_string(),
+        "[SQLMAP EXPLOITATION OVER TOR SOCKS5]:".to_string(),
+        "  sqlmap -u \"http://<target>/id=1\" \\".to_string(),
+        "         --proxy=\"socks5://127.0.0.1:9050\" --random-agent".to_string(),
+        "".to_string(),
+        "[METASPLOIT FRAMEWORK SOCKS5 TUNNELING]:".to_string(),
+        "  set Proxies socks5:127.0.0.1:9050".to_string(),
+        "  set HTTP_USER_AGENT Mozilla/5.0 (Windows NT 10.0; Win64)".to_string(),
+        "".to_string(),
+        "[HYDRA / SSH BRUTE-FORCE OVER TOR]:".to_string(),
+        "  hydra -s 22 -l root -P pass.txt -t 4 <target_ip> ssh".to_string(),
+    ];
+    let p_box2 = render_box("🎯 RECOMMENDED OFFENSIVE STRIKE COMMAND WRAPPERS", &p_rows2, BoxCorner::Square, 78);
+    println!("{}", p_box2[0].bright_cyan());
+    for row in &p_box2[1..p_box2.len() - 1] {
+        println!("{row}");
+    }
+    println!("{}\n", p_box2.last().unwrap().bright_cyan());
 
     Ok(())
 }
@@ -1274,7 +1292,6 @@ pub fn spawn_monitor_terminal() -> bool {
     } else {
         "/root/.Xauthority".into()
     };
-
     // Recover DBUS_SESSION_BUS_ADDRESS for GUI terminals running under sudo
     let dbus_addr = std::env::var("DBUS_SESSION_BUS_ADDRESS").unwrap_or_else(|_| {
         if let Ok(sudo_user) = std::env::var("SUDO_USER") {

@@ -32,8 +32,10 @@ pub fn detect_target_os() -> String {
     format!("Linux ({})", std::env::consts::ARCH)
 }
 
+use unicode_width::UnicodeWidthStr;
+
 pub fn visible_width(s: &str) -> usize {
-    let mut width = 0;
+    let mut clean = String::with_capacity(s.len());
     let mut in_escape = false;
 
     for c in s.chars() {
@@ -50,20 +52,9 @@ pub fn visible_width(s: &str) -> usize {
         if c == '\u{fe0f}' || c == '\u{fe0e}' || ('\u{200b}'..='\u{200d}').contains(&c) {
             continue;
         }
-        let u = c as u32;
-        if (0x1F300..=0x1FAFF).contains(&u)
-            || (0x2600..=0x27BF).contains(&u)
-            || (0x2E80..=0x9FFF).contains(&u)
-            || (0xAC00..=0xD7AF).contains(&u)
-            || (0xF900..=0xFAFF).contains(&u)
-            || (0xFF01..=0xFF60).contains(&u)
-        {
-            width += 2;
-        } else {
-            width += 1;
-        }
+        clean.push(c);
     }
-    width
+    UnicodeWidthStr::width(clean.as_str())
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -109,22 +100,66 @@ pub fn render_box_row(content: &str, total_width: usize) -> String {
     format!("  │  {content}{padding} │")
 }
 
+pub fn render_box(title: &str, rows: &[String], corner: BoxCorner, min_width: usize) -> Vec<String> {
+    let clean_title = if let (Some(start), Some(end)) = (title.find('['), title.rfind(']')) {
+        title[start + 1..end].trim()
+    } else {
+        title.trim()
+    };
+    let title_w = visible_width(clean_title);
+    let max_row_w = rows.iter().map(|r| visible_width(r)).max().unwrap_or(0);
+    let total_width = (max_row_w + 7).max(title_w + 14).max(min_width);
+
+    let mut output = Vec::with_capacity(rows.len() + 2);
+    output.push(render_box_top(clean_title, total_width, corner));
+    for row in rows {
+        output.push(render_box_row(row, total_width));
+    }
+    output.push(render_box_bottom(total_width, corner));
+    output
+}
+
 pub fn print_banner(is_strict: bool) {
     let target = detect_target_os();
+    let (title, r1_val, r3_val) = if is_strict {
+        (
+            t!("banner.max_defense"),
+            t!("banner.engine_val_strict").bold().bright_red().to_string(),
+            t!("banner.gate_val_strict").bold().bright_red().to_string(),
+        )
+    } else {
+        (
+            t!("banner.telemetry"),
+            t!("banner.engine_val_normal").bold().bright_cyan().to_string(),
+            t!("banner.gate_val_normal").bold().bright_green().to_string(),
+        )
+    };
+
+    let rows = vec![
+        format!("{} {}", t!("banner.engine_spec").dimmed(), r1_val),
+        format!("{} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow()),
+        format!("{} {}", t!("banner.gate_status").dimmed(), r3_val),
+    ];
+
     if is_strict {
         println!("{}", WRAITH_BANNER.bold().bright_red());
-        println!("{}", render_box_top(&t!("banner.max_defense"), 78, BoxCorner::Rounded).bright_red());
-        println!("{}", render_box_row(&format!("{} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_strict").bold().bright_red()), 78));
-        println!("{}", render_box_row(&format!("{} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow()), 78));
-        println!("{}", render_box_row(&format!("{} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_strict").bold().bright_red()), 78));
-        println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_red());
     } else {
         println!("{}", WRAITH_BANNER.bold().bright_purple());
-        println!("{}", render_box_top(&t!("banner.telemetry"), 78, BoxCorner::Rounded).bright_cyan());
-        println!("{}", render_box_row(&format!("{} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_normal").bold().bright_cyan()), 78));
-        println!("{}", render_box_row(&format!("{} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow()), 78));
-        println!("{}", render_box_row(&format!("{} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_normal").bold().bright_green()), 78));
-        println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_cyan());
+    }
+
+    let box_lines = render_box(&title, &rows, BoxCorner::Rounded, 78);
+    if is_strict {
+        println!("{}", box_lines[0].bright_red());
+        for row in &box_lines[1..box_lines.len() - 1] {
+            println!("{row}");
+        }
+        println!("{}\n", box_lines.last().unwrap().bright_red());
+    } else {
+        println!("{}", box_lines[0].bright_cyan());
+        for row in &box_lines[1..box_lines.len() - 1] {
+            println!("{row}");
+        }
+        println!("{}\n", box_lines.last().unwrap().bright_cyan());
     }
 }
 
@@ -210,7 +245,6 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
 
     println!("\n{table}");
 
-    println!("{}", render_box_top(&t!("hud.keys"), 96, BoxCorner::Square).bright_cyan());
     let keys_content = format!("{} │ {} │ {} │ {} │ {}", 
         t!("hud.k_rotate").bold().bright_cyan(),
         t!("hud.k_audit").bold().bright_green(),
@@ -218,20 +252,30 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
         t!("hud.k_purge").bold().bright_yellow(),
         t!("hud.k_quit").bold().bright_red()
     );
-    println!("{}", render_box_row(&keys_content, 96));
-    println!("{}\n", render_box_bottom(96, BoxCorner::Square).bright_cyan());
+    let hud_box = render_box(&t!("hud.keys"), &[keys_content], BoxCorner::Square, 80);
+    println!("{}", hud_box[0].bright_cyan());
+    for row in &hud_box[1..hud_box.len() - 1] {
+        println!("{row}");
+    }
+    println!("{}\n", hud_box.last().unwrap().bright_cyan());
 }
 
 pub fn print_success(msg: &str) {
-    println!("\n{}", render_box_top("✔ WRAITH SYSTEM RESTORED", 78, BoxCorner::Rounded).bold().bright_green());
-    println!("{}", render_box_row(&msg.bold().bright_green().to_string(), 78));
-    println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bold().bright_green());
+    let lines = render_box("✔ WRAITH SYSTEM RESTORED", &[msg.bold().bright_green().to_string()], BoxCorner::Rounded, 78);
+    println!("\n{}", lines[0].bold().bright_green());
+    for line in &lines[1..lines.len() - 1] {
+        println!("{line}");
+    }
+    println!("{}\n", lines.last().unwrap().bold().bright_green());
 }
 
 pub fn print_error(msg: &str) {
-    println!("\n{}", render_box_top("✖ CRITICAL SECURITY FAULT", 78, BoxCorner::Rounded).bold().bright_red());
-    println!("{}", render_box_row(&msg.bold().bright_red().to_string(), 78));
-    println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bold().bright_red());
+    let lines = render_box("✖ CRITICAL SECURITY FAULT", &[msg.bold().bright_red().to_string()], BoxCorner::Rounded, 78);
+    println!("\n{}", lines[0].bold().bright_red());
+    for line in &lines[1..lines.len() - 1] {
+        println!("{line}");
+    }
+    println!("{}\n", lines.last().unwrap().bold().bright_red());
 }
 
 pub fn show_status_dashboard(state: &StateData, is_tor: bool, ip: &str, circuits: usize) {

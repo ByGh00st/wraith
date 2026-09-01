@@ -33,3 +33,4 @@ crossterm.workspace = true
 libc.workspace = true
 rust-i18n = "4.2.1"
 sys-locale = "0.3.2"
+unicode-width.workspace = true

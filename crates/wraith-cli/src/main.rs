@@ -279,11 +279,17 @@ fn install_emergency_panic_sentry() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = crossterm::terminal::disable_raw_mode();
-        eprintln!("\n\r{}", crate::display::render_box_top("💥 CRITICAL ENGINE FAULT TRAPPED", 78, crate::display::BoxCorner::Rounded));
         let panic_str = format!("CRASH DIAGNOSIS : {}", format!("{panic_info}").chars().take(50).collect::<String>());
-        eprintln!("\r{}", crate::display::render_box_row(&panic_str, 78));
-        eprintln!("\r{}", crate::display::render_box_row("AUTO-RECOVERY   : Restoring netfilter, DNS, DHCP, and clearnet routes...", 78));
-        eprintln!("\r{}\n", crate::display::render_box_bottom(78, crate::display::BoxCorner::Rounded));
+        let rows = vec![
+            panic_str,
+            "AUTO-RECOVERY   : Restoring netfilter, DNS, DHCP, and clearnet routes...".to_string(),
+        ];
+        let p_box = crate::display::render_box("💥 CRITICAL ENGINE FAULT TRAPPED", &rows, crate::display::BoxCorner::Rounded, 78);
+        eprintln!("\n\r{}", p_box[0]);
+        for row in &p_box[1..p_box.len() - 1] {
+            eprintln!("\r{row}");
+        }
+        eprintln!("\r{}\n", p_box.last().unwrap());
         emergency_kernel_recovery();
         default_hook(panic_info);
     }));
