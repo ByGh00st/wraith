@@ -1,0 +1,20 @@
+[package]
+name = "wraith-forensic"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+wraith-core = { path = "../wraith-core" }
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+rand.workspace = true
+zeroize.workspace = true
+walkdir.workspace = true
+phf.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+libc.workspace = true
+tempfile.workspace = true

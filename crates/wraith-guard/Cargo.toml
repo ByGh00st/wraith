@@ -1,0 +1,20 @@
+[package]
+name = "wraith-guard"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+wraith-core = { path = "../wraith-core" }
+wraith-net = { path = "../wraith-net" }
+wraith-tor = { path = "../wraith-tor" }
+tokio.workspace = true
+tokio-util.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rand.workspace = true
+libc.workspace = true

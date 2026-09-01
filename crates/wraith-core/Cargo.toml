@@ -1,0 +1,24 @@
+[package]
+name = "wraith-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tempfile.workspace = true
+libc.workspace = true
+zeroize.workspace = true
+rand.workspace = true
+chacha20poly1305.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+subtle.workspace = true
+hex.workspace = true
+md-5.workspace = true
+
