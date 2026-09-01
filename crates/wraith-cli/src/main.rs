@@ -420,7 +420,7 @@ pub async fn main() -> Result<()> {
         Commands::Monitor
     } else {
         display::print_banner(false);
-        println!("  Use 'wraith --help' or 'wraith -h' for available commands and options.\n");
+        println!("  {}\n", rust_i18n::t!("runtime.help_hint"));
         return Ok(());
     };
 
@@ -429,7 +429,7 @@ pub async fn main() -> Result<()> {
         Commands::Pentest => {} // Read-only pentest matrix does not require root
         _ => {
             if let Err(e) = check_root() {
-                display::print_error(&format!("{e} (Please re-run with: sudo wraith ...)"));
+                display::print_error(&format!("{}", rust_i18n::t!("runtime.root_required", e = e.to_string())));
                 std::process::exit(1);
             }
         }
@@ -441,16 +441,16 @@ pub async fn main() -> Result<()> {
             tokio::select! {
                 res = commands::cmd_start(args) => {
                     if let Err(e) = res {
-                        display::print_error(&format!("Wraith startup aborted: {e}"));
+                        display::print_error(&format!("{}", rust_i18n::t!("runtime.startup_aborted", e = e.to_string())));
                         let _ = commands::cmd_stop(false).await;
                         return Err(e);
                     }
                 }
                 _ = tokio::signal::ctrl_c() => {
                     let _ = crossterm::terminal::disable_raw_mode();
-                    println!("\r\n\n  ┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────┐");
-                    println!("  │  Startup interrupted. Restoring full system network & security... │");
-                    println!("  └───────────────────────────────────────────────────────────────────┘\n");
+                    println!("\r\n\n  {}", rust_i18n::t!("runtime.emergency_abort_title"));
+                    println!("  {}", rust_i18n::t!("runtime.emergency_abort_desc"));
+                    println!("  {}\n", rust_i18n::t!("runtime.emergency_abort_foot"));
                     let _ = commands::cmd_stop(false).await;
                 }
             }
@@ -484,11 +484,11 @@ pub async fn main() -> Result<()> {
         Commands::Mac => {
             let _ = wraith_net::change_mac(None, None);
             let _ = wraith_net::randomize_hostname();
-            display::print_success("Hardware MAC and Hostname randomized");
+            display::print_success(&rust_i18n::t!("runtime.mac_randomized"));
         }
         Commands::Profile { name } => {
             let _ = wraith_tor::apply_exit_profile(&name).await?;
-            display::print_success(&format!("Applied exit profile: {name}"));
+            display::print_success(&format!("{}", rust_i18n::t!("runtime.profile_applied", name = name.as_str())));
         }
         Commands::Pentest => {
             commands::cmd_pentest()?;

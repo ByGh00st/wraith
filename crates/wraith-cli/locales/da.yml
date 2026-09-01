@@ -167,3 +167,17 @@ help:
 
   opt_verbose: "Enable verbose debug logging"
   opt_lang: "Override system language (e.g. 'en', 'tr', 'ru', 'de')"
+
+runtime:
+  emergency_abort_title: "┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐"
+  emergency_abort_desc:  "│  Startup interrupted. Restoring full system network & security...         │"
+  emergency_abort_foot:  "└───────────────────────────────────────────────────────────────────────────┘"
+  startup_aborted: "Wraith startup aborted: {}"
+  help_hint: "Use 'wraith --help' or 'wraith -h' for available commands and options."
+  root_required: "{} (Please re-run with: sudo wraith ...)"
+  mac_randomized: "Hardware MAC and Hostname randomized"
+  profile_applied: "Applied exit profile: {}"
+  already_running: "Wraith is already running! Stop first with: sudo wraith stop"
+  not_running: "Wraith is not running. Start first with: sudo wraith start"
+  stopped_success: "Wraith stopped — Isolation terminated & Clearnet restored"
+  updated_success: "Wraith updated & deployed successfully in-place!"

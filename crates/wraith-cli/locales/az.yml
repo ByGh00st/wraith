@@ -167,3 +167,17 @@ help:
 
   opt_verbose: "Ayrıntılı hata ayıklama (debug) günlüklerini açar"
   opt_lang: "Sistem dilini geçici olarak değiştirir (örn: 'en', 'tr', 'ru', 'de')"
+
+runtime:
+  emergency_abort_title: "┌── [ 🚨 ACİL DURDURMA: SIGINT (Ctrl+C) YAKALANDI ] ─────────────────────────┐"
+  emergency_abort_desc:  "│  Başlatma kesildi. Tüm sistem ağı ve güvenliği geri yükleniyor...         │"
+  emergency_abort_foot:  "└───────────────────────────────────────────────────────────────────────────┘"
+  startup_aborted: "Wraith başlatma işlemi iptal edildi: {}"
+  help_hint: "Kullanılabilir komutlar ve seçenekler için 'wraith --help' veya 'wraith -h' kullanın."
+  root_required: "{} (Lütfen yetkili olarak çalıştırın: sudo wraith ...)"
+  mac_randomized: "Donanım MAC adresi ve Cihaz Adı (Hostname) rastgeleleştirildi"
+  profile_applied: "Çıkış profili uygulandı: {}"
+  already_running: "Wraith zaten çalışıyor! Önce durdurun: sudo wraith stop"
+  not_running: "Wraith çalışmıyor. Önce başlatın: sudo wraith start"
+  stopped_success: "Wraith durduruldu — İzolasyon sonlandırıldı & Normal Ağ geri yüklendi"
+  updated_success: "Wraith başarıyla güncellendi ve yerinde yeniden devreye alındı!"

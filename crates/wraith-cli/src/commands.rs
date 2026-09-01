@@ -104,7 +104,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     let state_mgr = StateManager::default();
 
     if state_mgr.is_active() {
-        print_error("Wraith is already running! Stop first with: sudo wraith stop");
+        print_error(&t!("runtime.already_running"));
         return Ok(());
     }
 
@@ -882,10 +882,11 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
     if let Some(ip) = real_ip {
         print_success(&format!(
-            "Wraith stopped — Isolation terminated & Real IP restored: {ip}"
+            "{}: {ip}",
+            t!("runtime.stopped_success")
         ));
     } else {
-        print_success("Wraith stopped — Isolation terminated & Clearnet restored");
+        print_success(&t!("runtime.stopped_success"));
     }
     Ok(())
 }
@@ -1088,9 +1089,8 @@ pub async fn cmd_update() -> Result<()> {
         &format!("SHA-256: {} (not verified against a trusted source — use at your own risk)", &bin_hash[..16.min(bin_hash.len())]),
         "warn",
     );
-    print_success("Wraith updated & deployed successfully in-place!");
-    println!("  Universal binary: /usr/local/bin/wraith");
-    println!("  Run 'wraith --version' or 'wraith' to launch.\n");
+    print_success(&t!("runtime.updated_success"));
+    println!("  Universal binary: /usr/local/bin/wraith\n");
     Ok(())
 }
 
@@ -1098,7 +1098,7 @@ pub async fn cmd_switch() -> Result<()> {
     print_banner(false);
     let state_mgr = StateManager::default();
     if !state_mgr.is_active() {
-        print_error("Wraith is not running. Start first with: sudo wraith start");
+        print_error(&t!("runtime.not_running"));
         return Ok(());
     }
 

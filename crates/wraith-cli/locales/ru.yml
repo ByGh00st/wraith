@@ -168,3 +168,17 @@ help:
 
   opt_verbose: "Включить подробные отладочные логи"
   opt_lang: "Переопределить язык системы (напр. 'en', 'tr', 'ru')"
+
+runtime:
+  emergency_abort_title: "┌── [ 🚨 АВАРИЙНАЯ ОСТАНОВКА: ПЕРЕХВАЧЕН SIGINT (Ctrl+C) ] ──────────────┐"
+  emergency_abort_desc:  "│  Запуск прерван. Восстановление сетевой конфигурации и безопасности... │"
+  emergency_abort_foot:  "└────────────────────────────────────────────────────────────────────────┘"
+  startup_aborted: "Запуск Wraith прерван: {}"
+  help_hint: "Используйте 'wraith --help' или 'wraith -h' для справки по командам."
+  root_required: "{} (Пожалуйста, запустите от имени root: sudo wraith ...)"
+  mac_randomized: "MAC-адрес оборудования и имя хоста рандомизированы"
+  profile_applied: "Применен профиль выхода: {}"
+  already_running: "Wraith уже запущен! Сначала остановите: sudo wraith stop"
+  not_running: "Wraith не запущен. Сначала запустите: sudo wraith start"
+  stopped_success: "Wraith остановлен — Изоляция завершена, обычная сеть восстановлена"
+  updated_success: "Wraith успешно обновлен и развернут на месте!"
