@@ -134,160 +134,16 @@ else
     exit 1
 fi
 
-# ─── [ SYSTEM LANGUAGE SELECTION TUI (65 LANGUAGES) ] ─────────────────────────
-select_language_tui() {
-    local LANGUAGES=(
-        "en:English (Default)"
-        "tr:Türkçe"
-        "az:Azərbaycan dili"
-        "kk:Қазақ тілі"
-        "uz:Oʻzbekcha"
-        "ky:Кыргызча"
-        "tk:Türkmençe"
-        "ug:Уйғурчә"
-        "tt:Татарча"
-        "ba:Башҡортса"
-        "cv:Чӑвашла"
-        "sah:Саха тыла"
-        "gag:Gagauzça"
-        "crh:Qırımtatarca"
-        "alt:Алтай тили"
-        "tyv:Тыва дыл"
-        "kjh:Хакас тілі"
-        "krc:Къарачай-малкъар"
-        "kum:Къумукъ тил"
-        "nog:Ногай тили"
-        "de:Deutsch"
-        "fr:Français"
-        "es:Español"
-        "ru:Русский"
-        "zh:中文 (Chinese)"
-        "ja:日本語 (Japanese)"
-        "ko:한국어 (Korean)"
-        "pt:Português"
-        "it:Italiano"
-        "nl:Nederlands"
-        "pl:Polski"
-        "sv:Svenska"
-        "no:Norsk"
-        "da:Dansk"
-        "fi:Suomi"
-        "cs:Čeština"
-        "hu:Magyar"
-        "ro:Română"
-        "uk:Українська"
-        "el:Ελληνικά"
-        "bg:Български"
-        "hr:Hrvatski"
-        "sk:Slovenčina"
-        "sl:Slovenščina"
-        "sr:Srpski"
-        "lt:Lietuvių"
-        "lv:Latviešu"
-        "et:Eesti"
-        "is:Íslenska"
-        "ga:Gaeilge"
-        "sq:Shqip"
-        "mk:Македонски"
-        "bs:Bosanski"
-        "mt:Malti"
-        "vi:Tiếng Việt"
-        "th:ไทย"
-        "id:Bahasa Indonesia"
-        "ms:Bahasa Melayu"
-        "tl:Tagalog"
-        "hi:हिन्दी"
-        "bn:বাংলা"
-        "ta:தமிழ்"
-        "te:తెలుగు"
-        "mn:Монгол"
-        "ka:ქართული"
-    )
-
-    local TOTAL=${#LANGUAGES[@]}
-    local CURSOR=0
-    local PAGE_SIZE=10
-
-    # Enter Alternate Screen Buffer (isolated terminal session like htop/vim)
-    tput smcup 2>/dev/null || true
-    echo -ne "\033[?25l"
-
-    while true; do
-        # Calculate viewport window
-        local TOP=$(( CURSOR - (PAGE_SIZE / 2) ))
-        [ "$TOP" -lt 0 ] && TOP=0
-        local MAX_TOP=$(( TOTAL - PAGE_SIZE ))
-        [ "$MAX_TOP" -lt 0 ] && MAX_TOP=0
-        [ "$TOP" -gt "$MAX_TOP" ] && TOP=$MAX_TOP
-
-        # Reset screen to (0,0) with clean buffer
-        tput cup 0 0 2>/dev/null || printf "\033[H"
-        tput ed 2>/dev/null || printf "\033[J"
-
-        # Draw Clean Corporate UI Box (Total Width: 82 columns)
-        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 ENTERPRISE DEFAULT LANGUAGE CONFIGURATION // 65 LOCALES ] ───────────┐${CLR_RESET}"
-        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Controls: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Navigate │ ${CLR_WHITE}[PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Select             ${CLR_CYAN}│${CLR_RESET}"
-        echo -e "${CLR_CYAN}  ├──────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
-
-        for ((i=TOP; i<TOP+PAGE_SIZE && i<TOTAL; i++)); do
-            local item="${LANGUAGES[$i]}"
-            local code="${item%%:*}"
-            local name="${item#*:}"
-            local idx_fmt=$(printf "%02d" $((i + 1)))
-
-            if [ "$i" -eq "$CURSOR" ]; then
-                local line_str=$(printf "➔  [%s]  [%-4s]  %-58s" "$idx_fmt" "$code" "$name")
-                echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_EMERALD}${CLR_BOLD}${line_str}${CLR_RESET}  ${CLR_CYAN}│${CLR_RESET}"
-            else
-                local line_str=$(printf "   [%s]  [%-4s]  %-58s" "$idx_fmt" "$code" "$name")
-                echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${line_str}  ${CLR_CYAN}│${CLR_RESET}"
-            fi
-        done
-
-        local curr_fmt=$(printf "%02d" $((CURSOR + 1)))
-        local status_str=$(printf "Active Selection: [%s/%02d] [%-4s] %-48s" "$curr_fmt" "$TOTAL" "${LANGUAGES[$CURSOR]%%:*}" "${LANGUAGES[$CURSOR]#*:}")
-        echo -e "${CLR_CYAN}  ├──────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
-        echo -e "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}${status_str}${CLR_RESET}  ${CLR_CYAN}│${CLR_RESET}"
-        echo -e "${CLR_CYAN}  └──────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
-
-        # Read keypress
-        IFS= read -rsn1 key
-        if [[ "$key" == $'\x1b' ]]; then
-            read -rsn2 -t 0.1 rest || rest=""
-            case "$rest" in
-                '[A') # Up
-                    [ "$CURSOR" -gt 0 ] && CURSOR=$((CURSOR - 1))
-                    ;;
-                '[B') # Down
-                    [ "$((CURSOR + 1))" -lt "$TOTAL" ] && CURSOR=$((CURSOR + 1))
-                    ;;
-                '[C'|'[6~') # Right / PageDown
-                    CURSOR=$(( CURSOR + PAGE_SIZE ))
-                    [ "$CURSOR" -ge "$TOTAL" ] && CURSOR=$((TOTAL - 1))
-                    ;;
-                '[D'|'[5~') # Left / PageUp
-                    CURSOR=$(( CURSOR - PAGE_SIZE ))
-                    [ "$CURSOR" -lt 0 ] && CURSOR=0
-                    ;;
-            esac
-        elif [[ "$key" == "" ]]; then # Enter
-            local chosen="${LANGUAGES[$CURSOR]}"
-            SELECTED_LANG="${chosen%%:*}"
-            break
-        elif [[ "$key" == "q" || "$key" == "Q" ]]; then
-            SELECTED_LANG="en"
-            break
-        fi
-    done
-
-    # Exit Alternate Screen Buffer & Restore Cursor
-    echo -ne "\033[?25h"
-    tput rmcup 2>/dev/null || true
-}
-
+# ─── [ SYSTEM LANGUAGE SELECTION TUI (65 LANGUAGES IN PURE RUST) ] ─────────────────
 SELECTED_LANG="en"
 if [ -t 0 ]; then
-    select_language_tui
+    BIN_RUN="/usr/local/bin/wraith"
+    [ ! -x "$BIN_RUN" ] && BIN_RUN="$TARGET_BIN"
+
+    if [ -x "$BIN_RUN" ]; then
+        SELECTED_LANG=$("$BIN_RUN" --select-lang 2>/dev/null || echo "en")
+        [ -z "$SELECTED_LANG" ] && SELECTED_LANG="en"
+    fi
 fi
 
 # Persistent System-Wide and User-Level Language Configuration

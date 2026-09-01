@@ -167,3 +167,203 @@ impl SovereignDashboard {
         Ok(())
     }
 }
+
+pub const ALL_LANGUAGES: [(&str, &str); 65] = [
+    ("en", "English (Default)"),
+    ("tr", "Türkçe"),
+    ("az", "Azərbaycan dili"),
+    ("kk", "Қазақ тілі"),
+    ("uz", "Oʻzbekcha"),
+    ("ky", "Кыргызча"),
+    ("tk", "Türkmençe"),
+    ("ug", "Уйғурчә"),
+    ("tt", "Татарча"),
+    ("ba", "Башҡортса"),
+    ("cv", "Чӑвашла"),
+    ("sah", "Саха тыла"),
+    ("gag", "Gagauzça"),
+    ("crh", "Qırımtatarca"),
+    ("alt", "Алтай тили"),
+    ("tyv", "Тыва дыл"),
+    ("kjh", "Хакас тілі"),
+    ("krc", "Къарачай-малкъар"),
+    ("kum", "Къумукъ тил"),
+    ("nog", "Ногай тили"),
+    ("de", "Deutsch"),
+    ("fr", "Français"),
+    ("es", "Español"),
+    ("ru", "Русский"),
+    ("zh", "中文 (Chinese)"),
+    ("ja", "日本語 (Japanese)"),
+    ("ko", "한국어 (Korean)"),
+    ("pt", "Português"),
+    ("it", "Italiano"),
+    ("nl", "Nederlands"),
+    ("pl", "Polski"),
+    ("sv", "Svenska"),
+    ("no", "Norsk"),
+    ("da", "Dansk"),
+    ("fi", "Suomi"),
+    ("cs", "Čeština"),
+    ("hu", "Magyar"),
+    ("ro", "Română"),
+    ("uk", "Українська"),
+    ("el", "Ελληνικά"),
+    ("bg", "Български"),
+    ("hr", "Hrvatski"),
+    ("sk", "Slovenčina"),
+    ("sl", "Slovenščina"),
+    ("sr", "Srpski"),
+    ("lt", "Lietuvių"),
+    ("lv", "Latviešu"),
+    ("et", "Eesti"),
+    ("is", "Íslenska"),
+    ("ga", "Gaeilge"),
+    ("sq", "Shqip"),
+    ("mk", "Македонски"),
+    ("bs", "Bosanski"),
+    ("mt", "Malti"),
+    ("vi", "Tiếng Việt"),
+    ("th", "ไทย"),
+    ("id", "Bahasa Indonesia"),
+    ("ms", "Bahasa Melayu"),
+    ("tl", "Tagalog"),
+    ("hi", "हिन्दी"),
+    ("bn", "বাংলা"),
+    ("ta", "தமிழ்"),
+    ("te", "తెలుగు"),
+    ("mn", "Монгол"),
+    ("ka", "ქართული"),
+];
+
+pub fn run_language_selector_tui() -> Result<String> {
+    use std::io::{stdout, Write};
+    let mut stdout_handle = stdout();
+    let _ = enable_raw_mode();
+    let _ = execute!(stdout_handle, EnterAlternateScreen, Hide);
+
+    let total = ALL_LANGUAGES.len();
+    let mut cursor: usize = 0;
+    let page_size: usize = 10;
+    const BOX_WIDTH: usize = 86;
+
+    // Detect if there is a current configured language
+    if let Ok(current) = std::fs::read_to_string("/etc/wraith/lang") {
+        let trimmed = current.trim();
+        if let Some(pos) = ALL_LANGUAGES.iter().position(|(code, _)| *code == trimmed) {
+            cursor = pos;
+        }
+    }
+
+    let selected_code: String;
+
+    loop {
+        let top = if cursor >= page_size / 2 {
+            (cursor - (page_size / 2)).min(total.saturating_sub(page_size))
+        } else {
+            0
+        };
+
+        // Clear terminal buffer cleanly
+        let _ = execute!(stdout_handle, crossterm::cursor::MoveTo(0, 0), crossterm::terminal::Clear(crossterm::terminal::ClearType::All));
+
+        let mut rows = Vec::new();
+        rows.push(format!("Controls: {} Navigate │ {} Page │ {} Confirm │ {} Cancel",
+            "[↑ / ↓]".bold().white(),
+            "[PgUp / PgDn]".bold().white(),
+            "[ENTER]".bold().bright_green(),
+            "[Q]".bold().bright_red()
+        ));
+        rows.push("─".repeat(BOX_WIDTH.saturating_sub(7)));
+
+        for i in top..top.saturating_add(page_size).min(total) {
+            let (code, name) = ALL_LANGUAGES[i];
+            let idx_str = format!("{:02}", i + 1);
+
+            if i == cursor {
+                rows.push(format!(
+                    "{}  [{}]  [{:<4}]  {}",
+                    "➔".bold().bright_green(),
+                    idx_str.bold().white(),
+                    code.bold().bright_cyan(),
+                    name.bold().bright_green()
+                ));
+            } else {
+                rows.push(format!(
+                    "    [{}]  [{:<4}]  {}",
+                    idx_str.dimmed(),
+                    code.dimmed(),
+                    name.white()
+                ));
+            }
+        }
+
+        rows.push("─".repeat(BOX_WIDTH.saturating_sub(7)));
+        let (cur_code, cur_name) = ALL_LANGUAGES[cursor];
+        rows.push(format!(
+            "Active Selection: [{:02}/{:02}] [{:<4}] {}",
+            (cursor + 1).bold().white(),
+            total.bold().white(),
+            cur_code.bold().bright_cyan(),
+            cur_name.bold().bright_yellow()
+        ));
+
+        let box_lines = crate::display::render_box(
+            "🌐 SYSTEM DEFAULT LANGUAGE CONFIGURATION // 65 LOCALES",
+            &rows,
+            crate::display::BoxCorner::Square,
+            BOX_WIDTH,
+        );
+
+        println!("\r\n{}", box_lines[0].bright_cyan());
+        for row in &box_lines[1..box_lines.len() - 1] {
+            println!("\r{row}");
+        }
+        println!("\r{}", box_lines.last().unwrap().bright_cyan());
+        let _ = stdout_handle.flush();
+
+        // Read keypress synchronously with 100ms timeout
+        if event::poll(Duration::from_millis(100)).unwrap_or(false) {
+            if let Ok(Event::Key(key)) = event::read() {
+                match key.code {
+                    KeyCode::Up => {
+                        cursor = cursor.saturating_sub(1);
+                    }
+                    KeyCode::Down => {
+                        if cursor + 1 < total {
+                            cursor += 1;
+                        }
+                    }
+                    KeyCode::PageUp | KeyCode::Left => {
+                        cursor = cursor.saturating_sub(page_size);
+                    }
+                    KeyCode::PageDown | KeyCode::Right => {
+                        cursor = (cursor + page_size).min(total - 1);
+                    }
+                    KeyCode::Enter => {
+                        selected_code = ALL_LANGUAGES[cursor].0.to_string();
+                        break;
+                    }
+                    KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                        selected_code = "en".to_string();
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let _ = disable_raw_mode();
+    let _ = execute!(stdout_handle, LeaveAlternateScreen, Show);
+
+    // Persist language selection
+    let _ = std::fs::create_dir_all("/etc/wraith");
+    let _ = std::fs::write("/etc/wraith/lang", format!("{selected_code}\n"));
+    if let Ok(home) = std::env::var("HOME") {
+        let _ = std::fs::create_dir_all(format!("{home}/.config/wraith"));
+        let _ = std::fs::write(format!("{home}/.config/wraith/lang"), format!("{selected_code}\n"));
+    }
+
+    Ok(selected_code)
+}

@@ -229,6 +229,10 @@ struct Cli {
     #[arg(long, global = true)]
     lang: Option<String>,
 
+    /// Launch interactive 65-language configuration TUI
+    #[arg(long = "select-lang", visible_aliases = ["lang-menu"], hide = true)]
+    select_lang: bool,
+
     /// Generate shell auto-completion script (bash, zsh, fish, powershell)
     #[arg(long = "generate-completions", value_name = "SHELL", hide = true)]
     completions: Option<clap_complete::Shell>,
@@ -401,6 +405,12 @@ pub async fn main() -> Result<()> {
     }
 
     let cli = Cli::parse();
+
+    if cli.select_lang {
+        let chosen = tui::run_language_selector_tui()?;
+        println!("{chosen}");
+        return Ok(());
+    }
 
     if let Some(shell) = cli.completions {
         let mut cmd = display::build_localized_command();
