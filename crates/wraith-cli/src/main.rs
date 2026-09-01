@@ -403,8 +403,7 @@ pub async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if let Some(shell) = cli.completions {
-        use clap::CommandFactory;
-        let mut cmd = Cli::command();
+        let mut cmd = display::build_localized_command();
         clap_complete::generate(shell, &mut cmd, "wraith", &mut std::io::stdout());
         return Ok(());
     }

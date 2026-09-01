@@ -517,3 +517,61 @@ pub fn print_localized_help() {
     println!("    {:<26} {}\n", "-V, --version", "Print version");
 }
 
+pub fn build_localized_command() -> clap::Command {
+    use clap::CommandFactory;
+    let mut cmd = crate::Cli::command();
+    cmd = cmd.about(t!("help.desc").into_owned());
+
+    cmd = cmd.mut_arg("mac", |a| a.help(t!("help.opt_mac").into_owned()))
+        .mut_arg("bridge", |a| a.help(t!("help.opt_bridge").into_owned()))
+        .mut_arg("namespace", |a| a.help(t!("help.opt_namespace").into_owned()))
+        .mut_arg("profile", |a| a.help(t!("help.opt_profile").into_owned()))
+        .mut_arg("jitter", |a| a.help(t!("help.opt_jitter").into_owned()))
+        .mut_arg("rotate_interval", |a| a.help(t!("help.opt_rotate").into_owned()))
+        .mut_arg("no_ks", |a| a.help(t!("help.opt_no_ks").into_owned()))
+        .mut_arg("wireguard", |a| a.help(t!("help.opt_wg").into_owned()))
+        .mut_arg("browser_shield", |a| a.help(t!("help.opt_browser_shield").into_owned()))
+        .mut_arg("font_sandbox", |a| a.help(t!("help.opt_font_sandbox").into_owned()))
+        .mut_arg("tcp_mask", |a| a.help(t!("help.opt_tcp_mask").into_owned()))
+        .mut_arg("machine_id_rotation", |a| a.help(t!("help.opt_machine_id").into_owned()))
+        .mut_arg("strict_hardening", |a| a.help(t!("help.opt_full_security").into_owned()))
+        .mut_arg("monitor_window", |a| a.help(t!("help.opt_spawn_monitor").into_owned()))
+        .mut_arg("forensic_wipe_logs", |a| a.help(t!("help.opt_wipe_logs").into_owned()))
+        .mut_arg("forensic_self_destruct", |a| a.help(t!("help.opt_self_destruct").into_owned()))
+        .mut_arg("aggressive_masquerade", |a| a.help(t!("help.opt_masquerade").into_owned()))
+        .mut_arg("aggressive_anti_debug", |a| a.help(t!("help.opt_anti_debug").into_owned()))
+        .mut_arg("verbose", |a| a.help(t!("help.opt_verbose").into_owned()))
+        .mut_arg("lang", |a| a.help(t!("help.opt_lang").into_owned()))
+        .mut_arg("start", |a| a.help(t!("help.cmd_start").into_owned()))
+        .mut_arg("stop", |a| a.help(t!("help.cmd_stop").into_owned()))
+        .mut_arg("switch", |a| a.help(t!("help.cmd_switch").into_owned()))
+        .mut_arg("test", |a| a.help(t!("help.cmd_test").into_owned()))
+        .mut_arg("info", |a| a.help(t!("help.cmd_info").into_owned()))
+        .mut_arg("dashboard", |a| a.help(t!("help.cmd_dashboard").into_owned()))
+        .mut_arg("doctor", |a| a.help(t!("help.cmd_doctor").into_owned()))
+        .mut_arg("bench", |a| a.help(t!("help.cmd_benchmark").into_owned()))
+        .mut_arg("pentest", |a| a.help(t!("help.cmd_pentest").into_owned()))
+        .mut_arg("update", |a| a.help(t!("help.cmd_update").into_owned()))
+        .mut_arg("cleanup", |a| a.help(t!("help.cmd_cleanup").into_owned()))
+        .mut_arg("shred", |a| a.help(t!("help.cmd_shred").into_owned()))
+        .mut_arg("monitor", |a| a.help(t!("help.cmd_monitor").into_owned()));
+
+    cmd = cmd.mut_subcommand("start", |s| s.about(t!("help.cmd_start").into_owned()))
+        .mut_subcommand("stop", |s| s.about(t!("help.cmd_stop").into_owned()))
+        .mut_subcommand("switch", |s| s.about(t!("help.cmd_switch").into_owned()))
+        .mut_subcommand("test", |s| s.about(t!("help.cmd_test").into_owned()))
+        .mut_subcommand("info", |s| s.about(t!("help.cmd_info").into_owned()))
+        .mut_subcommand("dashboard", |s| s.about(t!("help.cmd_dashboard").into_owned()))
+        .mut_subcommand("doctor", |s| s.about(t!("help.cmd_doctor").into_owned()))
+        .mut_subcommand("benchmark", |s| s.about(t!("help.cmd_benchmark").into_owned()))
+        .mut_subcommand("cleanup", |s| s.about(t!("help.cmd_cleanup").into_owned()))
+        .mut_subcommand("mac", |s| s.about(t!("help.cmd_mac").into_owned()))
+        .mut_subcommand("profile", |s| s.about(t!("help.cmd_profile").into_owned()))
+        .mut_subcommand("pentest", |s| s.about(t!("help.cmd_pentest").into_owned()))
+        .mut_subcommand("update", |s| s.about(t!("help.cmd_update").into_owned()))
+        .mut_subcommand("shred", |s| s.about(t!("help.cmd_shred").into_owned()))
+        .mut_subcommand("monitor", |s| s.about(t!("help.cmd_monitor").into_owned()));
+
+    cmd
+}
+

@@ -307,6 +307,17 @@ echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/
 export WRAITH_LANG="$SELECTED_LANG"
 echo -e "\n        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Default System Language persistently bound to: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET} (/etc/wraith/lang)"
 
+# 6. Generate & Deploy 100% Localized Shell Auto-Completions (Bash & Zsh) for Selected Language
+mkdir -p /etc/bash_completion.d /usr/share/bash-completion/completions /usr/share/zsh/vendor-completions /usr/share/zsh/site-functions 2>/dev/null || true
+BIN_FOR_COMPLETION="${TARGET_BIN}"
+[ -x "/usr/local/bin/wraith" ] && BIN_FOR_COMPLETION="/usr/local/bin/wraith"
+
+"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions bash > /etc/bash_completion.d/wraith 2>/dev/null || true
+"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions bash > /usr/share/bash-completion/completions/wraith 2>/dev/null || true
+"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions zsh > /usr/share/zsh/vendor-completions/_wraith 2>/dev/null || true
+"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions zsh > /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
+echo -e "        ${CLR_EMERALD}✔ [AUTOCOMPLETE]${CLR_RESET} Shell completions regenerated with language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
+
 # Execute newly compiled wraith binary to display the 100% localized operational command directory for the chosen language (all 65 locales supported natively)
 echo ""
 if [ -x "/usr/local/bin/wraith" ]; then
