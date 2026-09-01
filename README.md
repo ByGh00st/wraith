@@ -18,7 +18,7 @@
 
 <h3 align="center">High-Assurance Kernel-Level Network Privacy & Anti-Fingerprinting Engine</h3>
 <p align="center">
-  <b>Engineered in Pure Rust (30,000+ Lines • 6 Modular Crates • 75 Native Locales) for Linux Systems & Security Engineering</b><br>
+  <b>Engineered in Pure Rust (31,000+ Lines • 6 Modular Crates • 75 Native Locales) for Linux Systems & Security Engineering</b><br>
   <i>Ring 0/3 Hardened • Netlink FIB Engine • Zero-Copy IDS • 50+ Tool DPI Sanitizer • JA3/JA4 GREASE TLS • Encrypted RAMFS Vault</i>
 </p>
 
@@ -34,6 +34,7 @@
   <a href="#-modular-crate-topology"><img src="https://img.shields.io/badge/📂_CRATES-6_MODULAR_TOPOLOGY-cyan?style=flat-square"></a>
   <a href="#-operational-command-reference"><img src="https://img.shields.io/badge/💻_CLI_REFERENCE-COMMANDS_%26_FLAGS-red?style=flat-square"></a>
   <a href="#️-in-flight-dpi-tool-signature-sanitization-50-matrix"><img src="https://img.shields.io/badge/⚔️_DPI_ENGINE-50+_TOOL_SANITIZATION-yellow?style=flat-square"></a>
+  <a href="#️-tor-surveillance--adversarial-node-resistance-matrix"><img src="https://img.shields.io/badge/🛡️_TOR_DEFENSE-SURVEILLANCE_RESISTANCE-purple?style=flat-square"></a>
 </p>
 
 | 📑 Navigation Directory | 🎯 Direct Anchor Jump Links |
@@ -41,7 +42,7 @@
 | **🚀 Getting Started** | [Automated Deployment](#1-clone--automated-system-deployment-recommended) • [Manual Cargo Build](#2-manual-cargo-compilation--binary-setup) • [Atomic In-Place Updater](#-operational-command-reference) |
 | **💻 CLI & Operations** | [Operational Shortcuts Table](#-primary-shortcuts--subcommands) • [16 Hardening Flags Matrix](#️-granular-control-flags-matrix) • [Panic Sentry Auto-Recovery](#-fail-closed-crash-protection--panic-sentry) |
 | **🛡️ Architecture & DPI** | [Tokei Code Metrics](#-codebase-metrics--language-breakdown) • [Security Comparison Matrix](#️-privacy--security-comparison-matrix) • [50+ DPI Tools Matrix](#️-in-flight-dpi-tool-signature-sanitization-50-matrix) |
-| **🔒 Low-Level Security** | [RAMFS ChaCha20 Vault](#-in-memory-cryptographic-security-specifications) • [Seccomp & Netlink FIB](#-core-architectural-pillars) • [Legal Terms of Engagement](#️-legal--operational-disclaimer) |
+| **🔒 Anti-Surveillance** | [Tor Node Surveillance Resistance](#️-tor-surveillance--adversarial-node-resistance-matrix) • [RAMFS ChaCha20 Vault](#-in-memory-cryptographic-security-specifications) • [Legal Terms](#-legal--operational-disclaimer) |
 
 ---
 
@@ -66,18 +67,18 @@ Built completely from scratch in pure Rust across **6 modular crates**, Wraith o
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Shell                     2          273          204           31           38
  TOML                      7          195          183            0           12
- YAML                    400        18157        18157            0            0
+ YAML                    400        18624        18624            0            0
 ─────────────────────────────────────────────────────────────────────────────────
- Markdown                  1          434            0          340           94
+ Markdown                  1          436            0          342           94
  |- BASH                   1           33           17            9            7
  |- Rust                   1           10           10            0            0
- (Total)                              477           27          349          101
+ (Total)                              479           27          351          101
 ─────────────────────────────────────────────────────────────────────────────────
- Rust                     55        11481         9615          449         1417
- |- Markdown              48          268            0          268            0
- (Total)                            11749         9615          717         1417
+ Rust                     55        11577         9694          454         1429
+ |- Markdown              48          269            0          269            0
+ (Total)                            11846         9694          723         1429
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                   465        30851        28186         1097         1568
+ Total                   465        31417        28732         1105         1580
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 </details>
@@ -430,6 +431,36 @@ pub const BROWSER_USER_AGENT_POOL: &[&str] = &[
 
 * **Session Consistency**: Rewriting maintains deterministic consistency for streams within the same TCP session to avoid mid-session header flapping.
 * **RFC 7230 Byte-Safe Alignment**: In-flight byte replacements preserve HTTP payload framing and pad length variations with standard trailing header whitespace.
+
+---
+
+<a id="tor-defense"></a>
+## 🛡️ Tor Surveillance & Adversarial Node Resistance Matrix
+
+When operating over decentralized anonymity networks, host telemetry and user sessions face threats from **monitored Entry (Guard) nodes, malicious Exit sniffers, Five-Eyes surveillance alliances, and statistical timing correlation attacks**.
+
+Wraith embeds **7 specialized defense layers** specifically designed to neutralize malicious Tor nodes and traffic analysis:
+
+```mermaid
+graph TD
+    classDef redBox fill:#1e1014,stroke:#f43f5e,stroke-width:1.5px,color:#fff;
+    classDef greenBox fill:#0b1e16,stroke:#10b981,stroke-width:1.5px,color:#fff;
+
+    A["🔴 Monitored Entry (Guard) Node"]:::redBox -->|Defended By| B["🛡️ Layer 1: WireGuard Multi-Hop (-W)<br/>(Guard only sees VPN IP, never real ISP)"]:::greenBox
+    C["🔴 Malicious Exit Relay Sniffing"]:::redBox -->|Defended By| D["🛡️ Layer 2: In-Flight L4/L7 DPI Sanitizer<br/>(Tool headers rewritten into authentic Chrome)"]:::greenBox
+    E["🔴 Five-Eyes / 14-Eyes Alliance Nodes"]:::redBox -->|Defended By| F["🛡️ Layer 3: Geographical Exclusion (-p stealth)<br/>(Strictly excludes US, UK, CA, AU, NZ, FR, DE)"]:::greenBox
+    G["🔴 Statistical Timing & Flow Correlation"]:::redBox -->|Defended By| H["🛡️ Layer 4: Poisson Jitter Injection (--jitter)<br/>(200-1400ms synthetic delays + chaff padding)"]:::greenBox
+```
+
+| Threat Vector | Adversary Objective | Wraith Countermeasure & Technical Mechanism |
+| :--- | :--- | :--- |
+| **Monitored Guard Node** | Log real client ISP IP address | **WireGuard Multi-Hop (`-W <CONF>`) & obfs4 (`-b`)**: Encapsulates Tor in ChaCha20-Poly1305 UDP tunnel; Guard node only sees VPN IP. |
+| **Malicious Exit Sniffer** | Fingerprint client tool signatures (`sqlmap`, `Nmap`) | **In-Flight DPI Sanitizer (`wraith-net/ids.rs`)**: Zero-copy packet rewriting converts all tool signatures to random modern browser pools. |
+| **Five-Eyes Alliance** | Cross-jurisdictional intelligence logging | **Geographical Exclusion (`-p stealth`)**: Strict Tor circuit constraints (`StrictNodes 1`, `ExcludeNodes {us},{gb},{ca},{au},{nz},{fr},{de}`). |
+| **End-to-End Timing Analysis** | Correlate packet arrival times across Entry/Exit | **Poisson Traffic Jitter (`--jitter`)**: Injects 200–1400ms Poisson-distributed synthetic micro-delays and chaff traffic cells. |
+| **Long-Term Node Correlation** | Aggregate traffic patterns over static circuits | **Periodic Identity Rotation (`--rotate-interval <SEC>`)**: Issues `SIGNAL NEWNYM` every N seconds, rotating circuit keys and exit hops. |
+| **TLS Client Fingerprinting** | Identify Tor client software via JA3/JA4 hashes | **RFC 8701 GREASE TLS Mimicry (`wraith-tor/grease.rs`)**: Injects randomized GREASE extensions matching Windows 11 / Chrome 131. |
+| **DNS Query Size Sniffing** | Infer visited domains via packet length side-channels | **EDNS0 468B Uniform Padding (`wraith-guard/dns_engine.rs`)**: Normalizes all outgoing DNS requests to uniform 468-byte payloads. |
 
 ---
 
