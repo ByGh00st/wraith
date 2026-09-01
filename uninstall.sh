@@ -73,12 +73,15 @@ done
 hash -r 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [ERADICATED]${CLR_RESET} Binaries removed."
 
-echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Wiping configurations, logs, and artifacts...${CLR_RESET}"
-chattr -R -i -a /etc/wraith /var/log/wraith /etc/tor/wraithrc /etc/profile.d/wraith_lang.sh 2>/dev/null || true
+echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Wiping configurations, logs, completions, and artifacts...${CLR_RESET}"
+chattr -R -i -a /etc/wraith /var/log/wraith /etc/tor/wraithrc /etc/profile.d/wraith_lang.sh /var/run/wraith.pid /var/run/wraith_state.json /etc/bash_completion.d/wraith /usr/share/bash-completion/completions/wraith /usr/share/zsh/vendor-completions/_wraith /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
 rm -rf /etc/wraith 2>/dev/null || true
 rm -rf /var/log/wraith 2>/dev/null || true
 rm -f /etc/tor/wraithrc 2>/dev/null || true
 rm -f /etc/profile.d/wraith_lang.sh 2>/dev/null || true
+rm -f /var/run/wraith.pid /var/run/wraith_state.json 2>/dev/null || true
+rm -f /etc/bash_completion.d/wraith /usr/share/bash-completion/completions/wraith 2>/dev/null || true
+rm -f /usr/share/zsh/vendor-completions/_wraith /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [CLEARED]${CLR_RESET} Persistent data obliterated."
 
 echo -e "\n${CLR_PURPLE}  ╭── [ 🛡️ WRAITH PURGE COMPLETE // SYSTEM RESTORED TO DEFAULT ] ────────────╮${CLR_RESET}"
