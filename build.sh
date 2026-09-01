@@ -102,41 +102,145 @@ else
     exit 1
 fi
 
-# ─── [ DEFAULT LANGUAGE SELECTION ] ───────────────────────────────
+# ─── [ INTERACTIVE TABBED LANGUAGE PICKER (ARROW KEYS & TABS) ] ─────────────────
+select_language_tui() {
+    local TABS=("🐺 TÜRK DÜNYASI" "🌐 KÜRESEL GÜÇLER" "🇪🇺 AVRUPA BLOĞU" "🌏 ASYA & DİĞER")
+    local CURRENT_TAB=0
+    local CURSOR_POS=0
+
+    # Tab 0: Türk Dünyası (19 Dil)
+    local TAB0=(
+        "tr:Türkiye Türkçesi" "az:Azerbaycan Türkçesi" "kk:Kazak Türkçesi" "uz:Özbek Türkçesi"
+        "ky:Kırgız Türkçesi" "tk:Türkmen Türkçesi" "ug:Uygur Türkçesi" "tt:Tatar Türkçesi"
+        "ba:Başkurt Türkçesi" "cv:Çuvaş Türkçesi" "sah:Saha (Yakut)" "gag:Gagavuz Türkçesi"
+        "crh:Kırım Tatarca" "alt:Altay Türkçesi" "tyv:Tuva Türkçesi" "kjh:Hakas Türkçesi"
+        "krc:Karaçay-Balkar" "kum:Kumuk Türkçesi" "nog:Nogay Türkçesi"
+    )
+
+    # Tab 1: Küresel Güç Dilleri (10 Dil)
+    local TAB1=(
+        "en:English (Default / Varsayılan)" "ru:Русский (Russian)" "zh:中文 (Chinese)"
+        "de:Deutsch (German)" "fr:Français (French)" "es:Español (Spanish)"
+        "ja:日本語 (Japanese)" "pt:Português (Portuguese)" "ko:한국어 (Korean)" "it:Italiano (Italian)"
+    )
+
+    # Tab 2: Avrupa Bloğu (20 Dil)
+    local TAB2=(
+        "nl:Nederlands (Dutch)" "pl:Polski (Polish)" "sv:Svenska (Swedish)" "no:Norsk (Norwegian)"
+        "da:Dansk (Danish)" "fi:Suomi (Finnish)" "cs:Čeština (Czech)" "hu:Magyar (Hungarian)"
+        "ro:Română (Romanian)" "uk:Українська (Ukrainian)" "el:Ελληνικά (Greek)" "bg:Български (Bulgarian)"
+        "hr:Hrvatski (Croatian)" "sk:Slovenčina (Slovak)" "sl:Slovenščina (Slovenian)" "sr:Srpski (Serbian)"
+        "lt:Lietuvių (Lithuanian)" "lv:Latviešu (Latvian)" "et:Eesti (Estonian)" "is:Íslenska (Icelandic)"
+    )
+
+    # Tab 3: Asya & Diğer Diller (16 Dil)
+    local TAB3=(
+        "vi:Tiếng Việt (Vietnamese)" "th:ไทย (Thai)" "id:Bahasa Indonesia" "ms:Bahasa Melayu"
+        "tl:Tagalog (Filipino)" "hi:हिन्दी (Hindi)" "bn:বাংলা (Bengali)" "ta:தமிழ் (Tamil)"
+        "te:తెలుగు (Telugu)" "mn:Монгол (Mongolian)" "ka:ქართული (Georgian)" "ga:Gaeilge (Irish)"
+        "sq:Shqip (Albanian)" "mk:Македонски (Macedonian)" "bs:Bosanski (Bosnian)" "mt:Malti (Maltese)"
+    )
+
+    # Hide cursor
+    echo -ne "\033[?25l"
+
+    while true; do
+        local ITEMS=()
+        case $CURRENT_TAB in
+            0) ITEMS=("${TAB0[@]}") ;;
+            1) ITEMS=("${TAB1[@]}") ;;
+            2) ITEMS=("${TAB2[@]}") ;;
+            3) ITEMS=("${TAB3[@]}") ;;
+        esac
+
+        local NUM_ITEMS=${#ITEMS[@]}
+        if [ "$CURSOR_POS" -ge "$NUM_ITEMS" ]; then
+            CURSOR_POS=$((NUM_ITEMS - 1))
+        fi
+
+        # Draw Frame
+        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 WRAITH SOVEREIGN LANGUAGE PICKER // 65 AKTİF DİL ] ─────────────────────────┐${CLR_RESET}"
+        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigasyon: ${CLR_WHITE}[← / → / TAB]${CLR_SLATE} Sekme Değiştir │ ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Dil Gez │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Onayla ${CLR_CYAN}│${CLR_RESET}"
+        echo -e "${CLR_CYAN}  ├────────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+        
+        # Tabs Header
+        local TAB_HEADER="  │  "
+        for i in "${!TABS[@]}"; do
+            if [ "$i" -eq "$CURRENT_TAB" ]; then
+                TAB_HEADER+="${CLR_AMBER}${CLR_BOLD}[ ${TABS[$i]} ]${CLR_RESET}  "
+            else
+                TAB_HEADER+="${CLR_SLATE}  ${TABS[$i]}   ${CLR_RESET}"
+            fi
+        done
+        echo -e "${TAB_HEADER}"
+        echo -e "${CLR_CYAN}  ├────────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+
+        # Items List
+        for ((i=0; i<NUM_ITEMS; i++)); do
+            local item="${ITEMS[$i]}"
+            local code="${item%%:*}"
+            local name="${item#*:}"
+            
+            if [ "$i" -eq "$CURSOR_POS" ]; then
+                echo -e "  │  ${CLR_EMERALD}${CLR_BOLD}➔ [${code}] ${name}${CLR_RESET}"
+            else
+                echo -e "  │     ${CLR_WHITE}[${code}] ${name}${CLR_RESET}"
+            fi
+        done
+        echo -e "${CLR_CYAN}  └────────────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
+
+        # Read key
+        IFS= read -rsn1 key
+        if [[ "$key" == $'\x1b' ]]; then
+            read -rsn2 -t 0.1 rest || rest=""
+            case "$rest" in
+                '[A') # Up
+                    if [ "$CURSOR_POS" -gt 0 ]; then
+                        CURSOR_POS=$((CURSOR_POS - 1))
+                    fi
+                    ;;
+                '[B') # Down
+                    if [ "$((CURSOR_POS + 1))" -lt "$NUM_ITEMS" ]; then
+                        CURSOR_POS=$((CURSOR_POS + 1))
+                    fi
+                    ;;
+                '[C') # Right
+                    CURRENT_TAB=$(( (CURRENT_TAB + 1) % ${#TABS[@]} ))
+                    CURSOR_POS=0
+                    ;;
+                '[D') # Left
+                    CURRENT_TAB=$(( (CURRENT_TAB + ${#TABS[@]} - 1) % ${#TABS[@]} ))
+                    CURSOR_POS=0
+                    ;;
+            esac
+        elif [[ "$key" == $'\t' ]]; then
+            CURRENT_TAB=$(( (CURRENT_TAB + 1) % ${#TABS[@]} ))
+            CURSOR_POS=0
+        elif [[ "$key" == "" ]]; then
+            local chosen="${ITEMS[$CURSOR_POS]}"
+            SELECTED_LANG="${chosen%%:*}"
+            break
+        elif [[ "$key" == "q" || "$key" == "Q" ]]; then
+            SELECTED_LANG="en"
+            break
+        fi
+
+        # Move cursor up to redraw cleanly
+        local total_lines=$((NUM_ITEMS + 6))
+        echo -ne "\033[${total_lines}A"
+    done
+
+    echo -ne "\033[?25h"
+}
+
 SELECTED_LANG="en"
 if [ -t 0 ]; then
-    echo -e "\n${CLR_CYAN}  ┌── [ 🌐 SYSTEM DEFAULT LANGUAGE // VARSAYILAN DİL SEÇİMİ ] ────────┐${CLR_RESET}"
-    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[1]${CLR_RESET} ${CLR_WHITE}English (en) - [Default / Varsayılan]${CLR_RESET}                       ${CLR_CYAN}│${CLR_RESET}"
-    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[2]${CLR_RESET} ${CLR_WHITE}Türkçe (tr)${CLR_RESET}                                                 ${CLR_CYAN}│${CLR_RESET}"
-    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[3]${CLR_RESET} ${CLR_WHITE}Azerbaycan Türkçesi (az)${CLR_RESET}                                    ${CLR_CYAN}│${CLR_RESET}"
-    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[4]${CLR_RESET} ${CLR_WHITE}Diğer 65 Dil (Örn: ru, de, fr, kk, uz, ja, zh)${CLR_RESET}             ${CLR_CYAN}│${CLR_RESET}"
-    echo -e "${CLR_CYAN}  └───────────────────────────────────────────────────────────────────┘${CLR_RESET}"
-    read -r -p "  ❯ Seçiminiz / Choice [1-4] (Enter = English): " LANG_INPUT || LANG_INPUT="1"
-    
-    case "$LANG_INPUT" in
-        2|"tr") SELECTED_LANG="tr" ;;
-        3|"az") SELECTED_LANG="az" ;;
-        4)
-            read -r -p "  ❯ Dil Kodu Girin / Enter ISO Code (örn: kk, uz, ru, de): " CUSTOM_LANG
-            if [ -f "crates/wraith-cli/locales/${CUSTOM_LANG}.yml" ]; then
-                SELECTED_LANG="$CUSTOM_LANG"
-            else
-                SELECTED_LANG="en"
-            fi
-            ;;
-        *)
-            if [ -f "crates/wraith-cli/locales/${LANG_INPUT}.yml" ]; then
-                SELECTED_LANG="$LANG_INPUT"
-            else
-                SELECTED_LANG="en"
-            fi
-            ;;
-    esac
+    select_language_tui
 fi
 
 echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 export WRAITH_LANG="$SELECTED_LANG"
-echo -e "        ${CLR_EMERALD}✔ [ACTIVE]${CLR_RESET} Language set to: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
+echo -e "\n        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Varsayılan Dil / Default Language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
 
 echo -e "\n${CLR_RED}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
 echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"
