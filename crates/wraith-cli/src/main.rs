@@ -332,16 +332,24 @@ fn check_root() -> Result<()> {
 #[tokio::main]
 pub async fn main() -> Result<()> {
     install_emergency_panic_sentry();
-    let cli = Cli::parse();
 
-    // 1. Initialize multi-language i18n (Default: English)
-    if let Some(lang) = &cli.lang {
-        rust_i18n::set_locale(lang);
-    } else if let Ok(lang) = std::env::var("WRAITH_LANG") {
-        rust_i18n::set_locale(&lang);
-    } else {
-        rust_i18n::set_locale("en");
+    // 1. Initialize multi-language i18n from argv or environment variable
+    let raw_args: Vec<String> = std::env::args().collect();
+    let mut initial_lang = std::env::var("WRAITH_LANG").unwrap_or_else(|_| "en".to_string());
+    for i in 0..raw_args.len() {
+        if raw_args[i] == "--lang" && i + 1 < raw_args.len() {
+            initial_lang = raw_args[i + 1].clone();
+        }
     }
+    rust_i18n::set_locale(&initial_lang);
+
+    // 2. Intercept -h / --help / help to show fully localized help screen
+    if raw_args.iter().any(|arg| arg == "-h" || arg == "--help" || arg == "help") {
+        display::print_localized_help();
+        return Ok(());
+    }
+
+    let cli = Cli::parse();
 
     // Initialize logging
     let filter = if cli.verbose {

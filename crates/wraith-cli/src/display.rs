@@ -323,3 +323,76 @@ pub fn show_circuit_telemetry(telemetry: &TorTelemetry) {
     );
 }
 
+pub fn print_localized_help() {
+    print_banner(false);
+    println!("  {}\n", t!("help.desc").dimmed());
+    println!("  {}\n", t!("help.usage").bold().bright_cyan());
+
+    println!("  {}", t!("help.commands_header").bold().bright_yellow());
+    let commands = [
+        ("start", t!("help.cmd_start")),
+        ("stop", t!("help.cmd_stop")),
+        ("switch", t!("help.cmd_switch")),
+        ("test", t!("help.cmd_test")),
+        ("info", t!("help.cmd_info")),
+        ("dashboard", t!("help.cmd_dashboard")),
+        ("doctor", t!("help.cmd_doctor")),
+        ("benchmark", t!("help.cmd_benchmark")),
+        ("cleanup", t!("help.cmd_cleanup")),
+        ("mac", t!("help.cmd_mac")),
+        ("profile", t!("help.cmd_profile")),
+        ("pentest", t!("help.cmd_pentest")),
+        ("update", t!("help.cmd_update")),
+        ("shred", t!("help.cmd_shred")),
+        ("monitor", t!("help.cmd_monitor")),
+    ];
+    for (cmd, desc) in commands {
+        println!("    {:<12} {}", cmd.bold().bright_green(), desc);
+    }
+
+    println!("\n  {}", t!("help.sec_net_header").bold().bright_yellow());
+    let net_opts = [
+        ("-m, --mac", t!("help.opt_mac")),
+        ("-b, --bridge", t!("help.opt_bridge")),
+        ("-n, --namespace", t!("help.opt_namespace")),
+        ("-p, --profile <PROFILE>", t!("help.opt_profile")),
+        ("--jitter", t!("help.opt_jitter")),
+        ("--rotate-interval <SEC>", t!("help.opt_rotate")),
+        ("--no-killswitch", t!("help.opt_no_ks")),
+        ("-W, --wireguard <CONF>", t!("help.opt_wg")),
+        ("--spawn-monitor", t!("help.opt_spawn_monitor")),
+    ];
+    for (opt, desc) in net_opts {
+        println!("    {:<26} {}", opt.bold().bright_cyan(), desc);
+    }
+
+    println!("\n  {}", t!("help.sec_harden_header").bold().bright_yellow());
+    let harden_opts = [
+        ("--browser-shield", t!("help.opt_browser_shield")),
+        ("--font-sandbox", t!("help.opt_font_sandbox")),
+        ("--tcp-mask", t!("help.opt_tcp_mask")),
+        ("--machine-id", t!("help.opt_machine_id")),
+        ("-F, --full-security", t!("help.opt_full_security")),
+    ];
+    for (opt, desc) in harden_opts {
+        println!("    {:<26} {}", opt.bold().bright_cyan(), desc);
+    }
+
+    println!("\n  {}", t!("help.sec_forensic_header").bold().bright_red());
+    let forensic_opts = [
+        ("--forensic-wipe-logs", t!("help.opt_wipe_logs")),
+        ("-d, --forensic-self-destruct", t!("help.opt_self_destruct")),
+        ("--aggressive-masquerade", t!("help.opt_masquerade")),
+        ("--aggressive-anti-debug", t!("help.opt_anti_debug")),
+    ];
+    for (opt, desc) in forensic_opts {
+        println!("    {:<26} {}", opt.bold().bright_red(), desc);
+    }
+
+    println!("\n  {}", "Genel Seçenekler / General Options:".bold().bright_yellow());
+    println!("    {:<26} {}", "-v, --verbose", t!("help.opt_verbose"));
+    println!("    {:<26} {}", "--lang <LANG>", t!("help.opt_lang"));
+    println!("    {:<26} {}", "-h, --help", "Print this help message");
+    println!("    {:<26} {}\n", "-V, --version", "Print version");
+}
+
