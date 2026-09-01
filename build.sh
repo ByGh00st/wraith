@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 💀 WRAITH-PRIME // SOVEREIGN KERNEL FORGE & AUTOMATED BUILD ENGINE v1.2.0
+# WRAITH-PRIME // SOVEREIGN KERNEL FORGE & AUTOMATED BUILD ENGINE v1.2.0
 # High-Assurance Ring-0/Ring-3 Defense & Anonymization Engine
 # Absolute Precision. Zero Telemetry. Pure Technical Execution.
 # ==============================================================================
@@ -76,7 +76,7 @@ echo -e "        ${CLR_EMERALD}✔ [ARMED]${CLR_RESET} Dependencies online: ${CL
 
 # 4. Compile Release Workspace with LTO Optimizations
 echo -e "\n  ${CLR_CYAN}◈ [3/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Forging Sovereign Workspace in Release Mode (LTO & SIMD Opt)...${CLR_RESET}"
-cargo build --release --workspace
+CARGO_HOME="${CARGO_HOME:-/tmp/.cargo}" cargo build --release --workspace
 
 # 5. Global Multi-Path Deployment
 echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Deploying binary to universal system execution PATHs...${CLR_RESET}"
