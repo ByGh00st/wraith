@@ -237,10 +237,10 @@ pub const ALL_LANGUAGES: [(&str, &str); 65] = [
 ];
 
 pub fn run_language_selector_tui() -> Result<String> {
-    use std::io::{stdout, Write};
-    let mut stdout_handle = stdout();
+    use std::io::{stderr, Write};
+    let mut term_handle = stderr();
     let _ = enable_raw_mode();
-    let _ = execute!(stdout_handle, EnterAlternateScreen, Hide);
+    let _ = execute!(term_handle, EnterAlternateScreen, Hide);
 
     let total = ALL_LANGUAGES.len();
     let mut cursor: usize = 0;
@@ -265,7 +265,7 @@ pub fn run_language_selector_tui() -> Result<String> {
         };
 
         // Clear terminal buffer cleanly
-        let _ = execute!(stdout_handle, crossterm::cursor::MoveTo(0, 0), crossterm::terminal::Clear(crossterm::terminal::ClearType::All));
+        let _ = execute!(term_handle, crossterm::cursor::MoveTo(0, 0), crossterm::terminal::Clear(crossterm::terminal::ClearType::All));
 
         let mut rows = Vec::new();
         rows.push(format!("Controls: {} Navigate │ {} Page │ {} Confirm │ {} Cancel",
@@ -315,12 +315,12 @@ pub fn run_language_selector_tui() -> Result<String> {
             BOX_WIDTH,
         );
 
-        println!("\r\n{}", box_lines[0].bright_cyan());
+        eprintln!("\r\n{}", box_lines[0].bright_cyan());
         for row in &box_lines[1..box_lines.len() - 1] {
-            println!("\r{row}");
+            eprintln!("\r{row}");
         }
-        println!("\r{}", box_lines.last().unwrap().bright_cyan());
-        let _ = stdout_handle.flush();
+        eprintln!("\r{}", box_lines.last().unwrap().bright_cyan());
+        let _ = term_handle.flush();
 
         // Read keypress synchronously with 100ms timeout
         if event::poll(Duration::from_millis(100)).unwrap_or(false) {
@@ -355,7 +355,7 @@ pub fn run_language_selector_tui() -> Result<String> {
     }
 
     let _ = disable_raw_mode();
-    let _ = execute!(stdout_handle, LeaveAlternateScreen, Show);
+    let _ = execute!(term_handle, LeaveAlternateScreen, Show);
 
     // Persist language selection
     let _ = std::fs::create_dir_all("/etc/wraith");
