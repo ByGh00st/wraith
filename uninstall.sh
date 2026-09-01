@@ -44,7 +44,7 @@ echo -e "\n  ${CLR_CYAN}◈ [2/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Restoring n
 nft flush ruleset 2>/dev/null || true
 iptables -F 2>/dev/null || true
 chattr -i /etc/resolv.conf 2>/dev/null || true
-echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf
+(echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf) 2>/dev/null || true
 systemctl restart NetworkManager 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [RESTORED]${CLR_RESET} Network tables flushed & DNS unlocked."
 

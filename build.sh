@@ -53,7 +53,7 @@ if ! ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then
     iptables -F 2>/dev/null || true
 fi
 if ! host github.com >/dev/null 2>&1; then
-    echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf
+    (echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf) 2>/dev/null || true
 fi
 
 # 2. Inspect & Provision Rust Compiler Toolchain
@@ -63,6 +63,8 @@ if ! command -v cargo &> /dev/null; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null 2>&1
     export PATH="$HOME/.cargo/bin:/root/.cargo/bin:$PATH"
 fi
+export CARGO_HOME="${CARGO_HOME:-/tmp/.cargo}"
+mkdir -p "$CARGO_HOME" 2>/dev/null || true
 RUST_VER=$(rustc --version 2>/dev/null || echo "Rust Toolchain 2021")
 echo -e "        ${CLR_EMERALD}✔ [ACTIVE]${CLR_RESET} Toolchain verified: ${CLR_SLATE}${RUST_VER}${CLR_RESET}"
 
