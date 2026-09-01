@@ -30,12 +30,9 @@ const SECCOMP_RET_ALLOW: u32 = 0x7fff0000;
 const AUDIT_ARCH_X86_64: u32 = 0xc000003e;
 
 // Linux Syscall Numbers (x86_64)
-const SYS_SOCKET: u32 = 41;
 const SYS_PTRACE: u32 = 101;
 
 // Socket Families & Types
-const AF_PACKET: u32 = 17;
-const SOCK_RAW: u32 = 3;
 const EPERM: u32 = 1;
 
 pub use crate::bpf_filter_engine::{SockFilter, SockFprog};
