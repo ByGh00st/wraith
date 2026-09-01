@@ -200,13 +200,13 @@ select_language_tui() {
         [ "$MAX_TOP" -lt 0 ] && MAX_TOP=0
         [ "$TOP" -gt "$MAX_TOP" ] && TOP=$MAX_TOP
 
-        # Clear terminal cleanly to prevent spam/scrolling
-        printf "\033[2J\033[H"
+        # Clear terminal cleanly to prevent spam/scrolling across all Linux terminals
+        tput clear 2>/dev/null || clear 2>/dev/null || printf "\033[2J\033[H"
 
         # Draw UI Box
-        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 SYSTEM DEFAULT LANGUAGE SELECTION // 65 LANGUAGES ] ──────────────────────┐${CLR_RESET}"
-        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigation: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Scroll │ ${CLR_WHITE}[← / → / PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm ${CLR_CYAN}│${CLR_RESET}"
-        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 SYSTEM DEFAULT LANGUAGE SELECTION // 65 LANGUAGES ] ────────────────────────┐${CLR_RESET}"
+        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigation: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Scroll │ ${CLR_WHITE}[← / → / PgUp / PgDn]${CLR_SLATE} Page │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm   ${CLR_CYAN}│${CLR_RESET}"
+        echo -e "${CLR_CYAN}  ├────────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
 
         for ((i=TOP; i<TOP+PAGE_SIZE && i<TOTAL; i++)); do
             local item="${LANGUAGES[$i]}"
