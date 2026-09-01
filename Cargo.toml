@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/wraith-core",
+    "crates/wraith-net",
+    "crates/wraith-tor",
+    "crates/wraith-guard",
+    "crates/wraith-forensic",
+    "crates/wraith-cli",
+]
+
+[workspace.package]
+version = "1.1.0"
+edition = "2021"
+authors = ["WRAITH-PRIME / ByGhost"]
+license = "GPL-3.0"
+description = "Kernel-Grade Network Anonymization Framework for Kali Linux"
+
+[workspace.dependencies]
+tokio = { version = "1.38", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+clap = { version = "4.5", features = ["derive", "cargo"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+owo-colors = "4.0"
+comfy-table = "7.1"
+indicatif = "0.17"
+zeroize = { version = "1.8", features = ["derive"] }
+rand = "0.8"
+walkdir = "2.5"
+tempfile = "3.10"
+phf = { version = "0.11", features = ["macros"] }
+nix = { version = "0.29", features = ["sched", "signal", "user", "net", "process", "fs"] }
+crossterm = "0.28"
+libc = "0.2"
+chacha20poly1305 = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.5"
+hex = "0.4"
+md-5 = "0.10"
+
