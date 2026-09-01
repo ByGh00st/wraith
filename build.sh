@@ -102,45 +102,32 @@ else
     exit 1
 fi
 
-# ─── [ DYNAMIC 65-LANGUAGE MATRIX SELECTION ] ───────────────────────────────
-LOCALE_FILES=(crates/wraith-cli/locales/*.yml)
-TOTAL_LANG_COUNT=${#LOCALE_FILES[@]}
-
-echo -e "\n${CLR_CYAN}  ╭── [ 🌐 WRAITH SOVEREIGN LANGUAGE MATRIX // ${TOTAL_LANG_COUNT} AKTİF DİL DESTEĞİ ] ──────────────────────╮${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}Sistem için varsayılan operasyonel dili seçin veya kodunu girin:                 ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │                                                                                   ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_EMERALD}🐺 TÜRK DÜNYASI DİL BLOĞU (19 DİL):                                              ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}tr (Türkiye)  │ az (Azerbaycan) │ kk (Kazak)    │ uz (Özbek)   │ ky (Kırgız)      ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}tk (Türkmen)  │ ug (Uygur)      │ tt (Tatar)    │ ba (Başkurt) │ cv (Çuvaş)       ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}sah (Yakut)   │ gag (Gagavuz)   │ crh (Kırım)   │ alt (Altay)  │ tyv (Tuva)       ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}kjh (Hakas)   │ krc (Karaçay)   │ kum (Kumuk)   │ nog (Nogay)                     ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │                                                                                   ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_AMBER}🌐 KÜRESEL GÜÇ DİLLERİ & AVRUPA BLOĞU (46 DİL):                                  ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}en (English)  │ ru (Русский)    │ zh (中文)     │ de (Deutsch) │ fr (Français)    ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}es (Español)  │ ja (日本語)     │ pt (Português)│ ko (한국어)  │ it (Italiano)    ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}nl (Dutch)    │ pl (Polski)     │ sv (Svenska)  │ no (Norsk)   │ da (Dansk)       ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}fi (Suomi)    │ cs (Čeština)    │ hu (Magyar)   │ ro (Română)  │ uk (Українська)  ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}el (Ελληνικά) │ vi (Tiếng Việt) │ th (ไทย)      │ id (Bahasa)  │ bg (Български)   ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}hr, sk, sl, sr, bs, sq, mk, lt, lv, et, is, ga, mt, ms, tl, hi, bn, ta, te, mn, ka ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  ╰───────────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}"
-
+# ─── [ DEFAULT LANGUAGE SELECTION ] ───────────────────────────────
 SELECTED_LANG="en"
 if [ -t 0 ]; then
-    echo -e "  ${CLR_SLATE}Hızlı Seçim: [1] English (Varsayılan), [2] Türkçe (tr), [3] Azerbaycan (az), [4] Rusça (ru)${CLR_RESET}"
-    read -r -p "  ❯ Dil Kodu veya Numara Girin / Enter Language Code [Varsayılan: en]: " LANG_INPUT || LANG_INPUT="en"
+    echo -e "\n${CLR_CYAN}  ┌── [ 🌐 SYSTEM DEFAULT LANGUAGE // VARSAYILAN DİL SEÇİMİ ] ────────┐${CLR_RESET}"
+    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[1]${CLR_RESET} ${CLR_WHITE}English (en) - [Default / Varsayılan]${CLR_RESET}                       ${CLR_CYAN}│${CLR_RESET}"
+    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[2]${CLR_RESET} ${CLR_WHITE}Türkçe (tr)${CLR_RESET}                                                 ${CLR_CYAN}│${CLR_RESET}"
+    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[3]${CLR_RESET} ${CLR_WHITE}Azerbaycan Türkçesi (az)${CLR_RESET}                                    ${CLR_CYAN}│${CLR_RESET}"
+    echo -e "${CLR_CYAN}  │${CLR_RESET}  ${CLR_AMBER}[4]${CLR_RESET} ${CLR_WHITE}Diğer 65 Dil (Örn: ru, de, fr, kk, uz, ja, zh)${CLR_RESET}             ${CLR_CYAN}│${CLR_RESET}"
+    echo -e "${CLR_CYAN}  └───────────────────────────────────────────────────────────────────┘${CLR_RESET}"
+    read -r -p "  ❯ Seçiminiz / Choice [1-4] (Enter = English): " LANG_INPUT || LANG_INPUT="1"
     
     case "$LANG_INPUT" in
-        1|"") SELECTED_LANG="en" ;;
-        2) SELECTED_LANG="tr" ;;
-        3) SELECTED_LANG="az" ;;
-        4) SELECTED_LANG="ru" ;;
-        5) SELECTED_LANG="de" ;;
-        *) 
-            # Check if entered language code exists in locales directory
+        2|"tr") SELECTED_LANG="tr" ;;
+        3|"az") SELECTED_LANG="az" ;;
+        4)
+            read -r -p "  ❯ Dil Kodu Girin / Enter ISO Code (örn: kk, uz, ru, de): " CUSTOM_LANG
+            if [ -f "crates/wraith-cli/locales/${CUSTOM_LANG}.yml" ]; then
+                SELECTED_LANG="$CUSTOM_LANG"
+            else
+                SELECTED_LANG="en"
+            fi
+            ;;
+        *)
             if [ -f "crates/wraith-cli/locales/${LANG_INPUT}.yml" ]; then
                 SELECTED_LANG="$LANG_INPUT"
             else
-                echo -e "  ${CLR_AMBER}▲ [UYARI]${CLR_RESET} '${LANG_INPUT}' kodu listede doğrudan eşleşmedi; varsayılan 'en' (English) devrede."
                 SELECTED_LANG="en"
             fi
             ;;
@@ -149,7 +136,7 @@ fi
 
 echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 export WRAITH_LANG="$SELECTED_LANG"
-echo -e "        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Varsayılan Dil / Default Language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET} (${TOTAL_LANG_COUNT} Aktif Dil Destekleniyor)"
+echo -e "        ${CLR_EMERALD}✔ [ACTIVE]${CLR_RESET} Language set to: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
 
 echo -e "\n${CLR_RED}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
 echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"
