@@ -87,19 +87,29 @@ CARGO_HOME="${CARGO_HOME:-/tmp/.cargo}" cargo build --release --workspace
 echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Deploying binary to universal system execution PATHs...${CLR_RESET}"
 TARGET_BIN="target/release/wraith"
 if [ -f "$TARGET_BIN" ]; then
-    chattr -i /usr/local/bin/wraith /usr/bin/wraith /bin/wraith 2>/dev/null || true
-    rm -f /usr/local/bin/wraith /usr/bin/wraith /bin/wraith /root/.cargo/bin/wraith /home/*/.cargo/bin/wraith 2>/dev/null || true
+    # Terminate any running instances holding the binary in RAM
+    killall -9 wraith 2>/dev/null || true
+    pkill -9 -f "wraith" 2>/dev/null || true
+
+    # Strip immutable bits on all target execution paths
+    chattr -R -i -a /usr/local/bin/wraith /usr/bin/wraith /bin/wraith 2>/dev/null || true
     
-    (cp -f "$TARGET_BIN" /usr/local/bin/wraith && chmod 755 /usr/local/bin/wraith) 2>/dev/null || true
-    (cp -f "$TARGET_BIN" /usr/bin/wraith && chmod 755 /usr/bin/wraith) 2>/dev/null || true
-    (cp -f "$TARGET_BIN" /bin/wraith && chmod 755 /bin/wraith) 2>/dev/null || true
-    mkdir -p /root/.cargo/bin 2>/dev/null || true
-    (cp -f "$TARGET_BIN" /root/.cargo/bin/wraith && chmod 755 /root/.cargo/bin/wraith) 2>/dev/null || true
+    # Primary deployment into /usr/local/bin (with atomic replacement)
+    install -m 755 -D "$TARGET_BIN" /usr/local/bin/wraith 2>/dev/null || cp --remove-destination -f "$TARGET_BIN" /usr/local/bin/wraith 2>/dev/null || cp -f "$TARGET_BIN" /usr/local/bin/wraith
+    chmod 755 /usr/local/bin/wraith 2>/dev/null || true
+
+    # Mirror deployment to /usr/bin and /bin for universal command access
+    install -m 755 "$TARGET_BIN" /usr/bin/wraith 2>/dev/null || cp -f "$TARGET_BIN" /usr/bin/wraith 2>/dev/null || true
+    install -m 755 "$TARGET_BIN" /bin/wraith 2>/dev/null || cp -f "$TARGET_BIN" /bin/wraith 2>/dev/null || true
+    
+    if [ -d "/root/.cargo/bin" ]; then
+        install -m 755 "$TARGET_BIN" /root/.cargo/bin/wraith 2>/dev/null || true
+    fi
     
     mkdir -p /etc/wraith /var/log/wraith /etc/tor 2>/dev/null || true
     chmod 750 /etc/wraith /var/log/wraith 2>/dev/null || true
     hash -r 2>/dev/null || true
-    echo -e "        ${CLR_EMERALD}✔ [INJECTED]${CLR_RESET} Deployed: ${CLR_WHITE}/usr/local/bin/wraith${CLR_RESET}, ${CLR_WHITE}/usr/bin/wraith${CLR_RESET}, ${CLR_WHITE}/bin/wraith${CLR_RESET}, ${CLR_WHITE}/root/.cargo/bin/wraith${CLR_RESET}"
+    echo -e "        ${CLR_EMERALD}✔ [INJECTED]${CLR_RESET} Deployed directly to: ${CLR_WHITE}${CLR_BOLD}/usr/local/bin/wraith${CLR_RESET}"
 else
     echo -e "  ${CLR_RED}✖ [BUILD ERROR]${CLR_RESET} Compilation artifact missing at $TARGET_BIN"
     exit 1
