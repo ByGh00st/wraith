@@ -34,7 +34,6 @@ use crate::display::{
     show_status_dashboard, render_box, render_box_top, render_box_bottom, render_box_row, BoxCorner,
 };
 use owo_colors::OwoColorize;
-use crate::tui::SovereignDashboard;
 use tokio_util::sync::CancellationToken;
 use rust_i18n::t;
 
@@ -1212,11 +1211,6 @@ pub async fn cmd_info() -> Result<()> {
     }
 
     Ok(())
-}
-
-pub async fn cmd_dashboard() -> Result<()> {
-    let mut dashboard = SovereignDashboard::new();
-    dashboard.run().await
 }
 
 pub async fn cmd_cleanup(full: bool) -> Result<()> {

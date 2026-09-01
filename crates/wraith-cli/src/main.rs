@@ -189,10 +189,6 @@ struct Cli {
     #[arg(short = 'i', long)]
     info: bool,
 
-    /// Launch interactive terminal telemetry dashboard
-    #[arg(long)]
-    dashboard: bool,
-
     /// Run deep multi-tier kernel diagnostics auditor
     #[arg(long)]
     doctor: bool,
@@ -255,8 +251,6 @@ enum Commands {
     Test,
     /// Show status telemetry dashboard
     Info,
-    /// Launch interactive terminal telemetry dashboard
-    Dashboard,
     /// Run multi-vector deep kernel integrity & network diagnostics
     Doctor,
     /// Run high-performance cryptographic and kernel subsystem benchmarks
@@ -441,8 +435,6 @@ pub async fn main() -> Result<()> {
         Commands::Test
     } else if cli.info {
         Commands::Info
-    } else if cli.dashboard {
-        Commands::Dashboard
     } else if cli.doctor {
         Commands::Doctor
     } else if cli.bench {
@@ -505,9 +497,6 @@ pub async fn main() -> Result<()> {
         }
         Commands::Info => {
             commands::cmd_info().await?;
-        }
-        Commands::Dashboard => {
-            commands::cmd_dashboard().await?;
         }
         Commands::Doctor => {
             let checks = diagnostics::DiagnosticsRunner::run_all();

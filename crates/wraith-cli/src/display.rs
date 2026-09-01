@@ -512,7 +512,6 @@ pub fn print_localized_help() {
         ("switch", t!("help.cmd_switch")),
         ("test", t!("help.cmd_test")),
         ("info", t!("help.cmd_info")),
-        ("dashboard", t!("help.cmd_dashboard")),
         ("doctor", t!("help.cmd_doctor")),
         ("benchmark", t!("help.cmd_benchmark")),
         ("cleanup [--full]", t!("help.cmd_cleanup")),
@@ -613,7 +612,6 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("switch", |a| a.help(t!("help.cmd_switch").into_owned()))
         .mut_arg("test", |a| a.help(t!("help.cmd_test").into_owned()))
         .mut_arg("info", |a| a.help(t!("help.cmd_info").into_owned()))
-        .mut_arg("dashboard", |a| a.help(t!("help.cmd_dashboard").into_owned()))
         .mut_arg("doctor", |a| a.help(t!("help.cmd_doctor").into_owned()))
         .mut_arg("bench", |a| a.help(t!("help.cmd_benchmark").into_owned()))
         .mut_arg("pentest", |a| a.help(t!("help.cmd_pentest").into_owned()))
@@ -628,7 +626,6 @@ pub fn build_localized_command() -> clap::Command {
         .mut_subcommand("switch", |s| s.about(t!("help.cmd_switch").into_owned()))
         .mut_subcommand("test", |s| s.about(t!("help.cmd_test").into_owned()))
         .mut_subcommand("info", |s| s.about(t!("help.cmd_info").into_owned()))
-        .mut_subcommand("dashboard", |s| s.about(t!("help.cmd_dashboard").into_owned()))
         .mut_subcommand("doctor", |s| s.about(t!("help.cmd_doctor").into_owned()))
         .mut_subcommand("benchmark", |s| s.about(t!("help.cmd_benchmark").into_owned()))
         .mut_subcommand("cleanup", |s| s.about(t!("help.cmd_cleanup").into_owned()))

@@ -69,16 +69,16 @@ Built completely from scratch in pure Rust across **6 modular crates**, Wraith o
  TOML                      7          195          183            0           12
  YAML                    400        18624        18624            0            0
 ─────────────────────────────────────────────────────────────────────────────────
- Markdown                  1          436            0          342           94
+ Markdown                  1          466            0          365          101
  |- BASH                   1           33           17            9            7
  |- Rust                   1           10           10            0            0
- (Total)                              479           27          351          101
+ (Total)                              509           27          374          108
 ─────────────────────────────────────────────────────────────────────────────────
- Rust                     55        11577         9694          454         1429
- |- Markdown              48          269            0          269            0
- (Total)                            11846         9694          723         1429
+ Rust                     55        11364         9520          442         1402
+ |- Markdown              48          266            0          266            0
+ (Total)                            11630         9520          708         1402
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                   465        31417        28732         1105         1580
+ Total                   465        31231        28558         1113         1560
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 </details>
@@ -268,7 +268,6 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | `-c` | `sudo wraith -c` / `wraith cleanup`| **Anti-Forensic Purge**: Clears volatile RAM caches, temporary state, and session traces. |
 | — | `sudo wraith --cleanup-full` | **Deep Anti-Forensic Purge**: Wipes RAM, swap partitions, and all system authentication logs. |
 | `-M` | `sudo wraith -M` / `wraith monitor` | **Real-Time DPI & IDS Monitor**: Launches live packet inspector and signature rewrites. |
-| — | `sudo wraith dashboard` | **Interactive TUI Dashboard**: Launches full-screen live telemetry terminal console. |
 | — | `sudo wraith doctor` | **Kernel Integrity Auditor**: Deeply audits IPv4/IPv6 sysctls, Tor daemon state, Netlink, and Seccomp. |
 | — | `sudo wraith benchmark` | **Cryptographic Benchmark**: Evaluates ChaCha20-Poly1305, SHA-256, HMAC, and Netlink throughput. |
 | — | `sudo wraith mac` | **Hardware Randomizer**: Randomizes L2 MAC address and system hostname immediately. |
