@@ -181,7 +181,7 @@ help:
   sec_general_header: 'General Options:'
   opt_verbose: Enable verbose debug logging
   opt_lang: Override system language (e.g. 'en', 'tr', 'ru', 'de')
-  opt_select_lang: Launch interactive 65-language configuration terminal menu
+  opt_select_lang: Launch interactive 75-language configuration terminal menu
   opt_help: Print this help screen
   opt_version: Print version
   examples_header: 'Operational Usage Scenarios:'

@@ -182,7 +182,7 @@ help:
   shortcuts_header: 'Raccourcis opérationnels rapides :'
   cmd_cleanup_full: Purge complète (RAM, swap et journaux système)
   sec_general_header: 'Options générales :'
-  opt_select_lang: Lancer le menu interactif de configuration (65 langues)
+  opt_select_lang: Lancer le menu interactif de configuration (75 langues)
   opt_help: Afficher ce message d'aide
   opt_version: Afficher la version
   examples_header: 'Scénarios d''utilisation opérationnelle :'

@@ -180,7 +180,7 @@ help:
   shortcuts_header: 'Hızlı Operasyonel Kısayollar:'
   cmd_cleanup_full: Kapsamlı temizlik (RAM, swap ve tüm sistem oturum logları)
   sec_general_header: 'Genel Seçenekler:'
-  opt_select_lang: 65 dilli interaktif terminal dil yapılandırma menüsünü açar
+  opt_select_lang: 75 dilli interaktif terminal dil yapılandırma menüsünü açar
   opt_help: Bu yardım ekranını gösterir
   opt_version: Sürüm bilgisini gösterir
   examples_header: 'Operasyonel Kullanım Örnekleri:'

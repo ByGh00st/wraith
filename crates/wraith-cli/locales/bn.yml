@@ -182,7 +182,7 @@ help:
   cmd_cleanup_full: Thorough anti-forensic purge (wipes RAM, swap, and system auth
     logs)
   sec_general_header: 'General Options:'
-  opt_select_lang: Launch interactive 65-language configuration terminal menu
+  opt_select_lang: Launch interactive 75-language configuration terminal menu
   opt_help: Print this help screen
   opt_version: Print version
   examples_header: 'Operational Usage Scenarios:'

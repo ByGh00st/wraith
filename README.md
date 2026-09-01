@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/LANGUAGE-PURE_RUST_2021-00d4ff?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/TARGET-x86__64--unknown--linux--gnu-ff3366?style=for-the-badge&logo=linux&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/SECURITY-ENTERPRISE_PRIVACY_STANDARD-00ff88?style=for-the-badge&logo=matrix&logoColor=white" alt="Standard">
-  <img src="https://img.shields.io/badge/LOCALIZATION-65_NATIVE_LOCALES-ffaa00?style=for-the-badge&logo=google-translate&logoColor=white" alt="Locales">
+  <img src="https://img.shields.io/badge/LOCALIZATION-75_NATIVE_LOCALES-ffaa00?style=for-the-badge&logo=google-translate&logoColor=white" alt="Locales">
   <img src="https://img.shields.io/badge/TEST_SUITE-27%2F27_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
 </p>
 
@@ -18,7 +18,7 @@
 
 <h3 align="center">High-Assurance Kernel-Level Network Privacy & Anti-Fingerprinting Engine</h3>
 <p align="center">
-  <b>Engineered in Pure Rust (28,000+ Lines • 6 Modular Crates • 65 Native Locales) for Linux Systems & Security Engineering</b><br>
+  <b>Engineered in Pure Rust (30,000+ Lines • 6 Modular Crates • 75 Native Locales) for Linux Systems & Security Engineering</b><br>
   <i>Ring 0/3 Hardened • Netlink FIB Engine • Zero-Copy IDS • 50+ Tool DPI Sanitizer • JA3/JA4 GREASE TLS • Encrypted RAMFS Vault</i>
 </p>
 
@@ -66,18 +66,18 @@ Built completely from scratch in pure Rust across **6 modular crates**, Wraith o
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Shell                     2          273          204           31           38
  TOML                      7          195          183            0           12
- YAML                    390        16187        16187            0            0
+ YAML                    400        18157        18157            0            0
 ─────────────────────────────────────────────────────────────────────────────────
- Markdown                  1          440            0          345           95
- |- BASH                   1           16           11            3            2
+ Markdown                  1          434            0          340           94
+ |- BASH                   1           33           17            9            7
  |- Rust                   1           10           10            0            0
- (Total)                              466           21          348           97
+ (Total)                              477           27          349          101
 ─────────────────────────────────────────────────────────────────────────────────
- Rust                     55        11471         9605          449         1417
+ Rust                     55        11481         9615          449         1417
  |- Markdown              48          268            0          268            0
- (Total)                            11739         9605          717         1417
+ (Total)                            11749         9615          717         1417
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                   455        28566        26179         1079         1558
+ Total                   465        30851        28186         1097         1568
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 </details>
@@ -277,17 +277,19 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 
 ---
 
-### 🌐 Enterprise Internationalization (i18n) Architecture (65 Locales)
+### 🌐 Enterprise Internationalization (i18n) Architecture (75 Locales)
 
 Wraith integrates an enterprise-grade multi-language runtime engine powered by native compile-time dictionaries. The operational language is persistently configured during deployment (`/etc/wraith/lang`) and can be overridden dynamically per command:
 
-* **Interactive Selector TUI**: Run `wraith --select-lang` at any time to launch the native 65-language configuration menu with pixel-perfect Unicode alignment.
+* **Interactive Selector TUI**: Run `wraith --select-lang` at any time to launch the native 75-language configuration menu with pixel-perfect Unicode alignment.
 * **Persistent Deployment Binding**: Automatically configured via the interactive installer and stored in `/etc/wraith/lang`.
 * **Runtime Language Override**: Dynamically execute any command in any locale via `wraith --lang <CODE> [COMMAND]` (e.g., `wraith --lang tr -h` or `wraith --lang de start`).
-* **Supported Locale Matrix (65 Standard Enterprise Locales)**:
-  * **Pan-Turkic Language Group**: Turkish (`tr`), Azerbaijani (`az`), Kazakh (`kk`), Uzbek (`uz`), Kyrgyz (`ky`), Turkmen (`tk`), Uyghur (`ug`), Tatar (`tt`), Bashkir (`ba`), Chuvash (`cv`), Sakha (`sah`), Gagauz (`gag`), Crimean Tatar (`crh`), Altai (`alt`), Tuvan (`tyv`), Khakas (`kjh`), Karachay-Balkar (`krc`), Kumyk (`kum`), Nogai (`nog`).
-  * **Slavic & Eastern European**: Russian (`ru`), Ukrainian (`uk`), Bulgarian (`bg`), Serbian (`sr`), Croatian (`hr`), Bosnian (`bs`), Macedonian (`mk`), Slovenian (`sl`), Slovak (`sk`), Czech (`cs`), Polish (`pl`).
-  * **Global Strategic Locales**: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Portuguese (`pt`), Chinese (`zh`), Japanese (`ja`), Korean (`ko`), Dutch (`nl`), Swedish (`sv`), Norwegian (`no`), Danish (`da`), Finnish (`fi`), Hungarian (`hu`), Romanian (`ro`), Greek (`el`), Vietnamese (`vi`), Thai (`th`), Indonesian (`id`), Malay (`ms`), Tagalog (`tl`), Hindi (`hi`), Bengali (`bn`), Tamil (`ta`), Telugu (`te`), Mongolian (`mn`), Georgian (`ka`), Irish (`ga`), Icelandic (`is`), Estonian (`et`), Latvian (`lv`), Lithuanian (`lt`), Maltese (`mt`), Albanian (`sq`).
+* **Supported Locale Matrix (75 Standard Enterprise Locales)**:
+  * **Pan-Turkic Language Group (19)**: Turkish (`tr`), Azerbaijani (`az`), Kazakh (`kk`), Uzbek (`uz`), Kyrgyz (`ky`), Turkmen (`tk`), Uyghur (`ug`), Tatar (`tt`), Bashkir (`ba`), Chuvash (`cv`), Sakha (`sah`), Gagauz (`gag`), Crimean Tatar (`crh`), Altai (`alt`), Tuvan (`tyv`), Khakas (`kjh`), Karachay-Balkar (`krc`), Kumyk (`kum`), Nogai (`nog`).
+  * **Slavic & Eastern European (11)**: Russian (`ru`), Ukrainian (`uk`), Bulgarian (`bg`), Serbian (`sr`), Croatian (`hr`), Bosnian (`bs`), Macedonian (`mk`), Slovenian (`sl`), Slovak (`sk`), Czech (`cs`), Polish (`pl`).
+  * **Middle Eastern, Semitic & Caucasus (5)**: Arabic (`ar`), Persian / Farsi (`fa`), Hebrew (`he`), Armenian (`hy`), Georgian (`ka`).
+  * **South Asian & Indo-Aryan (5)**: Urdu (`ur`), Hindi (`hi`), Bengali (`bn`), Tamil (`ta`), Telugu (`te`).
+  * **Global Strategic, Germanic, Romance, Nordic, Celtic & Classical (35)**: English (`en`), German (`de`), French (`fr`), Spanish (`es`), Italian (`it`), Portuguese (`pt`), Chinese (`zh`), Japanese (`ja`), Korean (`ko`), Dutch (`nl`), Swedish (`sv`), Norwegian (`no`), Danish (`da`), Finnish (`fi`), Hungarian (`hu`), Romanian (`ro`), Greek (`el`), Vietnamese (`vi`), Thai (`th`), Indonesian (`id`), Malay (`ms`), Tagalog (`tl`), Swahili (`sw`), Afrikaans (`af`), Welsh (`cy`), Basque (`eu`), Latin (`la`), Mongolian (`mn`), Irish (`ga`), Icelandic (`is`), Estonian (`et`), Latvian (`lv`), Lithuanian (`lt`), Maltese (`mt`), Albanian (`sq`).
 
 ---
 

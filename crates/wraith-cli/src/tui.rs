@@ -168,7 +168,7 @@ impl SovereignDashboard {
     }
 }
 
-pub const ALL_LANGUAGES: [(&str, &str); 65] = [
+pub const ALL_LANGUAGES: [(&str, &str); 75] = [
     ("en", "English (Default)"),
     ("tr", "Türkçe"),
     ("az", "Azərbaycan dili"),
@@ -234,6 +234,16 @@ pub const ALL_LANGUAGES: [(&str, &str); 65] = [
     ("te", "తెలుగు"),
     ("mn", "Монгол"),
     ("ka", "ქართული"),
+    ("ur", "اردو (Urdu)"),
+    ("fa", "فارسی (Persian)"),
+    ("ar", "العربية (Arabic)"),
+    ("he", "עברית (Hebrew)"),
+    ("hy", "Հայերեն (Armenian)"),
+    ("sw", "Kiswahili (Swahili)"),
+    ("af", "Afrikaans"),
+    ("cy", "Cymraeg (Welsh)"),
+    ("eu", "Euskara (Basque)"),
+    ("la", "Latina (Latin)"),
 ];
 
 pub fn run_language_selector_tui() -> Result<String> {
@@ -309,7 +319,7 @@ pub fn run_language_selector_tui() -> Result<String> {
         ));
 
         let box_lines = crate::display::render_box(
-            "🌐 SYSTEM DEFAULT LANGUAGE CONFIGURATION // 65 LOCALES",
+            "🌐 SYSTEM DEFAULT LANGUAGE CONFIGURATION // 75 LOCALES",
             &rows,
             crate::display::BoxCorner::Square,
             BOX_WIDTH,

@@ -180,7 +180,7 @@ help:
   opt_verbose: Ayrıntılı hata ayıklama (debug) günlüklerini açar
   opt_lang: 'Sistem dilini geçici olarak değiştirir (örn: ''en'', ''tr'', ''ru'',
     ''de'')'
-  opt_select_lang: 65 dilli interaktif terminal dil yapılandırma menüsünü açar
+  opt_select_lang: 75 dilli interaktif terminal dil yapılandırma menüsünü açar
   opt_help: Bu yardım ekranını gösterir
   opt_version: Sürüm bilgisini gösterir
   examples_header: 'Operasyonel Kullanım Örnekleri:'

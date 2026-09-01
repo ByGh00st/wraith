@@ -134,7 +134,7 @@ else
     exit 1
 fi
 
-# ─── [ SYSTEM LANGUAGE SELECTION TUI (65 LANGUAGES IN PURE RUST) ] ─────────────────
+# ─── [ SYSTEM LANGUAGE SELECTION TUI (75 LANGUAGES IN PURE RUST) ] ─────────────────
 SELECTED_LANG="en"
 if [ -t 0 ]; then
     BIN_RUN="/usr/local/bin/wraith"
@@ -174,7 +174,7 @@ BIN_FOR_COMPLETION="${TARGET_BIN}"
 "$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions zsh > /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
 echo -e "        ${CLR_EMERALD}✔ [AUTOCOMPLETE]${CLR_RESET} Shell completions regenerated with language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
 
-# Execute newly compiled wraith binary to display the 100% localized operational command directory for the chosen language (all 65 locales supported natively)
+# Execute newly compiled wraith binary to display the 100% localized operational command directory for the chosen language (all 75 locales supported natively)
 echo ""
 if [ -x "/usr/local/bin/wraith" ]; then
     /usr/local/bin/wraith --lang "$SELECTED_LANG" -h

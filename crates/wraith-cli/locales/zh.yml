@@ -182,7 +182,7 @@ help:
   shortcuts_header: 快速操作快捷键：
   cmd_cleanup_full: 深度反取证清理（清除RAM、交换分区和系统日志）
   sec_general_header: 通用选项：
-  opt_select_lang: 启动交互式65种语言终端配置菜单
+  opt_select_lang: 启动交互式75种语言终端配置菜单
   opt_help: 显示此帮助信息
   opt_version: 显示版本信息
   examples_header: 操作使用示例：

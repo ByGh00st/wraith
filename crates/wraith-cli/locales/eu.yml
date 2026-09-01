@@ -8,7 +8,6 @@ banner:
   gate_status: 'GATE STATUS :'
   gate_val_strict: FAIL-CLOSED (All 16 Security Layers Active)
   gate_val_normal: FAIL-CLOSED (Kernel-Level Egress Enforcement)
-  title: WRAITH-PRIME // MOTOR DE ANONIMIZACIÓN DEL KERNEL
 tui:
   header_strict: MAXIMUM DEFENSE TELEMETRY HUD
   header_normal: REAL-TIME TELEMETRY DASHBOARD
@@ -69,7 +68,6 @@ hud:
   k_monitor: '[M] Pop-up Monitor'
   k_purge: '[C] RAM Purge'
   k_quit: '[Q] Clean Disconnect'
-  status_banner: SISTEMA WRAITH ACTIVO Y BLOQUEADO CONTRA FUGAS
 status:
   ok: ◈ [ARMED]
   error: ✖ [BLOCKED]
@@ -118,37 +116,37 @@ commands:
   cmd_step_39: Re-asserting network interfaces and carrier...
   cmd_step_40: Preparing network & DNS resolution for update...
   cmd_step_41: Fresh repository snapshot cloned successfully
-  cmd_step_42: Release binary compilation completed successfully
+  cmd_step_42: Release binary successfully compiled and hot-swapped!
   cmd_step_43: Compilation finished but target binary was not found
   cmd_step_44: Requesting new Tor exit circuit (SIGNAL NEWNYM)...
   cmd_step_45: Running multi-vector leak verification suite...
 help:
-  desc: Wraith establishes fail-closed Tor transparent proxying with netfilter enforcement,
-    TCP/IP stack normalization, hardware identifier rotation, and browser fingerprint
-    sandboxing.
-  usage: 'Usage: wraith [OPTIONS] [COMMAND]'
-  commands_header: 'Commands:'
-  cmd_start: Start Wraith network anonymization & kernel protection
-  cmd_stop: Stop Wraith and restore normal network
-  cmd_switch: Request new Tor exit identity (Newnym)
-  cmd_test: Run comprehensive DNS, WebRTC, and IPv6 leak tests
-  cmd_info: Display telemetry dashboard and active circuits
-  cmd_dashboard: Launch interactive terminal telemetry dashboard (TUI)
-  cmd_doctor: Run deep multi-tier kernel diagnostics auditor
-  cmd_benchmark: Run high-performance cryptographic and kernel benchmarks
-  cmd_cleanup: Perform anti-forensic RAM and log purge
-  cmd_mac: Randomize network interface MAC address and hostname
-  cmd_profile: Apply geographic Tor exit node profile
-  cmd_pentest: Display offensive security & pentest tool sanitization guide (Nmap,
-    Sqlmap, Ffuf)
-  cmd_update: Fetch latest upstream updates and recompile binary in-place
-  cmd_shred: Securely shred and overwrite a file using DoD 5220.22-M 7-pass standard
-  cmd_monitor: Launch real-time dedicated DPI & IDS live interceptor monitor
-  sec_net_header: 'Network Isolation Options:'
+  desc: Wraith-ek nukleo mailako anonimotasun osoa eskaintzen du Tor bideratze fail-closed,
+    TCP/IP pilaren normalizazio eta nabigatzailearen hatz-marken isolamenduarekin.
+  usage: 'Erabilera: wraith [LAURBIDEAK | AUKERAK] [KOMANDOA]'
+  shortcuts_header: 'Lasterbide Eragile Azkarrak:'
+  commands_header: 'Eskuragarri dauden Azpikomandoak:'
+  cmd_start: Hasi sareko anonimizazioa eta nukleoaren babesa
+  cmd_stop: Gelditu anonimizazioa eta berrezarri sare arrunta
+  cmd_switch: Eskatu Tor irteerako nortasun berria (Newnym)
+  cmd_test: Exekutatu DNS, WebRTC eta IPv6 ihes-probak
+  cmd_info: Erakutsi telemetria panela eta zirkuitu aktiboak
+  cmd_dashboard: Abiarazi terminaleko kontrol-panel interaktiboa (TUI)
+  cmd_doctor: Egin nukleoaren eta sarearen osotasunaren diagnostiko sakona
+  cmd_benchmark: Exekutatu proba kriptografikoak eta nukleoaren abiadura probak
+  cmd_cleanup: Egin RAM memoriaren eta erregistroen garbiketa auzitegikoen aurkakoa
+  cmd_cleanup_full: Auzitegikoen aurkako garbiketa sakona (RAM, swap eta log guztiak)
+  cmd_mac: Ausazkotu sare-txartelaren MAC helbidea eta ostalari-izena
+  cmd_profile: Aplikatu Tor irteera-profil geografikoa
+  cmd_pentest: Erakutsi segurtasun-auditoriako tresnen isolamendu-gida (Nmap, Sqlmap)
+  cmd_update: Deskargatu azken eguneraketak GitHub-etik eta birkonpilatu bertan
+  cmd_shred: Suntsitu fitxategia modu seguruan DoD 5220.22-M 7 pasaldiko arauarekin
+  cmd_monitor: Ireki denbora errealeko DPI eta IDS sareko monitorea
+  sec_net_header: 'Sarearen Isolamendu eta Tunelatze Aukerak:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
   opt_namespace: Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)
-  opt_profile: Enforce geographic Tor exit node profile (e.g. stealth, speed, research,
+  opt_profile: Enforce geographic Tor exit node profile (stealth, speed, research,
     darkweb)
   opt_jitter: Inject synthetic traffic cells & Poisson timing jitter to resist traffic
     flow correlation
@@ -159,7 +157,7 @@ help:
     bypass)
   opt_spawn_monitor: Automatically spawn a dedicated real-time DPI & IDS monitor terminal
     window on startup
-  sec_harden_header: 'System Hardening & Anti-Fingerprinting:'
+  sec_harden_header: 'Sistemaren eta Hatz-marken Gogortzea:'
   opt_browser_shield: Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint
     profiles into browsers
   opt_font_sandbox: Restrict OS-level font discovery via Fontconfig sandbox
@@ -168,7 +166,7 @@ help:
   opt_machine_id: Rotate unique OS /etc/machine-id and system hardware identifiers
   opt_full_security: 'Engage ALL 16 defense layers: GPU/Font Shield, MAC, Machine-ID,
     TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault'
-  sec_forensic_header: 'High-Risk & Forensic Operations:'
+  sec_forensic_header: 'Arrisku Handiko eta Auzitegien Aurkako Eragiketak:'
   opt_wipe_logs: '⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs,
     and user shell history files'
   opt_self_destruct: '⚠ IRREVERSIBLE: Cryptographically shred binary from disk and
@@ -177,15 +175,13 @@ help:
     worker thread ([kworker/u16:0])'
   opt_anti_debug: '⚠ EMERGENCY ABORT: Enforce anti-debugging probe; immediately triggers
     SIGKILL if attached to a debugger'
+  sec_general_header: 'Aukera Orokorrak:'
   opt_verbose: Enable verbose debug logging
   opt_lang: Override system language (e.g. 'en', 'tr', 'ru', 'de')
-  shortcuts_header: 'Atajos operativos rápidos:'
-  cmd_cleanup_full: Purga forense completa (RAM, swap y registros del sistema)
-  sec_general_header: 'Opciones generales:'
-  opt_select_lang: Iniciar menú interactivo de configuración (75 idiomas)
-  opt_help: Mostrar este mensaje de ayuda
-  opt_version: Mostrar versión
-  examples_header: 'Escenarios de uso operativo:'
+  opt_select_lang: Ireki 75 hizkuntzako konfigurazio terminal-menua
+  opt_help: Erakutsi laguntza-pantaila hau
+  opt_version: Erakutsi bertsioaren informazioa
+  examples_header: 'Erabilera Eragilearen Adibideak:'
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │
