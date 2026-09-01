@@ -819,7 +819,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         .or_else(|| wraith_net::get_default_interface().ok())
         .unwrap_or_else(|| "eth0".to_string());
 
-    // 1. Kill stale DHCP clients and ensure interface is UP
+    // 1. Kill stale dhclient (if any) and ensure interface is UP
     let _ = Command::new("pkill").args(["-9", "dhclient"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = Command::new("ip").args(["link", "set", &target_iface, "up"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
 
@@ -831,26 +831,22 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let _ = Command::new("systemctl").args(["restart", "NetworkManager"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = Command::new("service").args(["NetworkManager", "restart"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
 
-    // 4. Ensure device is managed and connected
+    // 4. Ensure device is managed and connected via NM (NM handles its own internal DHCP)
     let _ = Command::new("nmcli").args(["networking", "on"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = Command::new("nmcli").args(["device", "set", &target_iface, "managed", "yes"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = Command::new("nmcli").args(["device", "connect", &target_iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
 
     // 5. Wait for NetworkManager to fully establish connection and obtain DHCP lease
-    sleep(Duration::from_secs(3)).await;
+    sleep(Duration::from_secs(4)).await;
 
-    // 6. Fallback direct DHCP request to guarantee IP lease and default gateway route
-    let _ = Command::new("dhclient").args([&target_iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-
-    // 7. Final DNS assertion (NM may have overwritten resolv.conf during restart)
+    // 6. Final DNS assertion (NM may have overwritten resolv.conf during restart with local stub, ensure fallback)
     let _ = Command::new("chattr").args(["-i", "/etc/resolv.conf"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = std::fs::write("/etc/resolv.conf", "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1\n");
-    let _ = Command::new("resolvectl").arg("flush-caches").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
 
     if let Err(e) = state_mgr.deactivate() {
         tracing::warn!("State manager deactivation error: {e}");
     }
-    sleep(Duration::from_secs(3)).await;
+    sleep(Duration::from_secs(2)).await;
     let real_ip = get_current_ip().await;
 
     if let Some(ip) = real_ip {
@@ -1270,6 +1266,8 @@ pub fn spawn_monitor_terminal() -> bool {
                 .env("DBUS_SESSION_BUS_ADDRESS", &dbus_addr)
                 .env("NO_AT_BRIDGE", "1")
                 .env("QT_LOGGING_RULES", "*=false")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
                 .spawn()
                 .is_ok()
         {

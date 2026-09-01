@@ -139,10 +139,10 @@ pub fn restore_mac(interface: &str, original_mac: &str) -> Result<()> {
     let _ = run_cmd("ip", &["link", "set", interface, "address", original_mac]);
     let _ = run_cmd("ip", &["link", "set", interface, "up"]);
 
-    // Flush stale addresses and obtain fresh DHCP lease for restored MAC
+    // Flush stale addresses and obtain fresh DHCP lease for restored MAC via NetworkManager
     let _ = Command::new("ip").args(["addr", "flush", "dev", interface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = Command::new("pkill").args(["-9", "dhclient"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("dhclient").args([interface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+    let _ = Command::new("nmcli").args(["device", "connect", interface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
     let _ = Command::new("nmcli").args(["device", "reapply", interface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
 
     // Wipe stale neighbor & routing cache (will be re-learned naturally via ARP)
