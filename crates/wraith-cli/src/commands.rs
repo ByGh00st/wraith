@@ -999,15 +999,29 @@ pub async fn cmd_update() -> Result<()> {
         }
     }
 
-    // 4. Compile in isolated workspace
+    // 4. Compile in isolated workspace with isolated writable CARGO_HOME
     print_step(
         &format!("Compiling optimized release binary with {cargo_bin}..."),
         "info",
     );
-    let build_status = Command::new(&cargo_bin)
-        .args(["build", "--release", "--workspace"])
-        .current_dir(&temp_build_dir)
-        .status();
+    let isolated_cargo_home = format!("{temp_build_dir}/.cargo_home");
+    let _ = fs::create_dir_all(&isolated_cargo_home);
+
+    let mut cmd = Command::new(&cargo_bin);
+    cmd.args(["build", "--release", "--workspace"])
+        .current_dir(&temp_build_dir);
+
+    // If host /root/.cargo is read-only (Live ISO / restricted overlayfs), use isolated writable CARGO_HOME
+    if let Ok(home) = std::env::var("CARGO_HOME") {
+        if !Path::new(&home).exists() || fs::metadata(&home).map(|m| m.permissions().readonly()).unwrap_or(false) {
+            cmd.env("CARGO_HOME", &isolated_cargo_home);
+        }
+    } else {
+        // By default provide isolated CARGO_HOME fallback if /root/.cargo fails
+        cmd.env("CARGO_HOME", &isolated_cargo_home);
+    }
+
+    let build_status = cmd.status();
 
     match build_status {
         Ok(s) if s.success() => {
