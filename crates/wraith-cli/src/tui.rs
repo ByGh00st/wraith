@@ -88,38 +88,41 @@ impl SovereignDashboard {
             };
 
             let is_strict = state_data.namespace_active && state_data.tcp_stack_masked;
+            let (cols, _) = crossterm::terminal::size().unwrap_or((80, 24));
+            let box_width = (cols as usize).saturating_sub(4).clamp(55, 78);
+            let bar_dashes = "═".repeat(box_width.saturating_sub(2));
 
             // Clear screen buffer cleanly
             let _ = execute!(stdout(), crossterm::cursor::MoveTo(0, 0), crossterm::terminal::Clear(crossterm::terminal::ClearType::All));
 
             // 1. Header Pane
             if is_strict {
-                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().red());
+                println!("  {}", bar_dashes.bold().red());
                 println!("  {}  {} | {} | {}",
                     "⚡ WRAITH".bold().red(),
                     t!("tui.header_strict").bold().red(),
-                    format!("{} {}", t!("tui.pid"), std::process::id()).dimmed(),
+                    format!("PID:{}", std::process::id()).dimmed(),
                     t!("tui.armed_strict").bold().red()
                 );
-                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().red());
+                println!("  {}", bar_dashes.bold().red());
             } else if state_data.active {
-                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
+                println!("  {}", bar_dashes.bold().purple());
                 println!("  {}  {} | {} | {}",
                     "⚡ WRAITH".bold().purple(),
                     t!("tui.header_normal").bold().cyan(),
-                    format!("{} {}", t!("tui.pid"), std::process::id()).dimmed(),
+                    format!("PID:{}", std::process::id()).dimmed(),
                     t!("tui.armed_normal").bold().green()
                 );
-                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
+                println!("  {}", bar_dashes.bold().purple());
             } else {
-                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".dimmed());
+                println!("  {}", bar_dashes.dimmed());
                 println!("  {}  {} | {} | {}",
                     "⚡ WRAITH".dimmed(),
                     t!("tui.header_normal").bold().white(),
-                    format!("{} {}", t!("tui.pid"), std::process::id()).dimmed(),
-                    "🔴 INACTIVE / STOPPED".bold().yellow()
+                    format!("PID:{}", std::process::id()).dimmed(),
+                    "🔴 INACTIVE".bold().yellow()
                 );
-                println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".dimmed());
+                println!("  {}", bar_dashes.dimmed());
             }
 
             // 2. Identity & Routing Grid
@@ -130,15 +133,15 @@ impl SovereignDashboard {
             };
 
             let id_rows = vec![
-                format!("{:<20} : {}", t!("tui.public_ip"), ip_display.bold().white()),
-                format!("{:<20} : {}", t!("tui.tor_network"), status_tor),
-                format!("{:<20} : {}", t!("tui.hardware_mac"), state_data.mac_new.as_deref().unwrap_or(&*t!("tui.static")).bold().magenta()),
-                format!("{:<20} : {}", t!("tui.machine_id"), if state_data.machine_id_old.is_some() { t!("tui.rotated").bold().green().to_string() } else { t!("tui.original").dimmed().to_string() }),
-                format!("{:<20} : {}", t!("tui.tcp_stack"), if state_data.tcp_stack_masked { t!("tui.win_profile").bold().green().to_string() } else { t!("tui.linux_std").dimmed().to_string() }),
-                format!("{:<20} : {}", t!("tui.exit_policy"), state_data.exit_profile.as_deref().unwrap_or(&*t!("tui.stealth")).bold().blue()),
-                format!("{:<20} : {}", "Multi-Hop Tunnel", if state_data.multihop_enabled { "ACTIVE (WireGuard ➔ Tor [3 Hops])".bold().green().to_string() } else { "OFF (Standard Tor Onion)".dimmed().to_string() }),
+                format!("{:<17} : {}", t!("tui.public_ip").trim_end_matches(':').trim(), ip_display.bold().white()),
+                format!("{:<17} : {}", t!("tui.tor_network").trim_end_matches(':').trim(), status_tor),
+                format!("{:<17} : {}", t!("tui.hardware_mac").trim_end_matches(':').trim(), state_data.mac_new.as_deref().unwrap_or(&*t!("tui.static")).bold().magenta()),
+                format!("{:<17} : {}", t!("tui.machine_id").trim_end_matches(':').trim(), if state_data.machine_id_old.is_some() { t!("tui.rotated").bold().green().to_string() } else { t!("tui.original").dimmed().to_string() }),
+                format!("{:<17} : {}", t!("tui.tcp_stack").trim_end_matches(':').trim(), if state_data.tcp_stack_masked { t!("tui.win_profile").bold().green().to_string() } else { t!("tui.linux_std").dimmed().to_string() }),
+                format!("{:<17} : {}", t!("tui.exit_policy").trim_end_matches(':').trim(), state_data.exit_profile.as_deref().unwrap_or(&*t!("tui.stealth")).bold().blue()),
+                format!("{:<17} : {}", "Multi-Hop Tunnel", if state_data.multihop_enabled { "ACTIVE (WG ➔ Tor [3 Hops])".bold().green().to_string() } else { "OFF (Standard Onion)".dimmed().to_string() }),
             ];
-            let id_box = crate::display::render_box(&t!("tui.identity_box"), &id_rows, crate::display::BoxCorner::Square, 92);
+            let id_box = crate::display::render_box(&t!("tui.identity_box"), &id_rows, crate::display::BoxCorner::Square, box_width);
             println!("\n{}", id_box[0].bright_cyan());
             for row in &id_box[1..id_box.len() - 1] {
                 println!("{row}");
@@ -148,14 +151,14 @@ impl SovereignDashboard {
             // 3. Multi-Layer Defense Matrix
             let def_rows = if state_data.active {
                 vec![
-                    t!("tui.def_netfilter").into_owned(),
-                    t!("tui.def_seccomp").into_owned(),
-                    t!("tui.def_ebpf").into_owned(),
-                    t!("tui.def_lockdown").into_owned(),
-                    t!("tui.def_dns").into_owned(),
-                    t!("tui.def_tls").into_owned(),
-                    t!("tui.def_ramfs").into_owned(),
-                    t!("tui.def_ids").into_owned(),
+                    "[✓] Netfilter TransProxy : Fail-Closed Drop (9040/5353)".bold().green().to_string(),
+                    "[✓] Seccomp-BPF Filter   : Ring-0 ptrace Shield Active".bold().green().to_string(),
+                    "[✓] eBPF / TC Fastpath   : Qdisc clsact Driver Drop Active".bold().green().to_string(),
+                    "[✓] Kernel Lockdown      : Confidentiality Mode Active".bold().green().to_string(),
+                    "[✓] Sovereign DNS Engine : QNAME Min + EDNS0 468B Padded".bold().green().to_string(),
+                    "[✓] JA3/JA4 TLS Camo     : Chrome 131 / Win11 Profile".bold().green().to_string(),
+                    "[✓] RAMFS Crypto Vault   : ChaCha20-Poly1305 Encrypted".bold().green().to_string(),
+                    "[✓] Zero-Copy IDS & DPI  : L2/L3/L4 Sniffer & Watchdog".bold().green().to_string(),
                 ]
             } else {
                 vec![
@@ -164,12 +167,12 @@ impl SovereignDashboard {
                     "[○] eBPF / TC Fastpath   : INACTIVE".dimmed().to_string(),
                     "[○] Kernel Lockdown      : STANDBY".dimmed().to_string(),
                     "[○] Sovereign DNS Engine : INACTIVE (System Resolvers)".dimmed().to_string(),
-                    "[○] JA3/JA4 TLS GREASE   : STANDBY".dimmed().to_string(),
+                    "[○] JA3/JA4 TLS Camo     : STANDBY".dimmed().to_string(),
                     "[○] RAMFS Crypto Vault   : UNMOUNTED".dimmed().to_string(),
                     "[○] Zero-Copy IDS & DPI  : STANDBY".dimmed().to_string(),
                 ]
             };
-            let def_box = crate::display::render_box(&t!("tui.defense_matrix"), &def_rows, crate::display::BoxCorner::Square, 92);
+            let def_box = crate::display::render_box(&t!("tui.defense_matrix"), &def_rows, crate::display::BoxCorner::Square, box_width);
             println!("\n{}", def_box[0].bright_yellow());
             for row in &def_box[1..def_box.len() - 1] {
                 println!("{row}");
@@ -182,12 +185,12 @@ impl SovereignDashboard {
             } else if telemetry.circuits.is_empty() {
                 vec![t!("tui.syncing").into_owned()]
             } else {
-                telemetry.circuits.iter().take(4).map(|circ| {
+                telemetry.circuits.iter().take(3).map(|circ| {
                     let path = circ.path.join(" ➔ ");
-                    format!("Circuit #{:<3} [{:<7}] : {}", circ.id.bold().yellow(), circ.purpose.dimmed(), path.bold().green())
+                    format!("#{:<2} [{:<5}] : {}", circ.id.bold().yellow(), circ.purpose.dimmed(), path.bold().green())
                 }).collect()
             };
-            let circ_box = crate::display::render_box(&t!("tui.circuits_box"), &circ_rows, crate::display::BoxCorner::Square, 92);
+            let circ_box = crate::display::render_box(&t!("tui.circuits_box"), &circ_rows, crate::display::BoxCorner::Square, box_width);
             println!("\n{}", circ_box[0].bright_green());
             for row in &circ_box[1..circ_box.len() - 1] {
                 println!("{row}");
@@ -196,7 +199,7 @@ impl SovereignDashboard {
 
             // 5. Bandwidth Stats
             println!(
-                "  {} Tor v{} | ↓ Ingress: {:.2} MB | ↑ Egress: {:.2} MB\n",
+                "  {} Tor v{} │ ↓ Ingress: {:.2} MB │ ↑ Egress: {:.2} MB\n",
                 "[BANDWIDTH]".dimmed(),
                 telemetry.version,
                 telemetry.bytes_read as f64 / (1024.0 * 1024.0),
@@ -204,7 +207,7 @@ impl SovereignDashboard {
             );
 
             // 6. Interactive Hotkeys Footer
-            println!("  {}\n", t!("tui.hotkeys"));
+            println!("  [Q] Quit │ [N] New Identity │ [C] RAM Cache Flush │ [R] Refresh\n");
             let _ = stdout().flush();
 
             // Non-blocking key check for 800ms

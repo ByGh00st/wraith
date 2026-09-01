@@ -57,6 +57,43 @@ pub fn visible_width(s: &str) -> usize {
     UnicodeWidthStr::width(clean.as_str())
 }
 
+pub fn truncate_visible(s: &str, max_w: usize) -> String {
+    let current_w = visible_width(s);
+    if current_w <= max_w {
+        return s.to_string();
+    }
+    if max_w <= 3 {
+        return ".".repeat(max_w);
+    }
+    let target_w = max_w.saturating_sub(3);
+    let mut clean_w = 0;
+    let mut out = String::new();
+    let mut in_escape = false;
+
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            out.push(c);
+            continue;
+        }
+        if in_escape {
+            out.push(c);
+            if c.is_ascii_alphabetic() {
+                in_escape = false;
+            }
+            continue;
+        }
+        let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+        if clean_w + cw > target_w {
+            out.push_str("...");
+            break;
+        }
+        out.push(c);
+        clean_w += cw;
+    }
+    out
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BoxCorner {
     Rounded, // ╭ ╮ ╰ ╯
@@ -75,11 +112,13 @@ pub fn render_box_top(title: &str, total_width: usize, corner: BoxCorner) -> Str
         title.trim()
     };
 
-    let title_w = visible_width(clean_title);
-    let fixed_w = 2 /* spaces */ + 1 /* corner */ + 2 /* ── */ + 3 /* " [ " */ + title_w + 3 /* " ] " */ + 1 /* corner */;
-    let dash_count = if total_width > fixed_w { total_width - fixed_w } else { 2 };
+    let max_title_w = total_width.saturating_sub(12).max(10);
+    let truncated_title = truncate_visible(clean_title, max_title_w);
+    let title_w = visible_width(&truncated_title);
+    let fixed_w = 1 /* top_left */ + 2 /* ── */ + 3 /* " [ " */ + title_w + 3 /* " ] " */ + 1 /* top_right */;
+    let dash_count = if total_width >= fixed_w { total_width - fixed_w } else { 2 };
     let dashes = "─".repeat(dash_count);
-    format!("  {top_left}── [ {clean_title} ] {dashes}{top_right}")
+    format!("  {top_left}── [ {truncated_title} ] {dashes}{top_right}")
 }
 
 pub fn render_box_bottom(total_width: usize, corner: BoxCorner) -> String {
@@ -87,28 +126,29 @@ pub fn render_box_bottom(total_width: usize, corner: BoxCorner) -> String {
         BoxCorner::Rounded => ("╰", "╯"),
         BoxCorner::Square => ("└", "┘"),
     };
-    let dash_count = if total_width > 4 { total_width - 4 } else { 2 };
+    let dash_count = total_width.saturating_sub(2);
     let dashes = "─".repeat(dash_count);
     format!("  {bottom_left}{dashes}{bottom_right}")
 }
 
 pub fn render_box_row(content: &str, total_width: usize) -> String {
-    let inner_w = if total_width > 7 { total_width - 7 } else { 1 };
-    let v_w = visible_width(content);
+    let inner_w = if total_width > 5 { total_width - 5 } else { 1 };
+    let truncated = truncate_visible(content, inner_w);
+    let v_w = visible_width(&truncated);
     let padding_count = if inner_w > v_w { inner_w - v_w } else { 0 };
     let padding = " ".repeat(padding_count);
-    format!("  │  {content}{padding} │")
+    format!("  │  {truncated}{padding} │")
 }
 
-pub fn render_box(title: &str, rows: &[String], corner: BoxCorner, min_width: usize) -> Vec<String> {
+pub fn render_box(title: &str, rows: &[String], corner: BoxCorner, max_box_width: usize) -> Vec<String> {
     let clean_title = if let (Some(start), Some(end)) = (title.find('['), title.rfind(']')) {
         title[start + 1..end].trim()
     } else {
         title.trim()
     };
-    let title_w = visible_width(clean_title);
-    let max_row_w = rows.iter().map(|r| visible_width(r)).max().unwrap_or(0);
-    let total_width = (max_row_w + 7).max(title_w + 14).max(min_width);
+    let term_width = crossterm::terminal::size().map(|(w, _)| w as usize).unwrap_or(80);
+    let safe_term_width = term_width.saturating_sub(4).clamp(50, 78);
+    let total_width = max_box_width.min(safe_term_width);
 
     let mut output = Vec::with_capacity(rows.len() + 2);
     output.push(render_box_top(clean_title, total_width, corner));
