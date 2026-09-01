@@ -138,10 +138,11 @@ help:
   cmd_cleanup_full: Խորը հակաֆորենսիկ մաքրում (RAM, swap և մատյաններ)
   cmd_mac: Պատահականացնել ցանցային քարտի MAC հասցեն և հոսթի անունը
   cmd_profile: Կիրառել աշխարհագրական Tor ելքային պրոֆիլ
-  cmd_pentest: Ցուցադրել պենտեստի գործիքների մեկուսացման ուղեցույցը (Nmap, Sqlmap)
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: Ներբեռնել թարմացումները GitHub-ից և վերակառուցել տեղում
   cmd_shred: Ապահով կերպով ոչնչացնել ֆայլը DoD 5220.22-M 7-անցումային ստանդարտով
-  cmd_monitor: Բացել իրական ժամանակի DPI և IDS ցանցային մոնիտոր
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Ցանցի մեկուսացման և թունելավորման ընտրանքներ:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -182,6 +183,12 @@ help:
   opt_help: Ցուցադրել այս օգնության էկրանը
   opt_version: Ցուցադրել տարբերակի տեղեկատվությունը
   examples_header: 'Գործառնական օգտագործման օրինակներ:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

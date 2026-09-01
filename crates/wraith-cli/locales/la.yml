@@ -138,10 +138,11 @@ help:
   cmd_cleanup_full: Purgatio antiforensis profunda (RAM, swap et omnia acta)
   cmd_mac: Temere muta inscriptionem MAC et nomen computatri
   cmd_profile: Applicare schema geographicum exitus Tor
-  cmd_pentest: Monstra praecepta segregationis instrumentorum securitatis
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: Extrahe novissimas emendationes ex GitHub et reconstrue
   cmd_shred: Dele tabulam secure secundum normam DoD 5220.22-M 7 vicibus
-  cmd_monitor: Aperi instrumentum monitorium DPI et IDS in tempore reali
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Optiones Segregationis Retis et Cuniculorum:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -182,6 +183,12 @@ help:
   opt_help: Monstra hanc paginam auxilii
   opt_version: Monstra informationem versionis
   examples_header: 'Exempla Usus Operativi:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

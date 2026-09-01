@@ -138,10 +138,11 @@ help:
   cmd_cleanup_full: Deeglike anti-forensiese suiwering (RAM, swap en logs)
   cmd_mac: Ewekansig MAC-adres en gasheernaam
   cmd_profile: Pas geografiese Tor-uitgangprofiel toe
-  cmd_pentest: Vertoon sekuriteitsouditgids vir penetrasietoetsgereedskap
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: Laai nuutste opdaterings van GitHub af en herbou plaaslik
   cmd_shred: Vernietig lêer veilig volgens DoD 5220.22-M 7-slaagstandaard
-  cmd_monitor: Maak intydse DPI- en IDS-netwerkmonitor oop
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Netwerkiperasie- en Tonnelopsies:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -182,6 +183,12 @@ help:
   opt_help: Wys hierdie hulpboodskap
   opt_version: Wys weergawe-inligting
   examples_header: 'Operasionele Gebruiksvoorbeelde:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

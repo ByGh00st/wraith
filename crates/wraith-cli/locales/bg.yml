@@ -138,10 +138,11 @@ help:
   cmd_cleanup: Выполнить очистку оперативной памяти и логов
   cmd_mac: Рандомизировать MAC-адрес и имя хоста
   cmd_profile: Применить географический профиль выхода Tor
-  cmd_pentest: Показать руководство по изоляции утилит пентеста (Nmap, Sqlmap, Ffuf)
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: Загрузить обновления с GitHub и перекомпилировать
   cmd_shred: Безопасно уничтожить файл по стандарту DoD 5220.22-M
-  cmd_monitor: Запустить монитор реального времени DPI и IDS
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Параметры изоляции сети:'
   opt_mac: Рандомизировать L2 MAC-адрес и имя хоста
   opt_bridge: Маршрутизировать через мосты obfs4 Tor
@@ -173,6 +174,12 @@ help:
   opt_help: Print this help screen
   opt_version: Print version
   examples_header: 'Operational Usage Scenarios:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 АВАРИЙНАЯ ОСТАНОВКА: ПЕРЕХВАЧЕН SIGINT (Ctrl+C)
     ] ──────────────┐'

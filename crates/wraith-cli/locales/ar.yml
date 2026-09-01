@@ -138,10 +138,10 @@ help:
   cmd_cleanup_full: تطهير شامل لمكافحة التحليل الجنائي (RAM والسجلات)
   cmd_mac: توليد عنوان MAC واسم مضيف عشوائيين لبطاقة الشبكة
   cmd_profile: تطبيق ملف تعريف الخروج الجغرافي لـ Tor
-  cmd_pentest: عرض دليل عزل أدوات اختبار الاختراق (Nmap, Sqlmap)
+  cmd_pentest: دليل عزل وتطهير توقيعات أدوات اختبار الاختراق DPI
   cmd_update: سحب أحدث التحديثات من GitHub وإعادة البناء الموضعي
   cmd_shred: إتلاف الملف بأمان وفق معيار DoD 5220.22-M ذو 7 تمريرات
-  cmd_monitor: فتح لوحة مراقبة شبكة DPI و IDS المباشرة
+  cmd_monitor: فتح لوحة مراقبة واعتراض DPI و IDS في الوقت الفعلي
   sec_net_header: 'خيارات عزل الشبكة والأنفاق:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -182,6 +182,12 @@ help:
   opt_help: عرض شاشة المساعدة هذه
   opt_version: عرض معلومات الإصدار
   examples_header: 'أمثلة على الاستخدام التشغيلي:'
+  ex_fs: تشغيل مع أقصى حماية من 16 طبقة وتطهير DPI
+  ex_stealth: تغيير عنوان MAC عشوائياً + فرض عقد خروج سرية (Stealth)
+  ex_wipe: حماية كاملة + إتلاف جميع سجلات النظام عند الخروج
+  ex_destruct: حماية كاملة + التدمير الذاتي التشفيري للملف التنفيذي
+  ex_stop: إيقاف العزل واستعادة الاتصال المباشر الطبيعي
+  ex_update: سحب أحدث إصدار من GitHub وإعادة البناء الموضعي
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

@@ -138,10 +138,11 @@ help:
   cmd_cleanup_full: Glanhad gwrth-fforensig trylwyr (RAM, swap a logiau)
   cmd_mac: Hapoli cyfeiriad MAC cerdyn rhwydwaith ac enw gwesteiwr
   cmd_profile: Cymhwyso proffil allanfa ddaearyddol Tor
-  cmd_pentest: Dangos canllawiau ynysu ar gyfer offer profi treiddiad
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: Nôl diweddariadau diweddaraf o GitHub ac ailadeiladu ar unwaith
   cmd_shred: Distrywio ffeil yn ddiogel gan ddefnyddio safon DoD 5220.22-M 7-pas
-  cmd_monitor: Agor monitor rhwydwaith DPI ac IDS amser real
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Dewisiadau Ynysu Rhwydwaith a Thwnelu:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -182,6 +183,12 @@ help:
   opt_help: Dangos y sgrin gymorth hon
   opt_version: Dangos gwybodaeth fersiwn
   examples_header: 'Enghreifftiau o Ddefnydd Gweithredol:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

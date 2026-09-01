@@ -139,11 +139,10 @@ help:
   cmd_cleanup: Perform anti-forensic RAM and log purge
   cmd_mac: Randomize network interface MAC address and hostname
   cmd_profile: Apply geographic Tor exit node profile
-  cmd_pentest: Display offensive security & pentest tool sanitization guide (Nmap,
-    Sqlmap, Ffuf)
+  cmd_pentest: Guía de aislamiento y sanitización DPI para herramientas de pentest
   cmd_update: Fetch latest upstream updates and recompile binary in-place
   cmd_shred: Securely shred and overwrite a file using DoD 5220.22-M 7-pass standard
-  cmd_monitor: Launch real-time dedicated DPI & IDS live interceptor monitor
+  cmd_monitor: Abrir monitor de intercepción DPI e IDS en tiempo real
   sec_net_header: 'Network Isolation Options:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -186,6 +185,12 @@ help:
   opt_help: Mostrar este mensaje de ayuda
   opt_version: Mostrar versión
   examples_header: 'Escenarios de uso operativo:'
+  ex_fs: Iniciar con protección máxima de 16 capas y sanitización DPI
+  ex_stealth: Aleatorizar MAC + Forzar nodos de salida Tor sigilosos
+  ex_wipe: Defensa completa + Borrado de registros del sistema al salir
+  ex_destruct: Defensa completa + Autodestrucción criptográfica del binario
+  ex_stop: Detener aislamiento y restaurar red normal clearnet
+  ex_update: Descargar última versión de GitHub y recompilar in situ
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

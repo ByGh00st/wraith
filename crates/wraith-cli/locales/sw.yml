@@ -138,10 +138,11 @@ help:
   cmd_cleanup_full: Usafishaji kamili wa kiusalama (RAM, swap na kumbukumbu zote)
   cmd_mac: Badilisha anwani ya MAC ya mtandao na jina la kifaa bila mpangilio
   cmd_profile: Tumia wasifu wa kijiografia wa nodi za Tor
-  cmd_pentest: Onyesha mwongozo wa kutenga zana za kupima usalama (Nmap, Sqlmap)
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: Pakua visasisho vipya kutoka GitHub na ujenge upya papo hapo
   cmd_shred: Futa kabisa faili kwa kiwango cha pasi 7 cha DoD 5220.22-M
-  cmd_monitor: Fungua dirisha la ufuatiliaji wa wakati halisi wa DPI na IDS
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Chaguzi za Kutenga Mtandao na Njia za Njia:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -182,6 +183,12 @@ help:
   opt_help: Onyesha skrini hii ya usaidizi
   opt_version: Onyesha maelezo ya toleo
   examples_header: 'Mifano ya Matumizi ya Kiutendaji:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

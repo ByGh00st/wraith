@@ -138,10 +138,11 @@ help:
   cmd_cleanup_full: Auzitegikoen aurkako garbiketa sakona (RAM, swap eta log guztiak)
   cmd_mac: Ausazkotu sare-txartelaren MAC helbidea eta ostalari-izena
   cmd_profile: Aplikatu Tor irteera-profil geografikoa
-  cmd_pentest: Erakutsi segurtasun-auditoriako tresnen isolamendu-gida (Nmap, Sqlmap)
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: Deskargatu azken eguneraketak GitHub-etik eta birkonpilatu bertan
   cmd_shred: Suntsitu fitxategia modu seguruan DoD 5220.22-M 7 pasaldiko arauarekin
-  cmd_monitor: Ireki denbora errealeko DPI eta IDS sareko monitorea
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Sarearen Isolamendu eta Tunelatze Aukerak:'
   opt_mac: Randomize network interface L2 MAC address and hostname
   opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
@@ -182,6 +183,12 @@ help:
   opt_help: Erakutsi laguntza-pantaila hau
   opt_version: Erakutsi bertsioaren informazioa
   examples_header: 'Erabilera Eragilearen Adibideak:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │

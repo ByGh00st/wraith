@@ -140,11 +140,11 @@ help:
   cmd_mac: Ağ kartı MAC adresini ve sistem hostname değerini rastgeleleştirir
   cmd_profile: 'Coğrafi Tor çıkış profili uygular (örn: stealth, speed, research,
     darkweb)'
-  cmd_pentest: Sızma testi araçları için izolasyon rehberini gösterir (Nmap, Sqlmap,
-    Ffuf)
+  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
+    Sqlmap, Ffuf)
   cmd_update: En son güncellemeleri GitHub'dan çeker ve yerinde yeniden derler
   cmd_shred: Bir dosyayı DoD 5220.22-M 7-geçişli standart ile güvenle parçalar
-  cmd_monitor: Gerçek zamanlı DPI ve IDS canlı ağ izleme panelini açar
+  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
   sec_net_header: 'Ağ İzolasyonu Seçenekleri:'
   opt_mac: Ağ kartı L2 MAC adresini ve hostname değerini rastgeleleştirir
   opt_bridge: Trafiği sansüre dayanıklı obfs4 Tor köprüleri üzerinden yönlendirir
@@ -185,6 +185,12 @@ help:
   opt_help: Bu yardım ekranını gösterir
   opt_version: Sürüm bilgisini gösterir
   examples_header: 'Operasyonel Kullanım Örnekleri:'
+  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
+  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_destruct: Full defense + Cryptographically shred binary on exit
+  ex_stop: Terminate isolation & Restore clean clearnet
+  ex_update: Pull latest release from GitHub & Hot-rebuild in-place
 runtime:
   emergency_abort_title: '┌── [ 🚨 ACİL DURDURMA: SIGINT (Ctrl+C) YAKALANDI ] ─────────────────────────┐'
   emergency_abort_desc: │  Başlatma kesildi. Tüm sistem ağı ve güvenliği geri yükleniyor...         │

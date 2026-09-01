@@ -534,12 +534,12 @@ pub fn print_localized_help() {
     println!("    {:<28} {}", "-V, --version", t!("help.opt_version"));
 
     println!("\n  {}", t!("help.examples_header").bold().bright_yellow());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs".bright_cyan(), "→ Maksimum 16 katmanlı tam koruma ile başlat".dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -m -p stealth".bright_cyan(), "→ MAC değiştir + Stealth çıkış düğümleri ile bağlan".dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -L".bright_cyan(), "→ Tam koruma + çıkışta tüm oturum loglarını temizle".dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -d".bright_cyan(), "→ Tam koruma + çıkışta kendini diskten tamamen imha et".dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-x".bright_cyan(), "→ Anonimleştirmeyi durdur ve normal ağı geri yükle".dimmed());
-    println!("    {} {:<28} {}\n", "sudo wraith".bold().bright_white(), "-u".bright_cyan(), "→ En son sürümü GitHub'dan çek ve yerinde yeniden derle".dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs".bright_cyan(), format!("→ {}", t!("help.ex_fs")).dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -m -p stealth".bright_cyan(), format!("→ {}", t!("help.ex_stealth")).dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -L".bright_cyan(), format!("→ {}", t!("help.ex_wipe")).dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -d".bright_cyan(), format!("→ {}", t!("help.ex_destruct")).dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-x".bright_cyan(), format!("→ {}", t!("help.ex_stop")).dimmed());
+    println!("    {} {:<28} {}\n", "sudo wraith".bold().bright_white(), "-u".bright_cyan(), format!("→ {}", t!("help.ex_update")).dimmed());
 }
 
 pub fn build_localized_command() -> clap::Command {
