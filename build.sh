@@ -102,39 +102,54 @@ else
     exit 1
 fi
 
-# ─── [ INTERACTIVE DEFAULT LANGUAGE SELECTION ] ───────────────────────────────
-echo -e "\n${CLR_CYAN}  ╭── [ 🌐 WRAITH DEFAULT SYSTEM LANGUAGE CONFIGURATION ] ─────────────────────────╮${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_WHITE}Select default operational language for Wraith execution:                    ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │                                                                               │${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[1]${CLR_RESET} ${CLR_WHITE}English (Default - Global Matrix Standard)                               ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[2]${CLR_RESET} ${CLR_WHITE}Türkçe (Türkiye Türkçesi)                                                ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[3]${CLR_RESET} ${CLR_WHITE}Azerbaycan Türkçesi (az)                                                 ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[4]${CLR_RESET} ${CLR_WHITE}Русский (ru)                                                             ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[5]${CLR_RESET} ${CLR_WHITE}Deutsch (de)                                                             ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[6]${CLR_RESET} ${CLR_WHITE}Özel Dil Kodu Gir (Örn: kk, uz, crh, fr, es, ja, zh)                     ${CLR_CYAN}│${CLR_RESET}"
-echo -e "${CLR_CYAN}  ╰───────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}"
+# ─── [ DYNAMIC 65-LANGUAGE MATRIX SELECTION ] ───────────────────────────────
+LOCALE_FILES=(crates/wraith-cli/locales/*.yml)
+TOTAL_LANG_COUNT=${#LOCALE_FILES[@]}
+
+echo -e "\n${CLR_CYAN}  ╭── [ 🌐 WRAITH SOVEREIGN LANGUAGE MATRIX // ${TOTAL_LANG_COUNT} AKTİF DİL DESTEĞİ ] ──────────────────────╮${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}Sistem için varsayılan operasyonel dili seçin veya kodunu girin:                 ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │                                                                                   ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_EMERALD}🐺 TÜRK DÜNYASI DİL BLOĞU (19 DİL):                                              ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}tr (Türkiye)  │ az (Azerbaycan) │ kk (Kazak)    │ uz (Özbek)   │ ky (Kırgız)      ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}tk (Türkmen)  │ ug (Uygur)      │ tt (Tatar)    │ ba (Başkurt) │ cv (Çuvaş)       ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}sah (Yakut)   │ gag (Gagavuz)   │ crh (Kırım)   │ alt (Altay)  │ tyv (Tuva)       ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}kjh (Hakas)   │ krc (Karaçay)   │ kum (Kumuk)   │ nog (Nogay)                     ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │                                                                                   ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_AMBER}🌐 KÜRESEL GÜÇ DİLLERİ & AVRUPA BLOĞU (46 DİL):                                  ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}en (English)  │ ru (Русский)    │ zh (中文)     │ de (Deutsch) │ fr (Français)    ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}es (Español)  │ ja (日本語)     │ pt (Português)│ ko (한국어)  │ it (Italiano)    ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}nl (Dutch)    │ pl (Polski)     │ sv (Svenska)  │ no (Norsk)   │ da (Dansk)       ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}fi (Suomi)    │ cs (Čeština)    │ hu (Magyar)   │ ro (Română)  │ uk (Українська)  ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}el (Ελληνικά) │ vi (Tiếng Việt) │ th (ไทย)      │ id (Bahasa)  │ bg (Български)   ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}hr, sk, sl, sr, bs, sq, mk, lt, lv, et, is, ga, mt, ms, tl, hi, bn, ta, te, mn, ka ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  ╰───────────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}"
 
 SELECTED_LANG="en"
 if [ -t 0 ]; then
-    read -r -p "  ❯ Seçiminiz / Enter choice [1-6] (Varsayılan: 1 / Default: 1 - English): " LANG_INPUT || LANG_INPUT="1"
+    echo -e "  ${CLR_SLATE}Hızlı Seçim: [1] English (Varsayılan), [2] Türkçe (tr), [3] Azerbaycan (az), [4] Rusça (ru)${CLR_RESET}"
+    read -r -p "  ❯ Dil Kodu veya Numara Girin / Enter Language Code [Varsayılan: en]: " LANG_INPUT || LANG_INPUT="en"
+    
     case "$LANG_INPUT" in
+        1|"") SELECTED_LANG="en" ;;
         2) SELECTED_LANG="tr" ;;
         3) SELECTED_LANG="az" ;;
         4) SELECTED_LANG="ru" ;;
         5) SELECTED_LANG="de" ;;
-        6) 
-            read -r -p "  ❯ Dil kodunu yazın / Enter ISO language code (örn: kk, uz, fr, es, ja, zh): " CUSTOM_LANG
-            if [ -n "$CUSTOM_LANG" ]; then
-                SELECTED_LANG="$CUSTOM_LANG"
+        *) 
+            # Check if entered language code exists in locales directory
+            if [ -f "crates/wraith-cli/locales/${LANG_INPUT}.yml" ]; then
+                SELECTED_LANG="$LANG_INPUT"
+            else
+                echo -e "  ${CLR_AMBER}▲ [UYARI]${CLR_RESET} '${LANG_INPUT}' kodu listede doğrudan eşleşmedi; varsayılan 'en' (English) devrede."
+                SELECTED_LANG="en"
             fi
             ;;
-        *) SELECTED_LANG="en" ;;
     esac
 fi
 
 echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 export WRAITH_LANG="$SELECTED_LANG"
-echo -e "        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Varsayılan Dil / Default Language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
+echo -e "        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Varsayılan Dil / Default Language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET} (${TOTAL_LANG_COUNT} Aktif Dil Destekleniyor)"
 
 echo -e "\n${CLR_RED}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
 echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"
