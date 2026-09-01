@@ -88,11 +88,12 @@ pub struct StartArgs {
     )]
     pub monitor_window: bool,
 
-    // ─── [3. HIGH-RISK & FORENSIC OPERATIONS — EXPLICIT OPT-IN ONLY] ─────────────────────
+    // ─── [3. HIGH-RISK & FORENSIC OPERATIONS] ──────────────────────────────────────────
     /// ⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs, and user shell history files
     #[arg(
+        short = 'L',
         long = "forensic-wipe-logs", 
-        visible_aliases = ["destructive-cleanup", "wipe-logs"],
+        visible_aliases = ["destructive-cleanup", "wipe-logs", "wipe"],
         help_heading = "High-Risk & Forensic Operations"
     )]
     pub forensic_wipe_logs: bool,
@@ -108,14 +109,20 @@ pub struct StartArgs {
 
     /// ⚠ EVASIVE: Spoof process name in Linux kernel scheduler as kernel worker thread ([kworker/u16:0])
     #[arg(
+        short = 'K',
         long = "aggressive-masquerade", 
-        visible_aliases = ["process-masquerade", "cloaked-process"],
+        visible_aliases = ["process-masquerade", "cloaked-process", "masquerade", "kworker"],
         help_heading = "High-Risk & Forensic Operations"
     )]
     pub aggressive_masquerade: bool,
 
     /// ⚠ EMERGENCY ABORT: Enforce anti-debugging probe; immediately triggers SIGKILL if attached to a debugger
-    #[arg(long, visible_aliases = ["anti-debug", "anti-ptrace"], help_heading = "High-Risk & Forensic Operations")]
+    #[arg(
+        short = 'A',
+        long = "aggressive-anti-debug", 
+        visible_aliases = ["anti-debug", "anti-ptrace"], 
+        help_heading = "High-Risk & Forensic Operations"
+    )]
     pub aggressive_anti_debug: bool,
 }
 

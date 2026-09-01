@@ -147,8 +147,8 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         }
     }
 
-    // 0a. Explicit Anti-Debug Abort Trap (Aggressive Defense Opt-In)
-    if args.aggressive_anti_debug {
+    // 0a. Anti-Debug Abort Trap (Armed under strict hardening -Fs OR explicit -A)
+    if args.aggressive_anti_debug || is_strict {
         print_step(
             "Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...",
             "info",
@@ -159,15 +159,15 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         }
     }
 
-    // 0b. Explicit Process Masquerading (Red Team / Evasion Opt-In)
-    if args.aggressive_masquerade {
+    // 0b. Process Masquerading (Armed under strict hardening -Fs OR explicit -K)
+    if args.aggressive_masquerade || is_strict {
         print_step(
             "Masking process name in kernel scheduler ([kworker/u16:0])...",
             "info",
         );
         match wraith_forensic::cloaked_process_masquerade("[kworker/u16:0]") {
             Ok(()) => print_step(
-                "Process identity cloaked as kernel worker [EXPLICIT OPT-IN]",
+                "Process identity cloaked as kernel worker [ARMED]",
                 "ok",
             ),
             Err(e) => print_step(&format!("Process masquerade warning: {e}"), "warn"),
