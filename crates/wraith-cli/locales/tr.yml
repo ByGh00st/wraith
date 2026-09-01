@@ -117,7 +117,6 @@ commands:
   cmd_step_43: "Derleme tamamlandı ancak hedef ikili dosya (binary) bulunamadı"
   cmd_step_44: "Yeni Tor çıkış devresi isteniyor (SIGNAL NEWNYM)..."
   cmd_step_45: "Çoklu vektör sızıntı doğrulama testi başlatılıyor..."
-
 help:
   desc: "Wraith; hata-kapalı (fail-closed) netfilter yönlendirmesi, TCP/IP yığın normalizasyonu, donanım kimliği rotasyonu ve tarayıcı parmak izi kum havuzlaması ile tam anonimlik sağlar."
   usage: "Kullanım: wraith [SEÇENEKLER] [KOMUT]"

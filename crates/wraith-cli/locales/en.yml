@@ -117,7 +117,6 @@ commands:
   cmd_step_43: "Compilation finished but target binary was not found"
   cmd_step_44: "Requesting new Tor exit circuit (SIGNAL NEWNYM)..."
   cmd_step_45: "Running multi-vector leak verification suite..."
-
 help:
   desc: "Wraith establishes fail-closed Tor transparent proxying with netfilter enforcement, TCP/IP stack normalization, hardware identifier rotation, and browser fingerprint sandboxing."
   usage: "Usage: wraith [OPTIONS] [COMMAND]"
