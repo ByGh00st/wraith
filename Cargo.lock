@@ -1802,7 +1802,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "wraith-cli"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1832,7 +1832,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-core"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "chacha20poly1305",
@@ -1855,7 +1855,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-forensic"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "libc",
@@ -1874,7 +1874,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-guard"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "libc",
@@ -1893,7 +1893,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-net"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "libc",
@@ -1910,7 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-tor"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "hex",
