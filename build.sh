@@ -102,122 +102,136 @@ else
     exit 1
 fi
 
-# ─── [ INTERACTIVE TABBED LANGUAGE PICKER (ARROW KEYS & TABS) ] ─────────────────
+# ─── [ SYSTEM LANGUAGE SELECTION TUI (65 LANGUAGES) ] ─────────────────────────
 select_language_tui() {
-    local TABS=("🐺 TÜRK DÜNYASI" "🌐 KÜRESEL GÜÇLER" "🇪🇺 AVRUPA BLOĞU" "🌏 ASYA & DİĞER")
-    local CURRENT_TAB=0
-    local CURSOR_POS=0
-
-    # Tab 0: Türk Dünyası (19 Dil)
-    local TAB0=(
-        "tr:Türkiye Türkçesi" "az:Azerbaycan Türkçesi" "kk:Kazak Türkçesi" "uz:Özbek Türkçesi"
-        "ky:Kırgız Türkçesi" "tk:Türkmen Türkçesi" "ug:Uygur Türkçesi" "tt:Tatar Türkçesi"
-        "ba:Başkurt Türkçesi" "cv:Çuvaş Türkçesi" "sah:Saha (Yakut)" "gag:Gagavuz Türkçesi"
-        "crh:Kırım Tatarca" "alt:Altay Türkçesi" "tyv:Tuva Türkçesi" "kjh:Hakas Türkçesi"
-        "krc:Karaçay-Balkar" "kum:Kumuk Türkçesi" "nog:Nogay Türkçesi"
+    local LANGUAGES=(
+        "en:English (Default)"
+        "tr:Türkçe"
+        "az:Azərbaycan dili"
+        "kk:Қазақ тілі"
+        "uz:Oʻzbekcha"
+        "ky:Кыргызча"
+        "tk:Türkmençe"
+        "ug:Уйғурчә"
+        "tt:Татарча"
+        "ba:Башҡортса"
+        "cv:Чӑвашла"
+        "sah:Саха тыла"
+        "gag:Gagauzça"
+        "crh:Qırımtatarca"
+        "alt:Алтай тили"
+        "tyv:Тыва дыл"
+        "kjh:Хакас тілі"
+        "krc:Къарачай-малкъар"
+        "kum:Къумукъ тил"
+        "nog:Ногай тили"
+        "de:Deutsch"
+        "fr:Français"
+        "es:Español"
+        "ru:Русский"
+        "zh:中文 (Chinese)"
+        "ja:日本語 (Japanese)"
+        "ko:한국어 (Korean)"
+        "pt:Português"
+        "it:Italiano"
+        "nl:Nederlands"
+        "pl:Polski"
+        "sv:Svenska"
+        "no:Norsk"
+        "da:Dansk"
+        "fi:Suomi"
+        "cs:Čeština"
+        "hu:Magyar"
+        "ro:Română"
+        "uk:Українська"
+        "el:Ελληνικά"
+        "bg:Български"
+        "hr:Hrvatski"
+        "sk:Slovenčina"
+        "sl:Slovenščina"
+        "sr:Srpski"
+        "lt:Lietuvių"
+        "lv:Latviešu"
+        "et:Eesti"
+        "is:Íslenska"
+        "ga:Gaeilge"
+        "sq:Shqip"
+        "mk:Македонски"
+        "bs:Bosanski"
+        "mt:Malti"
+        "vi:Tiếng Việt"
+        "th:ไทย"
+        "id:Bahasa Indonesia"
+        "ms:Bahasa Melayu"
+        "tl:Tagalog"
+        "hi:हिन्दी"
+        "bn:বাংলা"
+        "ta:தமிழ்"
+        "te:తెలుగు"
+        "mn:Монгол"
+        "ka:ქართული"
     )
 
-    # Tab 1: Küresel Güç Dilleri (10 Dil)
-    local TAB1=(
-        "en:English (Default / Varsayılan)" "ru:Русский (Russian)" "zh:中文 (Chinese)"
-        "de:Deutsch (German)" "fr:Français (French)" "es:Español (Spanish)"
-        "ja:日本語 (Japanese)" "pt:Português (Portuguese)" "ko:한국어 (Korean)" "it:Italiano (Italian)"
-    )
-
-    # Tab 2: Avrupa Bloğu (20 Dil)
-    local TAB2=(
-        "nl:Nederlands (Dutch)" "pl:Polski (Polish)" "sv:Svenska (Swedish)" "no:Norsk (Norwegian)"
-        "da:Dansk (Danish)" "fi:Suomi (Finnish)" "cs:Čeština (Czech)" "hu:Magyar (Hungarian)"
-        "ro:Română (Romanian)" "uk:Українська (Ukrainian)" "el:Ελληνικά (Greek)" "bg:Български (Bulgarian)"
-        "hr:Hrvatski (Croatian)" "sk:Slovenčina (Slovak)" "sl:Slovenščina (Slovenian)" "sr:Srpski (Serbian)"
-        "lt:Lietuvių (Lithuanian)" "lv:Latviešu (Latvian)" "et:Eesti (Estonian)" "is:Íslenska (Icelandic)"
-    )
-
-    # Tab 3: Asya & Diğer Diller (16 Dil)
-    local TAB3=(
-        "vi:Tiếng Việt (Vietnamese)" "th:ไทย (Thai)" "id:Bahasa Indonesia" "ms:Bahasa Melayu"
-        "tl:Tagalog (Filipino)" "hi:हिन्दी (Hindi)" "bn:বাংলা (Bengali)" "ta:தமிழ் (Tamil)"
-        "te:తెలుగు (Telugu)" "mn:Монгол (Mongolian)" "ka:ქართული (Georgian)" "ga:Gaeilge (Irish)"
-        "sq:Shqip (Albanian)" "mk:Македонски (Macedonian)" "bs:Bosanski (Bosnian)" "mt:Malti (Maltese)"
-    )
+    local TOTAL=${#LANGUAGES[@]}
+    local CURSOR=0
+    local PAGE_SIZE=10
 
     # Hide cursor
     echo -ne "\033[?25l"
 
     while true; do
-        local ITEMS=()
-        case $CURRENT_TAB in
-            0) ITEMS=("${TAB0[@]}") ;;
-            1) ITEMS=("${TAB1[@]}") ;;
-            2) ITEMS=("${TAB2[@]}") ;;
-            3) ITEMS=("${TAB3[@]}") ;;
-        esac
+        # Calculate viewport window
+        local TOP=$(( CURSOR - (PAGE_SIZE / 2) ))
+        [ "$TOP" -lt 0 ] && TOP=0
+        local MAX_TOP=$(( TOTAL - PAGE_SIZE ))
+        [ "$MAX_TOP" -lt 0 ] && MAX_TOP=0
+        [ "$TOP" -gt "$MAX_TOP" ] && TOP=$MAX_TOP
 
-        local NUM_ITEMS=${#ITEMS[@]}
-        if [ "$CURSOR_POS" -ge "$NUM_ITEMS" ]; then
-            CURSOR_POS=$((NUM_ITEMS - 1))
-        fi
+        # Draw UI Box
+        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 SYSTEM DEFAULT LANGUAGE SELECTION // 65 LANGUAGES ] ──────────────────────┐${CLR_RESET}"
+        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigation: ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Scroll │ ${CLR_WHITE}[← / → / PgUp / PgDn]${CLR_SLATE} Fast Scroll │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Confirm ${CLR_CYAN}│${CLR_RESET}"
+        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
 
-        # Draw Frame
-        echo -e "\n${CLR_CYAN}  ┌── [ 🌐 WRAITH SOVEREIGN LANGUAGE PICKER // 65 AKTİF DİL ] ─────────────────────────┐${CLR_RESET}"
-        echo -e "${CLR_CYAN}  │  ${CLR_SLATE}Navigasyon: ${CLR_WHITE}[← / → / TAB]${CLR_SLATE} Sekme Değiştir │ ${CLR_WHITE}[↑ / ↓]${CLR_SLATE} Dil Gez │ ${CLR_EMERALD}[ENTER]${CLR_SLATE} Onayla ${CLR_CYAN}│${CLR_RESET}"
-        echo -e "${CLR_CYAN}  ├────────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
-        
-        # Tabs Header
-        local TAB_HEADER="  │  "
-        for i in "${!TABS[@]}"; do
-            if [ "$i" -eq "$CURRENT_TAB" ]; then
-                TAB_HEADER+="${CLR_AMBER}${CLR_BOLD}[ ${TABS[$i]} ]${CLR_RESET}  "
-            else
-                TAB_HEADER+="${CLR_SLATE}  ${TABS[$i]}   ${CLR_RESET}"
-            fi
-        done
-        echo -e "${TAB_HEADER}"
-        echo -e "${CLR_CYAN}  ├────────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
-
-        # Items List
-        for ((i=0; i<NUM_ITEMS; i++)); do
-            local item="${ITEMS[$i]}"
+        for ((i=TOP; i<TOP+PAGE_SIZE && i<TOTAL; i++)); do
+            local item="${LANGUAGES[$i]}"
             local code="${item%%:*}"
             local name="${item#*:}"
-            
-            if [ "$i" -eq "$CURSOR_POS" ]; then
-                echo -e "  │  ${CLR_EMERALD}${CLR_BOLD}➔ [${code}] ${name}${CLR_RESET}"
+            local idx_fmt=$(printf "%02d" $((i + 1)))
+
+            if [ "$i" -eq "$CURSOR" ]; then
+                printf "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_EMERALD}${CLR_BOLD}➔  [%s]  %-6s : %-56s${CLR_RESET} ${CLR_CYAN}│${CLR_RESET}\n" "$idx_fmt" "$code" "$name"
             else
-                echo -e "  │     ${CLR_WHITE}[${code}] ${name}${CLR_RESET}"
+                printf "  ${CLR_CYAN}│${CLR_RESET}     [%s]  %-6s : %-56s ${CLR_CYAN}│${CLR_RESET}\n" "$idx_fmt" "$code" "$name"
             fi
         done
-        echo -e "${CLR_CYAN}  └────────────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
 
-        # Read key
+        local curr_fmt=$(printf "%02d" $((CURSOR + 1)))
+        echo -e "${CLR_CYAN}  ├───────────────────────────────────────────────────────────────────────────────────┤${CLR_RESET}"
+        printf "  ${CLR_CYAN}│${CLR_RESET}  ${CLR_AMBER}Selected: [%s/%02d] [%s]${CLR_RESET}                                                             ${CLR_CYAN}│${CLR_RESET}\n" "$curr_fmt" "$TOTAL" "${LANGUAGES[$CURSOR]%%:*}"
+        echo -e "${CLR_CYAN}  └───────────────────────────────────────────────────────────────────────────────────┘${CLR_RESET}"
+
+        # Read keypress
         IFS= read -rsn1 key
         if [[ "$key" == $'\x1b' ]]; then
             read -rsn2 -t 0.1 rest || rest=""
             case "$rest" in
                 '[A') # Up
-                    if [ "$CURSOR_POS" -gt 0 ]; then
-                        CURSOR_POS=$((CURSOR_POS - 1))
-                    fi
+                    [ "$CURSOR" -gt 0 ] && CURSOR=$((CURSOR - 1))
                     ;;
                 '[B') # Down
-                    if [ "$((CURSOR_POS + 1))" -lt "$NUM_ITEMS" ]; then
-                        CURSOR_POS=$((CURSOR_POS + 1))
-                    fi
+                    [ "$((CURSOR + 1))" -lt "$TOTAL" ] && CURSOR=$((CURSOR + 1))
                     ;;
-                '[C') # Right
-                    CURRENT_TAB=$(( (CURRENT_TAB + 1) % ${#TABS[@]} ))
-                    CURSOR_POS=0
+                '[C'|'[6~') # Right / PageDown
+                    CURSOR=$(( CURSOR + PAGE_SIZE ))
+                    [ "$CURSOR" -ge "$TOTAL" ] && CURSOR=$((TOTAL - 1))
                     ;;
-                '[D') # Left
-                    CURRENT_TAB=$(( (CURRENT_TAB + ${#TABS[@]} - 1) % ${#TABS[@]} ))
-                    CURSOR_POS=0
+                '[D'|'[5~') # Left / PageUp
+                    CURSOR=$(( CURSOR - PAGE_SIZE ))
+                    [ "$CURSOR" -lt 0 ] && CURSOR=0
                     ;;
             esac
-        elif [[ "$key" == $'\t' ]]; then
-            CURRENT_TAB=$(( (CURRENT_TAB + 1) % ${#TABS[@]} ))
-            CURSOR_POS=0
-        elif [[ "$key" == "" ]]; then
-            local chosen="${ITEMS[$CURSOR_POS]}"
+        elif [[ "$key" == "" ]]; then # Enter
+            local chosen="${LANGUAGES[$CURSOR]}"
             SELECTED_LANG="${chosen%%:*}"
             break
         elif [[ "$key" == "q" || "$key" == "Q" ]]; then
@@ -225,8 +239,8 @@ select_language_tui() {
             break
         fi
 
-        # Move cursor up to redraw cleanly
-        local total_lines=$((NUM_ITEMS + 6))
+        # Move cursor up to redraw cleanly (PAGE_SIZE + 6 lines)
+        local total_lines=$((PAGE_SIZE + 6))
         echo -ne "\033[${total_lines}A"
     done
 
@@ -240,7 +254,7 @@ fi
 
 echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/dev/null || true
 export WRAITH_LANG="$SELECTED_LANG"
-echo -e "\n        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Varsayılan Dil / Default Language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
+echo -e "\n        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Default System Language set to: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
 
 echo -e "\n${CLR_RED}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
 echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"
