@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/WRAITH--PRIME-v1.1.0_ENTERPRISE-8855ff?style=for-the-badge&logo=ghostery&logoColor=white" alt="Version">
+  <img src="https://img.shields.io/badge/WRAITH--PRIME-v1.2.0_SOVEREIGN-8855ff?style=for-the-badge&logo=ghostery&logoColor=white" alt="Version">
   <img src="https://img.shields.io/badge/LANGUAGE-PURE_RUST_2021-00d4ff?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/TARGET-x86__64--unknown--linux--gnu-ff3366?style=for-the-badge&logo=linux&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/SECURITY-ENTERPRISE_PRIVACY_STANDARD-00ff88?style=for-the-badge&logo=matrix&logoColor=white" alt="Standard">
+  <img src="https://img.shields.io/badge/LOCALIZATION-65_NATIVE_LOCALES-ffaa00?style=for-the-badge&logo=google-translate&logoColor=white" alt="Locales">
   <img src="https://img.shields.io/badge/TEST_SUITE-27%2F27_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
 </p>
 
@@ -17,7 +18,7 @@
 
 <h3 align="center">High-Assurance Kernel-Level Network Privacy & Anti-Fingerprinting Engine</h3>
 <p align="center">
-  <b>Engineered in Pure Rust (10,000+ Lines • 6 Modular Crates) for Linux Systems & Security Engineering</b><br>
+  <b>Engineered in Pure Rust (28,000+ Lines • 6 Modular Crates • 65 Native Locales) for Linux Systems & Security Engineering</b><br>
   <i>Ring 0/3 Hardened • Netlink FIB Engine • Zero-Copy IDS • 50+ Tool DPI Sanitizer • JA3/JA4 GREASE TLS • Encrypted RAMFS Vault</i>
 </p>
 
@@ -38,7 +39,7 @@
 | 📑 Navigation Directory | 🎯 Direct Anchor Jump Links |
 | :--- | :--- |
 | **🚀 Getting Started** | [Automated Deployment](#1-clone--automated-system-deployment-recommended) • [Manual Cargo Build](#2-manual-cargo-compilation--binary-setup) • [Atomic In-Place Updater](#-operational-command-reference) |
-| **💻 CLI & Operations** | [Primary Subcommands Table](#-primary-subcommands) • [16 Hardening Flags Matrix](#️-granular-control-flags-matrix) • [Interactive TUI Dashboard](#-primary-subcommands) |
+| **💻 CLI & Operations** | [Operational Shortcuts Table](#-primary-shortcuts--subcommands) • [16 Hardening Flags Matrix](#️-granular-control-flags-matrix) • [Panic Sentry Auto-Recovery](#-fail-closed-crash-protection--panic-sentry) |
 | **🛡️ Architecture & DPI** | [Tokei Code Metrics](#-codebase-metrics--language-breakdown) • [Security Comparison Matrix](#️-privacy--security-comparison-matrix) • [50+ DPI Tools Matrix](#️-in-flight-dpi-tool-signature-sanitization-50-matrix) |
 | **🔒 Low-Level Security** | [RAMFS ChaCha20 Vault](#-in-memory-cryptographic-security-specifications) • [Seccomp & Netlink FIB](#-core-architectural-pillars) • [Legal Terms of Engagement](#️-legal--operational-disclaimer) |
 
@@ -47,9 +48,9 @@
 <a id="system-overview"></a>
 ## 🌌 System Overview
 
-**Wraith-Prime** is a high-assurance, kernel-level network privacy, protocol normalization, and anti-fingerprinting framework designed for security researchers, privacy engineering professionals, and authorized auditing operations.
+**Wraith-Prime** is a sovereign, kernel-level network privacy, protocol normalization, and anti-fingerprinting framework designed for security researchers, privacy engineering professionals, and authorized auditing operations.
 
-Built completely from scratch in pure Rust across **6 modular crates**, Wraith operates directly at the kernel and network boundary using **raw `AF_NETLINK` sockets, Seccomp-BPF syscall filters, `AF_PACKET` zero-copy dissectors, and wire-level protocol synthesizers**. It enforces zero-trust fail-closed network routing, active WebRTC STUN leak protection, in-flight auditing tool signature sanitization, and locked in-memory RAMFS vaults.
+Built completely from scratch in pure Rust across **6 modular crates**, Wraith operates directly at the kernel and network boundary using **raw `AF_NETLINK` sockets, Seccomp-BPF syscall filters, `AF_PACKET` zero-copy dissectors, and wire-level protocol synthesizers**. It enforces zero-trust fail-closed network routing, active WebRTC STUN leak protection, in-flight auditing tool signature sanitization, anti-forensics self-destruction, and locked in-memory RAMFS vaults.
 
 ---
 
@@ -63,19 +64,20 @@ Built completely from scratch in pure Rust across **6 modular crates**, Wraith o
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Language              Files        Lines         Code     Comments       Blanks
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Shell                     2          189          147           20           22
- TOML                      7          183          171            0           12
+ Shell                     2          273          204           31           38
+ TOML                      7          195          183            0           12
+ YAML                    390        16187        16187            0            0
 ─────────────────────────────────────────────────────────────────────────────────
- Markdown                  1          400            0          319           81
+ Markdown                  1          440            0          345           95
  |- BASH                   1           16           11            3            2
  |- Rust                   1           10           10            0            0
- (Total)                              426           21          322           83
+ (Total)                              466           21          348           97
 ─────────────────────────────────────────────────────────────────────────────────
- Rust                     54        10495         8667          437         1391
- |- Markdown              47          256            0          256            0
- (Total)                            10751         8667          693         1391
+ Rust                     55        11471         9605          449         1417
+ |- Markdown              48          268            0          268            0
+ (Total)                            11739         9605          717         1417
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                    64        11549         9006         1035         1508
+ Total                   455        28566        26179         1079         1558
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 </details>
@@ -114,11 +116,12 @@ graph LR
 <a id="privacy-matrix"></a>
 ## 🛡️ Privacy & Security Comparison Matrix
 
-| Security Feature / Vector | Anonsurf (Bash) | TorGhost (Python) | Proxychains-NG (C) | Tails OS (Debian) | Wraith v1.1.0 (Rust) |
+| Security Feature / Vector | Anonsurf (Bash) | TorGhost (Python) | Proxychains-NG (C) | Tails OS (Debian) | Wraith v1.2.0 (Rust) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Execution Architecture** | Unsafe Shell Scripts | GC Python Wrapper | `LD_PRELOAD` Hook | Full OS Environment | **Pure-Rust Sovereign Crates (Zero GC)** |
 | **Routing Mechanism** | Spawns `ip` / `route` CLI | Spawns `iptables` CLI | Hijacks `connect()` | Kernel Netfilter | **Direct `AF_NETLINK` FIB Socket API** |
-| **Fail-Closed KillSwitch** | ❌ Prone to Script Hang | ❌ Fragile Subprocess | ❌ Leaks on Non-TCP | ⚠️ Static Firewall | **✔ Async Watchdog (<1ms Kernel Drop)** |
+| **Fail-Closed KillSwitch** | ❌ Prone to Script Hang | ❌ Fragile Subprocess | ❌ Leaks on Non-TCP | ⚠️ Static Firewall | **✔ Sızıntı-Geçirmez Watchdog (<1ms Kernel Drop)** |
+| **Crash Protection & Sentry**| ❌ Locks System Network | ❌ Locks System Network | ❌ Process Abort | ⚠️ Reboot Required | **✔ Panic Sentry & Auto Kernel Net Recovery** |
 | **50+ Tool DPI Sanitizer** | ❌ None | ❌ None | ❌ None | ❌ None | **✔ In-Flight Header Normalization** |
 | **Diversified UA Pool** | ❌ None | ❌ None | ❌ None | ❌ Standard Tor UA | **✔ Dynamic Multi-Browser Rotation** |
 | **DNS Leak Mitigation** | `/etc/resolv.conf` rewrite | `/etc/resolv.conf` rewrite | `proxyresolv` script | Loopback Resolver | **✔ RFC 1035 + EDNS0 468B Padding** |
@@ -130,6 +133,8 @@ graph LR
 | **WebGL & GPU Spoofing**| ❌ Hardware Leaks | ❌ Hardware Leaks | ❌ Hardware Leaks | ⚠️ WebGL Enabled | **✔ Hardware Mute & Canvas Randomizer** |
 | **In-Memory RAMFS Vault** | ❌ Plaintext Temp Files | ❌ Plaintext Memory | ❌ None | ⚠️ Tmpfs (Unencrypted) | **✔ ChaCha20-Poly1305 `mlock` Vault** |
 | **Anti-Forensics Wipe** | `shred` binary call | Basic `os.remove` | ❌ None | RAM wipe on shutdown | **✔ DoD 5220.22-M 7-Pass Zeroizer** |
+| **Process Masquerading** | ❌ None | ❌ None | ❌ None | ❌ None | **✔ `[kworker/u16:0]` Kernel Cloak** |
+| **Anti-Debugging Traps** | ❌ None | ❌ None | ❌ None | ❌ None | **✔ Dynamic TracerPid SIGKILL Trap** |
 | **Memory Footprint** | External Utilities | ~45 MB (Python VM) | ~2 MB (Hook Only) | Entire OS | **< 3.2 MB Locked Physical Memory** |
 
 <p align="right"><a href="#-interactive-table-of-contents--quick-navigation">⬆ Back to Top</a></p>
@@ -149,7 +154,8 @@ wraith/
 ├── Cargo.toml                              # Sovereign Workspace Root Manifest
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
-├── build.sh                                # Production Linux Build & Installation Script
+├── build.sh                                # Automated Linux Build, Shell Completion & Language Deployment
+├── uninstall.sh                            # Sovereign Uninstaller & Forensic State Purge
 └── crates/
     ├── wraith-core/                        # [Core & Memory Security Layer]
     │   ├── src/crypto.rs                   # Constant-Time Cryptography (Audited SHA-256, HMAC, Poly1305)
@@ -193,10 +199,11 @@ wraith/
     │   ├── src/browser.rs                  # Browser Profile Hardener (Canvas, WebGL, Audio Shield)
     │   └── src/logs.rs                     # System Journal, Bash History & Memory Dump Sanitizer
     │
-    └── wraith-cli/                         # [Command Interface & TUI Dashboard]
-        ├── src/display.rs                  # Terminal Presentation Engine & Status Dashboards
-        ├── src/commands.rs                 # Subcommand Handlers with Graceful Task Handle Join
-        ├── src/tui.rs                      # Interactive Real-Time Circuit & Threat Telemetry TUI
+    └── wraith-cli/                         # [Command Interface, Localized TUI & Completions]
+        ├── locales/                        # 65 Native YAML Language Dictionaries
+        ├── src/display.rs                  # Universal Box Renderer, Dynamic ANSI Width Calculator & Help Matrix
+        ├── src/commands.rs                 # Operational Command Handlers with Graceful Cleanup Hooks
+        ├── src/tui.rs                      # Native Rust TUI, Interactive Circuit Map & 65-Language Selector
         └── src/benchmark.rs                # High-Performance Cryptographic & Kernel Benchmark Suite
 ```
 </details>
@@ -209,19 +216,22 @@ wraith/
 ## 🚀 Quickstart & Installation
 
 ### 1. Clone & Automated System Deployment (Recommended)
-Execute on Kali Linux, Debian, or any modern Linux distribution:
+Execute on Kali Linux, Debian, Parrot OS, Ubuntu, Arch Linux, or any modern Linux distribution:
 
 ```bash
-# 1. Clone the repository
+# 1. Clone the official repository
 git clone https://github.com/ByGh00st/wraith.git
 
-# 2. Enter the project directory
+# 2. Enter workspace
 cd wraith
 
-# 3. Grant execute permissions & build/install system-wide
+# 3. Grant execute permissions & build/install
 chmod +x build.sh
 sudo ./build.sh
 ```
+
+> [!NOTE]
+> Upon build completion, `build.sh` automatically presents the **Native Rust 65-Language Selector TUI**. Select your language with Arrow Keys and press `[ENTER]`. The system will automatically generate **100% localized Bash & Zsh Shell Auto-Completion scripts** tailored to your chosen language!
 
 ### 2. Manual Cargo Compilation & Binary Setup
 ```bash
@@ -241,25 +251,29 @@ sudo mkdir -p /etc/wraith /var/log/wraith /etc/tor
 ## 💻 Operational Command Reference
 
 ```bash
-sudo wraith [COMMAND] [OPTIONS]
+sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 ```
 
-### 📋 Primary Subcommands
+### 📋 Primary Shortcuts & Subcommands
 
-| Command | Operational Action |
-| :--- | :--- |
-| `sudo wraith start [OPTIONS]` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
-| `sudo wraith stop` | **Stop Wraith**: Restores original network configuration, interfaces, and DNS. |
-| `sudo wraith switch` | **Circuit Rotation**: Issues `SIGNAL NEWNYM` to request a fresh Tor exit node identity. |
-| `sudo wraith test` | **Leak Verification Suite**: Executes active tests for DNS, IPv6, and WebRTC leaks. |
-| `sudo wraith info` | **Status Dashboard**: Displays live connection status, active exit IP, and circuit topology. |
-| `sudo wraith dashboard` | **Interactive TUI Dashboard**: Launches terminal TUI displaying real-time telemetry. |
-| `sudo wraith doctor` | **Kernel Integrity Auditor**: Audits IPv4/IPv6 sysctls, Tor daemon state, Netlink, and Seccomp. |
-| `sudo wraith benchmark` | **Cryptographic Benchmark**: Evaluates ChaCha20-Poly1305, SHA-256, HMAC, and Netlink throughput. |
-| `sudo wraith cleanup` | **Anti-Forensic Purge**: Clears volatile RAM caches, temporary state, and session traces. |
-| `sudo wraith profile <NAME>` | **Geographic Exit Profiler**: Enforces Tor exit nodes by region (`stealth`, `speed`, `research`, `darkweb`). |
-| `sudo wraith pentest` | **Security Audit Guide**: Displays guidelines for routing security assessment tools over Tor. |
-| `sudo wraith update` | **Atomic In-Place Updater**: Hot-swaps release binary with zero config loss. |
+| Shortcut | Command Format | Operational Action |
+| :--- | :--- | :--- |
+| `-s` | `sudo wraith -s [OPTIONS]` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
+| `-x` | `sudo wraith -x [-d]` | **Stop Wraith**: Restores normal network, netfilter rules, and DNS. (`-d` self-destructs binary). |
+| `-r` | `sudo wraith -r` / `wraith switch` | **Circuit Rotation**: Issues `SIGNAL NEWNYM` to request a fresh Tor exit node identity. |
+| `-t` | `sudo wraith -t` / `wraith test` | **Leak Verification Suite**: Executes active tests for DNS, IPv6, and WebRTC leaks. |
+| `-i` | `sudo wraith -i` / `wraith info` | **Status Dashboard**: Displays live connection status, active exit IP, and circuit topology. |
+| `-u` | `sudo wraith -u` / `wraith update` | **Atomic In-Place Updater**: Hot-swaps release binary directly from GitHub repository. |
+| `-c` | `sudo wraith -c` / `wraith cleanup`| **Anti-Forensic Purge**: Clears volatile RAM caches, temporary state, and session traces. |
+| — | `sudo wraith --cleanup-full` | **Deep Anti-Forensic Purge**: Wipes RAM, swap partitions, and all system authentication logs. |
+| `-M` | `sudo wraith -M` / `wraith monitor` | **Real-Time DPI & IDS Monitor**: Launches live packet inspector and signature rewrites. |
+| — | `sudo wraith dashboard` | **Interactive TUI Dashboard**: Launches full-screen live telemetry terminal console. |
+| — | `sudo wraith doctor` | **Kernel Integrity Auditor**: Deeply audits IPv4/IPv6 sysctls, Tor daemon state, Netlink, and Seccomp. |
+| — | `sudo wraith benchmark` | **Cryptographic Benchmark**: Evaluates ChaCha20-Poly1305, SHA-256, HMAC, and Netlink throughput. |
+| — | `sudo wraith mac` | **Hardware Randomizer**: Randomizes L2 MAC address and system hostname immediately. |
+| — | `sudo wraith profile <NAME>` | **Geographic Exit Profiler**: Enforces Tor exit nodes by region (`stealth`, `speed`, `research`, `darkweb`). |
+| — | `sudo wraith pentest` | **Security Audit Guide**: Displays isolation guidelines for Nmap, Sqlmap, Ffuf, Metasploit. |
+| — | `sudo wraith shred <FILE>` | **Crypto File Shredder**: Overwrites target file with DoD 5220.22-M 7-pass cryptosequence. |
 
 ---
 
@@ -267,6 +281,7 @@ sudo wraith [COMMAND] [OPTIONS]
 
 Wraith integrates an enterprise-grade multi-language runtime engine powered by native compile-time dictionaries. The operational language is persistently configured during deployment (`/etc/wraith/lang`) and can be overridden dynamically per command:
 
+* **Interactive Selector TUI**: Run `wraith --select-lang` at any time to launch the native 65-language configuration menu with pixel-perfect Unicode alignment.
 * **Persistent Deployment Binding**: Automatically configured via the interactive installer and stored in `/etc/wraith/lang`.
 * **Runtime Language Override**: Dynamically execute any command in any locale via `wraith --lang <CODE> [COMMAND]` (e.g., `wraith --lang tr -h` or `wraith --lang de start`).
 * **Supported Locale Matrix (65 Standard Enterprise Locales)**:
@@ -282,22 +297,18 @@ Wraith integrates an enterprise-grade multi-language runtime engine powered by n
 <summary><b>⚙️ Click to Expand / Collapse Full CLI Flag & Option Tree</b></summary>
 
 ```text
-Options:
-  -s, --start                      Quick start shortcut
-  -x, --stop                       Quick stop shortcut
-  -r, --switch                     Request new Tor exit node identity
-  -t, --test                       Run comprehensive leak tests
-  -i, --info                       Display telemetry dashboard & circuits
+Quick Shortcuts:
+  -s, --start                      Quick start shortcut with active options
+  -x, --stop                       Quick stop shortcut (restores clean clearnet)
+  -r, --switch                     Request new Tor exit identity (Newnym)
+  -t, --test                       Run multi-vector leak verification tests
+  -i, --info                       Display live telemetry dashboard & circuits
   -u, --update                     Fetch updates & recompile binary in-place
-      --dashboard                  Launch interactive terminal telemetry dashboard
-      --doctor                     Run deep multi-tier kernel diagnostics auditor
-      --bench                      Run high-performance benchmarks
-      --pentest                    Display security tool sanitization guide
-  -c, --cleanup                    Anti-forensic cleanup
-      --cleanup-full               Thorough anti-forensic purge (wipes swap, RAM caches, logs)
-  -v, --verbose                    Enable verbose debug logging
+  -c, --cleanup                    Anti-forensic RAM and state purge
+      --cleanup-full               Thorough anti-forensic purge (RAM, swap, auth logs)
+  -M, --monitor                    Launch dedicated DPI & IDS live interceptor monitor
 
-Network Isolation:
+Network Isolation & Tunneling:
   -m, --mac                        Randomize network interface L2 MAC address and hostname
   -b, --bridge                     Route traffic through censorship-resistant obfs4 Tor bridges
   -n, --namespace                  Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)
@@ -306,8 +317,10 @@ Network Isolation:
                                    [aliases: --interval, --rotate, --auto-rotate]
       --jitter                     Inject synthetic traffic cells & Poisson timing jitter (200-1400ms)
       --no-killswitch [--no-ks]    Disable the Fail-Closed KillSwitch watchdog monitor
+  -W, --wireguard <CONF>           Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop)
+      --spawn-monitor              Automatically spawn dedicated DPI/IDS monitor window on startup
 
-System Hardening:
+System Hardening & Anti-Fingerprinting:
       --browser-shield             Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint profiles
                                    [aliases: --shield, --canvas-shield]
       --font-sandbox               Restrict OS-level font discovery via Fontconfig sandbox
@@ -319,16 +332,47 @@ System Hardening:
                                    [aliases: -Fs, --full, --strict, --harden, --full-defense, --strict-hardening, --max-hardening]
 
 High-Risk & Forensic Operations (Explicit Opt-In Only):
-      --forensic-wipe-logs         ⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs, and shell history
+  -L, --forensic-wipe-logs         ⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs, and shell history
                                    [aliases: --destructive-cleanup, --wipe-logs]
   -d, --forensic-self-destruct     ⚠ IRREVERSIBLE: Cryptographically shred binary from disk and wipe memory on exit
                                    [alias: --self-destruct]
-      --aggressive-masquerade      ⚠ EVASIVE: Spoof process name in scheduler as kernel worker ([kworker/u16:0])
+  -K, --aggressive-masquerade      ⚠ EVASIVE: Spoof process name in scheduler as kernel worker ([kworker/u16:0])
                                    [aliases: --process-masquerade, --cloaked-process]
-      --aggressive-anti-debug      ⚠ EMERGENCY ABORT: Immediately triggers SIGKILL if attached to a debugger
+  -A, --aggressive-anti-debug      ⚠ EMERGENCY ABORT: Immediately triggers SIGKILL if attached to a debugger
                                    [aliases: --anti-debug, --anti-ptrace]
+
+General Options:
+  -v, --verbose                    Enable verbose debug logging
+      --lang <LANG>                Override system language (e.g. 'en', 'tr', 'ru', 'de')
+      --select-lang                Launch interactive 65-language configuration terminal menu
+  -h, --help                       Print comprehensive help screen
+  -V, --version                    Print version information
 ```
 </details>
+
+---
+
+### 🛡️ Operational Usage Examples
+
+```bash
+# 1. Standard full-security anonymization (Engage all 16 defense layers)
+sudo wraith -s -Fs
+
+# 2. Maximum OPSEC: MAC randomization + Stealth exit node profile
+sudo wraith -s -m -p stealth
+
+# 3. Red Team Engagement: Full defense + Automatic log eradication on exit
+sudo wraith -s -Fs -L
+
+# 4. Zero-Footprint Mission: Full defense + Complete binary self-destruction upon SIGINT
+sudo wraith -s -Fs -d
+
+# 5. Clean teardown & Clearnet restoration
+sudo wraith -x
+
+# 6. One-command in-place update from GitHub repository
+sudo wraith -u
+```
 
 <p align="right"><a href="#-interactive-table-of-contents--quick-navigation">⬆ Back to Top</a></p>
 
@@ -387,35 +431,23 @@ pub const BROWSER_USER_AGENT_POOL: &[&str] = &[
 
 ---
 
-### 🚨 Unrecognized & Custom Tool Detection (Heuristic Normalization)
-
-What happens if an auditor uses a custom Python script, proprietary Go client, or an unlisted tool (`User-Agent: my-custom-recon-bot-v3.0`)?
-
-1. **Heuristic Detection**: Wraith inspects HTTP `User-Agent` headers on the wire. If the header does not match standard browser syntax (`Mozilla/5.0`), it is flagged as an **identifiable tracking vector**.
-2. **Automatic Normalization**: To prevent unique client profiling, Wraith's DPI engine intercepts and rewrites the header to a randomized authentic browser signature in-flight.
-3. **Live Operator Alert**: An interactive alert is printed to the terminal with telemetry details:
-
-```text
-  ╔════════════════════════════════════════════════════════════════════════════════════════════════╗
-  ║  ⚠️ WRAITH-DPI // UNRECOGNIZED CUSTOM USER-AGENT INTERCEPTED                                    ║
-  ╠════════════════════════════════════════════════════════════════════════════════════════════════╣
-  ║  • Detected Raw Header: User-Agent: my-custom-recon-bot-v3.0                                   ║
-  ║  • Intercept Decision : Auto-sanitized to randomized authentic Browser User-Agent Pool         ║
-  ║  • Operational Rationale : Non-browser / bespoke User-Agents expose unique tracking markers!     ║
-  ║  • Operator Control   : To pass verbatim headers, configure dedicated transparent proxy rule.  ║
-  ╚════════════════════════════════════════════════════════════════════════════════════════════════╝
-```
-
-<p align="right"><a href="#-interactive-table-of-contents--quick-navigation">⬆ Back to Top</a></p>
-
----
-
 <a id="memory-security"></a>
 ## 🔒 In-Memory Cryptographic Security Specifications
 
 * **RFC 8439 ChaCha20-Poly1305 AEAD**: Hardware-accelerated authenticated symmetric encryption with 256-bit keys and 96-bit nonces.
 * **Kernel Memory Protection**: All secret payloads in RAM are pinned using `libc::mlockall(MCL_CURRENT | MCL_FUTURE)` to prevent paging to swap, and protected with `libc::prctl(PR_SET_DUMPABLE, 0)` against `/proc/$PID/mem` extraction.
 * **Zeroize-On-Drop**: All in-memory cryptographic keys implement the `Zeroize` and `ZeroizeOnDrop` traits, ensuring immediate volatile memory sanitization upon variable disposal.
+
+---
+
+<a id="panic-sentry"></a>
+## 🛡️ Fail-Closed Crash Protection & Panic Sentry
+
+Wraith embeds a dedicated **Kernel Panic Sentry** to guarantee that unhandled runtime exceptions or sudden system halts can **never leave your host in a broken or locked network state**:
+
+1. **Terminal State Restoration**: Automatically disables terminal raw mode and restores default terminal buffers.
+2. **Atomic Netfilter Recovery**: Unlocks `/etc/resolv.conf`, strips immutable attributes (`chattr -i`), flushes iptables/ip6tables rules, and sets default policies to `ACCEPT`.
+3. **Interface Carrier Reactivation**: Restarts NetworkManager, reconciles DHCP leases, and restores clean clearnet routing.
 
 <p align="right"><a href="#-interactive-table-of-contents--quick-navigation">⬆ Back to Top</a></p>
 
@@ -437,3 +469,4 @@ What happens if an auditor uses a custom Python script, proprietary Go client, o
 ## 📜 License
 
 Distributed under the **GNU General Public License v3.0 (GPLv3)**. See [LICENSE](file:///LICENSE) for the full copyleft license terms.
+
