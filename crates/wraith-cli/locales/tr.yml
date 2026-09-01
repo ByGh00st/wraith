@@ -118,9 +118,10 @@ commands:
   cmd_step_44: "Yeni Tor çıkış devresi isteniyor (SIGNAL NEWNYM)..."
   cmd_step_45: "Çoklu vektör sızıntı doğrulama testi başlatılıyor..."
 help:
-  desc: "Wraith; hata-kapalı (fail-closed) netfilter yönlendirmesi, TCP/IP yığın normalizasyonu, donanım kimliği rotasyonu ve tarayıcı parmak izi kum havuzlaması ile tam anonimlik sağlar."
-  usage: "Kullanım: wraith [SEÇENEKLER] [KOMUT]"
-  commands_header: "Komutlar:"
+  desc: "Wraith; sızıntı geçirmez (fail-closed) netfilter yönlendirmesi, TCP/IP yığın normalizasyonu, donanım kimliği rotasyonu ve tarayıcı parmak izi kum havuzlaması ile tam çekirdek anonimliği sağlar."
+  usage: "Kullanım: wraith [KISAYOLLAR | SEÇENEKLER] [KOMUT]"
+  shortcuts_header: "Hızlı Operasyonel Kısayollar:"
+  commands_header: "Kullanılabilir Alt Komutlar:"
   cmd_start: "Anonimleştirmeyi ve çekirdek korumasını başlatır"
   cmd_stop: "Anonimleştirmeyi durdurur ve normal ağı geri yükler"
   cmd_switch: "Yeni bir Tor çıkış kimliği (Newnym) talep eder"
@@ -129,7 +130,8 @@ help:
   cmd_dashboard: "İnteraktif terminal telemetri kontrol panelini (TUI) başlatır"
   cmd_doctor: "Derin çekirdek ve ağ bütünlüğü tanılama testlerini çalıştırır"
   cmd_benchmark: "Yüksek performanslı kriptografik ve çekirdek hız testlerini çalıştırır"
-  cmd_cleanup: "Adli bilişim karşıtı RAM ve log temizliği yapar"
+  cmd_cleanup: "Adli bilişim karşıtı RAM ve geçici durum temizliği yapar"
+  cmd_cleanup_full: "Kapsamlı temizlik (RAM, swap ve tüm sistem oturum logları)"
   cmd_mac: "Ağ kartı MAC adresini ve sistem hostname değerini rastgeleleştirir"
   cmd_profile: "Coğrafi Tor çıkış profili uygular (örn: stealth, speed, research, darkweb)"
   cmd_pentest: "Sızma testi araçları için izolasyon rehberini gösterir (Nmap, Sqlmap, Ffuf)"
@@ -137,14 +139,14 @@ help:
   cmd_shred: "Bir dosyayı DoD 5220.22-M 7-geçişli standart ile güvenle parçalar"
   cmd_monitor: "Gerçek zamanlı DPI ve IDS canlı ağ izleme panelini açar"
   
-  sec_net_header: "Ağ İzolasyonu Seçenekleri:"
+  sec_net_header: "Ağ İzolasyonu ve Tünelleme Seçenekleri:"
   opt_mac: "Ağ kartı L2 MAC adresini ve hostname değerini rastgeleleştirir"
   opt_bridge: "Trafiği sansüre dayanıklı obfs4 Tor köprüleri üzerinden yönlendirir"
   opt_namespace: "İzole bir Linux Network Namespace (10.200.1.0/24) içine kilitler"
-  opt_profile: "Coğrafi Tor çıkış profili zorlar (örn: stealth, speed, research, darkweb)"
+  opt_profile: "Coğrafi Tor çıkış profili zorlar (stealth, speed, research, darkweb)"
   opt_jitter: "Trafik akış korelasyonuna karşı Poisson zamanlama gecikmesi ve sahte paketler enjekte eder"
   opt_rotate: "Tor çıkış kimliğini her N saniyede bir otomatik döndürür (örn: --rotate 60)"
-  opt_no_ks: "Fail-Closed KillSwitch bekçisini devre dışı bırakır"
+  opt_no_ks: "Sızıntı geçirmez KillSwitch bekçisini devre dışı bırakır"
   opt_wg: "Tor trafiğini WireGuard tüneli içine kapsüller (Çok Katmanlı Hibrit Tünel)"
   opt_spawn_monitor: "Başlangıçta otomatik gerçek zamanlı DPI/IDS izleme penceresi açar"
 
@@ -161,8 +163,14 @@ help:
   opt_masquerade: "⚠ ALDATICI: Linux çekirdeğinde süreç adını [kworker/u16:0] olarak maskeler"
   opt_anti_debug: "⚠ ACİL İPTAL: Hata ayıklayıcı (debugger/ptrace) takılırsa süreci anında öldürür"
 
+  sec_general_header: "Genel Seçenekler:"
   opt_verbose: "Ayrıntılı hata ayıklama (debug) günlüklerini açar"
   opt_lang: "Sistem dilini geçici olarak değiştirir (örn: 'en', 'tr', 'ru', 'de')"
+  opt_select_lang: "65 dilli interaktif terminal dil yapılandırma menüsünü açar"
+  opt_help: "Bu yardım ekranını gösterir"
+  opt_version: "Sürüm bilgisini gösterir"
+
+  examples_header: "Operasyonel Kullanım Örnekleri:"
 
 runtime:
   emergency_abort_title: "┌── [ 🚨 ACİL DURDURMA: SIGINT (Ctrl+C) YAKALANDI ] ─────────────────────────┐"

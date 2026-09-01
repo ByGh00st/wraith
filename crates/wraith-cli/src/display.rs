@@ -449,26 +449,42 @@ pub fn print_localized_help() {
     println!("  {}\n", t!("help.desc").dimmed());
     println!("  {}\n", t!("help.usage").bold().bright_cyan());
 
-    println!("  {}", t!("help.commands_header").bold().bright_yellow());
+    println!("  {}", t!("help.shortcuts_header").bold().bright_yellow());
+    let shortcuts = [
+        ("-s, --start", t!("help.cmd_start")),
+        ("-x, --stop [-d]", t!("help.cmd_stop")),
+        ("-r, --switch", t!("help.cmd_switch")),
+        ("-t, --test", t!("help.cmd_test")),
+        ("-i, --info", t!("help.cmd_info")),
+        ("-u, --update", t!("help.cmd_update")),
+        ("-c, --cleanup", t!("help.cmd_cleanup")),
+        ("--cleanup-full", t!("help.cmd_cleanup_full")),
+        ("-M, --monitor", t!("help.cmd_monitor")),
+    ];
+    for (sc, desc) in shortcuts {
+        println!("    {:<28} {}", sc.bold().bright_green(), desc);
+    }
+
+    println!("\n  {}", t!("help.commands_header").bold().bright_yellow());
     let commands = [
-        ("start", t!("help.cmd_start")),
-        ("stop", t!("help.cmd_stop")),
+        ("start [OPTIONS]", t!("help.cmd_start")),
+        ("stop [-d]", t!("help.cmd_stop")),
         ("switch", t!("help.cmd_switch")),
         ("test", t!("help.cmd_test")),
         ("info", t!("help.cmd_info")),
         ("dashboard", t!("help.cmd_dashboard")),
         ("doctor", t!("help.cmd_doctor")),
         ("benchmark", t!("help.cmd_benchmark")),
-        ("cleanup", t!("help.cmd_cleanup")),
+        ("cleanup [--full]", t!("help.cmd_cleanup")),
         ("mac", t!("help.cmd_mac")),
-        ("profile", t!("help.cmd_profile")),
+        ("profile <PROFILE>", t!("help.cmd_profile")),
         ("pentest", t!("help.cmd_pentest")),
         ("update", t!("help.cmd_update")),
-        ("shred", t!("help.cmd_shred")),
+        ("shred <PATH>", t!("help.cmd_shred")),
         ("monitor", t!("help.cmd_monitor")),
     ];
     for (cmd, desc) in commands {
-        println!("    {:<12} {}", cmd.bold().bright_green(), desc);
+        println!("    {:<28} {}", cmd.bold().bright_green(), desc);
     }
 
     println!("\n  {}", t!("help.sec_net_header").bold().bright_yellow());
@@ -484,7 +500,7 @@ pub fn print_localized_help() {
         ("--spawn-monitor", t!("help.opt_spawn_monitor")),
     ];
     for (opt, desc) in net_opts {
-        println!("    {:<26} {}", opt.bold().bright_cyan(), desc);
+        println!("    {:<28} {}", opt.bold().bright_cyan(), desc);
     }
 
     println!("\n  {}", t!("help.sec_harden_header").bold().bright_yellow());
@@ -496,25 +512,34 @@ pub fn print_localized_help() {
         ("-F, --full-security", t!("help.opt_full_security")),
     ];
     for (opt, desc) in harden_opts {
-        println!("    {:<26} {}", opt.bold().bright_cyan(), desc);
+        println!("    {:<28} {}", opt.bold().bright_cyan(), desc);
     }
 
     println!("\n  {}", t!("help.sec_forensic_header").bold().bright_red());
     let forensic_opts = [
-        ("--forensic-wipe-logs", t!("help.opt_wipe_logs")),
+        ("-L, --forensic-wipe-logs", t!("help.opt_wipe_logs")),
         ("-d, --forensic-self-destruct", t!("help.opt_self_destruct")),
-        ("--aggressive-masquerade", t!("help.opt_masquerade")),
-        ("--aggressive-anti-debug", t!("help.opt_anti_debug")),
+        ("-K, --aggressive-masquerade", t!("help.opt_masquerade")),
+        ("-A, --aggressive-anti-debug", t!("help.opt_anti_debug")),
     ];
     for (opt, desc) in forensic_opts {
-        println!("    {:<26} {}", opt.bold().bright_red(), desc);
+        println!("    {:<28} {}", opt.bold().bright_red(), desc);
     }
 
-    println!("\n  {}", "Genel Seçenekler / General Options:".bold().bright_yellow());
-    println!("    {:<26} {}", "-v, --verbose", t!("help.opt_verbose"));
-    println!("    {:<26} {}", "--lang <LANG>", t!("help.opt_lang"));
-    println!("    {:<26} {}", "-h, --help", "Print this help message");
-    println!("    {:<26} {}\n", "-V, --version", "Print version");
+    println!("\n  {}", t!("help.sec_general_header").bold().bright_yellow());
+    println!("    {:<28} {}", "-v, --verbose", t!("help.opt_verbose"));
+    println!("    {:<28} {}", "--lang <LANG>", t!("help.opt_lang"));
+    println!("    {:<28} {}", "--select-lang", t!("help.opt_select_lang"));
+    println!("    {:<28} {}", "-h, --help", t!("help.opt_help"));
+    println!("    {:<28} {}", "-V, --version", t!("help.opt_version"));
+
+    println!("\n  {}", t!("help.examples_header").bold().bright_yellow());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs".bright_cyan(), "→ Maksimum 16 katmanlı tam koruma ile başlat".dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -m -p stealth".bright_cyan(), "→ MAC değiştir + Stealth çıkış düğümleri ile bağlan".dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -L".bright_cyan(), "→ Tam koruma + çıkışta tüm oturum loglarını temizle".dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -d".bright_cyan(), "→ Tam koruma + çıkışta kendini diskten tamamen imha et".dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-x".bright_cyan(), "→ Anonimleştirmeyi durdur ve normal ağı geri yükle".dimmed());
+    println!("    {} {:<28} {}\n", "sudo wraith".bold().bright_white(), "-u".bright_cyan(), "→ En son sürümü GitHub'dan çek ve yerinde yeniden derle".dimmed());
 }
 
 pub fn build_localized_command() -> clap::Command {
@@ -542,6 +567,7 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("aggressive_anti_debug", |a| a.help(t!("help.opt_anti_debug").into_owned()))
         .mut_arg("verbose", |a| a.help(t!("help.opt_verbose").into_owned()))
         .mut_arg("lang", |a| a.help(t!("help.opt_lang").into_owned()))
+        .mut_arg("select_lang", |a| a.help(t!("help.opt_select_lang").into_owned()))
         .mut_arg("start", |a| a.help(t!("help.cmd_start").into_owned()))
         .mut_arg("stop", |a| a.help(t!("help.cmd_stop").into_owned()))
         .mut_arg("switch", |a| a.help(t!("help.cmd_switch").into_owned()))
@@ -553,6 +579,7 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("pentest", |a| a.help(t!("help.cmd_pentest").into_owned()))
         .mut_arg("update", |a| a.help(t!("help.cmd_update").into_owned()))
         .mut_arg("cleanup", |a| a.help(t!("help.cmd_cleanup").into_owned()))
+        .mut_arg("cleanup_full", |a| a.help(t!("help.cmd_cleanup_full").into_owned()))
         .mut_arg("shred", |a| a.help(t!("help.cmd_shred").into_owned()))
         .mut_arg("monitor", |a| a.help(t!("help.cmd_monitor").into_owned()));
 
