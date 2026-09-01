@@ -1,0 +1,15 @@
+err:
+  io: 'Eroare I/O:'
+  json: 'Eroare de serializare:'
+  permission_denied: 'Permisiune refuzată: Sunt necesare privilegii root pentru manipularea
+    rețelei kernelului'
+  unsupported_platform: 'Sistem de operare neacceptat: Kernelul Linux (Debian/Kali)
+    este obligatoriu'
+  firewall: 'Eșec motor firewall:'
+  tor: 'Eșec controler Tor:'
+  namespace: 'Eroare spațiu de nume rețea kernel:'
+  hardware: 'Eroare MAC/Link hardware:'
+  forensic: 'Eroare de curățare antiforensic:'
+  guard: 'Eșec câine de pază / KillSwitch:'
+  command: 'Eroare comandă rețea:'
+  custom: 'Eșec general al sistemului:'

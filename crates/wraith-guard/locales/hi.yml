@@ -1,0 +1,10 @@
+guard:
+  killswitch_armed: Fail-Closed KillSwitch watchdog monitoring kernel egress
+  killswitch_triggered: Traffic leak detected! KillSwitch triggered fail-closed network
+    block
+  seccomp_jail_active: 'Seccomp-BPF Syscall Filter active: Rogue raw sockets will
+    trigger SIGSYS'
+  dns_engine_started: Sovereign DNS Engine active on 127.0.0.1:53 with EDNS0 Padding
+  jitter_engine_started: Synthetic traffic padding active (Poisson jitter distribution)
+  leak_test_passed: Multi-vector leak test suite passed with 0 detected leaks
+  leak_test_failed: Critical network leak detected during inspection suite

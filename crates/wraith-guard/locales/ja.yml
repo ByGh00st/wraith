@@ -1,0 +1,8 @@
+guard:
+  killswitch_armed: Fail-Closed KillSwitchウォッチドッグが出力トラフィックを監視中
+  killswitch_triggered: トラフィックリーク検出！KillSwitchがネットワークを遮断しました
+  seccomp_jail_active: 'Seccomp-BPFフィルター稼働中: 不正RawソケットはSIGSYSをトリガーします'
+  dns_engine_started: Sovereign DNSエンジンが127.0.0.1:53(EDNS0パディング付き)で稼働中
+  jitter_engine_started: 合成トラフィックパディング(ポアソンジッター)有効
+  leak_test_passed: マルチベクトルリークテストがリーク0で完了しました
+  leak_test_failed: 検査中に重大なネットワークリークが検出されました

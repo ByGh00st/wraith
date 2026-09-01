@@ -1,0 +1,18 @@
+net:
+  no_interface: No suitable network interface discovered
+  mac_extract_failed: Could not extract MAC from interface
+  mac_verify_failed: MAC verification mismatch!
+  nftables_apply_failed: Failed to apply nftables ruleset
+  nftables_flush_failed: Failed to flush nftables ruleset
+  ebpf_attach_failed: Failed to attach eBPF traffic control fastpath filter
+  ebpf_detach_failed: Failed to detach eBPF filter
+  tcp_mask_applied: 'TCP/IP stack forged: TTL=128 (Windows Profile), timestamps=0'
+  tcp_mask_restored: TCP/IP stack restored to default Linux parameters
+  namespace_created: Process network namespace jail armed (10.200.1.0/24)
+  namespace_destroyed: Network namespace demolished and purged
+  cgroup_jail_created: cgroup2 network socket jail created
+  cgroup_jail_destroyed: cgroup2 network socket jail destroyed
+  ipv6_blocked: IPv6 kernel-level drop rules armed
+  ipv6_unblocked: IPv6 kernel-level drop rules flushed
+  stun_blocked: STUN/TURN WebRTC leak ports blocked
+  stun_unblocked: STUN/TURN WebRTC leak ports unblocked

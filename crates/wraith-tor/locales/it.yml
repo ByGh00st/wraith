@@ -1,0 +1,5 @@
+log:
+  msg_0: I bridge obfs4 integrati sono pubblici e possono degradarsi. Configura bridge
+    personalizzati tramite BridgeDB.
+  msg_1: Tor ControlPort non raggiungibile durante l'applicazione del profilo; torrc
+    scritto ma demone non notificato

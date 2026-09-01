@@ -1,3 +1,5 @@
+rust_i18n::i18n!("locales");
+
 pub mod bpf_filter_engine;
 pub mod dns_engine;
 pub mod honey_ports;
@@ -13,3 +15,4 @@ pub use killswitch::*;
 pub use leak::*;
 pub use seccomp_jail::*;
 pub use traffic_jitter::*;
+

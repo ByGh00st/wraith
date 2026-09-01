@@ -1,0 +1,9 @@
+guard:
+  killswitch_armed: Сторожевой таймер Fail-Closed KillSwitch отслеживает исходящий
+    трафик
+  killswitch_triggered: Обнаружена утечка трафика! KillSwitch заблокировал сеть
+  seccomp_jail_active: 'Фильтр Seccomp-BPF активен: сторонние сокеты вызовут SIGSYS'
+  dns_engine_started: Sovereign DNS активен на 127.0.0.1:53 с дополнением EDNS0
+  jitter_engine_started: Генерация синтетического трафика (джиттер Пуассона) активна
+  leak_test_passed: Многовекторный аудит утечек пройден без обнаружения утечек
+  leak_test_failed: В ходе проверки обнаружена критическая утечка сети

@@ -1,0 +1,6 @@
+log:
+  msg_0: Dahili obfs4 köprüleri herkese açıktır ve zamanla engellenebilir/bozulabilir.
+    Eğer engellendiyseniz BridgeDB (https://bridges.torproject.org) üzerinden özel
+    köprü yapılandırın.
+  msg_1: Çıkış profili uygulanırken Tor ControlPort ulaşılamaz durumda; torrc yazıldı
+    ancak motora sinyal gönderilemedi

@@ -1,0 +1,15 @@
+err:
+  io: 'E/A-Fehler (I/O Error):'
+  json: 'Serialisierungsfehler:'
+  permission_denied: 'Rechteverletzung: Root-Rechte für Kernel-Netzwerkmanipulation
+    erforderlich'
+  unsupported_platform: 'Nicht unterstütztes Betriebssystem: Linux-Kernel (Debian/Kali)
+    ist zwingend erforderlich'
+  firewall: 'Fehler der Firewall-Engine:'
+  tor: 'Tor-Controller-Fehler:'
+  namespace: 'Kernel-Namespace-Fehler:'
+  hardware: 'Hardware-MAC/Link-Fehler:'
+  forensic: 'Anti-Forensik-Bereinigungsfehler:'
+  guard: 'Watchdog / KillSwitch-Fehler:'
+  command: 'Netzwerkbefehlsfehler:'
+  custom: 'Allgemeiner Systemfehler:'

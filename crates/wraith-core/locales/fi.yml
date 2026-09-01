@@ -1,0 +1,13 @@
+err:
+  io: 'I/O-virhe:'
+  json: 'Serialisointivirhe:'
+  permission_denied: 'Käyttöoikeus estetty: Root-oikeudet vaaditaan ytimen verkkomuokkaukseen'
+  unsupported_platform: 'Ei-tuettu käyttöjärjestelmä: Linux-ydin (Debian/Kali) vaaditaan'
+  firewall: 'Palomuurimoottorin virhe:'
+  tor: 'Tor-ohjaimen virhe:'
+  namespace: 'Ytimen verkkonimiavaruusvirhe:'
+  hardware: 'Laitteiston MAC/Linkkivirhe:'
+  forensic: 'Oikeuslääketieteen vastainen tyhjennysvirhe:'
+  guard: 'Vahtikoira / KillSwitch-virhe:'
+  command: 'Verkkokomentovirhe:'
+  custom: 'Yleinen järjestelmävirhe:'

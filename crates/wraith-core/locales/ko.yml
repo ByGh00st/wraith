@@ -1,0 +1,13 @@
+err:
+  io: 'I/O 입출력 오류:'
+  json: '직렬화 오류:'
+  permission_denied: '권한 위반: 커널 네트워크 조작을 위해 root 권한이 필요합니다'
+  unsupported_platform: '지원되지 않는 OS: Linux 커널(Debian/Kali)이 반드시 필요합니다'
+  firewall: '방화벽 엔진 오류:'
+  tor: 'Tor 컨트롤러 오류:'
+  namespace: '커널 네트워크 네임스페이스 오류:'
+  hardware: '하드웨어 MAC/링크 오류:'
+  forensic: '안티 포렌식 퍼지 오류:'
+  guard: '워치독 / 킬스위치 실패:'
+  command: '네트워크 명령 오류:'
+  custom: '일반 시스템 실패:'

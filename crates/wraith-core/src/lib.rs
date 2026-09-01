@@ -1,3 +1,5 @@
+rust_i18n::i18n!("locales");
+
 pub mod config;
 pub mod crypto;
 pub mod error;

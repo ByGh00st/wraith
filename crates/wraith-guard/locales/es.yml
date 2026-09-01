@@ -1,0 +1,9 @@
+guard:
+  killswitch_armed: El guardián Fail-Closed KillSwitch monitoriza la salida de tráfico
+  killswitch_triggered: ¡Fuga de tráfico detectada! KillSwitch bloqueó la red
+  seccomp_jail_active: 'Filtro Seccomp-BPF activo: sockets no autorizados dispararán
+    SIGSYS'
+  dns_engine_started: Motor Sovereign DNS activo en 127.0.0.1:53 con relleno EDNS0
+  jitter_engine_started: Relleno de tráfico sintético activo (jitter de Poisson)
+  leak_test_passed: Pruebas de fugas superadas con 0 fugas detectadas
+  leak_test_failed: Fuga crítica de red detectada durante la auditoría

@@ -1,0 +1,18 @@
+net:
+  no_interface: Uygun bir ağ arayüzü (interface) bulunamadı
+  mac_extract_failed: Arayüzden MAC adresi okunamadı
+  mac_verify_failed: MAC doğrulama uyuşmazlığı tespit edildi!
+  nftables_apply_failed: nftables kuralları uygulanamadı
+  nftables_flush_failed: nftables kuralları temizlenemedi
+  ebpf_attach_failed: eBPF trafik kontrol hızlı yol filtresi bağlanamadı
+  ebpf_detach_failed: eBPF filtresi sökülemedi
+  tcp_mask_applied: 'TCP/IP yığını maskelendi: TTL=128 (Windows Profili), timestamps=0'
+  tcp_mask_restored: TCP/IP yığını varsayılan Linux ayarlarına geri yüklendi
+  namespace_created: Süreç ağ alanı (network namespace) devrede (10.200.1.0/24)
+  namespace_destroyed: Ağ alanı yıkıldı ve temizlendi
+  cgroup_jail_created: cgroup2 ağ soketi hapishanesi oluşturuldu
+  cgroup_jail_destroyed: cgroup2 ağ soketi hapishanesi yok edildi
+  ipv6_blocked: IPv6 çekirdek seviyesi düşürme (drop) kuralları devrede
+  ipv6_unblocked: IPv6 çekirdek seviyesi düşürme kuralları temizlendi
+  stun_blocked: STUN/TURN WebRTC sızıntı portları engellendi
+  stun_unblocked: STUN/TURN WebRTC sızıntı portlarının engeli kaldırıldı

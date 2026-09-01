@@ -1,0 +1,15 @@
+err:
+  io: 'Erro de E/S (I/O):'
+  json: 'Erro de serialização:'
+  permission_denied: 'Violação de privilégios: privilégios de root são obrigatórios
+    para manipular a rede do kernel'
+  unsupported_platform: 'Sistema operacional não suportado: kernel Linux (Debian/Kali)
+    é estritamente necessário'
+  firewall: 'Falha no motor de firewall:'
+  tor: 'Falha no controlador Tor:'
+  namespace: 'Erro de namespace de rede do kernel:'
+  hardware: 'Erro de link/MAC de hardware:'
+  forensic: 'Erro de expurgo antiforense:'
+  guard: 'Falha no watchdog / KillSwitch:'
+  command: 'Erro de comando de rede:'
+  custom: 'Falha geral do sistema:'

@@ -1,0 +1,8 @@
+guard:
+  killswitch_armed: Fail-Closed KillSwitch-Watchdog überwacht Kernel-Ausgang
+  killswitch_triggered: Datenleck erkannt! KillSwitch hat Netzwerkverbindung getrennt
+  seccomp_jail_active: 'Seccomp-BPF-Filter aktiv: Raw-Sockets lösen SIGSYS aus'
+  dns_engine_started: DNS-Engine auf 127.0.0.1:53 mit EDNS0-Padding aktiv
+  jitter_engine_started: Synthetisches Traffic-Padding (Poisson-Jitter) aktiv
+  leak_test_passed: Multi-Vektor-Leak-Test mit 0 Lecks bestanden
+  leak_test_failed: Kritisches Netzwerk-Leak bei Prüfung entdeckt

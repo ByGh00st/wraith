@@ -1,0 +1,4 @@
+log:
+  msg_0: 内置 obfs4 网桥是公开的，可能会随时间失效。若被封锁请通过 BridgeDB (https://bridges.torproject.org)
+    配置自定义网桥。
+  msg_1: 应用出口配置文件时 Tor ControlPort 不可达; torrc 已写入但未向守护程序发送信号

@@ -1,0 +1,14 @@
+err:
+  io: 'Błąd I/O:'
+  json: 'Błąd serializacji:'
+  permission_denied: 'Odmowa uprawnień: Wymagane uprawnienia root do manipulacji siecią
+    jądra'
+  unsupported_platform: 'Nieobsługiwany system operacyjny: Wymagane jądro Linux (Debian/Kali)'
+  firewall: 'Awaria silnika zapory:'
+  tor: 'Awaria kontrolera Tor:'
+  namespace: 'Błąd przestrzeni nazw sieci jądra:'
+  hardware: 'Błąd sprzętowy MAC/łącza:'
+  forensic: 'Błąd czyszczenia antyforensycznego:'
+  guard: 'Awaria strażnika / KillSwitch:'
+  command: 'Błąd polecenia sieciowego:'
+  custom: 'Ogólna awaria systemu:'

@@ -1,0 +1,2 @@
+log:
+  msg_0: PTRACE_TRACEME 返回非零值 (Seccomp BPF 隔离已激活)

@@ -1,0 +1,15 @@
+err:
+  io: 'Kesalahan I/O:'
+  json: 'Kesalahan serialisasi:'
+  permission_denied: 'Pelanggaran hak akses: Izin root diperlukan untuk manipulasi
+    jaringan kernel'
+  unsupported_platform: 'Sistem operasi tidak didukung: Kernel Linux (Debian/Kali)
+    sangat diperlukan'
+  firewall: 'Kegagalan mesin firewall:'
+  tor: 'Kegagalan pengontrol Tor:'
+  namespace: 'Kesalahan namespace jaringan kernel:'
+  hardware: 'Kesalahan hardware MAC/Tautan:'
+  forensic: 'Kesalahan pembersihan anti-forensik:'
+  guard: 'Kegagalan watchdog / KillSwitch:'
+  command: 'Kesalahan perintah jaringan:'
+  custom: 'Kegagalan sistem umum:'

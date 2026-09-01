@@ -11,6 +11,8 @@ use clap::{Args, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 use wraith_core::error::Result;
 
+rust_i18n::i18n!("locales");
+
 #[derive(Args, Clone, Debug, Default)]
 pub struct StartArgs {
     // ─── [1. NETWORK & ROUTING ISOLATION] ──────────────────────────────────────────
@@ -202,6 +204,10 @@ struct Cli {
     /// Enable verbose debug logging
     #[arg(short = 'v', long)]
     verbose: bool,
+
+    /// Override system language (e.g. 'en', 'tr')
+    #[arg(long, global = true)]
+    lang: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -313,9 +319,18 @@ fn check_root() -> Result<()> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+pub async fn main() -> Result<()> {
     install_emergency_panic_sentry();
     let cli = Cli::parse();
+
+    // 1. Initialize multi-language i18n (Default: English)
+    if let Some(lang) = &cli.lang {
+        rust_i18n::set_locale(lang);
+    } else if let Ok(lang) = std::env::var("WRAITH_LANG") {
+        rust_i18n::set_locale(&lang);
+    } else {
+        rust_i18n::set_locale("en");
+    }
 
     // Initialize logging
     let filter = if cli.verbose {

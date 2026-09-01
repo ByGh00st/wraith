@@ -1,0 +1,14 @@
+err:
+  io: 'I/O Fout:'
+  json: 'Serialisatiefout:'
+  permission_denied: 'Toegang geweigerd: Root-rechten vereist voor kernelnetwerkmanipulatie'
+  unsupported_platform: 'Niet-ondersteund besturingssysteem: Linux-kernel (Debian/Kali)
+    is vereist'
+  firewall: 'Firewall-engine mislukt:'
+  tor: 'Tor-controller mislukt:'
+  namespace: 'Kernel-netwerknamespacefout:'
+  hardware: 'Hardware MAC/Link-fout:'
+  forensic: 'Anti-forensische opschoningsfout:'
+  guard: 'Watchdog / KillSwitch-fout:'
+  command: 'Netwerkopdrachtfout:'
+  custom: 'Algemene systeemfout:'

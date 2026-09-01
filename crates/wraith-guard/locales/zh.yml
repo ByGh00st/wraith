@@ -1,0 +1,8 @@
+guard:
+  killswitch_armed: 故障关闭 (Fail-Closed) KillSwitch 看门狗正在监控出口流量
+  killswitch_triggered: 检测到流量泄漏！KillSwitch 触发了故障关闭网络封锁
+  seccomp_jail_active: 'Seccomp-BPF 系统调用过滤器已激活: 非法原始套接字将触发 SIGSYS'
+  dns_engine_started: Sovereign DNS 引擎在 127.0.0.1:53 上启动并启用 EDNS0 填充
+  jitter_engine_started: 合成流量填充已激活 (泊松抖动)
+  leak_test_passed: 多向量泄漏测试完成，未检测到泄漏
+  leak_test_failed: 在检查期间检测到严重网络泄漏

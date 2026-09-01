@@ -42,7 +42,7 @@ impl AntiDebugProbe {
                     return true;
                 }
                 // If TracerPid is 0, failure is caused by Seccomp BPF policy blocking ptrace
-                tracing::debug!("PTRACE_TRACEME returned non-zero (Seccomp BPF jail active)");
+                tracing::debug!("{}", rust_i18n::t!("log.msg_0"));
                 return false;
             }
         }

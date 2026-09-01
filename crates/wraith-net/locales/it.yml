@@ -1,0 +1,18 @@
+net:
+  no_interface: Nessuna interfaccia di rete idonea trovata
+  mac_extract_failed: Impossibile estrarre il MAC dall'interfaccia
+  mac_verify_failed: Mancata corrispondenza nella verifica del MAC!
+  nftables_apply_failed: Impossibile applicare il set di regole nftables
+  nftables_flush_failed: Impossibile svuotare le regole nftables
+  ebpf_attach_failed: Impossibile associare il filtro eBPF Fastpath
+  ebpf_detach_failed: Impossibile dissociare il filtro eBPF
+  tcp_mask_applied: 'Stack TCP/IP camuffato: TTL=128 (Windows), timestamps=0'
+  tcp_mask_restored: Stack TCP/IP ripristinato ai parametri Linux
+  namespace_created: Namespace di rete del processo armato (10.200.1.0/24)
+  namespace_destroyed: Namespace di rete distrutto ed eliminato
+  cgroup_jail_created: Isolamento socket di rete cgroup2 creato
+  cgroup_jail_destroyed: Isolamento socket di rete cgroup2 distrutto
+  ipv6_blocked: Regole di blocco IPv6 a livello kernel armate
+  ipv6_unblocked: Regole di blocco IPv6 rimosse
+  stun_blocked: Porte di leak STUN/TURN WebRTC bloccate
+  stun_unblocked: Porte STUN/TURN WebRTC sbloccate

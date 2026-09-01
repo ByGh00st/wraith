@@ -1,3 +1,5 @@
+rust_i18n::i18n!("locales");
+
 pub mod cgroup_jail;
 pub mod ebpf_fastpath;
 pub mod ids;
@@ -21,3 +23,4 @@ pub use nftables::*;
 pub use stun::*;
 pub use tcp_stack::*;
 pub use traffic_shaper::*;
+

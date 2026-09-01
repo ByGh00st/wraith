@@ -1,0 +1,15 @@
+err:
+  io: 'Erreur d''E/S (I/O):'
+  json: 'Erreur de sérialisation:'
+  permission_denied: 'Violation de privilèges : privilèges root requis pour la manipulation
+    réseau du noyau'
+  unsupported_platform: 'Système d''exploitation non pris en charge : noyau Linux
+    (Debian/Kali) strictement requis'
+  firewall: 'Échec du moteur de pare-feu :'
+  tor: 'Échec du contrôleur Tor :'
+  namespace: 'Erreur d''espace de noms réseau du noyau :'
+  hardware: 'Erreur matérielle MAC/Liaison :'
+  forensic: 'Erreur de purge anti-forensique :'
+  guard: 'Échec du chien de garde / KillSwitch :'
+  command: 'Erreur de commande réseau :'
+  custom: 'Défaillance générale du système :'

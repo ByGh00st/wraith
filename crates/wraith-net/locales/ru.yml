@@ -1,0 +1,18 @@
+net:
+  no_interface: Подходящий сетевой интерфейс не обнаружен
+  mac_extract_failed: Не удалось извлечь MAC-адрес из интерфейса
+  mac_verify_failed: Несоответствие при проверке MAC-адреса!
+  nftables_apply_failed: Не удалось применить набор правил nftables
+  nftables_flush_failed: Не удалось сбросить правила nftables
+  ebpf_attach_failed: Не удалось подключить фильтр eBPF Fastpath
+  ebpf_detach_failed: Не удалось отключить фильтр eBPF
+  tcp_mask_applied: 'Стек TCP/IP замаскирован: TTL=128 (Windows), timestamps=0'
+  tcp_mask_restored: Стек TCP/IP возвращен к параметрам Linux по умолчанию
+  namespace_created: Сетевое пространство имен процесса создано (10.200.1.0/24)
+  namespace_destroyed: Сетевое пространство имен уничтожено и очищено
+  cgroup_jail_created: Сетевой сокет-изолятор cgroup2 создан
+  cgroup_jail_destroyed: Сетевой сокет-изолятор cgroup2 уничтожен
+  ipv6_blocked: Правила блокировки IPv6 на уровне ядра активированы
+  ipv6_unblocked: Правила блокировки IPv6 сброшены
+  stun_blocked: Порты утечки STUN/TURN WebRTC заблокированы
+  stun_unblocked: Блокировка портов STUN/TURN WebRTC снята

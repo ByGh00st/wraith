@@ -1,0 +1,11 @@
+guard:
+  killswitch_armed: Le chien de garde Fail-Closed KillSwitch surveille le trafic de
+    sortie
+  killswitch_triggered: Fuite de trafic détectée ! Le KillSwitch a verrouillé le réseau
+  seccomp_jail_active: 'Filtre d''appels système Seccomp-BPF actif : les sockets bruts
+    déclencheront SIGSYS'
+  dns_engine_started: Moteur DNS Sovereign actif sur 127.0.0.1:53 avec rembourrage
+    EDNS0
+  jitter_engine_started: Rembourrage de trafic synthétique actif (gigue de Poisson)
+  leak_test_passed: Suite de tests de fuite multi-vecteurs réussie avec 0 fuite
+  leak_test_failed: Fuite réseau critique détectée lors de l'inspection

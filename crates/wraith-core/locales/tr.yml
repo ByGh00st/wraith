@@ -1,0 +1,13 @@
+err:
+  io: "G/Ç Hatası (I/O Error):"
+  json: "Serileştirme Hatası:"
+  permission_denied: "Yetki İhlali: Çekirdek (Kernel) ağ manipülasyonu için Root yetkileri gereklidir"
+  unsupported_platform: "Desteklenmeyen İşletim Sistemi: Kesinlikle Linux Çekirdeği (Debian/Kali) gereklidir"
+  firewall: "Güvenlik Duvarı Motoru Hatası:"
+  tor: "Tor Kontrolcü Hatası:"
+  namespace: "Çekirdek Ağ Alanı (Namespace) Hatası:"
+  hardware: "Donanım MAC/Bağlantı Hatası:"
+  forensic: "Adli Bilişim Karşıtı Temizlik Hatası:"
+  guard: "Bekçi (Watchdog) / KillSwitch Hatası:"
+  command: "Ağ Komut Hatası:"
+  custom: "Genel Sistem Hatası:"

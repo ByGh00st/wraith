@@ -1,0 +1,2 @@
+log:
+  msg_0: PTRACE_TRACEME가 0이 아닌 값을 반환했습니다 (Seccomp BPF 격리 활성화됨)

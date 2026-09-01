@@ -1,0 +1,11 @@
+guard:
+  killswitch_armed: O watchdog Fail-Closed KillSwitch está monitorando a saída de
+    tráfego
+  killswitch_triggered: Vazamento de tráfego detectado! O KillSwitch bloqueou a rede
+  seccomp_jail_active: 'Filtro Seccomp-BPF ativo: sockets raw não autorizados acionarão
+    SIGSYS'
+  dns_engine_started: Motor Sovereign DNS ativo em 127.0.0.1:53 com preenchimento
+    EDNS0
+  jitter_engine_started: Preenchimento de tráfego sintético ativo (jitter de Poisson)
+  leak_test_passed: Conjunto de testes de vazamento passou com 0 vazamentos
+  leak_test_failed: Vazamento crítico de rede detectado durante a inspeção

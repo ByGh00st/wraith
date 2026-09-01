@@ -1,0 +1,123 @@
+banner:
+  max_defense: ╭── [ 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE ARMED ] ───────────────────────╮
+  telemetry: ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮
+  engine_spec: 'ENGINE SPEC :'
+  engine_val_strict: WRAITH v1.2.0 (CYBERPUNK STRICT MODE)
+  engine_val_normal: WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)
+  target_host: 'TARGET HOST :'
+  gate_status: 'GATE STATUS :'
+  gate_val_strict: FAIL-CLOSED (All 16 Security Layers Active)
+  gate_val_normal: FAIL-CLOSED (Kernel-Level Egress Enforcement)
+  title: WRAITH-PRIME // KERNEL ANONYMIZATION ENGINE [NO]
+tui:
+  header_strict: MAXIMUM DEFENSE TELEMETRY HUD
+  header_normal: REAL-TIME TELEMETRY DASHBOARD
+  pid: 'PID:'
+  armed_strict: ALL LAYERS ARMED
+  armed_normal: 'FAIL-CLOSED: ARMED'
+  identity_box: ┌── [ IDENTITY & EXIT NODE ] ────────────────────────────────────────────────────────────┐
+  public_ip: 'Public Exit IP      :'
+  tor_network: 'Tor Network         :'
+  hardware_mac: 'Hardware MAC        :'
+  machine_id: 'Machine-ID Mask     :'
+  tcp_stack: 'TCP Stack (p0f)     :'
+  exit_policy: 'Exit Node Policy    :'
+  defense_matrix: ┌── [ DEFENSE MATRIX STATUS GRID ] ───────────────────────────────────────────────────────┐
+  def_netfilter: '[✓] Netfilter TransProxy : Fail-Closed Drop (Port 9040/5353)'
+  def_seccomp: '[✓] Seccomp-BPF Filter   : ptrace Blocked @ Ring 0 (raw sockets exempt
+    for IDS engine)'
+  def_ebpf: '[✓] eBPF / TC Fastpath   : Qdisc clsact Driver Egress Drop Active'
+  def_lockdown: '[✓] Kernel Lockdown      : Confidentiality Mode (/dev/mem & DMA Shield)'
+  def_dns: '[✓] DNS Engine           : QNAME Minimized + EDNS0 468B Padded + Telemetry
+    Sinkhole'
+  def_tls: '[✓] JA3/JA4 TLS Camo     : Google Chrome 131 / Win11 Profile + RFC 8701
+    GREASE'
+  def_ramfs: '[✓] RAMFS Crypto Vault   : In-Memory ChaCha20-Poly1305 Encrypted (/dev/shm
+    Locked)'
+  def_ids: '[✓] Zero-Copy IDS        : Real-Time L2/L3/L4 Sniffer & Egress Watchdog
+    Active'
+  circuits_box: ┌── [ ACTIVE TOR CIRCUITS & RELAY TOPOLOGY ] ────────────────────────────────────────────┐
+  syncing: (Synchronizing circuits with Tor ControlPort...)
+  hotkeys: '[HOTKEYS] [Q] Quit & Restore | [N] Newnym Identity | [C] RAM Cache Flush
+    | [R] Refresh'
+  verified: ✓ VERIFIED (TransProxy Active)
+  unverified: ✗ UNVERIFIED
+  static: Hardware Static
+  rotated: ✓ Rotated (Anti-Forensic DMI)
+  original: Original
+  win_profile: ✓ Windows Profile (TTL=128, TS=0)
+  linux_std: Linux Standard
+  stealth: Stealth (Five Eyes Excluded)
+hud:
+  active_hud_strict: 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE HUD
+  active_hud_normal: 🛡️ WRAITH-PRIME // ACTIVE ANONYMIZATION HUD
+  op_status: OPERATIONAL STATUS & METRIC
+  tor_exit: 🌐 Active Tor Exit Node
+  sec_matrix: 🛡️ Security Matrix
+  max_defense_val: ● MAXIMUM DEFENSE [16/16 ARMED] (eBPF + Seccomp + RAM Vault)
+  std_defense_val: ● STANDARD FAIL-CLOSED [Tor Egress Enforced]
+  killswitch: ⚡ Tor KillSwitch Gate
+  watchdog: ● Fail-Closed Async Watchdog (<1ms Netfilter Drop)
+  rotate_policy: 🔄 Circuit Rotation Policy
+  auto_rotate: ● AUTO-ROTATING (Every {}s)
+  manual_rotate: ○ MANUAL ON-DEMAND [Press 'R']
+  dpi_sanitizer: 🔍 In-Flight DPI Sanitizer
+  dpi_active: ● ACTIVE (Rewriting Offensive Signatures)
+  keys: ┌── [ 🎮 INTERACTIVE KEYBOARD CONTROLS ] ────────────────────────────────────────────────────────┐
+  k_rotate: '[R] Rotate Circuit'
+  k_audit: '[T] Leak Audit'
+  k_monitor: '[M] Pop-up Monitor'
+  k_purge: '[C] RAM Purge'
+  k_quit: '[Q] Clean Disconnect'
+status:
+  ok: ◈ [ARMED]
+  error: ✖ [BLOCKED]
+  warn: ▲ [AUDIT]
+  info: ❯ [STAGE]
+commands:
+  cmd_step_0: Anti-debug trap armed [EXPLICIT OPT-IN]
+  cmd_step_1: Randomizing hardware L2 MAC address...
+  cmd_step_2: Configuring censorship-resistant obfs4 bridges...
+  cmd_step_3: Generating optimized torrc...
+  cmd_step_4: Tor configuration armed
+  cmd_step_5: Bootstrapping Tor daemon...
+  cmd_step_6: Tor daemon active & verified on ControlPort (9051)
+  cmd_step_7: Configuring local Tor transparent DNS...
+  cmd_step_8: DNS bound to 127.0.0.1 (Tor Port 5353)
+  cmd_step_9: Enforcing Fail-Closed firewall rules...
+  cmd_step_10: All system TCP/DNS forced into Tor
+  cmd_step_11: Eliminating IPv6 dual-stack attack surface...
+  cmd_step_12: IPv6 kernel-level drop armed
+  cmd_step_13: Blocking STUN/TURN WebRTC leak ports...
+  cmd_step_14: STUN/TURN ports blocked
+  cmd_step_15: eBPF TC Egress Fastpath attached
+  cmd_step_16: System-level font sandbox active
+  cmd_step_17: cgroup2 network socket jail active
+  cmd_step_18: Creating isolated Linux Network Namespace...
+  cmd_step_19: Process namespace jail armed (10.200.1.0/24)
+  cmd_step_20: Verifying exit identity & geographic location...
+  cmd_step_21: Arming async Fail-Closed watchdog...
+  cmd_step_22: Unlocking and restoring clearnet DNS resolvers...
+  cmd_step_23: DNS unlocked and redirected to clearnet
+  cmd_step_24: Flushing netfilter firewall rules & restoring default ACCEPT...
+  cmd_step_25: Firewall reset to default ACCEPT
+  cmd_step_26: Terminating Tor daemon...
+  cmd_step_27: Tor daemon offline
+  cmd_step_28: Restoring hardware MAC address...
+  cmd_step_29: Hardware MAC restored
+  cmd_step_30: Hostname restored
+  cmd_step_31: Restoring original OS machine-id...
+  cmd_step_32: Machine-ID restored
+  cmd_step_33: Restoring default TCP/IP stack parameters...
+  cmd_step_34: TCP/IP stack restored
+  cmd_step_35: Demolishing network namespace...
+  cmd_step_36: Namespace purged
+  cmd_step_37: Removing hardware and font shield (if active)...
+  cmd_step_38: Browser profiles and font config reverted
+  cmd_step_39: Re-asserting network interfaces and carrier...
+  cmd_step_40: Preparing network & DNS resolution for update...
+  cmd_step_41: Fresh repository snapshot cloned successfully
+  cmd_step_42: Release binary compilation completed successfully
+  cmd_step_43: Compilation finished but target binary was not found
+  cmd_step_44: Requesting new Tor exit circuit (SIGNAL NEWNYM)...
+  cmd_step_45: Running multi-vector leak verification suite...

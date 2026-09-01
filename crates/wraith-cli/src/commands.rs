@@ -35,7 +35,7 @@ use crate::display::{
 };
 use crate::tui::SovereignDashboard;
 use tokio_util::sync::CancellationToken;
-use owo_colors::OwoColorize;
+use rust_i18n::t;
 
 #[derive(Default)]
 struct BackgroundServices {
@@ -153,7 +153,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             "info",
         );
         match wraith_forensic::AntiDebugProbe::enforce_anti_debug_trap(is_strict) {
-            Ok(()) => print_step("Anti-debug trap armed [EXPLICIT OPT-IN]", "ok"),
+            Ok(()) => print_step(&t!("commands.cmd_step_0"), "ok"),
             Err(e) => print_step(&format!("Anti-debug probe warning: {e}"), "warn"),
         }
     }
@@ -194,7 +194,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     // 1. MAC & Hostname Randomization
     if args.mac || is_strict {
-        print_step("Randomizing hardware L2 MAC address...", "info");
+        print_step(&t!("commands.cmd_step_1"), "info");
         match change_mac(None, None) {
             Ok((iface, old_m, new_m)) => {
                 print_step(&format!("MAC altered: {old_m} ➔ {new_m} on {iface}"), "ok");
@@ -267,7 +267,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     // 5. Tor Configuration & Bridges
     if args.bridge {
-        print_step("Configuring censorship-resistant obfs4 bridges...", "info");
+        print_step(&t!("commands.cmd_step_2"), "info");
         match write_bridge_torrc(None) {
             Ok(count) => {
                 print_step(
@@ -286,13 +286,13 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             }
         }
     } else {
-        print_step("Generating optimized torrc...", "info");
+        print_step(&t!("commands.cmd_step_3"), "info");
         write_torrc()?;
-        print_step("Tor configuration armed", "ok");
+        print_step(&t!("commands.cmd_step_4"), "ok");
     }
 
     // 6. Start Tor Daemon FIRST (Before modifying DNS / Firewall)
-    print_step("Bootstrapping Tor daemon...", "info");
+    print_step(&t!("commands.cmd_step_5"), "info");
     if let Err(e) = start_tor_daemon().await {
         print_step(&format!("Tor bootstrap failed: {e}"), "error");
         let _ = restore_dns();
@@ -300,10 +300,10 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         let _ = flush_ipv6_block();
         return Err(e);
     }
-    print_step("Tor daemon active & verified on ControlPort (9051)", "ok");
+    print_step(&t!("commands.cmd_step_6"), "ok");
 
     // 7. DNS Configuration (Applied ONLY after Tor is ready)
-    print_step("Configuring local Tor transparent DNS...", "info");
+    print_step(&t!("commands.cmd_step_7"), "info");
     if let Err(e) = backup_resolv() {
         tracing::warn!("Failed creating resolv.conf backup: {e}");
     }
@@ -312,7 +312,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         let _ = restore_dns();
         return Err(e);
     }
-    print_step("DNS bound to 127.0.0.1 (Tor Port 5353)", "ok");
+    print_step(&t!("commands.cmd_step_8"), "ok");
 
     // 8. Exit Node Profile
     let exit_prof = if is_strict && args.profile.is_none() {
@@ -336,19 +336,19 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     }
 
     // 9. Firewall & IPv6 Drop
-    print_step("Enforcing Fail-Closed firewall rules...", "info");
+    print_step(&t!("commands.cmd_step_9"), "info");
     let saved = apply_tor_rules()?;
     state_data.saved_rules = Some(saved);
     let _ = state_mgr.activate(state_data.clone());
-    print_step("All system TCP/DNS forced into Tor", "ok");
+    print_step(&t!("commands.cmd_step_10"), "ok");
 
-    print_step("Eliminating IPv6 dual-stack attack surface...", "info");
+    print_step(&t!("commands.cmd_step_11"), "info");
     apply_ipv6_block()?;
-    print_step("IPv6 kernel-level drop armed", "ok");
+    print_step(&t!("commands.cmd_step_12"), "ok");
 
-    print_step("Blocking STUN/TURN WebRTC leak ports...", "info");
+    print_step(&t!("commands.cmd_step_13"), "info");
     block_stun_ports()?;
-    print_step("STUN/TURN ports blocked", "ok");
+    print_step(&t!("commands.cmd_step_14"), "ok");
 
     // 10. eBPF / TC Egress Fastpath Filter
     if is_strict {
@@ -361,7 +361,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 if let Err(e) = fp.attach() {
                     print_step(&format!("eBPF Fastpath attach warning: {e}"), "warn");
                 } else {
-                    print_step("eBPF TC Egress Fastpath attached", "ok");
+                    print_step(&t!("commands.cmd_step_15"), "ok");
                 }
             }
             Err(e) => print_step(&format!("eBPF Fastpath init error: {e}"), "warn"),
@@ -422,7 +422,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             "info",
         );
         match enforce_font_jail() {
-            Ok(()) => print_step("System-level font sandbox active", "ok"),
+            Ok(()) => print_step(&t!("commands.cmd_step_16"), "ok"),
             Err(e) => print_step(&format!("Font sandbox warning: {e}"), "warn"),
         }
     }
@@ -435,16 +435,16 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         if let Err(e) = wraith_net::attach_pid_to_cgroup(std::process::id()) {
             tracing::warn!("cgroup2 attach pid warning: {e}");
         } else {
-            print_step("cgroup2 network socket jail active", "ok");
+            print_step(&t!("commands.cmd_step_17"), "ok");
         }
     }
 
     // 16. Network Namespace
     if args.namespace || is_strict {
-        print_step("Creating isolated Linux Network Namespace...", "info");
+        print_step(&t!("commands.cmd_step_18"), "info");
         match create_namespace() {
             Ok(()) => {
-                print_step("Process namespace jail armed (10.200.1.0/24)", "ok");
+                print_step(&t!("commands.cmd_step_19"), "ok");
                 state_data.namespace_active = true;
                 let _ = state_mgr.activate(state_data.clone());
             }
@@ -453,7 +453,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     }
 
     // 17. Identity Verification
-    print_step("Verifying exit identity & geographic location...", "info");
+    print_step(&t!("commands.cmd_step_20"), "info");
     sleep(Duration::from_secs(2)).await;
     let geo = get_current_ip_geo().await;
     if geo.is_tor {
@@ -566,7 +566,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     state_mgr.activate(state_data)?;
 
     if !args.no_ks {
-        print_step("Arming async Fail-Closed watchdog...", "info");
+        print_step(&t!("commands.cmd_step_21"), "info");
         let (ks, cancel_token) = KillSwitch::new();
         let ks_handle = ks.spawn_monitor();
         bg_services.killswitch = Some((cancel_token, ks_handle));
@@ -709,7 +709,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let state_mgr = StateManager::default();
     let state_info = state_mgr.read();
 
-    print_step("Unlocking and restoring clearnet DNS resolvers...", "info");
+    print_step(&t!("commands.cmd_step_22"), "info");
     let _ = std::process::Command::new("chattr")
         .args(["-i", "/etc/resolv.conf"])
         .stdout(std::process::Stdio::null())
@@ -725,9 +725,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
-    print_step("DNS unlocked and redirected to clearnet", "ok");
+    print_step(&t!("commands.cmd_step_23"), "ok");
 
-    print_step("Flushing netfilter firewall rules & restoring default ACCEPT...", "info");
+    print_step(&t!("commands.cmd_step_24"), "info");
     if let Err(e) = flush_rules() {
         tracing::warn!("Flush rules warning: {e}");
     }
@@ -746,19 +746,19 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
             tracing::warn!("Fastpath detach warning: {e}");
         }
     }
-    print_step("Firewall reset to default ACCEPT", "ok");
+    print_step(&t!("commands.cmd_step_25"), "ok");
 
-    print_step("Terminating Tor daemon...", "info");
+    print_step(&t!("commands.cmd_step_26"), "info");
     stop_tor_daemon();
     wraith_tor::stop_existing_tor();
-    print_step("Tor daemon offline", "ok");
+    print_step(&t!("commands.cmd_step_27"), "ok");
 
     if let (Some(iface), Some(old_mac)) = (&state_info.mac_interface, &state_info.mac_old) {
-        print_step("Restoring hardware MAC address...", "info");
+        print_step(&t!("commands.cmd_step_28"), "info");
         if let Err(e) = restore_mac(iface, old_mac) {
             print_step(&format!("Restore MAC warning: {e}"), "warn");
         } else {
-            print_step("Hardware MAC restored", "ok");
+            print_step(&t!("commands.cmd_step_29"), "ok");
         }
     }
 
@@ -766,39 +766,39 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         let _ = std::process::Command::new("hostname")
             .arg(old_host)
             .status();
-        print_step("Hostname restored", "ok");
+        print_step(&t!("commands.cmd_step_30"), "ok");
     }
 
     if let Some(old_mid) = &state_info.machine_id_old {
-        print_step("Restoring original OS machine-id...", "info");
+        print_step(&t!("commands.cmd_step_31"), "info");
         if let Err(e) = restore_machine_id(old_mid) {
             print_step(&format!("Restore machine-id warning: {e}"), "warn");
         } else {
-            print_step("Machine-ID restored", "ok");
+            print_step(&t!("commands.cmd_step_32"), "ok");
         }
     }
 
     // Unconditionally restore default Linux TCP stack (TTL=64, TS=1)
-    print_step("Restoring default TCP/IP stack parameters...", "info");
+    print_step(&t!("commands.cmd_step_33"), "info");
     let mut default_map = std::collections::HashMap::new();
     default_map.insert("net.ipv4.ip_default_ttl".to_string(), "64".to_string());
     default_map.insert("net.ipv4.tcp_timestamps".to_string(), "1".to_string());
     let _ = restore_tcp_stack(&default_map);
-    print_step("TCP/IP stack restored", "ok");
+    print_step(&t!("commands.cmd_step_34"), "ok");
 
     if state_info.namespace_active {
-        print_step("Demolishing network namespace...", "info");
+        print_step(&t!("commands.cmd_step_35"), "info");
         if let Err(e) = destroy_namespace() {
             print_step(&format!("Destroy namespace warning: {e}"), "warn");
         } else {
-            print_step("Namespace purged", "ok");
+            print_step(&t!("commands.cmd_step_36"), "ok");
         }
     }
 
-    print_step("Removing hardware and font shield (if active)...", "info");
+    print_step(&t!("commands.cmd_step_37"), "info");
     let _ = remove_hardware_and_font_shield();
     let _ = restore_font_jail();
-    print_step("Browser profiles and font config reverted", "ok");
+    print_step(&t!("commands.cmd_step_38"), "ok");
 
     print_step(
         "Executing anti-forensic memory & volatile state purge...",
@@ -813,7 +813,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     );
 
     // Final Network Carrier & Clearnet Guaranteed Reconnection
-    print_step("Re-asserting network interfaces and carrier...", "info");
+    print_step(&t!("commands.cmd_step_39"), "info");
     let target_iface = state_info
         .mac_interface
         .clone()
@@ -915,7 +915,7 @@ pub async fn cmd_update() -> Result<()> {
     println!("  │ • Pipeline      : Clean Git Clone ➔ Cargo Release ➔ Deploy    │");
     println!("  └────────────────────────────────────────────────────────────────┘\n");
 
-    print_step("Preparing network & DNS resolution for update...", "info");
+    print_step(&t!("commands.cmd_step_40"), "info");
 
     // 1. Ensure DNS is unchattered and functional for git pull / cargo dependencies
     let _ = Command::new("chattr")
@@ -955,7 +955,7 @@ pub async fn cmd_update() -> Result<()> {
 
     match clone_status {
         Ok(s) if s.success() => {
-            print_step("Fresh repository snapshot cloned successfully", "ok");
+            print_step(&t!("commands.cmd_step_41"), "ok");
         }
         Ok(s) => {
             let _ = fs::remove_dir_all(&temp_build_dir);
@@ -981,7 +981,7 @@ pub async fn cmd_update() -> Result<()> {
 
     match build_status {
         Ok(s) if s.success() => {
-            print_step("Release binary compilation completed successfully", "ok");
+            print_step(&t!("commands.cmd_step_42"), "ok");
         }
         Ok(s) => {
             let _ = fs::remove_dir_all(&temp_build_dir);
@@ -998,7 +998,7 @@ pub async fn cmd_update() -> Result<()> {
     let compiled_binary = format!("{temp_build_dir}/target/release/wraith");
     if !Path::new(&compiled_binary).exists() {
         let _ = fs::remove_dir_all(&temp_build_dir);
-        print_step("Compilation finished but target binary was not found", "error");
+        print_step(&t!("commands.cmd_step_43"), "error");
         return Err(WraithError::Custom("Binary artifact missing".into()));
     }
 
@@ -1067,7 +1067,7 @@ pub async fn cmd_switch() -> Result<()> {
         return Ok(());
     }
 
-    print_step("Requesting new Tor exit circuit (SIGNAL NEWNYM)...", "info");
+    print_step(&t!("commands.cmd_step_44"), "info");
     let mut client = TorControlClient::default();
     client.connect().await?;
     client.signal_newnym().await?;
@@ -1080,7 +1080,7 @@ pub async fn cmd_switch() -> Result<()> {
 
 pub async fn cmd_test() -> Result<()> {
     print_banner(false);
-    print_step("Running multi-vector leak verification suite...", "info");
+    print_step(&t!("commands.cmd_step_45"), "info");
     let report = run_full_leak_test().await;
     show_leak_report(&report);
     Ok(())

@@ -1,0 +1,18 @@
+net:
+  no_interface: 未发现合适的网络接口
+  mac_extract_failed: 无法从接口提取 MAC 地址
+  mac_verify_failed: MAC 地址验证不匹配！
+  nftables_apply_failed: 应用 nftables 规则集失败
+  nftables_flush_failed: 清除 nftables 规则集失败
+  ebpf_attach_failed: 附加 eBPF 流量控制快速路径过滤器失败
+  ebpf_detach_failed: 卸载 eBPF 过滤器失败
+  tcp_mask_applied: 'TCP/IP 堆栈已伪造: TTL=128 (Windows 配置文件), timestamps=0'
+  tcp_mask_restored: TCP/IP 堆栈已恢复为默认 Linux 参数
+  namespace_created: 进程网络命名空间已就绪 (10.200.1.0/24)
+  namespace_destroyed: 网络命名空间已销毁并清除
+  cgroup_jail_created: cgroup2 网络套接字隔离已创建
+  cgroup_jail_destroyed: cgroup2 网络套接字隔离已销毁
+  ipv6_blocked: IPv6 内核级丢弃规则已启用
+  ipv6_unblocked: IPv6 内核级丢弃规则已清除
+  stun_blocked: STUN/TURN WebRTC 泄漏端口已封锁
+  stun_unblocked: STUN/TURN WebRTC 泄漏端口已解封

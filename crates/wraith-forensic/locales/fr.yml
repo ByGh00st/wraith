@@ -1,0 +1,2 @@
+log:
+  msg_0: PTRACE_TRACEME a retourné une valeur non nulle (prison Seccomp BPF active)

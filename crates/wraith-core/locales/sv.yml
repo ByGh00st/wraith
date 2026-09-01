@@ -1,0 +1,13 @@
+err:
+  io: 'I/O-fel:'
+  json: 'Serialiseringsfel:'
+  permission_denied: 'Behörighetsöverträdelse: Root-behörighet krävs för kernel-nätverksmanipulation'
+  unsupported_platform: 'Operativsystem stöds ej: Linux-kernel (Debian/Kali) krävs'
+  firewall: 'Brandväggsmotorfel:'
+  tor: 'Tor-kontrollerfel:'
+  namespace: 'Kernel-nätverksnamnrymdsfel:'
+  hardware: 'Hårdvaru-MAC/Länkfel:'
+  forensic: 'Anti-forensiskt rensningsfel:'
+  guard: 'Watchdog / KillSwitch-fel:'
+  command: 'Nätverkskommandofel:'
+  custom: 'Allmänt systemfel:'

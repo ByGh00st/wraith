@@ -1,0 +1,8 @@
+guard:
+  killswitch_armed: Fail-Closed 킬스위치 워치독이 송신 트래픽을 모니터링 중입니다
+  killswitch_triggered: 트래픽 유출 감지! 킬스위치가 네트워크를 차단했습니다
+  seccomp_jail_active: 'Seccomp-BPF 필터 활성화됨: 불법 원시 소켓은 즉시 SIGSYS를 발생시킵니다'
+  dns_engine_started: Sovereign DNS 엔진이 127.0.0.1:53 (EDNS0 패딩)에서 활성화됨
+  jitter_engine_started: 합성 트래픽 패딩(포아송 지터) 활성화됨
+  leak_test_passed: 다중 벡터 유출 점검이 0건의 유출로 통과되었습니다
+  leak_test_failed: 점검 중 심각한 네트워크 유출이 감지되었습니다

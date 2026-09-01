@@ -1,0 +1,3 @@
+log:
+  msg_0: PTRACE_TRACEME sıfır olmayan (non-zero) bir değer döndürdü (Seccomp BPF hapishanesi
+    aktif)

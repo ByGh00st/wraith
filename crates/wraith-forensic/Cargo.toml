@@ -18,3 +18,4 @@ serde.workspace = true
 serde_json.workspace = true
 libc.workspace = true
 tempfile.workspace = true
+rust-i18n = "4.2.1"

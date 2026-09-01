@@ -1,0 +1,14 @@
+err:
+  io: 'Lỗi I/O:'
+  json: 'Lỗi tuần tự hóa:'
+  permission_denied: 'Vi phạm quyền: Cần có quyền root để thao tác mạng nhân'
+  unsupported_platform: 'Hệ điều hành không được hỗ trợ: Bắt buộc phải có nhân Linux
+    (Debian/Kali)'
+  firewall: 'Lỗi công cụ tường lửa:'
+  tor: 'Lỗi bộ điều khiển Tor:'
+  namespace: 'Lỗi không gian tên mạng nhân:'
+  hardware: 'Lỗi phần cứng MAC/Liên kết:'
+  forensic: 'Lỗi dọn dẹp chống điều tra số:'
+  guard: 'Lỗi giám sát / KillSwitch:'
+  command: 'Lỗi lệnh mạng:'
+  custom: 'Lỗi hệ thống chung:'

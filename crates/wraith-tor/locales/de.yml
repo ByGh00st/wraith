@@ -1,0 +1,4 @@
+log:
+  msg_0: Integrierte obfs4-Bridges sind öffentlich und können verfallen. Konfigurieren
+    Sie eigene Bridges über BridgeDB.
+  msg_1: Tor ControlPort nicht erreichbar; torrc geschrieben, aber Daemon nicht benachrichtigt

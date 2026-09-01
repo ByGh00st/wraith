@@ -1,3 +1,5 @@
+rust_i18n::i18n!("locales");
+
 pub mod bridge;
 pub mod circuit;
 pub mod control;
@@ -15,3 +17,4 @@ pub use grease::*;
 pub use multichain::*;
 pub use onion_service::*;
 pub use tls_camouflage::*;
+

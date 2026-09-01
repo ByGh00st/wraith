@@ -20,4 +20,5 @@ rand.workspace = true
 sha2.workspace = true
 hex.workspace = true
 md-5.workspace = true
+rust-i18n = "4.2.1"
 

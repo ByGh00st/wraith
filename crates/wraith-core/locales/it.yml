@@ -1,0 +1,15 @@
+err:
+  io: 'Errore I/O:'
+  json: 'Errore di serializzazione:'
+  permission_denied: 'Violazione dei privilegi: sono richiesti i privilegi di root
+    per la manipolazione della rete del kernel'
+  unsupported_platform: 'Sistema operativo non supportato: è strettamente richiesto
+    il kernel Linux (Debian/Kali)'
+  firewall: 'Errore del motore firewall:'
+  tor: 'Errore del controller Tor:'
+  namespace: 'Errore del namespace di rete del kernel:'
+  hardware: 'Errore hardware MAC/Link:'
+  forensic: 'Errore di pulizia antiforense:'
+  guard: 'Errore del watchdog / KillSwitch:'
+  command: 'Errore del comando di rete:'
+  custom: 'Guasto generale del sistema:'

@@ -1,0 +1,18 @@
+net:
+  no_interface: 적합한 네트워크 인터페이스를 찾을 수 없습니다
+  mac_extract_failed: 인터페이스에서 MAC 주소를 추출하지 못했습니다
+  mac_verify_failed: MAC 주소 검증 불일치 발견!
+  nftables_apply_failed: nftables 규칙 세트 적용 실패
+  nftables_flush_failed: nftables 규칙 플러시 실패
+  ebpf_attach_failed: eBPF 패스트패스 필터 연결 실패
+  ebpf_detach_failed: eBPF 필터 분리 실패
+  tcp_mask_applied: 'TCP/IP 스택 위조됨: TTL=128 (Windows), timestamps=0'
+  tcp_mask_restored: TCP/IP 스택이 기본 Linux 설정으로 복원됨
+  namespace_created: 프로세스 네트워크 네임스페이스 준비됨 (10.200.1.0/24)
+  namespace_destroyed: 네트워크 네임스페이스 파괴 및 제거됨
+  cgroup_jail_created: cgroup2 네트워크 소켓 격리 생성됨
+  cgroup_jail_destroyed: cgroup2 네트워크 소켓 격리 제거됨
+  ipv6_blocked: IPv6 커널 수준 드롭 규칙 활성화됨
+  ipv6_unblocked: IPv6 커널 수준 드롭 규칙 플러시됨
+  stun_blocked: STUN/TURN WebRTC 유출 포트 차단됨
+  stun_unblocked: STUN/TURN WebRTC 유출 포트 차단 해제됨

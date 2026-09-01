@@ -1,0 +1,15 @@
+err:
+  io: 'Chyba I/O:'
+  json: 'Chyba serializace:'
+  permission_denied: 'Oprávnění odepřeno: Pro manipulaci se sítí jádra jsou vyžadována
+    oprávnění root'
+  unsupported_platform: 'Nepodporovaný operační systém: Je vyžadováno jádro Linux
+    (Debian/Kali)'
+  firewall: 'Selhání firewallového enginu:'
+  tor: 'Selhání řadiče Tor:'
+  namespace: 'Chyba síťového jmenného prostoru jádra:'
+  hardware: 'Chyba hardwarové MAC/linky:'
+  forensic: 'Chyba antiforenzního čištění:'
+  guard: 'Selhání strážce / KillSwitch:'
+  command: 'Chyba síťového příkazu:'
+  custom: 'Obecné selhání systému:'

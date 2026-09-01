@@ -16,3 +16,4 @@ tempfile.workspace = true
 libc.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+rust-i18n = "4.2.1"

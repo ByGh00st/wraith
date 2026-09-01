@@ -21,4 +21,6 @@ hmac.workspace = true
 subtle.workspace = true
 hex.workspace = true
 md-5.workspace = true
+rust-i18n = "4.2.1"
+sys-locale = "0.3.2"
 

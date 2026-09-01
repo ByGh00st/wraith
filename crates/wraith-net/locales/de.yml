@@ -1,0 +1,18 @@
+net:
+  no_interface: Keine passende Netzwerkschnittstelle gefunden
+  mac_extract_failed: MAC-Adresse konnte nicht ausgelesen werden
+  mac_verify_failed: MAC-Verifizierungsfehler festgestellt!
+  nftables_apply_failed: nftables-Regelsatz konnte nicht angewendet werden
+  nftables_flush_failed: nftables-Regelsatz konnte nicht zurückgesetzt werden
+  ebpf_attach_failed: eBPF Fastpath-Filter konnte nicht geladen werden
+  ebpf_detach_failed: eBPF-Filter konnte nicht entfernt werden
+  tcp_mask_applied: 'TCP/IP-Stack manipuliert: TTL=128 (Windows), timestamps=0'
+  tcp_mask_restored: TCP/IP-Stack auf Standard-Linux-Parameter zurückgesetzt
+  namespace_created: Netzwerk-Namespace aktiviert (10.200.1.0/24)
+  namespace_destroyed: Netzwerk-Namespace gelöscht und bereinigt
+  cgroup_jail_created: cgroup2 Netzwerk-Socket-Jail erstellt
+  cgroup_jail_destroyed: cgroup2 Netzwerk-Socket-Jail zerstört
+  ipv6_blocked: IPv6-Kernel-Drop-Regeln aktiviert
+  ipv6_unblocked: IPv6-Kernel-Drop-Regeln gelöscht
+  stun_blocked: STUN/TURN WebRTC Leak-Ports blockiert
+  stun_unblocked: STUN/TURN WebRTC-Ports freigegeben

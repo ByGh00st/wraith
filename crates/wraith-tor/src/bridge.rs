@@ -47,7 +47,7 @@ pub fn write_bridge_torrc(custom_bridges: Option<Vec<String>>) -> Result<usize> 
     let bridges: Vec<String> = match custom_bridges {
         Some(b) if !b.is_empty() => b,
         _ => {
-            tracing::warn!("Built-in obfs4 bridges are public and may degrade/decay over time. Configure custom bridges via BridgeDB (https://bridges.torproject.org) if blocked.");
+            tracing::warn!("{}", rust_i18n::t!("log.msg_0"));
             BUILTIN_BRIDGES.iter().map(|s| s.to_string()).collect()
         }
     };

@@ -1,0 +1,5 @@
+log:
+  msg_0: Built-in obfs4 bridges are public and may degrade/decay over time. Configure
+    custom bridges via BridgeDB (https://bridges.torproject.org) if blocked.
+  msg_1: Tor ControlPort unreachable while applying exit profile; torrc written but
+    daemon not signaled

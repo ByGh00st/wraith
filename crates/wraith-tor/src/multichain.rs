@@ -94,7 +94,7 @@ pub async fn apply_exit_profile(profile_key: &str) -> Result<CountryProfile> {
             tracing::warn!("Failed sending SIGNAL NEWNYM to Tor: {e}");
         }
     } else {
-        tracing::warn!("Tor ControlPort unreachable while applying exit profile; torrc written but daemon not signaled");
+        tracing::warn!("{}", rust_i18n::t!("log.msg_1"));
     }
 
     info!("Applied geographic exit profile: {}", profile.name);

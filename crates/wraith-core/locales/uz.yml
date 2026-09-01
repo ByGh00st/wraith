@@ -1,0 +1,15 @@
+err:
+  io: 'Kiritish/chiqarish xatosi (I/O):'
+  json: 'Seriyalashtirish xatosi:'
+  permission_denied: 'Ruxsat buzilishi: Yadro tarmog''ini boshqarish uchun Root huquqlari
+    talab qilinadi'
+  unsupported_platform: 'Qo''llab-quvvatlanmaydigan OT: Linux yadrosi (Debian/Kali)
+    talab qilinadi'
+  firewall: 'Xavfsizlik devori mexanizmi xatosi:'
+  tor: 'Tor tekshirgich xatosi:'
+  namespace: 'Yadro tarmoq nom maydoni xatosi:'
+  hardware: 'Uskuna MAC/Havola xatosi:'
+  forensic: 'Ekspertizaga qarshi tozalash xatosi:'
+  guard: 'Watchdog / KillSwitch xatosi:'
+  command: 'Tarmoq buyrug''i xatosi:'
+  custom: 'Umumiy tizim xatosi:'

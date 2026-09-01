@@ -1,0 +1,15 @@
+err:
+  io: 'G/Ç Xətası (I/O Error):'
+  json: 'Seriyalaşdırma Xətası:'
+  permission_denied: 'Səlahiyyət Pozuntusu: Nüvə şəbəkə manipulyasiyası üçün Root
+    səlahiyyətləri tələb olunur'
+  unsupported_platform: 'Dəstəklənməyən Əməliyyat Sistemi: Linux Nüvəsi (Debian/Kali)
+    mütləqdir'
+  firewall: 'Firewall Mühərriki Xətası:'
+  tor: 'Tor Nəzarətçi Xətası:'
+  namespace: 'Nüvə Şəbəkə Sahəsi (Namespace) Xətası:'
+  hardware: 'Avadanlıq MAC/Bağlantı Xətası:'
+  forensic: 'Məhkəmə Ekspertizasına Qarşı Təmizlik Xətası:'
+  guard: 'Gözətçi (Watchdog) / KillSwitch Xətası:'
+  command: 'Şəbəkə Əmr Xətası:'
+  custom: 'Ümumi Sistem Xətası:'

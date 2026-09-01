@@ -1,0 +1,13 @@
+err:
+  io: 'I/Oエラー:'
+  json: 'シリアル化エラー:'
+  permission_denied: '権限違反: カーネルネットワーク操作にはroot権限が必要です'
+  unsupported_platform: 'サポートされていないOS: Linuxカーネル(Debian/Kali)が必須です'
+  firewall: 'ファイアウォールエンジン障害:'
+  tor: 'Torコントローラー障害:'
+  namespace: 'カーネルネットワーク名前空間エラー:'
+  hardware: 'ハードウェアMAC/リンクエラー:'
+  forensic: 'アンチフォレンジックパージエラー:'
+  guard: 'ウォッチドッグ/KillSwitch障害:'
+  command: 'ネットワークコマンドエラー:'
+  custom: '一般的なシステム障害:'

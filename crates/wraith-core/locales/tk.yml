@@ -1,0 +1,14 @@
+err:
+  io: 'Giriş/çykyş ýalňyşlygy (I/O):'
+  json: 'Serializasiýa ýalňyşlygy:'
+  permission_denied: 'Rugsat bozulmagy: Ýadro toruny dolandyrmak üçin Root hukuklary
+    zerurdyr'
+  unsupported_platform: 'Goldanylmaýan OS: Linux ýadrosy (Debian/Kali) hökmanydyr'
+  firewall: 'Firewall hereketlendiriji ýalňyşlygy:'
+  tor: 'Tor gözegçisi ýalňyşlygy:'
+  namespace: 'Ýadro tor at giňişligi ýalňyşlygy:'
+  hardware: 'Enjam MAC/Baglanyşyk ýalňyşlygy:'
+  forensic: 'Kazyýet barlagyna garşy arassalama ýalňyşlygy:'
+  guard: 'Gözegçi (Watchdog) / KillSwitch ýalňyşlygy:'
+  command: 'Tor buýrugy ýalňyşlygy:'
+  custom: 'Umumy ulgam ýalňyşlygy:'

@@ -1,0 +1,2 @@
+log:
+  msg_0: PTRACE_TRACEME вернул ненулевое значение (изолятор Seccomp BPF активен)

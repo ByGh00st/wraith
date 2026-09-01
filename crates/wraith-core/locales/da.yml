@@ -1,0 +1,14 @@
+err:
+  io: 'I/O-fejl:'
+  json: 'Serialiseringsfejl:'
+  permission_denied: 'Adgang nægtet: Root-privilegier er påkrævet for kernel-netværksmanipulation'
+  unsupported_platform: 'Ikke-understøttet operativsystem: Linux-kerne (Debian/Kali)
+    er påkrævet'
+  firewall: 'Brandmursmotorfejl:'
+  tor: 'Tor-controllerfejl:'
+  namespace: 'Kernel-netværksnavnerumsfejl:'
+  hardware: 'Hardware-MAC/Linkfejl:'
+  forensic: 'Anti-forensisk rensningsfejl:'
+  guard: 'Watchdog / KillSwitch-fejl:'
+  command: 'Netværkskommandofejl:'
+  custom: 'Generel systemfejl:'

@@ -1,0 +1,15 @@
+err:
+  io: 'I/O Error:'
+  json: 'Serialization Error:'
+  permission_denied: 'Privilege Violation: Root privileges required for kernel network
+    manipulation'
+  unsupported_platform: 'Unsupported Operating System: Linux Kernel (Debian/Kali)
+    is strictly required'
+  firewall: 'Firewall Engine Failure:'
+  tor: 'Tor Controller Failure:'
+  namespace: 'Kernel Namespace Error:'
+  hardware: 'Hardware MAC/Link Error:'
+  forensic: 'Anti-Forensic Purge Error:'
+  guard: 'Watchdog / KillSwitch Failure:'
+  command: 'Network Command Error:'
+  custom: 'General Failure:'

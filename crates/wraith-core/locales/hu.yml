@@ -1,0 +1,15 @@
+err:
+  io: 'I/O Hiba:'
+  json: 'Szerializációs hiba:'
+  permission_denied: 'Engedély megtagadva: Root jogosultság szükséges a kernel hálózat
+    kezeléséhez'
+  unsupported_platform: 'Nem támogatott operációs rendszer: Linux kernel (Debian/Kali)
+    szükséges'
+  firewall: 'Tűzfal motor hiba:'
+  tor: 'Tor vezérlő hiba:'
+  namespace: 'Kernel hálózati névtér hiba:'
+  hardware: 'Hardver MAC/kapcsolati hiba:'
+  forensic: 'Törvényszéki tisztítási hiba:'
+  guard: 'Őrszem / KillSwitch hiba:'
+  command: 'Hálózati parancs hiba:'
+  custom: 'Általános rendszerhiba:'

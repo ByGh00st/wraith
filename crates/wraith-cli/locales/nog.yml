@@ -1,0 +1,124 @@
+banner:
+  max_defense: ╭── [ 🛡️ WRAITH-PRIME // MAKSİMUM SAVUNMA DEVREDE ] ────────────────────────╮
+  telemetry: ╭── [ 🛡️ WRAITH-PRIME // ÇEKİRDEK TELEMETRİ VE GEÇİT ] ────────────────────╮
+  engine_spec: 'MOTOR ÖZELLİĞİ:'
+  engine_val_strict: WRAITH v1.2.0 (CYBERPUNK SIKI YÖNETİM MODU)
+  engine_val_normal: WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Geçidi)
+  target_host: 'HEDEF SUNUCU  :'
+  gate_status: 'GEÇİT DURUMU  :'
+  gate_val_strict: HATA-KAPALI (Tüm 16 Güvenlik Katmanı Aktif)
+  gate_val_normal: HATA-KAPALI (Çekirdek Düzeyi Çıkış Zorlaması)
+  title: WRAITH-PRIME // TÜRK DÜNYASI ÇEKİRDEK GÜVENLİK SİSTEMİ [NOG]
+tui:
+  header_strict: MAKSİMUM SAVUNMA TELEMETRİ EKRANI
+  header_normal: GERÇEK ZAMANLI TELEMETRİ EKRANI
+  pid: 'PID:'
+  armed_strict: TÜM KATMANLAR DEVREDE
+  armed_normal: 'HATA-KAPALI: DEVREDE'
+  identity_box: ┌── [ KİMLİK & ÇIKIŞ DÜĞÜMÜ ] ───────────────────────────────────────────────────────────┐
+  public_ip: 'Açık Çıkış IP''si    :'
+  tor_network: 'Tor Ağı             :'
+  hardware_mac: 'Donanım MAC Adresi  :'
+  machine_id: 'Makine Kimliği Mask :'
+  tcp_stack: 'TCP Yığını (p0f)    :'
+  exit_policy: 'Çıkış Düğümü Kuralı :'
+  defense_matrix: ┌── [ SAVUNMA MATRİSİ DURUM TABLOSU ] ────────────────────────────────────────────────────┐
+  def_netfilter: '[✓] Netfilter TransProxy : Hata-Kapalı Reddetme (Port 9040/5353)'
+  def_seccomp: '[✓] Seccomp-BPF Filtresi : Ring 0''da ptrace Engellendi (IDS için
+    raw soketler hariç)'
+  def_ebpf: '[✓] eBPF / TC Fastpath   : Qdisc clsact Sürücüsü Çıkış Reddetme Aktif'
+  def_lockdown: '[✓] Çekirdek Kilitleme   : Gizlilik Modu (/dev/mem & DMA Kalkanı)'
+  def_dns: '[✓] DNS Motoru           : QNAME Küçültülmüş + EDNS0 468B Dolgulu + Telemetri
+    Tuzağı'
+  def_tls: '[✓] JA3/JA4 TLS Kamuflaj : Google Chrome 131 / Win11 Profili + RFC 8701
+    GREASE'
+  def_ramfs: '[✓] RAMFS Kripto Kasası  : Bellek İçi ChaCha20-Poly1305 Şifreli (/dev/shm
+    Kilitli)'
+  def_ids: '[✓] Sıfır-Kopya IDS      : Gerçek Zamanlı L2/L3/L4 Sniffer & Çıkış Bekçisi
+    Aktif'
+  circuits_box: ┌── [ AKTİF TOR DEVRELERİ & RÖLE TOPOLOJİSİ ] ───────────────────────────────────────────┐
+  syncing: (Tor ControlPort ile devreler senkronize ediliyor...)
+  hotkeys: '[KISAYOLLAR] [Q] Çık & Eski Haline Getir | [N] Yeni Kimlik | [C] RAM Temizle
+    | [R] Yenile'
+  verified: ✓ DOĞRULANDI (TransProxy Aktif)
+  unverified: ✗ DOĞRULANMADI
+  static: Statik Donanım
+  rotated: ✓ Döndürüldü (Adli Bilişim Karşıtı DMI)
+  original: Orijinal
+  win_profile: ✓ Windows Profili (TTL=128, TS=0)
+  linux_std: Linux Standart
+  stealth: Gizli (Beş Göz Hariç)
+hud:
+  active_hud_strict: 🛡️ WRAITH-PRIME // MAKSİMUM SAVUNMA HUD
+  active_hud_normal: 🛡️ WRAITH-PRIME // AKTİF ANONİMLEŞTİRME HUD
+  op_status: OPERASYONEL DURUM VE METRİK
+  tor_exit: 🌐 Aktif Tor Çıkış Düğümü
+  sec_matrix: 🛡️ Güvenlik Matrisi
+  max_defense_val: ● MAKSİMUM SAVUNMA [16/16 DEVREDE] (eBPF + Seccomp + RAM Kasası)
+  std_defense_val: ● STANDART HATA-KAPALI [Tor Çıkışı Zorunlu]
+  killswitch: ⚡ Tor KillSwitch Geçidi
+  watchdog: ● Hata-Kapalı Asenkron Bekçi (<1ms Netfilter Düşürme)
+  rotate_policy: 🔄 Devre Döndürme Kuralı
+  auto_rotate: ● OTOMATİK-DÖNDÜRME (Her {}sn)
+  manual_rotate: ○ İSTEĞE BAĞLI MANUEL [Devre için 'R'ye basın]
+  dpi_sanitizer: 🔍 Canlı DPI Temizleyici
+  dpi_active: ● AKTİF (Saldırgan İmzalar Yeniden Yazılıyor)
+  keys: ┌── [ 🎮 İNTERAKTİF KLAVYE KONTROLLERİ ] ────────────────────────────────────────────────────────┐
+  k_rotate: '[R] Devreyi Döndür'
+  k_audit: '[T] Sızıntı Denetimi'
+  k_monitor: '[M] Açılır Monitör'
+  k_purge: '[C] RAM Temizle'
+  k_quit: '[Q] Temiz Bağlantı Kesme'
+status:
+  ok: ◈ [DEVREDE]
+  error: ✖ [ENGELLENDİ]
+  warn: ▲ [DENETİM]
+  info: ❯ [AŞAMA]
+commands:
+  cmd_step_0: Anti-hata ayıklama tuzağı devrede [AÇIK ONAYLI]
+  cmd_step_1: Donanım L2 MAC adresi rastgeleleştiriliyor...
+  cmd_step_2: Sansür atlatıcı obfs4 köprüleri yapılandırılıyor...
+  cmd_step_3: Optimize edilmiş torrc dosyası oluşturuluyor...
+  cmd_step_4: Tor yapılandırması devrede
+  cmd_step_5: Tor motoru başlatılıyor...
+  cmd_step_6: Tor motoru aktif & ControlPort (9051) üzerinde doğrulandı
+  cmd_step_7: Yerel Tor şeffaf DNS (transparent DNS) yapılandırılıyor...
+  cmd_step_8: DNS 127.0.0.1 adresine bağlandı (Tor Port 5353)
+  cmd_step_9: Hata-Kapalı (Fail-Closed) güvenlik duvarı kuralları zorlanıyor...
+  cmd_step_10: Tüm sistem TCP/DNS trafiği Tor ağına zorlandı
+  cmd_step_11: IPv6 çift yığınlı (dual-stack) saldırı yüzeyi yok ediliyor...
+  cmd_step_12: IPv6 çekirdek seviyesi düşürme (drop) devrede
+  cmd_step_13: STUN/TURN WebRTC sızıntı portları engelleniyor...
+  cmd_step_14: STUN/TURN portları engellendi
+  cmd_step_15: eBPF TC Egress Fastpath bağlandı
+  cmd_step_16: Sistem seviyesi font koruması (sandbox) aktif
+  cmd_step_17: cgroup2 ağ soketi hapishanesi aktif
+  cmd_step_18: İzole edilmiş Linux Ağ Alanı (Network Namespace) oluşturuluyor...
+  cmd_step_19: Süreç ağ alanı hapishanesi devrede (10.200.1.0/24)
+  cmd_step_20: Çıkış kimliği ve coğrafi konum doğrulanıyor...
+  cmd_step_21: Asenkron Hata-Kapalı (Fail-Closed) bekçisi devrede...
+  cmd_step_22: Açık ağ (clearnet) DNS çözücüleri kilitleri açılıyor ve geri yükleniyor...
+  cmd_step_23: DNS kilitleri açıldı ve açık ağa (clearnet) yönlendirildi
+  cmd_step_24: Netfilter güvenlik duvarı kuralları temizleniyor & varsayılan ACCEPT
+    ayarlarına dönülüyor...
+  cmd_step_25: Güvenlik duvarı varsayılan ACCEPT (kabul) durumuna sıfırlandı
+  cmd_step_26: Tor motoru sonlandırılıyor...
+  cmd_step_27: Tor motoru çevrimdışı
+  cmd_step_28: Donanım MAC adresi geri yükleniyor...
+  cmd_step_29: Donanım MAC adresi geri yüklendi
+  cmd_step_30: Cihaz adı (Hostname) geri yüklendi
+  cmd_step_31: Orijinal İşletim Sistemi makine kimliği (machine-id) geri yükleniyor...
+  cmd_step_32: Makine Kimliği (Machine-ID) geri yüklendi
+  cmd_step_33: Varsayılan TCP/IP yığın parametreleri geri yükleniyor...
+  cmd_step_34: TCP/IP yığını geri yüklendi
+  cmd_step_35: Ağ alanı (Network namespace) yıkılıyor...
+  cmd_step_36: Ağ alanı temizlendi
+  cmd_step_37: Donanım ve font kalkanı kaldırılıyor (eğer aktifse)...
+  cmd_step_38: Tarayıcı profilleri ve font yapılandırması geri alındı
+  cmd_step_39: Ağ arayüzleri ve bağlantı (carrier) yeniden onaylanıyor...
+  cmd_step_40: Ağ & DNS çözümlemesi güncelleme için hazırlanıyor...
+  cmd_step_41: Temiz depo kopyası (repository snapshot) başarıyla klonlandı
+  cmd_step_42: Sürüm dosyası (Release binary) derlemesi başarıyla tamamlandı
+  cmd_step_43: Derleme tamamlandı ancak hedef ikili dosya (binary) bulunamadı
+  cmd_step_44: Yeni Tor çıkış devresi isteniyor (SIGNAL NEWNYM)...
+  cmd_step_45: Çoklu vektör sızıntı doğrulama testi başlatılıyor...

@@ -1,0 +1,15 @@
+err:
+  io: 'Giriş/Çıkış Yanlışı (I/O):'
+  json: 'Seriyalaştırma Yanlışı:'
+  permission_denied: 'İzin Bozulması: Çekirdek ağ manipulațiyası için Root izinleri
+    lääzım'
+  unsupported_platform: 'Kable edilmeyän OS: Linux Çekirdeği (Debian/Kali) mutlak
+    lääzım'
+  firewall: 'Firewall Motoru Yanlışı:'
+  tor: 'Tor Kontrolcusu Yanlışı:'
+  namespace: 'Çekirdek Ağ Alanı Yanlışı:'
+  hardware: 'Aparatura MAC/Baalantı Yanlışı:'
+  forensic: 'Ekspertizaya Karşı Temizleme Yanlışı:'
+  guard: 'Bekçi (Watchdog) / KillSwitch Yanlışı:'
+  command: 'Ağ Komandası Yanlışı:'
+  custom: 'Genel Sistem Yanlışı:'

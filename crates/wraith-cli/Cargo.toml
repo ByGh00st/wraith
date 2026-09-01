@@ -30,3 +30,5 @@ serde_json.workspace = true
 nix.workspace = true
 crossterm.workspace = true
 libc.workspace = true
+rust-i18n = "4.2.1"
+sys-locale = "0.3.2"

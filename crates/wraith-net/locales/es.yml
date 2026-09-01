@@ -1,0 +1,18 @@
+net:
+  no_interface: No se descubrió ninguna interfaz de red adecuada
+  mac_extract_failed: No se pudo extraer la MAC de la interfaz
+  mac_verify_failed: ¡Discrepancia en la verificación MAC!
+  nftables_apply_failed: Fallo al aplicar el conjunto de reglas nftables
+  nftables_flush_failed: Fallo al vaciar las reglas nftables
+  ebpf_attach_failed: Fallo al adjuntar el filtro eBPF Fastpath
+  ebpf_detach_failed: Fallo al desasociar el filtro eBPF
+  tcp_mask_applied: 'Pila TCP/IP falsificada: TTL=128 (Windows), timestamps=0'
+  tcp_mask_restored: Pila TCP/IP restaurada a los parámetros de Linux
+  namespace_created: Espacio de nombres de red preparado (10.200.1.0/24)
+  namespace_destroyed: Espacio de nombres de red destruido y purgado
+  cgroup_jail_created: Aislamiento de socket cgroup2 creado
+  cgroup_jail_destroyed: Aislamiento de socket cgroup2 destruido
+  ipv6_blocked: Reglas de bloqueo IPv6 a nivel de kernel activadas
+  ipv6_unblocked: Reglas de bloqueo IPv6 eliminadas
+  stun_blocked: Puertos de fuga STUN/TURN WebRTC bloqueados
+  stun_unblocked: Puertos STUN/TURN WebRTC desbloqueados

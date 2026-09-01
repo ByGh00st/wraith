@@ -1,0 +1,2 @@
+log:
+  msg_0: PTRACE_TRACEME lieferte Wert ungleich Null (Seccomp BPF-Jail aktiv)

@@ -8,6 +8,7 @@ use owo_colors::OwoColorize;
 use wraith_core::state::StateData;
 use wraith_guard::LeakReport;
 use wraith_tor::TorTelemetry;
+use rust_i18n::t;
 
 pub const WRAITH_BANNER: &str = r#"
    ██╗    ██╗██████╗  █████╗ ██╗████████╗██╗  ██╗
@@ -35,18 +36,18 @@ pub fn print_banner(is_strict: bool) {
     if is_strict {
         println!("{}", WRAITH_BANNER.bold().bright_red());
         let target = detect_target_os();
-        println!("{}", "  ╭── [ 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE ARMED ] ───────────────────────╮".bright_red());
-        println!("  │  {} {}", "ENGINE SPEC :".dimmed(), "WRAITH v1.2.0 (CYBERPUNK STRICT MODE)".bold().bright_red());
-        println!("  │  {} {}", "TARGET HOST :".dimmed(), target.bold().bright_yellow());
-        println!("  │  {} {}", "GATE STATUS :".dimmed(), "FAIL-CLOSED (All 16 Security Layers Active)".bold().bright_red());
+        println!("{}", format!("{}", t!("banner.max_defense")).bright_red());
+        println!("  │  {} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_strict").bold().bright_red());
+        println!("  │  {} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow());
+        println!("  │  {} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_strict").bold().bright_red());
         println!("{}", "  ╰──────────────────────────────────────────────────────────────────────────╯\n".bright_red());
     } else {
         println!("{}", WRAITH_BANNER.bold().bright_purple());
         let target = detect_target_os();
-        println!("  ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮");
-        println!("  │  {} {}", "ENGINE SPEC :".dimmed(), "WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)".bold().bright_cyan());
-        println!("  │  {} {}", "TARGET HOST :".dimmed(), target.bold().bright_yellow());
-        println!("  │  {} {}", "GATE STATUS :".dimmed(), "FAIL-CLOSED (Kernel-Level Egress Enforcement)".bold().bright_green());
+        println!("{}", t!("banner.telemetry"));
+        println!("  │  {} {}", t!("banner.engine_spec").dimmed(), t!("banner.engine_val_normal").bold().bright_cyan());
+        println!("  │  {} {}", t!("banner.target_host").dimmed(), target.bold().bright_yellow());
+        println!("  │  {} {}", t!("banner.gate_status").dimmed(), t!("banner.gate_val_normal").bold().bright_green());
         println!("  ╰──────────────────────────────────────────────────────────────────────────╯\n");
     }
 }
@@ -70,13 +71,13 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
 
     if is_strict {
         table.set_header(vec![
-            Cell::new("🛡️ WRAITH-PRIME // MAXIMUM DEFENSE HUD").fg(Color::Red).add_attribute(Attribute::Bold),
-            Cell::new("OPERATIONAL STATUS & METRIC").fg(Color::Red).add_attribute(Attribute::Bold),
+            Cell::new(t!("hud.active_hud_strict")).fg(Color::Red).add_attribute(Attribute::Bold),
+            Cell::new(t!("hud.op_status")).fg(Color::Red).add_attribute(Attribute::Bold),
         ]);
     } else {
         table.set_header(vec![
-            Cell::new("🛡️ WRAITH-PRIME // ACTIVE ANONYMIZATION HUD").fg(Color::Cyan).add_attribute(Attribute::Bold),
-            Cell::new("OPERATIONAL STATUS & METRIC").fg(Color::Cyan).add_attribute(Attribute::Bold),
+            Cell::new(t!("hud.active_hud_normal")).fg(Color::Cyan).add_attribute(Attribute::Bold),
+            Cell::new(t!("hud.op_status")).fg(Color::Cyan).add_attribute(Attribute::Bold),
         ]);
     }
 
@@ -89,49 +90,49 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
     };
 
     table.add_row(vec![
-        Cell::new("🌐 Active Tor Exit Node").fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("hud.tor_exit")).fg(Color::Yellow).add_attribute(Attribute::Bold),
         Cell::new(loc_details).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     let mode_str = if is_strict {
-        "● MAXIMUM DEFENSE [16/16 ARMED] (eBPF + Seccomp + RAM Vault)"
+        t!("hud.max_defense_val")
     } else {
-        "● STANDARD FAIL-CLOSED [Tor Egress Enforced]"
+        t!("hud.std_defense_val")
     };
     table.add_row(vec![
-        Cell::new("🛡️ Security Matrix"),
+        Cell::new(t!("hud.sec_matrix")),
         Cell::new(mode_str).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new("⚡ Tor KillSwitch Gate"),
-        Cell::new("● Fail-Closed Async Watchdog (<1ms Netfilter Drop)").fg(Color::Green),
+        Cell::new(t!("hud.killswitch")),
+        Cell::new(t!("hud.watchdog")).fg(Color::Green),
     ]);
 
     let rotate_str = if let Some(sec) = interval {
-        format!("● AUTO-ROTATING (Every {sec}s)")
+        t!("hud.auto_rotate").replace("{}", &sec.to_string())
     } else {
-        "○ MANUAL ON-DEMAND [Press 'R']".to_string()
+        t!("hud.manual_rotate").into_owned()
     };
     table.add_row(vec![
-        Cell::new("🔄 Circuit Rotation Policy"),
+        Cell::new(t!("hud.rotate_policy")),
         Cell::new(rotate_str).fg(Color::Magenta),
     ]);
 
     table.add_row(vec![
-        Cell::new("🔍 In-Flight DPI Sanitizer"),
-        Cell::new("● ACTIVE (Rewriting Offensive Signatures)").fg(Color::Cyan),
+        Cell::new(t!("hud.dpi_sanitizer")),
+        Cell::new(t!("hud.dpi_active")).fg(Color::Cyan),
     ]);
 
     println!("\n{table}");
 
-    println!("  ┌── [ 🎮 INTERACTIVE KEYBOARD CONTROLS ] ────────────────────────────────────────────────────────┐");
+    println!("{}", t!("hud.keys"));
     println!("  │  {} │ {} │ {} │ {} │ {}  │", 
-        "[R] Rotate Circuit".bold().bright_cyan(),
-        "[T] Leak Audit".bold().bright_green(),
-        "[M] Pop-up Monitor".bold().bright_purple(),
-        "[C] RAM Purge".bold().bright_yellow(),
-        "[Q] Clean Disconnect".bold().bright_red()
+        t!("hud.k_rotate").bold().bright_cyan(),
+        t!("hud.k_audit").bold().bright_green(),
+        t!("hud.k_monitor").bold().bright_purple(),
+        t!("hud.k_purge").bold().bright_yellow(),
+        t!("hud.k_quit").bold().bright_red()
     );
     println!("  └────────────────────────────────────────────────────────────────────────────────────────────────┘\n");
 }

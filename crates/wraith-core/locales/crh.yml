@@ -1,0 +1,14 @@
+err:
+  io: 'Kiriş/Çıqış Hatası (I/O):'
+  json: 'Serializatsiya Hatası:'
+  permission_denied: 'Yetki Bozuluvı: Çekirdek ağ manipulyatsiyası içün Root yetkileri
+    kerek'
+  unsupported_platform: 'Desteklenmegen OS: Linux Çekirdegi (Debian/Kali) şarttır'
+  firewall: 'Firewall Motorı Hatası:'
+  tor: 'Tor Kontrolleri Hatası:'
+  namespace: 'Çekirdek Ağ Alanı Hatası:'
+  hardware: 'Donanım MAC/Bağlantı Hatası:'
+  forensic: 'Ekspertizaga Qarşı Temizlev Hatası:'
+  guard: 'Bekçi (Watchdog) / KillSwitch Hatası:'
+  command: 'Ağ Emri Hatası:'
+  custom: 'Umumiy Sistem Hatası:'

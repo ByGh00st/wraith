@@ -1,0 +1,5 @@
+log:
+  msg_0: As pontes obfs4 integradas são públicas e podem degradar. Configure pontes
+    personalizadas via BridgeDB.
+  msg_1: Tor ControlPort inacessível ao aplicar o perfil; torrc gravado mas o daemon
+    não foi notificado

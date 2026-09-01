@@ -1,0 +1,3 @@
+log:
+  msg_0: PTRACE_TRACEME devolvió un valor distinto de cero (aislamiento Seccomp BPF
+    activo)

@@ -1,0 +1,11 @@
+guard:
+  killswitch_armed: Hata-Kapalı (Fail-Closed) KillSwitch bekçisi çıkış trafiğini izliyor
+  killswitch_triggered: Trafik sızıntısı algılandı! KillSwitch hata-kapalı ağ engellemesini
+    tetikledi
+  seccomp_jail_active: 'Seccomp-BPF Sistem Çağrısı Filtresi devrede: Ham soketler
+    anında SIGSYS tetikler'
+  dns_engine_started: Sovereign DNS Motoru 127.0.0.1:53 üzerinde EDNS0 dolgusu ile
+    devrede
+  jitter_engine_started: Sentetik trafik dolgusu (Poisson jitter) devrede
+  leak_test_passed: Çoklu vektör sızıntı denetimi 0 sızıntı ile tamamlandı
+  leak_test_failed: Denetim sırasında kritik ağ sızıntısı tespit edildi

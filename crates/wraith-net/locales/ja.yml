@@ -1,0 +1,18 @@
+net:
+  no_interface: 適切なネットワークインターフェースが見つかりません
+  mac_extract_failed: MACアドレスの抽出に失敗しました
+  mac_verify_failed: MACアドレス検証の不一致が検出されました！
+  nftables_apply_failed: nftablesルールセットの適用に失敗しました
+  nftables_flush_failed: nftablesルールのフラッシュに失敗しました
+  ebpf_attach_failed: eBPF Fastpathフィルターのアタッチに失敗しました
+  ebpf_detach_failed: eBPFフィルターのデタッチに失敗しました
+  tcp_mask_applied: 'TCP/IPスタック偽装: TTL=128 (Windows), timestamps=0'
+  tcp_mask_restored: TCP/IPスタックをデフォルトのLinux設定に復元しました
+  namespace_created: ネットワーク名前空間が有効化されました (10.200.1.0/24)
+  namespace_destroyed: ネットワーク名前空間が破棄されパージされました
+  cgroup_jail_created: cgroup2ネットワークソケットJailが作成されました
+  cgroup_jail_destroyed: cgroup2ネットワークソケットJailが破棄されました
+  ipv6_blocked: カーネルレベルのIPv6ドロップルールが有効化されました
+  ipv6_unblocked: IPv6ドロップルールがフラッシュされました
+  stun_blocked: STUN/TURN WebRTCリークポートがブロックされました
+  stun_unblocked: STUN/TURNポートのブロックが解除されました

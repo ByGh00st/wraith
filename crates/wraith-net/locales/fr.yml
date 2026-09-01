@@ -1,0 +1,18 @@
+net:
+  no_interface: Aucune interface réseau appropriée détectée
+  mac_extract_failed: Impossible d'extraire l'adresse MAC
+  mac_verify_failed: Incohérence lors de la vérification MAC !
+  nftables_apply_failed: Échec de l'application du jeu de règles nftables
+  nftables_flush_failed: Échec du nettoyage des règles nftables
+  ebpf_attach_failed: Échec de l'attachement du filtre eBPF Fastpath
+  ebpf_detach_failed: Échec du détachement du filtre eBPF
+  tcp_mask_applied: 'Pile TCP/IP forgée : TTL=128 (Windows), timestamps=0'
+  tcp_mask_restored: Pile TCP/IP restaurée aux paramètres Linux par défaut
+  namespace_created: Espace de noms réseau armé (10.200.1.0/24)
+  namespace_destroyed: Espace de noms réseau détruit et purgé
+  cgroup_jail_created: Prison de sockets réseau cgroup2 créée
+  cgroup_jail_destroyed: Prison de sockets réseau cgroup2 détruite
+  ipv6_blocked: Règles de rejet IPv6 au niveau noyau armées
+  ipv6_unblocked: Règles de rejet IPv6 supprimées
+  stun_blocked: Ports de fuite WebRTC STUN/TURN bloqués
+  stun_unblocked: Ports WebRTC STUN/TURN débloqués

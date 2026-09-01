@@ -1,0 +1,13 @@
+err:
+  io: 'I/O 输入输出错误:'
+  json: 'JSON 序列化错误:'
+  permission_denied: '权限不足: 内核网络操作必须具有 root 权限'
+  unsupported_platform: '不支持的操作系统: 必须使用 Linux 内核 (Debian/Kali)'
+  firewall: '防火墙引擎故障:'
+  tor: 'Tor 控制器故障:'
+  namespace: '内核网络命名空间错误:'
+  hardware: '硬件 MAC/链路错误:'
+  forensic: '反取证清除错误:'
+  guard: '看门狗 / KillSwitch 故障:'
+  command: '网络命令错误:'
+  custom: '常规系统故障:'
