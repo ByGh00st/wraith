@@ -1,187 +1,200 @@
 banner:
-  max_defense: "╭── [ 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE ARMED ] ───────────────────────╮"
-  telemetry: "╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮"
-  engine_spec: "ENGINE SPEC :"
-  engine_val_strict: "WRAITH v1.2.0 (CYBERPUNK STRICT MODE)"
-  engine_val_normal: "WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)"
-  target_host: "TARGET HOST :"
-  gate_status: "GATE STATUS :"
-  gate_val_strict: "FAIL-CLOSED (All 16 Security Layers Active)"
-  gate_val_normal: "FAIL-CLOSED (Kernel-Level Egress Enforcement)"
-
+  max_defense: ╭── [ 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE ARMED ] ───────────────────────╮
+  telemetry: ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮
+  engine_spec: 'ENGINE SPEC :'
+  engine_val_strict: WRAITH v1.2.0 (CYBERPUNK STRICT MODE)
+  engine_val_normal: WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)
+  target_host: 'TARGET HOST :'
+  gate_status: 'GATE STATUS :'
+  gate_val_strict: FAIL-CLOSED (All 16 Security Layers Active)
+  gate_val_normal: FAIL-CLOSED (Kernel-Level Egress Enforcement)
 tui:
-  header_strict: "MAXIMUM DEFENSE TELEMETRY HUD"
-  header_normal: "REAL-TIME TELEMETRY DASHBOARD"
-  pid: "PID:"
-  armed_strict: "ALL LAYERS ARMED"
-  armed_normal: "FAIL-CLOSED: ARMED"
-  identity_box: "┌── [ IDENTITY & EXIT NODE ] ────────────────────────────────────────────────────────────┐"
-  public_ip: "Public Exit IP      :"
-  tor_network: "Tor Network         :"
-  hardware_mac: "Hardware MAC        :"
-  machine_id: "Machine-ID Mask     :"
-  tcp_stack: "TCP Stack (p0f)     :"
-  exit_policy: "Exit Node Policy    :"
-  defense_matrix: "┌── [ DEFENSE MATRIX STATUS GRID ] ───────────────────────────────────────────────────────┐"
-  def_netfilter: "[✓] Netfilter TransProxy : Fail-Closed Drop (Port 9040/5353)"
-  def_seccomp: "[✓] Seccomp-BPF Filter   : ptrace Blocked @ Ring 0 (raw sockets exempt for IDS engine)"
-  def_ebpf: "[✓] eBPF / TC Fastpath   : Qdisc clsact Driver Egress Drop Active"
-  def_lockdown: "[✓] Kernel Lockdown      : Confidentiality Mode (/dev/mem & DMA Shield)"
-  def_dns: "[✓] DNS Engine           : QNAME Minimized + EDNS0 468B Padded + Telemetry Sinkhole"
-  def_tls: "[✓] JA3/JA4 TLS Camo     : Google Chrome 131 / Win11 Profile + RFC 8701 GREASE"
-  def_ramfs: "[✓] RAMFS Crypto Vault   : In-Memory ChaCha20-Poly1305 Encrypted (/dev/shm Locked)"
-  def_ids: "[✓] Zero-Copy IDS        : Real-Time L2/L3/L4 Sniffer & Egress Watchdog Active"
-  circuits_box: "┌── [ ACTIVE TOR CIRCUITS & RELAY TOPOLOGY ] ────────────────────────────────────────────┐"
-  syncing: "(Synchronizing circuits with Tor ControlPort...)"
-  hotkeys: "[HOTKEYS] [Q] Quit & Restore | [N] Newnym Identity | [C] RAM Cache Flush | [R] Refresh"
-  verified: "✓ VERIFIED (TransProxy Active)"
-  unverified: "✗ UNVERIFIED"
-  static: "Hardware Static"
-  rotated: "✓ Rotated (Anti-Forensic DMI)"
-  original: "Original"
-  win_profile: "✓ Windows Profile (TTL=128, TS=0)"
-  linux_std: "Linux Standard"
-  stealth: "Stealth (Five Eyes Excluded)"
-
+  header_strict: MAXIMUM DEFENSE TELEMETRY HUD
+  header_normal: REAL-TIME TELEMETRY DASHBOARD
+  pid: 'PID:'
+  armed_strict: ALL LAYERS ARMED
+  armed_normal: 'FAIL-CLOSED: ARMED'
+  identity_box: ┌── [ IDENTITY & EXIT NODE ] ────────────────────────────────────────────────────────────┐
+  public_ip: 'Public Exit IP      :'
+  tor_network: 'Tor Network         :'
+  hardware_mac: 'Hardware MAC        :'
+  machine_id: 'Machine-ID Mask     :'
+  tcp_stack: 'TCP Stack (p0f)     :'
+  exit_policy: 'Exit Node Policy    :'
+  defense_matrix: ┌── [ DEFENSE MATRIX STATUS GRID ] ───────────────────────────────────────────────────────┐
+  def_netfilter: '[✓] Netfilter TransProxy : Fail-Closed Drop (Port 9040/5353)'
+  def_seccomp: '[✓] Seccomp-BPF Filter   : ptrace Blocked @ Ring 0 (raw sockets exempt
+    for IDS engine)'
+  def_ebpf: '[✓] eBPF / TC Fastpath   : Qdisc clsact Driver Egress Drop Active'
+  def_lockdown: '[✓] Kernel Lockdown      : Confidentiality Mode (/dev/mem & DMA Shield)'
+  def_dns: '[✓] DNS Engine           : QNAME Minimized + EDNS0 468B Padded + Telemetry
+    Sinkhole'
+  def_tls: '[✓] JA3/JA4 TLS Camo     : Google Chrome 131 / Win11 Profile + RFC 8701
+    GREASE'
+  def_ramfs: '[✓] RAMFS Crypto Vault   : In-Memory ChaCha20-Poly1305 Encrypted (/dev/shm
+    Locked)'
+  def_ids: '[✓] Zero-Copy IDS        : Real-Time L2/L3/L4 Sniffer & Egress Watchdog
+    Active'
+  circuits_box: ┌── [ ACTIVE TOR CIRCUITS & RELAY TOPOLOGY ] ────────────────────────────────────────────┐
+  syncing: (Synchronizing circuits with Tor ControlPort...)
+  hotkeys: '[HOTKEYS] [Q] Quit & Restore | [N] Newnym Identity | [C] RAM Cache Flush
+    | [R] Refresh'
+  verified: ✓ VERIFIED (TransProxy Active)
+  unverified: ✗ UNVERIFIED
+  static: Hardware Static
+  rotated: ✓ Rotated (Anti-Forensic DMI)
+  original: Original
+  win_profile: ✓ Windows Profile (TTL=128, TS=0)
+  linux_std: Linux Standard
+  stealth: Stealth (Five Eyes Excluded)
 hud:
-  active_hud_strict: "🛡️ WRAITH-PRIME // MAXIMUM DEFENSE HUD"
-  active_hud_normal: "🛡️ WRAITH-PRIME // ACTIVE ANONYMIZATION HUD"
-  op_status: "OPERATIONAL STATUS & METRIC"
-  tor_exit: "🌐 Active Tor Exit Node"
-  sec_matrix: "🛡️ Security Matrix"
-  max_defense_val: "● MAXIMUM DEFENSE [16/16 ARMED] (eBPF + Seccomp + RAM Vault)"
-  std_defense_val: "● STANDARD FAIL-CLOSED [Tor Egress Enforced]"
-  killswitch: "⚡ Tor KillSwitch Gate"
-  watchdog: "● Fail-Closed Async Watchdog (<1ms Netfilter Drop)"
-  rotate_policy: "🔄 Circuit Rotation Policy"
-  auto_rotate: "● AUTO-ROTATING (Every {}s)"
-  manual_rotate: "○ MANUAL ON-DEMAND [Press 'R']"
-  dpi_sanitizer: "🔍 In-Flight DPI Sanitizer"
-  dpi_active: "● ACTIVE (Rewriting Offensive Signatures)"
-  keys: "┌── [ 🎮 INTERACTIVE KEYBOARD CONTROLS ] ────────────────────────────────────────────────────────┐"
-  k_rotate: "[R] Rotate Circuit"
-  k_audit: "[T] Leak Audit"
-  k_monitor: "[M] Pop-up Monitor"
-  k_purge: "[C] RAM Purge"
-  k_quit: "[Q] Clean Disconnect"
-
+  active_hud_strict: 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE HUD
+  active_hud_normal: 🛡️ WRAITH-PRIME // ACTIVE ANONYMIZATION HUD
+  op_status: OPERATIONAL STATUS & METRIC
+  tor_exit: 🌐 Active Tor Exit Node
+  sec_matrix: 🛡️ Security Matrix
+  max_defense_val: ● MAXIMUM DEFENSE [16/16 ARMED] (eBPF + Seccomp + RAM Vault)
+  std_defense_val: ● STANDARD FAIL-CLOSED [Tor Egress Enforced]
+  killswitch: ⚡ Tor KillSwitch Gate
+  watchdog: ● Fail-Closed Async Watchdog (<1ms Netfilter Drop)
+  rotate_policy: 🔄 Circuit Rotation Policy
+  auto_rotate: ● AUTO-ROTATING (Every {}s)
+  manual_rotate: ○ MANUAL ON-DEMAND [Press 'R']
+  dpi_sanitizer: 🔍 In-Flight DPI Sanitizer
+  dpi_active: ● ACTIVE (Rewriting Offensive Signatures)
+  keys: ┌── [ 🎮 INTERACTIVE KEYBOARD CONTROLS ] ────────────────────────────────────────────────────────┐
+  k_rotate: '[R] Rotate Circuit'
+  k_audit: '[T] Leak Audit'
+  k_monitor: '[M] Pop-up Monitor'
+  k_purge: '[C] RAM Purge'
+  k_quit: '[Q] Clean Disconnect'
 status:
-  ok: "◈ [ARMED]"
-  error: "✖ [BLOCKED]"
-  warn: "▲ [AUDIT]"
-  info: "❯ [STAGE]"
+  ok: ◈ [ARMED]
+  error: ✖ [BLOCKED]
+  warn: ▲ [AUDIT]
+  info: ❯ [STAGE]
 commands:
-  cmd_step_0: "Anti-debug trap armed [EXPLICIT OPT-IN]"
-  cmd_step_1: "Randomizing hardware L2 MAC address..."
-  cmd_step_2: "Configuring censorship-resistant obfs4 bridges..."
-  cmd_step_3: "Generating optimized torrc..."
-  cmd_step_4: "Tor configuration armed"
-  cmd_step_5: "Bootstrapping Tor daemon..."
-  cmd_step_6: "Tor daemon active & verified on ControlPort (9051)"
-  cmd_step_7: "Configuring local Tor transparent DNS..."
-  cmd_step_8: "DNS bound to 127.0.0.1 (Tor Port 5353)"
-  cmd_step_9: "Enforcing Fail-Closed firewall rules..."
-  cmd_step_10: "All system TCP/DNS forced into Tor"
-  cmd_step_11: "Eliminating IPv6 dual-stack attack surface..."
-  cmd_step_12: "IPv6 kernel-level drop armed"
-  cmd_step_13: "Blocking STUN/TURN WebRTC leak ports..."
-  cmd_step_14: "STUN/TURN ports blocked"
-  cmd_step_15: "eBPF TC Egress Fastpath attached"
-  cmd_step_16: "System-level font sandbox active"
-  cmd_step_17: "cgroup2 network socket jail active"
-  cmd_step_18: "Creating isolated Linux Network Namespace..."
-  cmd_step_19: "Process namespace jail armed (10.200.1.0/24)"
-  cmd_step_20: "Verifying exit identity & geographic location..."
-  cmd_step_21: "Arming async Fail-Closed watchdog..."
-  cmd_step_22: "Unlocking and restoring clearnet DNS resolvers..."
-  cmd_step_23: "DNS unlocked and redirected to clearnet"
-  cmd_step_24: "Flushing netfilter firewall rules & restoring default ACCEPT..."
-  cmd_step_25: "Firewall reset to default ACCEPT"
-  cmd_step_26: "Terminating Tor daemon..."
-  cmd_step_27: "Tor daemon offline"
-  cmd_step_28: "Restoring hardware MAC address..."
-  cmd_step_29: "Hardware MAC restored"
-  cmd_step_30: "Hostname restored"
-  cmd_step_31: "Restoring original OS machine-id..."
-  cmd_step_32: "Machine-ID restored"
-  cmd_step_33: "Restoring default TCP/IP stack parameters..."
-  cmd_step_34: "TCP/IP stack restored"
-  cmd_step_35: "Demolishing network namespace..."
-  cmd_step_36: "Namespace purged"
-  cmd_step_37: "Removing hardware and font shield (if active)..."
-  cmd_step_38: "Browser profiles and font config reverted"
-  cmd_step_39: "Re-asserting network interfaces and carrier..."
-  cmd_step_40: "Preparing network & DNS resolution for update..."
-  cmd_step_41: "Fresh repository snapshot cloned successfully"
-  cmd_step_42: "Release binary successfully compiled and hot-swapped!"
-  cmd_step_43: "Compilation finished but target binary was not found"
-  cmd_step_44: "Requesting new Tor exit circuit (SIGNAL NEWNYM)..."
-  cmd_step_45: "Running multi-vector leak verification suite..."
+  cmd_step_0: Anti-debug trap armed [EXPLICIT OPT-IN]
+  cmd_step_1: Randomizing hardware L2 MAC address...
+  cmd_step_2: Configuring censorship-resistant obfs4 bridges...
+  cmd_step_3: Generating optimized torrc...
+  cmd_step_4: Tor configuration armed
+  cmd_step_5: Bootstrapping Tor daemon...
+  cmd_step_6: Tor daemon active & verified on ControlPort (9051)
+  cmd_step_7: Configuring local Tor transparent DNS...
+  cmd_step_8: DNS bound to 127.0.0.1 (Tor Port 5353)
+  cmd_step_9: Enforcing Fail-Closed firewall rules...
+  cmd_step_10: All system TCP/DNS forced into Tor
+  cmd_step_11: Eliminating IPv6 dual-stack attack surface...
+  cmd_step_12: IPv6 kernel-level drop armed
+  cmd_step_13: Blocking STUN/TURN WebRTC leak ports...
+  cmd_step_14: STUN/TURN ports blocked
+  cmd_step_15: eBPF TC Egress Fastpath attached
+  cmd_step_16: System-level font sandbox active
+  cmd_step_17: cgroup2 network socket jail active
+  cmd_step_18: Creating isolated Linux Network Namespace...
+  cmd_step_19: Process namespace jail armed (10.200.1.0/24)
+  cmd_step_20: Verifying exit identity & geographic location...
+  cmd_step_21: Arming async Fail-Closed watchdog...
+  cmd_step_22: Unlocking and restoring clearnet DNS resolvers...
+  cmd_step_23: DNS unlocked and redirected to clearnet
+  cmd_step_24: Flushing netfilter firewall rules & restoring default ACCEPT...
+  cmd_step_25: Firewall reset to default ACCEPT
+  cmd_step_26: Terminating Tor daemon...
+  cmd_step_27: Tor daemon offline
+  cmd_step_28: Restoring hardware MAC address...
+  cmd_step_29: Hardware MAC restored
+  cmd_step_30: Hostname restored
+  cmd_step_31: Restoring original OS machine-id...
+  cmd_step_32: Machine-ID restored
+  cmd_step_33: Restoring default TCP/IP stack parameters...
+  cmd_step_34: TCP/IP stack restored
+  cmd_step_35: Demolishing network namespace...
+  cmd_step_36: Namespace purged
+  cmd_step_37: Removing hardware and font shield (if active)...
+  cmd_step_38: Browser profiles and font config reverted
+  cmd_step_39: Re-asserting network interfaces and carrier...
+  cmd_step_40: Preparing network & DNS resolution for update...
+  cmd_step_41: Fresh repository snapshot cloned successfully
+  cmd_step_42: Release binary successfully compiled and hot-swapped!
+  cmd_step_43: Compilation finished but target binary was not found
+  cmd_step_44: Requesting new Tor exit circuit (SIGNAL NEWNYM)...
+  cmd_step_45: Running multi-vector leak verification suite...
 help:
-  desc: "Wraith establishes fail-closed Tor transparent proxying with netfilter enforcement, TCP/IP stack normalization, hardware identifier rotation, and browser fingerprint sandboxing."
-  usage: "Usage: wraith [SHORTCUTS | OPTIONS] [COMMAND]"
-  shortcuts_header: "Quick Operational Shortcuts:"
-  commands_header: "Available Subcommands:"
-  cmd_start: "Start Wraith network anonymization & kernel protection"
-  cmd_stop: "Stop Wraith and restore normal network"
-  cmd_switch: "Request new Tor exit identity (Newnym)"
-  cmd_test: "Run comprehensive DNS, WebRTC, and IPv6 leak tests"
-  cmd_info: "Display telemetry dashboard and active circuits"
-  cmd_dashboard: "Launch interactive terminal telemetry dashboard (TUI)"
-  cmd_doctor: "Run deep multi-tier kernel diagnostics auditor"
-  cmd_benchmark: "Run high-performance cryptographic and kernel benchmarks"
-  cmd_cleanup: "Perform anti-forensic RAM and state purge"
-  cmd_cleanup_full: "Thorough anti-forensic purge (wipes RAM, swap, and system auth logs)"
-  cmd_mac: "Randomize network interface MAC address and hostname"
-  cmd_profile: "Apply geographic Tor exit node profile"
-  cmd_pentest: "Display offensive security & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)"
-  cmd_update: "Fetch latest upstream updates and recompile binary in-place"
-  cmd_shred: "Securely shred and overwrite a file using DoD 5220.22-M 7-pass standard"
-  cmd_monitor: "Launch real-time dedicated DPI & IDS live interceptor monitor"
-  
-  sec_net_header: "Network Isolation & Tunneling Options:"
-  opt_mac: "Randomize network interface L2 MAC address and hostname"
-  opt_bridge: "Route traffic through censorship-resistant obfs4 Tor bridges"
-  opt_namespace: "Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)"
-  opt_profile: "Enforce geographic Tor exit node profile (stealth, speed, research, darkweb)"
-  opt_jitter: "Inject synthetic traffic cells & Poisson timing jitter to resist traffic flow correlation"
-  opt_rotate: "Automatically rotate Tor exit node identity every N seconds (e.g. --rotate 60)"
-  opt_no_ks: "Disable the Fail-Closed KillSwitch watchdog monitor"
-  opt_wg: "Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP bypass)"
-  opt_spawn_monitor: "Automatically spawn a dedicated real-time DPI & IDS monitor terminal window on startup"
-
-  sec_harden_header: "System Hardening & Anti-Fingerprinting:"
-  opt_browser_shield: "Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint profiles into browsers"
-  opt_font_sandbox: "Restrict OS-level font discovery via Fontconfig sandbox"
-  opt_tcp_mask: "Normalize TCP/IP L4 stack parameters (TTL=128, timestamps=0) to resist OS fingerprinting"
-  opt_machine_id: "Rotate unique OS /etc/machine-id and system hardware identifiers"
-  opt_full_security: "Engage ALL 16 defense layers: GPU/Font Shield, MAC, Machine-ID, TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault"
-
-  sec_forensic_header: "High-Risk & Forensic Operations:"
-  opt_wipe_logs: "⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs, and user shell history files"
-  opt_self_destruct: "⚠ IRREVERSIBLE: Cryptographically shred binary from disk and wipe memory artifacts on exit (SIGINT)"
-  opt_masquerade: "⚠ EVASIVE: Spoof process name in Linux kernel scheduler as kernel worker thread ([kworker/u16:0])"
-  opt_anti_debug: "⚠ EMERGENCY ABORT: Enforce anti-debugging probe; immediately triggers SIGKILL if attached to a debugger"
-
-  sec_general_header: "General Options:"
-  opt_verbose: "Enable verbose debug logging"
-  opt_lang: "Override system language (e.g. 'en', 'tr', 'ru', 'de')"
-  opt_select_lang: "Launch interactive 65-language configuration terminal menu"
-  opt_help: "Print this help screen"
-  opt_version: "Print version"
-
-  examples_header: "Operational Usage Scenarios:"
-
+  desc: Wraith establishes fail-closed Tor transparent proxying with netfilter enforcement,
+    TCP/IP stack normalization, hardware identifier rotation, and browser fingerprint
+    sandboxing.
+  usage: 'Usage: wraith [SHORTCUTS | OPTIONS] [COMMAND]'
+  shortcuts_header: 'Quick Operational Shortcuts:'
+  commands_header: 'Available Subcommands:'
+  cmd_start: Start Wraith network anonymization & kernel protection
+  cmd_stop: Stop Wraith and restore normal network
+  cmd_switch: Request new Tor exit identity (Newnym)
+  cmd_test: Run comprehensive DNS, WebRTC, and IPv6 leak tests
+  cmd_info: Display telemetry dashboard and active circuits
+  cmd_dashboard: Launch interactive terminal telemetry dashboard (TUI)
+  cmd_doctor: Run deep multi-tier kernel diagnostics auditor
+  cmd_benchmark: Run high-performance cryptographic and kernel benchmarks
+  cmd_cleanup: Perform anti-forensic RAM and state purge
+  cmd_cleanup_full: Thorough anti-forensic purge (wipes RAM, swap, and system auth
+    logs)
+  cmd_mac: Randomize network interface MAC address and hostname
+  cmd_profile: Apply geographic Tor exit node profile
+  cmd_pentest: Display offensive security & pentest tool sanitization guide (Nmap,
+    Sqlmap, Ffuf)
+  cmd_update: Fetch latest upstream updates and recompile binary in-place
+  cmd_shred: Securely shred and overwrite a file using DoD 5220.22-M 7-pass standard
+  cmd_monitor: Launch real-time dedicated DPI & IDS live interceptor monitor
+  sec_net_header: 'Network Isolation & Tunneling Options:'
+  opt_mac: Randomize network interface L2 MAC address and hostname
+  opt_bridge: Route traffic through censorship-resistant obfs4 Tor bridges
+  opt_namespace: Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)
+  opt_profile: Enforce geographic Tor exit node profile (stealth, speed, research,
+    darkweb)
+  opt_jitter: Inject synthetic traffic cells & Poisson timing jitter to resist traffic
+    flow correlation
+  opt_rotate: Automatically rotate Tor exit node identity every N seconds (e.g. --rotate
+    60)
+  opt_no_ks: Disable the Fail-Closed KillSwitch watchdog monitor
+  opt_wg: Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP
+    bypass)
+  opt_spawn_monitor: Automatically spawn a dedicated real-time DPI & IDS monitor terminal
+    window on startup
+  sec_harden_header: 'System Hardening & Anti-Fingerprinting:'
+  opt_browser_shield: Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint
+    profiles into browsers
+  opt_font_sandbox: Restrict OS-level font discovery via Fontconfig sandbox
+  opt_tcp_mask: Normalize TCP/IP L4 stack parameters (TTL=128, timestamps=0) to resist
+    OS fingerprinting
+  opt_machine_id: Rotate unique OS /etc/machine-id and system hardware identifiers
+  opt_full_security: 'Engage ALL 16 defense layers: GPU/Font Shield, MAC, Machine-ID,
+    TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault'
+  sec_forensic_header: 'High-Risk & Forensic Operations:'
+  opt_wipe_logs: '⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs,
+    and user shell history files'
+  opt_self_destruct: '⚠ IRREVERSIBLE: Cryptographically shred binary from disk and
+    wipe memory artifacts on exit (SIGINT)'
+  opt_masquerade: '⚠ EVASIVE: Spoof process name in Linux kernel scheduler as kernel
+    worker thread ([kworker/u16:0])'
+  opt_anti_debug: '⚠ EMERGENCY ABORT: Enforce anti-debugging probe; immediately triggers
+    SIGKILL if attached to a debugger'
+  sec_general_header: 'General Options:'
+  opt_verbose: Enable verbose debug logging
+  opt_lang: Override system language (e.g. 'en', 'tr', 'ru', 'de')
+  opt_select_lang: Launch interactive 65-language configuration terminal menu
+  opt_help: Print this help screen
+  opt_version: Print version
+  examples_header: 'Operational Usage Scenarios:'
 runtime:
-  emergency_abort_title: "┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐"
-  emergency_abort_desc:  "│  Startup interrupted. Restoring full system network & security...         │"
-  emergency_abort_foot:  "└───────────────────────────────────────────────────────────────────────────┘"
-  startup_aborted: "Wraith startup aborted: {}"
-  help_hint: "Use 'wraith --help' or 'wraith -h' for available commands and options."
-  root_required: "{} (Please re-run with: sudo wraith ...)"
-  mac_randomized: "Hardware MAC and Hostname randomized"
-  profile_applied: "Applied exit profile: {}"
-  already_running: "Wraith is already running! Stop first with: sudo wraith stop"
-  not_running: "Wraith is not running. Start first with: sudo wraith start"
-  stopped_success: "Wraith stopped — Isolation terminated & Clearnet restored"
-  updated_success: "Wraith updated & deployed successfully in-place!"
+  emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
+  emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │
+  emergency_abort_foot: └───────────────────────────────────────────────────────────────────────────┘
+  startup_aborted: 'Wraith startup aborted: {}'
+  help_hint: Use 'wraith --help' or 'wraith -h' for available commands and options.
+  root_required: '{} (Please re-run with: sudo wraith ...)'
+  mac_randomized: Hardware MAC and Hostname randomized
+  profile_applied: 'Applied exit profile: {}'
+  already_running: 'Wraith is already running! Stop first with: sudo wraith stop'
+  not_running: 'Wraith is not running. Start first with: sudo wraith start'
+  stopped_success: Wraith stopped — Isolation terminated & Clearnet restored
+  updated_success: Wraith updated & deployed successfully in-place!

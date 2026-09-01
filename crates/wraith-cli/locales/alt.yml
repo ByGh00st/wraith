@@ -123,62 +123,79 @@ commands:
   cmd_step_44: Yeni Tor çıkış devresi isteniyor (SIGNAL NEWNYM)...
   cmd_step_45: Çoklu vektör sızıntı doğrulama testi başlatılıyor...
 help:
-  desc: "Wraith; hata-kapalı (fail-closed) netfilter yönlendirmesi, TCP/IP yığın normalizasyonu, donanım kimliği rotasyonu ve tarayıcı parmak izi kum havuzlaması ile tam anonimlik sağlar."
-  usage: "Kullanım: wraith [SEÇENEKLER] [KOMUT]"
-  commands_header: "Komutlar:"
-  cmd_start: "Anonimleştirmeyi ve çekirdek korumasını başlatır"
-  cmd_stop: "Anonimleştirmeyi durdurur ve normal ağı geri yükler"
-  cmd_switch: "Yeni bir Tor çıkış kimliği (Newnym) talep eder"
-  cmd_test: "Kapsamlı DNS, WebRTC ve IPv6 sızıntı testlerini çalıştırır"
-  cmd_info: "Canlı telemetri paneli ve aktif devre durumunu gösterir"
-  cmd_dashboard: "İnteraktif terminal telemetri kontrol panelini (TUI) başlatır"
-  cmd_doctor: "Derin çekirdek ve ağ bütünlüğü tanılama testlerini çalıştırır"
-  cmd_benchmark: "Yüksek performanslı kriptografik ve çekirdek hız testlerini çalıştırır"
-  cmd_cleanup: "Adli bilişim karşıtı RAM ve log temizliği yapar"
-  cmd_mac: "Ağ kartı MAC adresini ve sistem hostname değerini rastgeleleştirir"
-  cmd_profile: "Coğrafi Tor çıkış profili uygular (örn: stealth, speed, research, darkweb)"
-  cmd_pentest: "Sızma testi araçları için izolasyon rehberini gösterir (Nmap, Sqlmap, Ffuf)"
-  cmd_update: "En son güncellemeleri GitHub'dan çeker ve yerinde yeniden derler"
-  cmd_shred: "Bir dosyayı DoD 5220.22-M 7-geçişli standart ile güvenle parçalar"
-  cmd_monitor: "Gerçek zamanlı DPI ve IDS canlı ağ izleme panelini açar"
-  
-  sec_net_header: "Ağ İzolasyonu Seçenekleri:"
-  opt_mac: "Ağ kartı L2 MAC adresini ve hostname değerini rastgeleleştirir"
-  opt_bridge: "Trafiği sansüre dayanıklı obfs4 Tor köprüleri üzerinden yönlendirir"
-  opt_namespace: "İzole bir Linux Network Namespace (10.200.1.0/24) içine kilitler"
-  opt_profile: "Coğrafi Tor çıkış profili zorlar (örn: stealth, speed, research, darkweb)"
-  opt_jitter: "Trafik akış korelasyonuna karşı Poisson zamanlama gecikmesi ve sahte paketler enjekte eder"
-  opt_rotate: "Tor çıkış kimliğini her N saniyede bir otomatik döndürür (örn: --rotate 60)"
-  opt_no_ks: "Fail-Closed KillSwitch bekçisini devre dışı bırakır"
-  opt_wg: "Tor trafiğini WireGuard tüneli içine kapsüller (Çok Katmanlı Hibrit Tünel)"
-  opt_spawn_monitor: "Başlangıçta otomatik gerçek zamanlı DPI/IDS izleme penceresi açar"
-
-  sec_harden_header: "Sistem ve Parmak İzi Sıkılaştırma:"
-  opt_browser_shield: "WebGL, Canvas, Audio, GPU, Font ve Çözünürlük parmak izi korumasını tarayıcılara enjekte eder"
-  opt_font_sandbox: "İşletim sistemi yazı tiplerini kum havuzuna alır (Fontconfig jail)"
-  opt_tcp_mask: "TCP/IP L4 yığın parametrelerini (TTL=128, timestamps=0) Windows standardına normalleştirir"
-  opt_machine_id: "OS /etc/machine-id ve donanım kimliklerini rastgeleleştirir"
-  opt_full_security: "TÜM 16 güvenlik katmanını kilitler (Maksimum Sıkılaştırma Modu)"
-
-  sec_forensic_header: "Yüksek Riskli & Adli Bilişim Karşıtı Operasyonlar:"
-  opt_wipe_logs: "⚠ GERİ ALINAMAZ: Sistem oturum loglarını, olay günlüklerini ve kabuk geçmişini siler"
-  opt_self_destruct: "⚠ GERİ ALINAMAZ: Kapanışta (Ctrl+C) ikiliyi diskten kalıcı olarak siler ve hafızayı temizler"
-  opt_masquerade: "⚠ ALDATICI: Linux çekirdeğinde süreç adını [kworker/u16:0] olarak maskeler"
-  opt_anti_debug: "⚠ ACİL İPTAL: Hata ayıklayıcı (debugger/ptrace) takılırsa süreci anında öldürür"
-
-  opt_verbose: "Ayrıntılı hata ayıklama (debug) günlüklerini açar"
-  opt_lang: "Sistem dilini geçici olarak değiştirir (örn: 'en', 'tr', 'ru', 'de')"
-
+  desc: Wraith; hata-kapalı (fail-closed) netfilter yönlendirmesi, TCP/IP yığın normalizasyonu,
+    donanım kimliği rotasyonu ve tarayıcı parmak izi kum havuzlaması ile tam anonimlik
+    sağlar.
+  usage: 'Kullanım: wraith [SEÇENEKLER] [KOMUT]'
+  commands_header: 'Komutlar:'
+  cmd_start: Anonimleştirmeyi ve çekirdek korumasını başlatır
+  cmd_stop: Anonimleştirmeyi durdurur ve normal ağı geri yükler
+  cmd_switch: Yeni bir Tor çıkış kimliği (Newnym) talep eder
+  cmd_test: Kapsamlı DNS, WebRTC ve IPv6 sızıntı testlerini çalıştırır
+  cmd_info: Canlı telemetri paneli ve aktif devre durumunu gösterir
+  cmd_dashboard: İnteraktif terminal telemetri kontrol panelini (TUI) başlatır
+  cmd_doctor: Derin çekirdek ve ağ bütünlüğü tanılama testlerini çalıştırır
+  cmd_benchmark: Yüksek performanslı kriptografik ve çekirdek hız testlerini çalıştırır
+  cmd_cleanup: Adli bilişim karşıtı RAM ve log temizliği yapar
+  cmd_mac: Ağ kartı MAC adresini ve sistem hostname değerini rastgeleleştirir
+  cmd_profile: 'Coğrafi Tor çıkış profili uygular (örn: stealth, speed, research,
+    darkweb)'
+  cmd_pentest: Sızma testi araçları için izolasyon rehberini gösterir (Nmap, Sqlmap,
+    Ffuf)
+  cmd_update: En son güncellemeleri GitHub'dan çeker ve yerinde yeniden derler
+  cmd_shred: Bir dosyayı DoD 5220.22-M 7-geçişli standart ile güvenle parçalar
+  cmd_monitor: Gerçek zamanlı DPI ve IDS canlı ağ izleme panelini açar
+  sec_net_header: 'Ağ İzolasyonu Seçenekleri:'
+  opt_mac: Ağ kartı L2 MAC adresini ve hostname değerini rastgeleleştirir
+  opt_bridge: Trafiği sansüre dayanıklı obfs4 Tor köprüleri üzerinden yönlendirir
+  opt_namespace: İzole bir Linux Network Namespace (10.200.1.0/24) içine kilitler
+  opt_profile: 'Coğrafi Tor çıkış profili zorlar (örn: stealth, speed, research, darkweb)'
+  opt_jitter: Trafik akış korelasyonuna karşı Poisson zamanlama gecikmesi ve sahte
+    paketler enjekte eder
+  opt_rotate: 'Tor çıkış kimliğini her N saniyede bir otomatik döndürür (örn: --rotate
+    60)'
+  opt_no_ks: Fail-Closed KillSwitch bekçisini devre dışı bırakır
+  opt_wg: Tor trafiğini WireGuard tüneli içine kapsüller (Çok Katmanlı Hibrit Tünel)
+  opt_spawn_monitor: Başlangıçta otomatik gerçek zamanlı DPI/IDS izleme penceresi
+    açar
+  sec_harden_header: 'Sistem ve Parmak İzi Sıkılaştırma:'
+  opt_browser_shield: WebGL, Canvas, Audio, GPU, Font ve Çözünürlük parmak izi korumasını
+    tarayıcılara enjekte eder
+  opt_font_sandbox: İşletim sistemi yazı tiplerini kum havuzuna alır (Fontconfig jail)
+  opt_tcp_mask: TCP/IP L4 yığın parametrelerini (TTL=128, timestamps=0) Windows standardına
+    normalleştirir
+  opt_machine_id: OS /etc/machine-id ve donanım kimliklerini rastgeleleştirir
+  opt_full_security: TÜM 16 güvenlik katmanını kilitler (Maksimum Sıkılaştırma Modu)
+  sec_forensic_header: 'Yüksek Riskli & Adli Bilişim Karşıtı Operasyonlar:'
+  opt_wipe_logs: '⚠ GERİ ALINAMAZ: Sistem oturum loglarını, olay günlüklerini ve kabuk
+    geçmişini siler'
+  opt_self_destruct: '⚠ GERİ ALINAMAZ: Kapanışta (Ctrl+C) ikiliyi diskten kalıcı olarak
+    siler ve hafızayı temizler'
+  opt_masquerade: '⚠ ALDATICI: Linux çekirdeğinde süreç adını [kworker/u16:0] olarak
+    maskeler'
+  opt_anti_debug: '⚠ ACİL İPTAL: Hata ayıklayıcı (debugger/ptrace) takılırsa süreci
+    anında öldürür'
+  opt_verbose: Ayrıntılı hata ayıklama (debug) günlüklerini açar
+  opt_lang: 'Sistem dilini geçici olarak değiştirir (örn: ''en'', ''tr'', ''ru'',
+    ''de'')'
+  shortcuts_header: 'Hızlı Operasyonel Kısayollar:'
+  cmd_cleanup_full: Kapsamlı temizlik (RAM, swap ve tüm sistem oturum logları)
+  sec_general_header: 'Genel Seçenekler:'
+  opt_select_lang: 65 dilli interaktif terminal dil yapılandırma menüsünü açar
+  opt_help: Bu yardım ekranını gösterir
+  opt_version: Sürüm bilgisini gösterir
+  examples_header: 'Operasyonel Kullanım Örnekleri:'
 runtime:
-  emergency_abort_title: "┌── [ 🚨 ACİL DURDURMA: SIGINT (Ctrl+C) YAKALANDI ] ─────────────────────────┐"
-  emergency_abort_desc:  "│  Başlatma kesildi. Tüm sistem ağı ve güvenliği geri yükleniyor...         │"
-  emergency_abort_foot:  "└───────────────────────────────────────────────────────────────────────────┘"
-  startup_aborted: "Wraith başlatma işlemi iptal edildi: {}"
-  help_hint: "Kullanılabilir komutlar ve seçenekler için 'wraith --help' veya 'wraith -h' kullanın."
-  root_required: "{} (Lütfen yetkili olarak çalıştırın: sudo wraith ...)"
-  mac_randomized: "Donanım MAC adresi ve Cihaz Adı (Hostname) rastgeleleştirildi"
-  profile_applied: "Çıkış profili uygulandı: {}"
-  already_running: "Wraith zaten çalışıyor! Önce durdurun: sudo wraith stop"
-  not_running: "Wraith çalışmıyor. Önce başlatın: sudo wraith start"
-  stopped_success: "Wraith durduruldu — İzolasyon sonlandırıldı & Normal Ağ geri yüklendi"
-  updated_success: "Wraith başarıyla güncellendi ve yerinde yeniden devreye alındı!"
+  emergency_abort_title: '┌── [ 🚨 ACİL DURDURMA: SIGINT (Ctrl+C) YAKALANDI ] ─────────────────────────┐'
+  emergency_abort_desc: │  Başlatma kesildi. Tüm sistem ağı ve güvenliği geri yükleniyor...         │
+  emergency_abort_foot: └───────────────────────────────────────────────────────────────────────────┘
+  startup_aborted: 'Wraith başlatma işlemi iptal edildi: {}'
+  help_hint: Kullanılabilir komutlar ve seçenekler için 'wraith --help' veya 'wraith
+    -h' kullanın.
+  root_required: '{} (Lütfen yetkili olarak çalıştırın: sudo wraith ...)'
+  mac_randomized: Donanım MAC adresi ve Cihaz Adı (Hostname) rastgeleleştirildi
+  profile_applied: 'Çıkış profili uygulandı: {}'
+  already_running: 'Wraith zaten çalışıyor! Önce durdurun: sudo wraith stop'
+  not_running: 'Wraith çalışmıyor. Önce başlatın: sudo wraith start'
+  stopped_success: Wraith durduruldu — İzolasyon sonlandırıldı & Normal Ağ geri yüklendi
+  updated_success: Wraith başarıyla güncellendi ve yerinde yeniden devreye alındı!
