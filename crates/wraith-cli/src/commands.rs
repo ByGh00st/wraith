@@ -1121,6 +1121,20 @@ pub async fn cmd_update() -> Result<()> {
         }
     }
 
+    // 6. Generate and install shell auto-completions
+    let _ = fs::create_dir_all("/etc/bash_completion.d");
+    let _ = fs::create_dir_all("/usr/share/bash-completion/completions");
+    let _ = fs::create_dir_all("/usr/share/zsh/vendor-completions");
+    let _ = fs::create_dir_all("/usr/share/zsh/site-functions");
+    if let Ok(bash_out) = Command::new(&compiled_binary).args(["--generate-completions", "bash"]).output() {
+        let _ = fs::write("/etc/bash_completion.d/wraith", &bash_out.stdout);
+        let _ = fs::write("/usr/share/bash-completion/completions/wraith", &bash_out.stdout);
+    }
+    if let Ok(zsh_out) = Command::new(&compiled_binary).args(["--generate-completions", "zsh"]).output() {
+        let _ = fs::write("/usr/share/zsh/vendor-completions/_wraith", &zsh_out.stdout);
+        let _ = fs::write("/usr/share/zsh/site-functions/_wraith", &zsh_out.stdout);
+    }
+
     // 7. Cleanup temp build directory
     let _ = fs::remove_dir_all(&temp_build_dir);
 

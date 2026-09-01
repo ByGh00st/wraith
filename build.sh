@@ -118,8 +118,17 @@ if [ -f "$TARGET_BIN" ]; then
     
     mkdir -p /etc/wraith /var/log/wraith /etc/tor 2>/dev/null || true
     chmod 750 /etc/wraith /var/log/wraith 2>/dev/null || true
+    
+    # 5b. Generate & Install Native Shell Tab Auto-Completions (Bash & Zsh)
+    mkdir -p /etc/bash_completion.d /usr/share/bash-completion/completions /usr/share/zsh/vendor-completions /usr/share/zsh/site-functions 2>/dev/null || true
+    "$TARGET_BIN" --generate-completions bash > /etc/bash_completion.d/wraith 2>/dev/null || true
+    "$TARGET_BIN" --generate-completions bash > /usr/share/bash-completion/completions/wraith 2>/dev/null || true
+    "$TARGET_BIN" --generate-completions zsh > /usr/share/zsh/vendor-completions/_wraith 2>/dev/null || true
+    "$TARGET_BIN" --generate-completions zsh > /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
+    
     hash -r 2>/dev/null || true
     echo -e "        ${CLR_EMERALD}✔ [INJECTED]${CLR_RESET} Deployed directly to: ${CLR_WHITE}${CLR_BOLD}/usr/local/bin/wraith${CLR_RESET}"
+    echo -e "        ${CLR_EMERALD}✔ [AUTOCOMPLETE]${CLR_RESET} Shell tab-completion installed ${CLR_SLATE}(Bash & Zsh)${CLR_RESET}"
 else
     echo -e "  ${CLR_RED}✖ [BUILD ERROR]${CLR_RESET} Compilation artifact missing at $TARGET_BIN"
     exit 1

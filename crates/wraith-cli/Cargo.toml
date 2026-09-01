@@ -18,6 +18,7 @@ wraith-forensic = { path = "../wraith-forensic" }
 tokio.workspace = true
 tokio-util.workspace = true
 clap.workspace = true
+clap_complete.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true

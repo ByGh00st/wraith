@@ -219,6 +219,10 @@ struct Cli {
     /// Override system language (e.g. 'en', 'tr')
     #[arg(long, global = true)]
     lang: Option<String>,
+
+    /// Generate shell auto-completion script (bash, zsh, fish, powershell)
+    #[arg(long = "generate-completions", value_name = "SHELL", hide = true)]
+    completions: Option<clap_complete::Shell>,
 }
 
 #[derive(Subcommand)]
@@ -381,6 +385,13 @@ pub async fn main() -> Result<()> {
     }
 
     let cli = Cli::parse();
+
+    if let Some(shell) = cli.completions {
+        use clap::CommandFactory;
+        let mut cmd = Cli::command();
+        clap_complete::generate(shell, &mut cmd, "wraith", &mut std::io::stdout());
+        return Ok(());
+    }
 
     // Initialize logging
     let filter = if cli.verbose {
