@@ -44,6 +44,16 @@ pub struct StartArgs {
     #[arg(long = "no-killswitch", visible_aliases = ["no-ks"], help_heading = "Network Isolation")]
     pub no_ks: bool,
 
+    /// Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP bypass)
+    #[arg(
+        short = 'W',
+        long = "wireguard",
+        visible_aliases = ["multihop", "wg", "hybrid"],
+        value_name = "CONFIG_PATH",
+        help_heading = "Network Isolation"
+    )]
+    pub wireguard: Option<String>,
+
     // ─── [2. HOST & SYSTEM FINGERPRINT HARDENING] ──────────────────────────────────
     /// Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint profiles into browsers
     #[arg(long = "browser-shield", visible_aliases = ["shield", "canvas-shield"], help_heading = "System Hardening")]
@@ -116,6 +126,7 @@ impl StartArgs {
             || self.bridge
             || self.namespace
             || self.profile.is_some()
+            || self.wireguard.is_some()
             || self.jitter
             || self.browser_shield
             || self.font_sandbox

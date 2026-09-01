@@ -83,6 +83,7 @@ impl SovereignDashboard {
             println!("  │  {:<20} : {:<60} │", t!("tui.machine_id"), if state_data.machine_id_old.is_some() { t!("tui.rotated").bold().green().to_string() } else { t!("tui.original").dimmed().to_string() });
             println!("  │  {:<20} : {:<60} │", t!("tui.tcp_stack"), if state_data.tcp_stack_masked { t!("tui.win_profile").bold().green().to_string() } else { t!("tui.linux_std").dimmed().to_string() });
             println!("  │  {:<20} : {:<60} │", t!("tui.exit_policy"), state_data.exit_profile.as_deref().unwrap_or(&*t!("tui.stealth")).bold().blue());
+            println!("  │  {:<20} : {:<60} │", "Multi-Hop Tunnel", if state_data.multihop_enabled { "ACTIVE (WireGuard ➔ Tor [3 Hops])".bold().green().to_string() } else { "OFF (Standard Tor Onion)".dimmed().to_string() });
             println!("  └────────────────────────────────────────────────────────────────────────────────────────┘");
 
             // 3. Multi-Layer Defense Matrix

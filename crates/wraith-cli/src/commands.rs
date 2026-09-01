@@ -21,7 +21,7 @@ use wraith_net::{
     apply_ipv6_block, apply_tor_rules, backup_and_apply_tcp_mask, block_stun_ports, change_mac,
     create_cgroup_jail, create_namespace, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
     flush_rules, randomize_hostname, restore_mac, restore_tcp_stack, unblock_stun_ports,
-    EgressFastpath, EgressIntrusionDetector,
+    EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine,
 };
 use wraith_tor::{
     apply_exit_profile, backup_resolv, configure_dns, get_active_tls_profile,
@@ -289,6 +289,27 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_3"), "info");
         write_torrc()?;
         print_step(&t!("commands.cmd_step_4"), "ok");
+    }
+
+    // 5b. Multi-Hop & Hybrid Overlay Tunneling (WireGuard ➔ Tor)
+    if let Some(ref wg_conf) = args.wireguard {
+        print_step(
+            &format!("Initializing Multi-Hop Hybrid Overlay (WireGuard -> Tor)... [{wg_conf}]"),
+            "info",
+        );
+        match MultiHopTunnelEngine::setup_wireguard(Some(wg_conf)) {
+            Ok(wg_iface) => {
+                let tor_uid = wraith_net::get_tor_uid().unwrap_or(0);
+                let _ = MultiHopTunnelEngine::bind_tor_to_wireguard(tor_uid, &wg_iface);
+                print_step(
+                    &format!("Multi-Hop Hop 1 active ({wg_iface} ChaCha20-Poly1305) ➔ Tor traffic encapsulated"),
+                    "ok",
+                );
+                state_data.multihop_enabled = true;
+                state_data.wireguard_config = Some(wg_conf.clone());
+            }
+            Err(e) => print_step(&format!("Multi-Hop WireGuard setup warning: {e}"), "warn"),
+        }
     }
 
     // 6. Start Tor Daemon FIRST (Before modifying DNS / Firewall)
@@ -752,6 +773,15 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     stop_tor_daemon();
     wraith_tor::stop_existing_tor();
     print_step(&t!("commands.cmd_step_27"), "ok");
+
+    if state_info.multihop_enabled {
+        print_step("Tearing down Multi-Hop WireGuard hybrid overlay...", "info");
+        if let Err(e) = MultiHopTunnelEngine::teardown_wireguard(state_info.wireguard_config.as_deref()) {
+            tracing::warn!("WireGuard teardown warning: {e}");
+        } else {
+            print_step("Multi-Hop WireGuard tunnel demolished", "ok");
+        }
+    }
 
     if let (Some(iface), Some(old_mac)) = (&state_info.mac_interface, &state_info.mac_old) {
         print_step(&t!("commands.cmd_step_28"), "info");

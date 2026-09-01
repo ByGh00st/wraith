@@ -37,6 +37,8 @@ pub struct StateData {
     pub saved_rules: Option<String>,
     pub machine_id_old: Option<String>,
     pub tcp_stack_masked: bool,
+    pub multihop_enabled: bool,
+    pub wireguard_config: Option<String>,
 }
 
 pub struct StateManager {

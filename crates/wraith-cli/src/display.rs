@@ -124,6 +124,14 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
         Cell::new(t!("hud.dpi_active")).fg(Color::Cyan),
     ]);
 
+    let state_data = wraith_core::state::StateManager::default().read();
+    if state_data.multihop_enabled {
+        table.add_row(vec![
+            Cell::new("Multi-Hop Overlay").fg(Color::Cyan).add_attribute(Attribute::Bold),
+            Cell::new("ACTIVE (WireGuard [ChaCha20] ➔ Tor [3 Hops] ➔ Exit Node)").fg(Color::Green).add_attribute(Attribute::Bold),
+        ]);
+    }
+
     println!("\n{table}");
 
     println!("{}", t!("hud.keys"));
