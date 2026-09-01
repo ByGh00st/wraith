@@ -102,6 +102,40 @@ else
     exit 1
 fi
 
+# ─── [ INTERACTIVE DEFAULT LANGUAGE SELECTION ] ───────────────────────────────
+echo -e "\n${CLR_CYAN}  ╭── [ 🌐 WRAITH DEFAULT SYSTEM LANGUAGE CONFIGURATION ] ─────────────────────────╮${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_WHITE}Select default operational language for Wraith execution:                    ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │                                                                               │${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[1]${CLR_RESET} ${CLR_WHITE}English (Default - Global Matrix Standard)                               ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[2]${CLR_RESET} ${CLR_WHITE}Türkçe (Türkiye Türkçesi)                                                ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[3]${CLR_RESET} ${CLR_WHITE}Azerbaycan Türkçesi (az)                                                 ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[4]${CLR_RESET} ${CLR_WHITE}Русский (ru)                                                             ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[5]${CLR_RESET} ${CLR_WHITE}Deutsch (de)                                                             ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  │  ${CLR_AMBER}[6]${CLR_RESET} ${CLR_WHITE}Özel Dil Kodu Gir (Örn: kk, uz, crh, fr, es, ja, zh)                     ${CLR_CYAN}│${CLR_RESET}"
+echo -e "${CLR_CYAN}  ╰───────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}"
+
+SELECTED_LANG="en"
+if [ -t 0 ]; then
+    read -r -p "  ❯ Seçiminiz / Enter choice [1-6] (Varsayılan: 1 / Default: 1 - English): " LANG_INPUT || LANG_INPUT="1"
+    case "$LANG_INPUT" in
+        2) SELECTED_LANG="tr" ;;
+        3) SELECTED_LANG="az" ;;
+        4) SELECTED_LANG="ru" ;;
+        5) SELECTED_LANG="de" ;;
+        6) 
+            read -r -p "  ❯ Dil kodunu yazın / Enter ISO language code (örn: kk, uz, fr, es, ja, zh): " CUSTOM_LANG
+            if [ -n "$CUSTOM_LANG" ]; then
+                SELECTED_LANG="$CUSTOM_LANG"
+            fi
+            ;;
+        *) SELECTED_LANG="en" ;;
+    esac
+fi
+
+echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/dev/null || true
+export WRAITH_LANG="$SELECTED_LANG"
+echo -e "        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Varsayılan Dil / Default Language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
+
 echo -e "\n${CLR_RED}  ╭── [ 🛡️ WRAITH DEPLOYMENT COMPLETE // OPERATIONAL COMMAND DIRECTORY ] ────────╮${CLR_RESET}"
 echo -e "${CLR_RED}  │                                                                               │${CLR_RESET}"
 echo -e "${CLR_RED}  │  ${CLR_AMBER}${CLR_BOLD}sudo wraith -Fs${CLR_RESET}                 ${CLR_WHITE}➔ FULL DEFENSE: All 16 Security Layers Armed${CLR_RESET}    ${CLR_RED}│${CLR_RESET}"
