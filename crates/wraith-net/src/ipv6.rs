@@ -26,7 +26,7 @@ pub fn apply_ipv6_block() -> Result<()> {
     for (path_str, val) in IPV6_LOCKDOWN_SYSCTLS {
         let p = Path::new(path_str);
         if p.exists() {
-            let _ = fs::write(p, val);
+            if let Err(e) = fs::write(p, val) { tracing::warn!("Failed writing {p:?}: {e}"); }
         }
     }
 
@@ -58,7 +58,7 @@ pub fn flush_ipv6_block() -> Result<()> {
     for (path_str, val) in IPV6_RESTORE_SYSCTLS {
         let p = Path::new(path_str);
         if p.exists() {
-            let _ = fs::write(p, val);
+            if let Err(e) = fs::write(p, val) { tracing::warn!("Failed writing {p:?}: {e}"); }
         }
     }
 

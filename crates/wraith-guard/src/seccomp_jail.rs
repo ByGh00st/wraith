@@ -1,9 +1,7 @@
 //! Wraith Seccomp-BPF Linux Syscall Sandbox & Raw Socket Trap
 //! Injects a raw BPF bytecode program into the Linux kernel using PR_SET_SECCOMP.
 //! Traps and terminates (or rejects with EPERM) unauthorized calls to:
-//! - socket(..., SOCK_RAW)
-//! - socket(AF_PACKET, ...)
-//! - ptrace(...)
+//! - ptrace(...) (Raw sockets are exempted to prevent conflicts with the zero-copy IDS engine)
 //! - unauthorized namespace escapes
 
 #[cfg(unix)]
@@ -102,7 +100,7 @@ pub fn enforce_seccomp_socket_jail() -> Result<()> {
                     std::io::Error::last_os_error()
                 );
             } else {
-                info!("Seccomp-BPF Kernel Filter Active: socket(AF_PACKET), socket(SOCK_RAW), and ptrace blocked at Ring 0");
+                info!("Seccomp-BPF Kernel Filter Active: ptrace blocked at Ring 0 (raw sockets exempted for IDS engine)");
             }
         }
     }

@@ -53,6 +53,33 @@ pub fn dod_7pass_shred(file_path: &Path) -> Result<()> {
         return Ok(());
     }
 
+    let is_ssd = !crate::shred::is_rotational_device(file_path);
+    if is_ssd {
+        let discard_success = std::process::Command::new("fallocate")
+            .args(["-d", "-p", "-o", "0", "-l", &size.to_string(), file_path.to_string_lossy().as_ref()])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+        if !discard_success {
+            let mut file = OpenOptions::new().write(true).open(file_path)?;
+            let rand_buf = vec![0u8; 4096];
+            let mut written = 0u64;
+            while written < size {
+                let to_write = (size - written).min(4096) as usize;
+                file.write_all(&rand_buf[..to_write])?;
+                written += to_write as u64;
+            }
+            file.sync_all()?;
+            tracing::warn!("SSD detected on {file_path:?}: fallocate punch-hole failed, fell back to single pass zero-fill. Note: In-place overwriting on SSD is not perfectly secure due to wear-leveling.");
+        } else {
+            tracing::info!("SSD detected: Successfully applied fallocate punch-hole (TRIM) on {file_path:?}");
+        }
+
+        let _ = fs::remove_file(file_path);
+        return Ok(());
+    }
+
     let mut file = OpenOptions::new().write(true).open(file_path)?;
     let mut rng = rand::thread_rng();
 

@@ -165,7 +165,7 @@ impl EncryptedRamVault {
         }
 
         let master_key = VaultKey::generate();
-        info!("Initialized Sovereign ChaCha20-Poly1305 Encrypted RAMFS Vault in {VAULT_DIR}");
+        info!("Initialized ChaCha20-Poly1305 Encrypted RAMFS Vault in {VAULT_DIR}");
 
         Ok(Self {
             vault_path: path,
@@ -241,7 +241,7 @@ impl EncryptedRamVault {
             }
         }
 
-        info!("Sovereign RAMFS Vault destroyed and memory zeroized");
+        info!("RAMFS Vault destroyed and memory zeroized");
         Ok(())
     }
 }
@@ -255,7 +255,7 @@ mod tests {
         let key = [0x42u8; 32];
         let nonce = [0x19u8; 12];
         let aad = b"test_metadata_header";
-        let plaintext = b"Wraith Sovereign Operating Protocol Payload 0xDEADBEEF";
+        let plaintext = b"Wraith Operating Protocol Payload 0xDEADBEEF";
 
         let (ciphertext, tag) = chacha20_poly1305_encrypt(&key, &nonce, aad, plaintext)
             .expect("Encryption must succeed");

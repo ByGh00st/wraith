@@ -854,7 +854,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
             "Wraith stopped — Isolation terminated & Real IP restored: {ip}"
         ));
     } else {
-        print_success("Wraith stopped — Sovereign isolation terminated & Clearnet restored");
+        print_success("Wraith stopped — Isolation terminated & Clearnet restored");
     }
     Ok(())
 }
@@ -1038,48 +1038,6 @@ pub async fn cmd_update() -> Result<()> {
         }
     }
 
-    // 6. Also sync local git repositories if any exist on machine
-    let mut local_repos = vec![
-        ".".to_string(),
-        "/root/wraith".to_string(),
-        "/opt/wraith".to_string(),
-    ];
-    if let Ok(home) = std::env::var("HOME") {
-        local_repos.push(format!("{home}/wraith"));
-    }
-    if let Ok(sudo_user) = std::env::var("SUDO_USER") {
-        local_repos.push(format!("/home/{sudo_user}/wraith"));
-    }
-    if let Ok(entries) = fs::read_dir("/home") {
-        for entry in entries.flatten() {
-            let p = entry.path().join("wraith");
-            if p.exists() {
-                local_repos.push(p.to_string_lossy().to_string());
-            }
-        }
-    }
-
-    for repo in &local_repos {
-        let git_dir = Path::new(repo).join(".git");
-        if git_dir.exists() {
-            let _ = Command::new("git")
-                .args(["-C", repo, "fetch", "https://github.com/ByGh00st/wraith.git", "main"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-            let _ = Command::new("git")
-                .args(["-C", repo, "reset", "--hard", "FETCH_HEAD"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-            let _ = Command::new("git")
-                .args(["-C", repo, "clean", "-fd"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-        }
-    }
-
     // 7. Cleanup temp build directory
     let _ = fs::remove_dir_all(&temp_build_dir);
 
@@ -1091,8 +1049,8 @@ pub async fn cmd_update() -> Result<()> {
     };
 
     print_step(
-        &format!("Binary integrity verified (SHA-256: {})", &bin_hash[..16.min(bin_hash.len())]),
-        "ok",
+        &format!("SHA-256: {} (not verified against a trusted source — use at your own risk)", &bin_hash[..16.min(bin_hash.len())]),
+        "warn",
     );
     print_success("Wraith updated & deployed successfully in-place!");
     println!("  Universal binary: /usr/local/bin/wraith");

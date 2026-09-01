@@ -725,7 +725,6 @@ pub struct IdsTelemetry {
     pub tor_routed_bytes: AtomicU64,
     pub clearnet_escapes_blocked: AtomicU64,
     pub stun_webrtc_probes_trapped: AtomicU64,
-    pub signatures_auto_sanitized: AtomicU64,
 }
 
 pub struct EgressIntrusionDetector {
@@ -747,7 +746,6 @@ impl EgressIntrusionDetector {
             tor_routed_bytes: AtomicU64::new(0),
             clearnet_escapes_blocked: AtomicU64::new(0),
             stun_webrtc_probes_trapped: AtomicU64::new(0),
-            signatures_auto_sanitized: AtomicU64::new(0),
         });
         let cancel_token = CancellationToken::new();
         let detector = Self {
@@ -790,12 +788,6 @@ impl EgressIntrusionDetector {
                         if res > 0 {
                             let n = res as usize;
                             telemetry.packets_inspected.fetch_add(1, Ordering::Relaxed);
-
-                            // In-flight DPI tool signature detection & zero-copy rewrite
-                            let dpi_res = HttpToolSanitizer::sanitize_in_flight(&mut buf[..n]);
-                            if dpi_res.sanitized_count > 0 {
-                                telemetry.signatures_auto_sanitized.fetch_add(dpi_res.sanitized_count as u64, Ordering::Relaxed);
-                            }
 
                             if let Some(pkt) = PacketDissector::dissect(&buf[..n]) {
                                 if pkt.is_tor_transport {

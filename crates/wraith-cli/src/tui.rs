@@ -1,4 +1,4 @@
-//! Wraith Sovereign Real-Time Warfare Terminal Dashboard (TUI)
+//! Wraith Real-Time Telemetry Dashboard (TUI)
 //! Live multi-pane monitoring console with interactive hotkeys, circuit maps, and IDS feeds.
 
 use crossterm::cursor::{Hide, Show};
@@ -62,7 +62,7 @@ impl SovereignDashboard {
             println!(" {}", "══════════════════════════════════════════════════════════════════════════════════════════".bold().purple());
 
             // 2. Identity & Routing Grid
-            println!("\n  ┌── [ SOVEREIGN IDENTITY & EXIT NODE ] ──────────────────────────────────────────────────┐");
+            println!("\n  ┌── [ IDENTITY & EXIT NODE ] ────────────────────────────────────────────────────────────┐");
             println!("  │  Public Exit IP      : {:<60} │", ip_display.bold().white());
             println!("  │  Tor Network         : {:<60} │", if is_tor { "✓ VERIFIED (TransProxy Active)".bold().green().to_string() } else { "✗ UNVERIFIED".bold().red().to_string() });
             println!("  │  Hardware MAC        : {:<60} │", state_data.mac_new.as_deref().unwrap_or("Hardware Static").bold().magenta());
@@ -74,10 +74,10 @@ impl SovereignDashboard {
             // 3. Multi-Layer Defense Matrix
             println!("\n  ┌── [ DEFENSE MATRIX STATUS GRID ] ───────────────────────────────────────────────────────┐");
             println!("  │  [✓] Netfilter TransProxy : Fail-Closed Drop (Port 9040/5353)                           │");
-            println!("  │  [✓] Seccomp-BPF Filter   : Raw Sockets (AF_PACKET/SOCK_RAW/ptrace) Blocked @ Ring 0   │");
+            println!("  │  [✓] Seccomp-BPF Filter   : ptrace Blocked @ Ring 0 (raw sockets exempt for IDS engine)│");
             println!("  │  [✓] eBPF / TC Fastpath   : Qdisc clsact Driver Egress Drop Active                     │");
             println!("  │  [✓] Kernel Lockdown      : Confidentiality Mode (/dev/mem & DMA Shield)               │");
-            println!("  │  [✓] Sovereign DNS Engine : QNAME Minimized + EDNS0 468B Padded + Telemetry Sinkhole   │");
+            println!("  │  [✓] DNS Engine           : QNAME Minimized + EDNS0 468B Padded + Telemetry Sinkhole   │");
             println!("  │  [✓] JA3/JA4 TLS Camo     : Google Chrome 131 / Win11 Profile + RFC 8701 GREASE        │");
             println!("  │  [✓] RAMFS Crypto Vault   : In-Memory ChaCha20-Poly1305 Encrypted (/dev/shm Locked)    │");
             println!("  │  [✓] Zero-Copy IDS        : Real-Time L2/L3/L4 Sniffer & Egress Watchdog Active        │");

@@ -1,4 +1,4 @@
-//! Wraith Sovereign Terminal Presentation Engine
+//! Wraith Terminal Presentation Engine
 //! Cyberpunk high-contrast telemetry dashboards, live circuit topologies, and visual leak monitors.
 
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
@@ -34,7 +34,7 @@ pub fn detect_target_os() -> String {
 pub fn print_banner() {
     println!("{}", WRAITH_BANNER.bold().bright_purple());
     let target = detect_target_os();
-    println!("  ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & SOVEREIGN GATE ] ──────────────╮");
+    println!("  ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮");
     println!("  │  {} {}", "ENGINE SPEC :".dimmed(), "WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)".bold().bright_cyan());
     println!("  │  {} {}", "TARGET HOST :".dimmed(), target.bold().bright_yellow());
     println!("  │  {} {}", "GATE STATUS :".dimmed(), "FAIL-CLOSED (Kernel-Level Egress Enforcement)".bold().bright_green());
@@ -251,7 +251,7 @@ pub fn show_leak_report(report: &LeakReport) {
     };
 
     let overall = if report.secure {
-        Cell::new("✔ 100% SECURE").fg(Color::Green).add_attribute(Attribute::Bold)
+        Cell::new("✔ NO LEAKS DETECTED (this test)").fg(Color::Green).add_attribute(Attribute::Bold)
     } else {
         Cell::new("✖ VULNERABLE").fg(Color::Red).add_attribute(Attribute::Bold)
     };
