@@ -68,10 +68,10 @@ if ! command -v cargo &> /dev/null; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null 2>&1
     export PATH="$HOME/.cargo/bin:/root/.cargo/bin:$PATH"
 fi
-if [ -z "$CARGO_HOME" ]; then
+if [ -z "${CARGO_HOME:-}" ]; then
     if [ -d "/root/.cargo" ]; then
         export CARGO_HOME="/root/.cargo"
-    elif [ -n "$SUDO_USER" ] && [ -d "/home/$SUDO_USER/.cargo" ]; then
+    elif [ -n "${SUDO_USER:-}" ] && [ -d "/home/$SUDO_USER/.cargo" ]; then
         export CARGO_HOME="/home/$SUDO_USER/.cargo"
     elif [ -d "$HOME/.cargo" ]; then
         export CARGO_HOME="$HOME/.cargo"
