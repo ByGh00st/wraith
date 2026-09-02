@@ -121,6 +121,25 @@ commands:
   cmd_step_43: Derleme tamamlandı ancak hedef ikili dosya (binary) bulunamadı
   cmd_step_44: Yeni Tor çıkış devresi isteniyor (SIGNAL NEWNYM)...
   cmd_step_45: Çoklu vektör sızıntı doğrulama testi başlatılıyor...
+  cmd_step_46: 'Çoklu Atlama Hibrit Tüneli (WireGuard -> Tor) başlatılıyor...'
+  cmd_step_47: 'Çoklu Atlama 1. Atlama bağlantısı {} üzerinde kuruldu (Peer: {}, AllowedIPs: {})'
+  cmd_step_48: 'Çoklu Atlama İlke Yönlendirmesi uygulanıyor: Tor trafiği {} arayüzüne kilitleniyor...'
+  cmd_step_49: 'Çoklu Atlama ilke yönlendirmesi aktif (Tor çıkış trafiği WireGuard 1. Atlama arayüzüne kilitlendi)'
+  cmd_step_50: 'Geçici v3 Onion Gizli Servisi [{}] için yapılandırılıyor...'
+  cmd_step_51: 'Geçici v3 Onion Gizli Servisi devrede: :{} -> :{} ({})'
+  cmd_step_52: 'İzole Edilmiş Sanal Ekran Sandbox''ı (Xvfb 1920x1080@24bit) başlatılıyor...'
+  cmd_step_53: 'Sanal Ekran {} üzerinde aktif (Fiziksel Monitör EDID kimliği gizlendi)'
+  cmd_step_54: 'Linux Çekirdeği TC Netem Trafik Şekillendirici enjekte ediliyor (Normal Dağılımlı Gecikme)...'
+  cmd_step_55: 'Çekirdek Netem Trafik Şekillendirici devrede (Gecikme: 35ms, Dalgalanma: 12ms)'
+  cmd_step_56: 'Aktif Yerel Ağ (LAN) Aldatma Sensörü 0.0.0.0 üzerinde kuruluyor (:2222, :3306, :5432, :6379, :8080, :27017)...'
+  cmd_step_57: 'Aktif Yerel Ağ (LAN) Aldatma Sensörü devrede (Wi-Fi/LAN port tarayıcıları tuzağa ve bataklığa çekilecek)'
+  cmd_step_58: 'Aldatıcı Localhost Bal Küpü (Honeypot) Tuzakları kuruluyor (:2222, :3306, :5432, :6379, :8080, :27017)...'
+  cmd_step_59: 'Aldatıcı Bal Küpü Tuzakları devrede (Sıkı Yerel Ağ İzolasyonu: Yerel yanal sızma girişimleri yakalanır)'
+  cmd_step_60: 'Çoklu Atlama WireGuard hibrit örtüsü yıkılıyor...'
+  cmd_step_61: 'Çoklu Atlama WireGuard tüneli imha edildi'
+  cmd_step_62: 'Geçici v3 Onion Servis kalıntıları temizleniyor...'
+  cmd_step_63: 'Geçici v3 Onion Servisi imha edildi'
+  cmd_step_64: 'Çekirdek Netem Trafik Şekillendirici kaldırıldı'
 help:
   desc: Wraith; sızıntı geçirmez (fail-closed) netfilter yönlendirmesi, TCP/IP yığın
     normalizasyonu, donanım kimliği rotasyonu ve tarayıcı parmak izi kum havuzlaması
@@ -191,6 +210,11 @@ help:
   ex_destruct: Tam koruma + çıkışta kendini diskten tamamen imha et
   ex_stop: Anonimleştirmeyi durdur ve normal ağı geri yükle
   ex_update: En son sürümü GitHub'dan çek ve yerinde yeniden derle
+  opt_onion: 'Geçici bir v3 Onion Gizli Servisi açar <VIRT_PORT:TARGET_PORT> (örn. --onion 80:8080)'
+  opt_shaper: 'Linux TC/Netem çekirdek seviyesi trafik şekillendirme ve jitter dağıtımı uygular'
+  opt_honey_ports: 'Yaygın sızma portlarında (2222, 3306, 5432, 6379, 8080, 27017) sahte bal küpü tuzakları açar'
+  opt_honey_lan: '🚨 YEREL AĞ SENSÖR MODU: Bal küpü tuzaklarını 0.0.0.0 adresine bağlar (Wi-Fi/LAN tarayıcılarını tuzağa çeker)'
+  opt_display_sandbox: 'Fiziksel monitör EDID ifşasını engellemek için izole X11 Sanal Ekranı (Xvfb 1920x1080@24bit) açar'
 runtime:
   emergency_abort_title: '┌── [ 🚨 ACİL DURDURMA: SIGINT (Ctrl+C) YAKALANDI ] ─────────────────────────┐'
   emergency_abort_desc: │  Başlatma kesildi. Tüm sistem ağı ve güvenliği geri yükleniyor...         │

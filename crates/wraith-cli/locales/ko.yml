@@ -122,6 +122,25 @@ commands:
   cmd_step_43: Compilation finished but target binary was not found
   cmd_step_44: Requesting new Tor exit circuit (SIGNAL NEWNYM)...
   cmd_step_45: Running multi-vector leak verification suite...
+  cmd_step_46: 'Initializing Multi-Hop Hybrid Overlay (WireGuard -> Tor)...'
+  cmd_step_47: 'Multi-Hop Hop 1 link armed on {} (Peer: {}, AllowedIPs: {})'
+  cmd_step_48: 'Enforcing Multi-Hop Policy Routing: Locking Tor traffic to {}...'
+  cmd_step_49: 'Multi-Hop policy routing active (Tor egress forced to WireGuard Hop 1)'
+  cmd_step_50: 'Configuring Ephemeral v3 Onion Hidden Service for [{}]...'
+  cmd_step_51: 'Ephemeral v3 Onion Service armed: :{} -> :{} ({})'
+  cmd_step_52: 'Spawning Isolated Virtual Display Sandbox (Xvfb 1920x1080@24bit)...'
+  cmd_step_53: 'Virtual Display active on {} (Physical EDID masked)'
+  cmd_step_54: 'Injecting Linux Kernel TC Netem Traffic Shaper (Normal Distribution Jitter)...'
+  cmd_step_55: 'Kernel Netem Traffic Shaper armed (Delay: 35ms, Jitter: 12ms)'
+  cmd_step_56: 'Arming Active LAN Deception Sensor on 0.0.0.0 (:2222, :3306, :5432, :6379, :8080, :27017)...'
+  cmd_step_57: 'Active LAN Deception Sensor armed (Wi-Fi/LAN port scanners will be trapped & tarpitted)'
+  cmd_step_58: 'Arming Deceptive Localhost Honeypot Traps (:2222, :3306, :5432, :6379, :8080, :27017)...'
+  cmd_step_59: 'Deceptive Honeypot Traps active (Strict Loopback Isolation: Rogue lateral recon trapped)'
+  cmd_step_60: 'Tearing down Multi-Hop WireGuard hybrid overlay...'
+  cmd_step_61: 'Multi-Hop WireGuard tunnel demolished'
+  cmd_step_62: 'Purging Ephemeral v3 Onion Service artifacts...'
+  cmd_step_63: 'Ephemeral v3 Onion Service demolished'
+  cmd_step_64: 'Kernel Netem Traffic Shaper detached'
 help:
   desc: Wraith establishes fail-closed Tor transparent proxying with netfilter enforcement,
     TCP/IP stack normalization, hardware identifier rotation, and browser fingerprint
@@ -193,6 +212,11 @@ help:
   ex_destruct: Full defense + Cryptographically shred binary on exit
   ex_stop: Terminate isolation & Restore clean clearnet
   ex_update: Pull latest release from GitHub & Hot-rebuild in-place
+  opt_onion: 'Arm an Ephemeral v3 Onion Hidden Service forwarding <VIRT_PORT:TARGET_PORT>'
+  opt_shaper: 'Enforce Linux TC/Netem kernel traffic shaping & jitter distribution (anti-flow correlation)'
+  opt_honey_ports: 'Arm localhost deception honey-port traps on common lateral movement ports (2222, 3306, 5432, 6379, 8080, 27017)'
+  opt_honey_lan: '🚨 LAN SENSOR MODE: Bind honeypot traps to 0.0.0.0 (Exposes decoy ports to Wi-Fi/LAN scanners & tarpits them)'
+  opt_display_sandbox: 'Spawn isolated X11 Virtual Display sandbox (Xvfb 1920x1080@24bit) to mask physical display EDID'
 runtime:
   emergency_abort_title: '┌── [ 🚨 EMERGENCY ABORT: SIGINT (Ctrl+C) TRAPPED ] ─────────────────────────┐'
   emergency_abort_desc: │  Startup interrupted. Restoring full system network & security...         │
