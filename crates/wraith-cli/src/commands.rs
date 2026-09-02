@@ -11,22 +11,23 @@ use wraith_core::vault::EncryptedRamVault;
 use wraith_forensic::{
     deploy_hardware_and_font_shield, enforce_font_jail, panic_emergency_purge,
     remove_hardware_and_font_shield, restore_font_jail, restore_machine_id, rotate_machine_id,
-    run_full_cleanup,
+    run_full_cleanup, VirtualDisplay,
 };
 use wraith_guard::{
     enforce_seccomp_socket_jail, get_current_ip, get_current_ip_geo, run_full_leak_test,
-    verify_tor_connection, KillSwitch, SovereignDnsEngine, TrafficJitterEngine,
+    verify_tor_connection, HoneyPortTrap, KillSwitch, SovereignDnsEngine, TrafficJitterEngine,
 };
 use wraith_net::{
     apply_ipv6_block, apply_tor_rules, backup_and_apply_tcp_mask, block_stun_ports, change_mac,
     create_cgroup_jail, create_namespace, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
     flush_rules, randomize_hostname, restore_mac, restore_tcp_stack, unblock_stun_ports,
-    EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine,
+    EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
+    TrafficShapingProfile,
 };
 use wraith_tor::{
-    apply_exit_profile, backup_resolv, configure_dns, get_active_tls_profile,
-    get_circuit_telemetry, restore_dns, start_tor_daemon, stop_tor_daemon, write_bridge_torrc,
-    write_torrc, TlsCamouflageServer, TorControlClient,
+    apply_exit_profile, arm_onion_service, backup_resolv, configure_dns, get_active_tls_profile,
+    get_circuit_telemetry, purge_onion_service, restore_dns, start_tor_daemon, stop_tor_daemon,
+    write_bridge_torrc, write_torrc, OnionServiceConfig, TlsCamouflageServer, TorControlClient,
 };
 
 use crate::display::{
@@ -45,6 +46,9 @@ struct BackgroundServices {
     ids: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
     killswitch: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
     rotator: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+    honeypot: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+    virtual_display: Option<VirtualDisplay>,
+    traffic_shaper: Option<TrafficShaper>,
 }
 
 impl BackgroundServices {
@@ -67,6 +71,15 @@ impl BackgroundServices {
         }
         if let Some((ct, _)) = &self.rotator {
             ct.cancel();
+        }
+        if let Some((ct, _)) = &self.honeypot {
+            ct.cancel();
+        }
+        if let Some(mut vd) = self.virtual_display.take() {
+            vd.terminate();
+        }
+        if let Some(mut ts) = self.traffic_shaper.take() {
+            let _ = ts.restore();
         }
 
         // 2. Wait for handles to terminate with a bounded graceful timeout (1500ms)
@@ -96,6 +109,9 @@ impl BackgroundServices {
         if let Some((_, h)) = self.rotator.take() {
             join_task("Auto IP Rotator", h).await;
         }
+        if let Some((_, h)) = self.honeypot.take() {
+            join_task("Honeypot Trap", h).await;
+        }
     }
 }
 
@@ -109,6 +125,25 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     }
 
     let is_strict = args.strict_hardening;
+
+    // WireGuard Multi-Hop early configuration validation
+    if let Some(ref wg_conf) = args.wireguard {
+        if wg_conf.trim().is_empty() {
+            print_error("WireGuard multi-hop requires a valid config file. Use --wireguard <path/to/wg.conf>");
+            return Err(WraithError::Custom(
+                "WireGuard multi-hop requires a config file. Use --wireguard <path/to/wg.conf>".into(),
+            ));
+        }
+        if !Path::new(wg_conf).exists() {
+            print_error(&format!(
+                "WireGuard config file not found: '{wg_conf}'. Use --wireguard <path/to/wg.conf>"
+            ));
+            return Err(WraithError::Custom(format!(
+                "WireGuard config file not found: {wg_conf}"
+            )));
+        }
+    }
+
     let mut state_data = StateData {
         active: true,
         ..Default::default()
@@ -291,24 +326,30 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_4"), "ok");
     }
 
-    // 5b. Multi-Hop & Hybrid Overlay Tunneling (WireGuard ➔ Tor)
+    // 5b. Multi-Hop & Hybrid Overlay Tunneling (WireGuard ➔ Tor) Hop 1 Initialization
+    let mut wg_active_iface: Option<String> = None;
     if let Some(ref wg_conf) = args.wireguard {
-        print_step(
-            &format!("Initializing Multi-Hop Hybrid Overlay (WireGuard -> Tor)... [{wg_conf}]"),
-            "info",
-        );
+        print_step(&format!("{} [{wg_conf}]", t!("commands.cmd_step_46")), "info");
         match MultiHopTunnelEngine::setup_wireguard(Some(wg_conf)) {
-            Ok(wg_iface) => {
-                let tor_uid = wraith_net::get_tor_uid().unwrap_or(0);
-                let _ = MultiHopTunnelEngine::bind_tor_to_wireguard(tor_uid, &wg_iface);
+            Ok((wg_iface, wg_cfg)) => {
                 print_step(
-                    &format!("Multi-Hop Hop 1 active ({wg_iface} ChaCha20-Poly1305) ➔ Tor traffic encapsulated"),
+                    &format!(
+                        "{} (Peer: {}, AllowedIPs: {})",
+                        t!("commands.cmd_step_47", iface = &wg_iface),
+                        wg_cfg.peer_endpoint,
+                        wg_cfg.allowed_ips
+                    ),
                     "ok",
                 );
                 state_data.multihop_enabled = true;
                 state_data.wireguard_config = Some(wg_conf.clone());
+                let _ = state_mgr.activate(state_data.clone());
+                wg_active_iface = Some(wg_iface);
             }
-            Err(e) => print_step(&format!("Multi-Hop WireGuard setup warning: {e}"), "warn"),
+            Err(e) => {
+                print_step(&format!("Multi-Hop WireGuard setup failed: {e}"), "error");
+                return Err(e);
+            }
         }
     }
 
@@ -356,6 +397,37 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         }
     }
 
+    // 8b. Ephemeral v3 Onion Hidden Service
+    if let Some(ref onion_spec) = args.onion_service {
+        print_step(&format!("{} [{onion_spec}]...", t!("commands.cmd_step_50")), "info");
+        let (virt_port, target_port) = if let Some((v, t)) = onion_spec.split_once(':') {
+            (v.parse::<u16>().unwrap_or(80), t.parse::<u16>().unwrap_or(80))
+        } else {
+            let p = onion_spec.parse::<u16>().unwrap_or(80);
+            (p, p)
+        };
+
+        let mut onion_cfg = OnionServiceConfig::default();
+        onion_cfg.add_port(virt_port, target_port);
+
+        match arm_onion_service(&onion_cfg) {
+            Ok(()) => {
+                let hostname = wraith_tor::read_onion_hostname()
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "initializing...".to_string());
+                print_step(
+                    &format!("{}: :{virt_port} -> :{target_port} ({hostname})", t!("commands.cmd_step_51")),
+                    "ok",
+                );
+                state_data.onion_service_active = true;
+                state_data.onion_hostname = Some(hostname);
+                let _ = state_mgr.activate(state_data.clone());
+            }
+            Err(e) => print_step(&format!("Onion Service provisioning warning: {e}"), "warn"),
+        }
+    }
+
     // 9. Firewall & IPv6 Drop
     print_step(&t!("commands.cmd_step_9"), "info");
     let saved = apply_tor_rules()?;
@@ -370,6 +442,26 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     print_step(&t!("commands.cmd_step_13"), "info");
     block_stun_ports()?;
     print_step(&t!("commands.cmd_step_14"), "ok");
+
+    // 9b. Multi-Hop Policy Routing Enforcement (Binding Tor Outbound Egress to WireGuard Hop 1)
+    if let Some(ref wg_iface) = wg_active_iface {
+        print_step(&format!("{}: {wg_iface}...", t!("commands.cmd_step_48")), "info");
+        let tor_uid = wraith_net::get_tor_uid().unwrap_or(0);
+        match MultiHopTunnelEngine::bind_tor_to_wireguard(tor_uid, wg_iface) {
+            Ok(true) => {
+                print_step(&t!("commands.cmd_step_49"), "ok");
+            }
+            Ok(false) => {
+                print_step(
+                    &format!("WireGuard interface {wg_iface} up, but Tor routing not confirmed"),
+                    "warn",
+                );
+            }
+            Err(e) => {
+                print_step(&format!("Failed binding Tor to WireGuard: {e}"), "warn");
+            }
+        }
+    }
 
     // 10. eBPF / TC Egress Fastpath Filter
     if is_strict {
@@ -448,6 +540,23 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         }
     }
 
+    // 14b. Isolated X11 Virtual Display Sandbox (Xvfb)
+    if args.display_sandbox {
+        print_step(&t!("commands.cmd_step_52"), "info");
+        match VirtualDisplay::spawn_standard(None) {
+            Ok(vd) => {
+                print_step(
+                    &format!("{}: {} (Physical EDID masked)", t!("commands.cmd_step_53"), vd.display_num),
+                    "ok",
+                );
+                state_data.display_jail_active = true;
+                let _ = state_mgr.activate(state_data.clone());
+                bg_services.virtual_display = Some(vd);
+            }
+            Err(e) => print_step(&format!("Virtual Display sandbox warning: {e}"), "warn"),
+        }
+    }
+
     // 15. cgroup2 Network Socket Jail
     if is_strict {
         if let Err(e) = create_cgroup_jail() {
@@ -499,6 +608,50 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             "ok",
         );
         bg_services.jitter = Some((ct, handle));
+    }
+
+    // 18b. Kernel-level TC Netem Traffic Shaper
+    if args.traffic_shaper || (args.jitter && is_strict) {
+        print_step(&t!("commands.cmd_step_54"), "info");
+        match TrafficShaper::new(None) {
+            Ok(mut shaper) => {
+                let prof = TrafficShapingProfile::default();
+                if let Err(e) = shaper.apply_shaping(&prof) {
+                    print_step(&format!("Kernel Traffic Shaper apply warning: {e}"), "warn");
+                } else {
+                    print_step(&t!("commands.cmd_step_55"), "ok");
+                    state_data.traffic_shaper_active = true;
+                    let _ = state_mgr.activate(state_data.clone());
+                    bg_services.traffic_shaper = Some(shaper);
+                }
+            }
+            Err(e) => print_step(&format!("Kernel Traffic Shaper init warning: {e}"), "warn"),
+        }
+    }
+
+    // 18c. Deceptive Honeypot Traps & LAN Deception Sensor
+    if args.honey_lan || args.honey_ports || is_strict {
+        if args.honey_lan {
+            print_step(&t!("commands.cmd_step_56"), "info");
+            if let Err(e) = wraith_net::allow_honey_lan_ports(wraith_guard::DECOY_PORTS) {
+                tracing::warn!("Failed opening firewall exception for LAN honeypot: {e}");
+            }
+            let trap = HoneyPortTrap::new().with_lan_binding(true);
+            let (ct, handle) = trap.spawn_service();
+            print_step(&t!("commands.cmd_step_57"), "ok");
+            state_data.honeypot_active = true;
+            state_data.honeypot_lan_active = true;
+            let _ = state_mgr.activate(state_data.clone());
+            bg_services.honeypot = Some((ct, handle));
+        } else {
+            print_step(&t!("commands.cmd_step_58"), "info");
+            let trap = HoneyPortTrap::new().with_lan_binding(false);
+            let (ct, handle) = trap.spawn_service();
+            print_step(&t!("commands.cmd_step_59"), "ok");
+            state_data.honeypot_active = true;
+            let _ = state_mgr.activate(state_data.clone());
+            bg_services.honeypot = Some((ct, handle));
+        }
     }
 
     // 19. Encrypted In-Memory Ephemeral RAMFS Vault
@@ -775,11 +928,27 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     print_step(&t!("commands.cmd_step_27"), "ok");
 
     if state_info.multihop_enabled {
-        print_step("Tearing down Multi-Hop WireGuard hybrid overlay...", "info");
+        print_step(&t!("commands.cmd_step_60"), "info");
         if let Err(e) = MultiHopTunnelEngine::teardown_wireguard(state_info.wireguard_config.as_deref()) {
             tracing::warn!("WireGuard teardown warning: {e}");
         } else {
-            print_step("Multi-Hop WireGuard tunnel demolished", "ok");
+            print_step(&t!("commands.cmd_step_61"), "ok");
+        }
+    }
+
+    if state_info.onion_service_active {
+        print_step(&t!("commands.cmd_step_62"), "info");
+        if let Err(e) = purge_onion_service() {
+            tracing::warn!("Onion service purge warning: {e}");
+        } else {
+            print_step(&t!("commands.cmd_step_63"), "ok");
+        }
+    }
+
+    if state_info.traffic_shaper_active {
+        if let Ok(mut shaper) = TrafficShaper::new(None) {
+            let _ = shaper.restore();
+            print_step(&t!("commands.cmd_step_64"), "ok");
         }
     }
 

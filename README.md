@@ -163,6 +163,7 @@ wraith/
 ├── uninstall.sh                            # Sovereign Uninstaller & Forensic State Purge
 └── crates/
     ├── wraith-core/                        # [Core & Memory Security Layer]
+    │   ├── locales/                        # Localized Core & Crypto Dictionaries
     │   ├── src/crypto.rs                   # Constant-Time Cryptography (Audited SHA-256, HMAC, Poly1305)
     │   ├── src/vault.rs                    # Encrypted RAMFS Vault (RFC 8439 ChaCha20-Poly1305, mlockall, ZeroizeOnDrop)
     │   ├── src/kernel_lockdown.rs          # Kernel Hardening (kexec disable, ptrace scope, sysctl lockdown)
@@ -171,6 +172,7 @@ wraith/
     │   └── src/state.rs                    # Atomic State Lifecycle & Safe Persistence
     │
     ├── wraith-net/                         # [Kernel Networking & DPI Layer]
+    │   ├── locales/                        # Localized Network & DPI Dictionaries
     │   ├── src/netlink.rs                  # Direct AF_NETLINK Route, Link, Address & FIB Rule Engine
     │   ├── src/ids.rs                      # Zero-Copy AF_PACKET Dissector, 50+ Tool DPI Sanitizer & STUN Trap
     │   ├── src/tcp_stack.rs                # TCP/IP Stack Normalizer & p0f Evasion (TTL=128, TS=0)
@@ -184,6 +186,7 @@ wraith/
     │   └── src/traffic_shaper.rs           # Kernel TC/Netem Traffic Shaping (Jitter & Latency Obfuscation)
     │
     ├── wraith-guard/                       # [Defense & DNS Engine]
+    │   ├── locales/                        # Localized Guard & DNS Dictionaries
     │   ├── src/dns_engine.rs               # RFC 1035 UDP DNS Server + EDNS0 (468B) Padding + Sinkhole
     │   ├── src/killswitch.rs               # Fail-Closed Async Watchdog Engine (<1ms Panic Drop)
     │   ├── src/traffic_jitter.rs           # Synthetic Poisson Traffic Cell Generator & Egress Padding
@@ -193,6 +196,7 @@ wraith/
     │   └── src/leak.rs                     # Multi-Vector Egress Leak Auditor
     │
     ├── wraith-tor/                         # [Tor Transport & TLS Camouflage Layer]
+    │   ├── locales/                        # Localized Tor Transport Dictionaries
     │   ├── src/grease.rs                   # RFC 8701 GREASE JA3/JA4 TLS 1.3 ClientHello & HTTP/2 Synthesizer
     │   ├── src/tls_camouflage.rs           # SOCKS5 Camouflage Proxy with Dynamic JA3/JA4 Fingerprints
     │   ├── src/multichain.rs               # Five-Eyes Exclusion Matrix & Strict Geographic Exit Profiler
@@ -203,6 +207,7 @@ wraith/
     │   └── src/bridge.rs                   # obfs4 / Snowflake Pluggable Transport Manager
     │
     ├── wraith-forensic/                    # [Anti-Forensics & Hardware Cloaking Layer]
+    │   ├── locales/                        # Localized Anti-Forensics Dictionaries
     │   ├── src/shred.rs                    # Multi-Pass Crypto Shredder with FS Sync & Zeroization
     │   ├── src/memory.rs                   # Volatile RAM & Swap Partition Cleaner (with 5s Emergency Timeout)
     │   ├── src/anti_debug_probe.rs         # Dynamic RE Detection (PTRACE_TRACEME, TracerPid Probe)

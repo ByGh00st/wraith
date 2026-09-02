@@ -61,6 +61,23 @@ pub struct StartArgs {
     )]
     pub wireguard: Option<String>,
 
+    /// Arm an Ephemeral v3 Onion Hidden Service forwarding <VIRT_PORT:TARGET_PORT> (e.g. --onion 80:8080)
+    #[arg(
+        long = "onion",
+        visible_aliases = ["hidden-service", "hs", "onion-service"],
+        value_name = "VIRT_PORT:TARGET_PORT",
+        help_heading = "Network Isolation"
+    )]
+    pub onion_service: Option<String>,
+
+    /// Enforce Linux TC/Netem kernel traffic shaping & jitter distribution (anti-flow correlation)
+    #[arg(
+        long = "shaper",
+        visible_aliases = ["traffic-shaper", "netem", "tc-shaper"],
+        help_heading = "Network Isolation"
+    )]
+    pub traffic_shaper: bool,
+
     // ─── [2. HOST & SYSTEM FINGERPRINT HARDENING] ──────────────────────────────────
     /// Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint profiles into browsers
     #[arg(long = "browser-shield", visible_aliases = ["shield", "canvas-shield"], help_heading = "System Hardening")]
@@ -70,6 +87,30 @@ pub struct StartArgs {
     #[arg(long = "font-sandbox", visible_aliases = ["font-jail"], help_heading = "System Hardening")]
     pub font_sandbox: bool,
 
+    /// Spawn isolated X11 Virtual Display sandbox (Xvfb 1920x1080@24bit) to mask physical display EDID
+    #[arg(
+        long = "display-sandbox",
+        visible_aliases = ["display-jail", "xvfb", "virtual-display"],
+        help_heading = "System Hardening"
+    )]
+    pub display_sandbox: bool,
+
+    /// Arm localhost deception honey-port traps on common lateral movement ports (2222, 3306, 5432, 6379, 8080, 27017)
+    #[arg(
+        long = "honey-ports",
+        visible_aliases = ["honeypot", "honey-trap", "trap-ports"],
+        help_heading = "System Hardening"
+    )]
+    pub honey_ports: bool,
+
+    /// 🚨 LAN SENSOR MODE: Bind honeypot traps to 0.0.0.0 (Exposes decoy ports to Wi-Fi/LAN scanners & tarpits them)
+    #[arg(
+        long = "honey-lan",
+        visible_aliases = ["lan-honeypot", "lan-trap", "deception-sensor"],
+        help_heading = "System Hardening"
+    )]
+    pub honey_lan: bool,
+
     /// Normalize TCP/IP L4 stack parameters (TTL=128, timestamps=0) to resist OS fingerprinting
     #[arg(long = "tcp-mask", help_heading = "System Hardening")]
     pub tcp_mask: bool,
@@ -78,7 +119,7 @@ pub struct StartArgs {
     #[arg(long = "machine-id", visible_aliases = ["cloaking"], help_heading = "System Hardening")]
     pub machine_id_rotation: bool,
 
-    /// Engage ALL 16 defense layers: GPU/Font Shield, MAC, Machine-ID, TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault
+    /// Engage ALL 16 defense layers: GPU/Font Shield, MAC, Machine-ID, TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault, Honeypot, Netem
     #[arg(
         short = 'F',
         long = "full-security", 
@@ -141,9 +182,14 @@ impl StartArgs {
             || self.namespace
             || self.profile.is_some()
             || self.wireguard.is_some()
+            || self.onion_service.is_some()
+            || self.traffic_shaper
             || self.jitter
             || self.browser_shield
             || self.font_sandbox
+            || self.display_sandbox
+            || self.honey_ports
+            || self.honey_lan
             || self.tcp_mask
             || self.machine_id_rotation
             || self.strict_hardening
@@ -579,6 +625,21 @@ mod tests {
         } else {
             panic!("Expected Commands::Start");
         }
+
+        let cli6 = Cli::try_parse_from([
+            "wraith",
+            "--onion", "80:8080",
+            "--shaper",
+            "--honey-ports",
+            "--honey-lan",
+            "--display-sandbox",
+        ]).expect("Failed to parse new isolation flags");
+        assert_eq!(cli6.start_opts.onion_service.as_deref(), Some("80:8080"));
+        assert!(cli6.start_opts.traffic_shaper);
+        assert!(cli6.start_opts.honey_ports);
+        assert!(cli6.start_opts.honey_lan);
+        assert!(cli6.start_opts.display_sandbox);
+        assert!(cli6.start_opts.has_active_flags());
     }
 }
 

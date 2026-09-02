@@ -39,6 +39,12 @@ pub struct StateData {
     pub tcp_stack_masked: bool,
     pub multihop_enabled: bool,
     pub wireguard_config: Option<String>,
+    pub onion_service_active: bool,
+    pub onion_hostname: Option<String>,
+    pub traffic_shaper_active: bool,
+    pub honeypot_active: bool,
+    pub honeypot_lan_active: bool,
+    pub display_jail_active: bool,
 }
 
 pub struct StateManager {
