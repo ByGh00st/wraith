@@ -199,3 +199,20 @@ pub fn scrub_system_logs() -> Result<usize> {
     info!("System journal and forensic logs sanitized ({scrubbed} log sinks cleared)");
     Ok(scrubbed)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dod_7pass_shred_file() {
+        let temp_dir = std::env::temp_dir();
+        let target = temp_dir.join("wraith_test_dod_shred.bin");
+        fs::write(&target, b"CONFIDENTIAL AND SENSITIVE FORENSIC TRACE PAYLOAD").expect("Failed to write test file");
+        assert!(target.exists());
+
+        let res = dod_7pass_shred(&target);
+        assert!(res.is_ok());
+        assert!(!target.exists());
+    }
+}

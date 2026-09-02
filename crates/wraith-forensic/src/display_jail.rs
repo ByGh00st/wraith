@@ -64,3 +64,14 @@ impl Drop for VirtualDisplay {
         self.terminate();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_virtual_display_constants() {
+        assert_eq!(DEFAULT_VIRTUAL_DISPLAY, ":99");
+        assert_eq!(STANDARD_GEOMETRY, "1920x1080x24");
+    }
+}

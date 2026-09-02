@@ -7,31 +7,13 @@ use std::process::Command;
 use tracing::info;
 use wraith_core::error::Result;
 
+use crate::anti_forensic_stealth::{scrub_system_logs, wipe_all_user_histories};
 use crate::shred::secure_delete_file;
 
 pub fn clear_shell_histories() -> Result<usize> {
-    let mut cleared = 0;
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
-
-    let target_histories = [
-        format!("{home}/.bash_history"),
-        format!("{home}/.zsh_history"),
-        format!("{home}/.python_history"),
-        "/root/.bash_history".to_string(),
-        "/root/.zsh_history".to_string(),
-    ];
-
-    for hist in &target_histories {
-        let p = Path::new(hist);
-        if p.exists() {
-            let _ = secure_delete_file(p, 1);
-            let _ = fs::write(p, "");
-            cleared += 1;
-        }
-    }
-
+    let cleared = wipe_all_user_histories().unwrap_or(0);
     let _ = Command::new("history").args(["-c"]).status();
-    info!("Wiped {cleared} shell/interpreter history files");
+    info!("Wiped {cleared} shell/interpreter history files via DoD 5220.22-M sanitization");
     Ok(cleared)
 }
 
@@ -52,7 +34,7 @@ pub fn clear_dns_and_arp_caches() -> Result<()> {
 }
 
 pub fn clear_system_logs() -> Result<usize> {
-    let mut cleared = 0;
+    let mut cleared = scrub_system_logs().unwrap_or(0);
     let log_dirs = ["/var/log/wraith", "/var/log/specternet", "/var/log/tor"];
 
     for d in &log_dirs {
@@ -71,7 +53,7 @@ pub fn clear_system_logs() -> Result<usize> {
         }
     }
 
-    info!("Scrubbed {cleared} log files");
+    info!("Scrubbed {cleared} log files and journal sinks");
     Ok(cleared)
 }
 
