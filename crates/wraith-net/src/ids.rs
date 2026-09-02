@@ -348,90 +348,86 @@ impl PacketDissector {
 
         // 3. Layer 4 (Transport) Dissection
         match ip_proto {
-            IpProtocol::Tcp => {
-                if frame.len() >= offset + 20 {
-                    let src_port = u16::from_be_bytes([frame[offset], frame[offset + 1]]);
-                    let dst_port = u16::from_be_bytes([frame[offset + 2], frame[offset + 3]]);
-                    let seq = u32::from_be_bytes([frame[offset + 4], frame[offset + 5], frame[offset + 6], frame[offset + 7]]);
-                    let ack = u32::from_be_bytes([frame[offset + 8], frame[offset + 9], frame[offset + 10], frame[offset + 11]]);
-                    let data_offset = (frame[offset + 12] >> 4) * 4;
-                    let flags_byte = frame[offset + 13];
+            IpProtocol::Tcp if frame.len() >= offset + 20 => {
+                let src_port = u16::from_be_bytes([frame[offset], frame[offset + 1]]);
+                let dst_port = u16::from_be_bytes([frame[offset + 2], frame[offset + 3]]);
+                let seq = u32::from_be_bytes([frame[offset + 4], frame[offset + 5], frame[offset + 6], frame[offset + 7]]);
+                let ack = u32::from_be_bytes([frame[offset + 8], frame[offset + 9], frame[offset + 10], frame[offset + 11]]);
+                let data_offset = (frame[offset + 12] >> 4) * 4;
+                let flags_byte = frame[offset + 13];
 
-                    let fin = (flags_byte & 0x01) != 0;
-                    let syn = (flags_byte & 0x02) != 0;
-                    let rst = (flags_byte & 0x04) != 0;
-                    let psh = (flags_byte & 0x08) != 0;
-                    let ack_flag = (flags_byte & 0x10) != 0;
-                    let urg = (flags_byte & 0x20) != 0;
-                    let ece = (flags_byte & 0x40) != 0;
-                    let cwr = (flags_byte & 0x80) != 0;
+                let fin = (flags_byte & 0x01) != 0;
+                let syn = (flags_byte & 0x02) != 0;
+                let rst = (flags_byte & 0x04) != 0;
+                let psh = (flags_byte & 0x08) != 0;
+                let ack_flag = (flags_byte & 0x10) != 0;
+                let urg = (flags_byte & 0x20) != 0;
+                let ece = (flags_byte & 0x40) != 0;
+                let cwr = (flags_byte & 0x80) != 0;
 
-                    let window = u16::from_be_bytes([frame[offset + 14], frame[offset + 15]]);
-                    let checksum = u16::from_be_bytes([frame[offset + 16], frame[offset + 17]]);
+                let window = u16::from_be_bytes([frame[offset + 14], frame[offset + 15]]);
+                let checksum = u16::from_be_bytes([frame[offset + 16], frame[offset + 17]]);
 
-                    let mut options = Vec::new();
-                    if data_offset > 20 && frame.len() >= offset + (data_offset as usize) {
-                        let opt_slice = &frame[offset + 20..offset + (data_offset as usize)];
-                        options = Self::parse_tcp_options(opt_slice);
-                    }
-
-                    if dst_port == TOR_TRANS_PORT {
-                        is_tor_transport = true;
-                    }
-
-                    transport_hdr = TransportHeader::Tcp {
-                        src_port,
-                        dst_port,
-                        seq,
-                        ack,
-                        data_offset,
-                        fin,
-                        syn,
-                        rst,
-                        psh,
-                        ack_flag,
-                        urg,
-                        ece,
-                        cwr,
-                        window,
-                        checksum,
-                        options,
-                    };
-
-                    offset += data_offset.max(20) as usize;
+                let mut options = Vec::new();
+                if data_offset > 20 && frame.len() >= offset + (data_offset as usize) {
+                    let opt_slice = &frame[offset + 20..offset + (data_offset as usize)];
+                    options = Self::parse_tcp_options(opt_slice);
                 }
+
+                if dst_port == TOR_TRANS_PORT {
+                    is_tor_transport = true;
+                }
+
+                transport_hdr = TransportHeader::Tcp {
+                    src_port,
+                    dst_port,
+                    seq,
+                    ack,
+                    data_offset,
+                    fin,
+                    syn,
+                    rst,
+                    psh,
+                    ack_flag,
+                    urg,
+                    ece,
+                    cwr,
+                    window,
+                    checksum,
+                    options,
+                };
+
+                offset += data_offset.max(20) as usize;
             }
-            IpProtocol::Udp => {
-                if frame.len() >= offset + 8 {
-                    let src_port = u16::from_be_bytes([frame[offset], frame[offset + 1]]);
-                    let dst_port = u16::from_be_bytes([frame[offset + 2], frame[offset + 3]]);
-                    let length = u16::from_be_bytes([frame[offset + 4], frame[offset + 5]]);
-                    let checksum = u16::from_be_bytes([frame[offset + 6], frame[offset + 7]]);
+            IpProtocol::Udp if frame.len() >= offset + 8 => {
+                let src_port = u16::from_be_bytes([frame[offset], frame[offset + 1]]);
+                let dst_port = u16::from_be_bytes([frame[offset + 2], frame[offset + 3]]);
+                let length = u16::from_be_bytes([frame[offset + 4], frame[offset + 5]]);
+                let checksum = u16::from_be_bytes([frame[offset + 6], frame[offset + 7]]);
 
-                    if dst_port == TOR_DNS_PORT {
-                        is_tor_dns = true;
-                    }
-
-                    // Check for WebRTC STUN Binding Request (Magic Cookie 0x2112A442)
-                    if frame.len() >= offset + 12 {
-                        let maybe_magic = u32::from_be_bytes([
-                            frame[offset + 8], frame[offset + 9],
-                            frame[offset + 10], frame[offset + 11],
-                        ]);
-                        if maybe_magic == STUN_MAGIC_COOKIE || dst_port == 3478 || dst_port == 19302 {
-                            is_stun_leak = true;
-                        }
-                    }
-
-                    transport_hdr = TransportHeader::Udp {
-                        src_port,
-                        dst_port,
-                        length,
-                        checksum,
-                    };
-
-                    offset += 8;
+                if dst_port == TOR_DNS_PORT {
+                    is_tor_dns = true;
                 }
+
+                // Check for WebRTC STUN Binding Request (Magic Cookie 0x2112A442)
+                if frame.len() >= offset + 12 {
+                    let maybe_magic = u32::from_be_bytes([
+                        frame[offset + 8], frame[offset + 9],
+                        frame[offset + 10], frame[offset + 11],
+                    ]);
+                    if maybe_magic == STUN_MAGIC_COOKIE || dst_port == 3478 || dst_port == 19302 {
+                        is_stun_leak = true;
+                    }
+                }
+
+                transport_hdr = TransportHeader::Udp {
+                    src_port,
+                    dst_port,
+                    length,
+                    checksum,
+                };
+
+                offset += 8;
             }
             IpProtocol::Icmp | IpProtocol::IcmpV6 if frame.len() >= offset + 4 => {
                 let icmp_type = frame[offset];

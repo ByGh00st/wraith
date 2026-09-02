@@ -1053,17 +1053,13 @@ impl NetlinkSocket {
                             ifname = c_str.to_string_lossy().to_string();
                         }
                     }
-                    IFLA_ADDRESS => {
-                        if payload.len() == 6 {
-                            let mut mac = [0u8; 6];
-                            mac.copy_from_slice(payload);
-                            mac_address = Some(mac);
-                        }
+                    IFLA_ADDRESS if payload.len() == 6 => {
+                        let mut mac = [0u8; 6];
+                        mac.copy_from_slice(payload);
+                        mac_address = Some(mac);
                     }
-                    IFLA_MTU => {
-                        if payload.len() >= 4 {
-                            mtu = u32::from_ne_bytes([payload[0], payload[1], payload[2], payload[3]]);
-                        }
+                    IFLA_MTU if payload.len() >= 4 => {
+                        mtu = u32::from_ne_bytes([payload[0], payload[1], payload[2], payload[3]]);
                     }
                     IFLA_QDISC => {
                         if let Ok(c_str) = CStr::from_bytes_until_nul(payload) {

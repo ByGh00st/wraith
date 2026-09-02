@@ -142,8 +142,7 @@ pub fn run_language_selector_tui() -> Result<String> {
         ));
         rows.push("─".repeat(BOX_WIDTH.saturating_sub(7)));
 
-        for i in top..top.saturating_add(page_size).min(total) {
-            let (code, name) = ALL_LANGUAGES[i];
+        for (i, &(code, name)) in ALL_LANGUAGES.iter().enumerate().take(top.saturating_add(page_size).min(total)).skip(top) {
             let idx_str = format!("{:02}", i + 1);
 
             if i == cursor {
@@ -205,10 +204,8 @@ pub fn run_language_selector_tui() -> Result<String> {
                     KeyCode::Up => {
                         cursor = cursor.saturating_sub(1);
                     }
-                    KeyCode::Down => {
-                        if cursor + 1 < total {
-                            cursor += 1;
-                        }
+                    KeyCode::Down if cursor + 1 < total => {
+                        cursor += 1;
                     }
                     KeyCode::PageUp | KeyCode::Left => {
                         cursor = cursor.saturating_sub(page_size);

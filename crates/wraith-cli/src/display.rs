@@ -135,7 +135,7 @@ pub fn render_box_row(content: &str, total_width: usize) -> String {
     let inner_w = if total_width > 5 { total_width - 5 } else { 1 };
     let truncated = truncate_visible(content, inner_w);
     let v_w = visible_width(&truncated);
-    let padding_count = if inner_w > v_w { inner_w - v_w } else { 0 };
+    let padding_count = inner_w.saturating_sub(v_w);
     let padding = " ".repeat(padding_count);
     format!("  │  {truncated}{padding} │")
 }
