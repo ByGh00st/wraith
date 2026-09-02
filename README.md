@@ -24,25 +24,29 @@
 
 ---
 
-## 🧭 Interactive Table of Contents & Quick Navigation
+## 📋 Table of Contents
 
-<p align="center">
-  <a href="#-quickstart--installation"><img src="https://img.shields.io/badge/⚡_QUICKSTART-INSTALLATION-brightgreen?style=flat-square"></a>
-  <a href="#-codebase-metrics--language-breakdown"><img src="https://img.shields.io/badge/📊_CODEBASE-TOKEI_METRICS-blue?style=flat-square"></a>
-  <a href="#-core-architectural-pillars"><img src="https://img.shields.io/badge/🏛️_SYSTEM-ARCHITECTURE-purple?style=flat-square"></a>
-  <a href="#️-privacy--security-comparison-matrix"><img src="https://img.shields.io/badge/🛡️_COMPARISON-SECURITY_MATRIX-orange?style=flat-square"></a>
-  <a href="#-modular-crate-topology"><img src="https://img.shields.io/badge/📂_CRATES-6_MODULAR_TOPOLOGY-cyan?style=flat-square"></a>
-  <a href="#-operational-command-reference"><img src="https://img.shields.io/badge/💻_CLI_REFERENCE-COMMANDS_%26_FLAGS-red?style=flat-square"></a>
-  <a href="#️-in-flight-dpi-tool-signature-sanitization-50-matrix"><img src="https://img.shields.io/badge/⚔️_DPI_ENGINE-50+_TOOL_SANITIZATION-yellow?style=flat-square"></a>
-  <a href="#️-tor-surveillance--adversarial-node-resistance-matrix"><img src="https://img.shields.io/badge/🛡️_TOR_DEFENSE-SURVEILLANCE_RESISTANCE-purple?style=flat-square"></a>
-</p>
-
-| 📑 Navigation Directory | 🎯 Direct Anchor Jump Links |
-| :--- | :--- |
-| **🚀 Getting Started** | • [Automated Deployment](#1-clone--automated-system-deployment-recommended)<br>• [Manual Cargo Build](#2-manual-cargo-compilation--binary-setup)<br>• [Atomic In-Place Updater](#-operational-command-reference) |
-| **💻 CLI & Operations** | • [Operational Shortcuts Table](#-primary-shortcuts--subcommands)<br>• [16 Hardening Flags Matrix](#️-granular-control-flags-matrix)<br>• [Panic Sentry Auto-Recovery](#-fail-closed-crash-protection--panic-sentry) |
-| **🛡️ Architecture & DPI** | • [Tokei Code Metrics](#-codebase-metrics--language-breakdown)<br>• [Security Comparison Matrix](#️-privacy--security-comparison-matrix)<br>• [50+ DPI Tools Matrix](#️-in-flight-dpi-tool-signature-sanitization-50-matrix) |
-| **🔒 Anti-Surveillance** | • [Tor Node Surveillance Resistance](#️-tor-surveillance--adversarial-node-resistance-matrix)<br>• [RAMFS ChaCha20 Vault](#-in-memory-cryptographic-security-specifications)<br>• [Legal Terms](#-legal--operational-disclaimer) |
+- [🌌 System Overview](#system-overview)
+- [📊 Codebase Metrics & Language Breakdown](#codebase-metrics)
+- [⚡ Core Architectural Pillars](#core-architecture)
+- [🛡️ Privacy & Security Comparison Matrix](#privacy-matrix)
+- [📂 Modular Crate Topology](#crate-topology)
+- [🚀 Quickstart & Installation](#installation)
+  - [1. Automated System Deployment (Recommended)](#1-clone--automated-system-deployment-recommended)
+  - [2. Manual Cargo Compilation & Binary Setup](#2-manual-cargo-compilation--binary-setup)
+- [💻 Operational Command Reference](#cli-reference)
+  - [📋 Primary Shortcuts & Subcommands](#-primary-shortcuts--subcommands)
+  - [🌐 75-Language Enterprise i18n Architecture](#-enterprise-internationalization-i18n-architecture-75-locales)
+  - [🛠️ Granular Control Flags Matrix](#️-granular-control-flags-matrix)
+  - [🛡️ Operational Usage Examples](#️-operational-usage-examples)
+- [⚔️ In-Flight DPI Tool Signature Sanitization (50+ Matrix)](#dpi-sanitization)
+  - [🎯 Supported Tool Matrix (50+ Signatures)](#-supported-tool-matrix-50-pre-configured-signatures)
+  - [🎭 Diversified Multi-Browser User-Agent Pool](#-diversified-multi-browser-user-agent-pool)
+- [🛡️ Tor Surveillance & Adversarial Node Resistance Matrix](#tor-defense)
+- [🔒 In-Memory Cryptographic Security Specifications](#memory-security)
+- [🛡️ Fail-Closed Crash Protection & Panic Sentry](#panic-sentry)
+- [⚖️ Legal & Operational Disclaimer](#legal-disclaimer)
+- [📜 License](#-license)
 
 ---
 
@@ -359,7 +363,7 @@ High-Risk & Forensic Operations (Explicit Opt-In Only):
 General Options:
   -v, --verbose                    Enable verbose debug logging
       --lang <LANG>                Override system language (e.g. 'en', 'tr', 'ru', 'de')
-      --select-lang                Launch interactive 65-language configuration terminal menu
+      --select-lang                Launch interactive 75-language configuration terminal menu
   -h, --help                       Print comprehensive help screen
   -V, --version                    Print version information
 ```
