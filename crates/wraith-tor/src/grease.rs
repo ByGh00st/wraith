@@ -499,3 +499,39 @@ impl DynamicTlsFingerprint {
 }
 
 pub const TLS_VERSION_1_0_LEGACY: u16 = 0x0301;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dynamic_tls_fingerprints() {
+        let profiles = [
+            BrowserType::ChromeWin11,
+            BrowserType::FirefoxLinux,
+            BrowserType::SafariMacOS,
+            BrowserType::EdgeWin11,
+        ];
+
+        for &p in &profiles {
+            let fp = DynamicTlsFingerprint::generate(p);
+            assert!(!fp.ja3_hash.is_empty());
+            assert!(!fp.ja4_hash.is_empty());
+            assert!(!fp.cipher_suites.is_empty());
+            assert!(!fp.extensions.is_empty());
+            assert!(!fp.user_agent.is_empty());
+
+            let hello_bytes = fp.build_client_hello("check.torproject.org");
+            assert!(!hello_bytes.is_empty());
+            assert_eq!(hello_bytes[0], 0x16); // Handshake record
+        }
+    }
+
+    #[test]
+    fn test_http2_settings_frame_construction() {
+        let chrome_h2 = Http2SettingsFrame::for_chrome();
+        let bytes = chrome_h2.to_bytes();
+        assert!(!bytes.is_empty());
+        assert_eq!(bytes[3], 0x04); // Type = SETTINGS
+    }
+}

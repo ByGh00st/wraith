@@ -10,6 +10,8 @@ use tracing::{debug, info, warn};
 use wraith_core::config::TOR_SOCKS_PORT;
 use wraith_core::error::{Result, WraithError};
 
+use crate::grease::{BrowserType, DynamicTlsFingerprint};
+
 pub const TLS_PROXY_PORT: u16 = 9055;
 
 pub const BROWSER_USER_AGENTS: &[&str] = &[
@@ -26,27 +28,9 @@ pub const OFFENSIVE_SIGNATURES: &[&str] = &[
     "medusa", "burpsuite", "owasp zap", "zap", "metasploit", "postman",
 ];
 
-#[derive(Debug, Clone)]
-pub struct TlsProfile {
-    pub name: &'static str,
-    pub ja3_hash: &'static str,
-    pub ja4_hash: &'static str,
-    pub cipher_suites: &'static [u16],
-    pub alpn_protocols: &'static [&'static str],
-}
-
-pub const CHROME_WIN11_PROFILE: TlsProfile = TlsProfile {
-    name: "Google Chrome v130+ (Windows 11)",
-    ja3_hash: "cd08e31494f9531f560d64c695473da9",
-    ja4_hash: "t13d1516h2_8daaf6152771_b18509e3343c",
-    cipher_suites: &[
-        0x1301, 0x1302, 0x1303, 0xc02b, 0xc02f, 0xc02c, 0xc030, 0xcca9, 0xcca8,
-    ],
-    alpn_protocols: &["h2", "http/1.1"],
-};
-
-pub fn get_active_tls_profile() -> TlsProfile {
-    CHROME_WIN11_PROFILE
+/// Dynamically generates active RFC 8701 GREASE TLS 1.3 & JA3/JA4 fingerprint profile
+pub fn get_active_tls_profile() -> DynamicTlsFingerprint {
+    DynamicTlsFingerprint::generate(BrowserType::ChromeWin11)
 }
 
 /// Spawns the async TLS Camouflage & HTTP DPI Sanitizer Proxy server

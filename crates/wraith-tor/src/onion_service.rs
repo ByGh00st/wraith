@@ -35,6 +35,26 @@ impl Default for OnionServiceConfig {
     }
 }
 
+impl OnionServiceConfig {
+    pub fn new(virtual_port: u16, target_port: u16) -> Self {
+        Self {
+            name: "wraith_service".into(),
+            virtual_port,
+            target_port,
+            target_unix_socket: None,
+            enable_pow_defense: true,
+            pow_queue_rate: 10,
+            client_auth_keys: Vec::new(),
+        }
+    }
+
+    pub fn add_port(&mut self, virtual_port: u16, target_port: u16) -> &mut Self {
+        self.virtual_port = virtual_port;
+        self.target_port = target_port;
+        self
+    }
+}
+
 pub struct OnionServiceManager;
 
 impl OnionServiceManager {
@@ -104,5 +124,35 @@ impl OnionServiceManager {
             }
         }
         Ok(())
+    }
+}
+
+/// Convenience function to arm ephemeral onion service
+pub fn arm_onion_service(config: &OnionServiceConfig) -> Result<()> {
+    OnionServiceManager::arm_onion_service(config)
+}
+
+/// Convenience function to read onion hostname
+pub fn read_onion_hostname() -> Result<Option<String>> {
+    OnionServiceManager::read_onion_hostname()
+}
+
+/// Convenience function to purge onion service
+pub fn purge_onion_service() -> Result<()> {
+    OnionServiceManager::purge_onion_service()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_onion_service_directive_rendering() {
+        let mut cfg = OnionServiceConfig::default();
+        cfg.add_port(80, 8080);
+        let directives = OnionServiceManager::render_service_directives(&cfg);
+        assert!(directives.contains("HiddenServiceDir /var/lib/tor/wraith_hidden_service"));
+        assert!(directives.contains("HiddenServicePort 80 127.0.0.1:8080"));
+        assert!(directives.contains("HiddenServiceEnablePoW 1"));
     }
 }
