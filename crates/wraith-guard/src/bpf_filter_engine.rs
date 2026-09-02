@@ -172,3 +172,29 @@ impl BpfProgramBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bpf_builder_emission() {
+        let mut builder = BpfProgramBuilder::new();
+        builder.ld_abs(BPF_W, 0);
+        builder.jmp_eq(0x12345678, 1, 0);
+        builder.ret(0xFFFF);
+        builder.ret(0);
+
+        assert_eq!(builder.instructions.len(), 4);
+        assert_eq!(builder.instructions[0].code, BPF_LD | BPF_ABS | BPF_W);
+        assert_eq!(builder.instructions[1].k, 0x12345678);
+    }
+
+    #[test]
+    fn test_tor_only_egress_filter_compilation() {
+        let filter = BpfProgramBuilder::build_tor_only_egress_filter(9040, 5353);
+        assert!(!filter.is_empty());
+        assert_eq!(filter.last().unwrap().code, BPF_RET | BPF_K);
+        assert_eq!(filter.last().unwrap().k, 0);
+    }
+}
