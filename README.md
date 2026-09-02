@@ -39,10 +39,10 @@
 
 | 📑 Navigation Directory | 🎯 Direct Anchor Jump Links |
 | :--- | :--- |
-| **🚀 Getting Started** | [Automated Deployment](#1-clone--automated-system-deployment-recommended) • [Manual Cargo Build](#2-manual-cargo-compilation--binary-setup) • [Atomic In-Place Updater](#-operational-command-reference) |
-| **💻 CLI & Operations** | [Operational Shortcuts Table](#-primary-shortcuts--subcommands) • [16 Hardening Flags Matrix](#️-granular-control-flags-matrix) • [Panic Sentry Auto-Recovery](#-fail-closed-crash-protection--panic-sentry) |
-| **🛡️ Architecture & DPI** | [Tokei Code Metrics](#-codebase-metrics--language-breakdown) • [Security Comparison Matrix](#️-privacy--security-comparison-matrix) • [50+ DPI Tools Matrix](#️-in-flight-dpi-tool-signature-sanitization-50-matrix) |
-| **🔒 Anti-Surveillance** | [Tor Node Surveillance Resistance](#️-tor-surveillance--adversarial-node-resistance-matrix) • [RAMFS ChaCha20 Vault](#-in-memory-cryptographic-security-specifications) • [Legal Terms](#-legal--operational-disclaimer) |
+| **🚀 Getting Started** | • [Automated Deployment](#1-clone--automated-system-deployment-recommended)<br>• [Manual Cargo Build](#2-manual-cargo-compilation--binary-setup)<br>• [Atomic In-Place Updater](#-operational-command-reference) |
+| **💻 CLI & Operations** | • [Operational Shortcuts Table](#-primary-shortcuts--subcommands)<br>• [16 Hardening Flags Matrix](#️-granular-control-flags-matrix)<br>• [Panic Sentry Auto-Recovery](#-fail-closed-crash-protection--panic-sentry) |
+| **🛡️ Architecture & DPI** | • [Tokei Code Metrics](#-codebase-metrics--language-breakdown)<br>• [Security Comparison Matrix](#️-privacy--security-comparison-matrix)<br>• [50+ DPI Tools Matrix](#️-in-flight-dpi-tool-signature-sanitization-50-matrix) |
+| **🔒 Anti-Surveillance** | • [Tor Node Surveillance Resistance](#️-tor-surveillance--adversarial-node-resistance-matrix)<br>• [RAMFS ChaCha20 Vault](#-in-memory-cryptographic-security-specifications)<br>• [Legal Terms](#-legal--operational-disclaimer) |
 
 ---
 
@@ -74,11 +74,11 @@ Built completely from scratch in pure Rust across **6 modular crates**, Wraith o
  |- Rust                   1           10           10            0            0
  (Total)                              509           27          374          108
 ─────────────────────────────────────────────────────────────────────────────────
- Rust                     55        11364         9520          442         1402
- |- Markdown              48          266            0          266            0
- (Total)                            11630         9520          708         1402
+ Rust                     55        11425         9578          442         1405
+ |- Markdown              48          268            0          268            0
+ (Total)                            11693         9578          710         1405
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                   465        31231        28558         1113         1560
+ Total                   465        31294        28616         1115         1563
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 </details>
@@ -121,7 +121,7 @@ graph LR
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Execution Architecture** | Unsafe Shell Scripts | GC Python Wrapper | `LD_PRELOAD` Hook | Full OS Environment | **Pure-Rust Sovereign Crates (Zero GC)** |
 | **Routing Mechanism** | Spawns `ip` / `route` CLI | Spawns `iptables` CLI | Hijacks `connect()` | Kernel Netfilter | **Direct `AF_NETLINK` FIB Socket API** |
-| **Fail-Closed KillSwitch** | ❌ Prone to Script Hang | ❌ Fragile Subprocess | ❌ Leaks on Non-TCP | ⚠️ Static Firewall | **✔ Sızıntı-Geçirmez Watchdog (<1ms Kernel Drop)** |
+| **Fail-Closed KillSwitch** | ❌ Prone to Script Hang | ❌ Fragile Subprocess | ❌ Leaks on Non-TCP | ⚠️ Static Firewall | **✔ Fail-Closed Watchdog (<1ms Kernel Drop)** |
 | **Crash Protection & Sentry**| ❌ Locks System Network | ❌ Locks System Network | ❌ Process Abort | ⚠️ Reboot Required | **✔ Panic Sentry & Auto Kernel Net Recovery** |
 | **50+ Tool DPI Sanitizer** | ❌ None | ❌ None | ❌ None | ❌ None | **✔ In-Flight Header Normalization** |
 | **Diversified UA Pool** | ❌ None | ❌ None | ❌ None | ❌ Standard Tor UA | **✔ Dynamic Multi-Browser Rotation** |
