@@ -132,7 +132,30 @@ pub fn apply_tor_rules() -> Result<String> {
         "-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--syn", "-j", "REDIRECT", "--to-ports", &trans_port_str
     ])?;
 
-    // ─── FILTER Table: Fail-Closed Enforcement ────────────────────────────────
+    // ─── FILTER Table: Anti-Nmap & Stealth Inbound Protection (Ghost Mode) ───
+    // 1. Set default drop policies for inbound and forward traffic
+    execute_command("iptables", &["-P", "INPUT", "DROP"])?;
+    execute_command("iptables", &["-P", "FORWARD", "DROP"])?;
+
+    // 2. Allow established and related connections (legitimate return traffic)
+    execute_command("iptables", &["-A", "INPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"])?;
+
+    // 3. Allow loopback interface traffic explicitly (for local honeypot & proxy)
+    execute_command("iptables", &["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"])?;
+
+    // 4. Drop all invalid packets (Nmap Stealth NULL, XMAS, FIN scan probes)
+    execute_command("iptables", &["-A", "INPUT", "-m", "state", "--state", "INVALID", "-j", "DROP"])?;
+
+    // 5. Drop ICMP Echo Requests (Ping blackout - defeats Nmap ping sweeps)
+    execute_command("iptables", &["-A", "INPUT", "-p", "icmp", "--icmp-type", "echo-request", "-j", "DROP"])?;
+
+    // 6. Drop all inbound TCP SYN port scans on external interfaces
+    execute_command("iptables", &["-A", "INPUT", "-p", "tcp", "--syn", "-j", "DROP"])?;
+
+    // 7. Drop all inbound UDP probes on external interfaces
+    execute_command("iptables", &["-A", "INPUT", "-p", "udp", "-j", "DROP"])?;
+
+    // ─── FILTER Table: Outbound Fail-Closed Enforcement ───────────────────────
     // Allow established and related connections
     execute_command("iptables", &["-A", "OUTPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"])?;
 
@@ -152,8 +175,22 @@ pub fn apply_tor_rules() -> Result<String> {
     execute_command("iptables", &["-A", "OUTPUT", "-p", "udp", "-j", "REJECT", "--reject-with", "icmp-port-unreachable"])?;
     execute_command("iptables", &["-A", "OUTPUT", "-j", "DROP"])?;
 
-    info!("IPv4 Fail-Closed Tor firewall rules successfully armed");
+    info!("IPv4 Fail-Closed Tor & Anti-Nmap Stealth firewall rules successfully armed");
     Ok(saved)
+}
+
+/// Allows inbound traffic to honeypot decoy ports on external LAN interfaces (for LAN Deception Sensor Mode)
+pub fn allow_honey_lan_ports(ports: &[u16]) -> Result<()> {
+    if ports.is_empty() {
+        return Ok(());
+    }
+    let ports_str = ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");
+    execute_command(
+        "iptables",
+        &["-I", "INPUT", "1", "-p", "tcp", "-m", "multiport", "--dports", &ports_str, "-j", "ACCEPT"],
+    )?;
+    info!("Exempted LAN Honeypot ports ({ports_str}) in INPUT filter table (LAN Deception Sensor Active)");
+    Ok(())
 }
 
 pub fn flush_rules() -> Result<()> {

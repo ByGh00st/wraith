@@ -102,3 +102,17 @@ impl Drop for TrafficShaper {
         let _ = self.restore();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_traffic_shaping_profile_defaults() {
+        let prof = TrafficShapingProfile::default();
+        assert_eq!(prof.delay_ms, 35);
+        assert_eq!(prof.jitter_ms, 12);
+        assert_eq!(prof.correlation_pct, 25);
+        assert_eq!(prof.rate_mbit, 100);
+    }
+}
