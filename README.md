@@ -152,7 +152,7 @@ Wraith is cleanly architected into 6 highly decoupled, zero-warning pure-Rust cr
 
 ```
 wraith/
-├── Cargo.toml                              # Sovereign Workspace Root Manifest
+├── Cargo.toml                              # Sovereign Workspace Root Manifest (v1.2.0)
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
 ├── build.sh                                # Automated Linux Build, Shell Completion & Language Deployment
@@ -163,16 +163,20 @@ wraith/
     │   ├── src/vault.rs                    # Encrypted RAMFS Vault (RFC 8439 ChaCha20-Poly1305, mlockall, ZeroizeOnDrop)
     │   ├── src/kernel_lockdown.rs          # Kernel Hardening (kexec disable, ptrace scope, sysctl lockdown)
     │   ├── src/process_lockdown.rs         # Process Memory Lockdown (PR_SET_DUMPABLE=0, PR_SET_NO_NEW_PRIVS)
+    │   ├── src/config.rs                   # Runtime Paths, Socket Addresses & Security Defaults
     │   └── src/state.rs                    # Atomic State Lifecycle & Safe Persistence
     │
     ├── wraith-net/                         # [Kernel Networking & DPI Layer]
     │   ├── src/netlink.rs                  # Direct AF_NETLINK Route, Link, Address & FIB Rule Engine
     │   ├── src/ids.rs                      # Zero-Copy AF_PACKET Dissector, 50+ Tool DPI Sanitizer & STUN Trap
     │   ├── src/tcp_stack.rs                # TCP/IP Stack Normalizer & p0f Evasion (TTL=128, TS=0)
+    │   ├── src/multihop.rs                 # Multi-Hop WireGuard-over-Tor Tunneling (ChaCha20 Encapsulation)
+    │   ├── src/ebpf_fastpath.rs            # Kernel eBPF TC clsact Direct Action Driver & Fastpath Drop
     │   ├── src/ipv6.rs                     # IPv6 Dual-Stack Blackout & Leak Guard
-    │   ├── src/mac.rs                      # IEEE 802.3 Hardware MAC Address Randomizer
+    │   ├── src/mac.rs                      # IEEE 802.3 Hardware MAC Address & Hostname Randomizer
     │   ├── src/namespace.rs                # Isolated Kernel Network Namespace (veth jail)
     │   ├── src/nftables.rs                 # Transactional Netfilter & iptables Fail-Closed Rule Manager
+    │   ├── src/cgroup_jail.rs              # Net_cls cgroup Process Isolation & Traffic Confinement
     │   └── src/traffic_shaper.rs           # Kernel TC/Netem Traffic Shaping (Jitter & Latency Obfuscation)
     │
     ├── wraith-guard/                       # [Defense & DNS Engine]
@@ -181,30 +185,36 @@ wraith/
     │   ├── src/traffic_jitter.rs           # Synthetic Poisson Traffic Cell Generator & Egress Padding
     │   ├── src/bpf_filter_engine.rs        # Classic BPF / eBPF Raw Packet Assembly & Filtering
     │   ├── src/seccomp_jail.rs             # Strict Seccomp-BPF Syscall Allowlist Filter
+    │   ├── src/honey_ports.rs              # Deceptive Honey-Port Listeners & Inbound Scanner Trap
     │   └── src/leak.rs                     # Multi-Vector Egress Leak Auditor
     │
     ├── wraith-tor/                         # [Tor Transport & TLS Camouflage Layer]
-    │   ├── src/grease.rs                   # RFC 8701 GREASE JA3/JA4 TLS 1.3 ClientHello Synthesizer
+    │   ├── src/grease.rs                   # RFC 8701 GREASE JA3/JA4 TLS 1.3 ClientHello & HTTP/2 Synthesizer
     │   ├── src/tls_camouflage.rs           # SOCKS5 Camouflage Proxy with Dynamic JA3/JA4 Fingerprints
-    │   ├── src/circuit.rs                  # Multi-Hop Circuit Topology & Geographic Profiler
+    │   ├── src/multichain.rs               # Five-Eyes Exclusion Matrix & Strict Geographic Exit Profiler
+    │   ├── src/circuit.rs                  # Multi-Hop Circuit Topology & Live Telemetry Inspector
     │   ├── src/control.rs                  # Tor Control Protocol Interface (SIGNAL NEWNYM, Telemetry)
     │   ├── src/onion_service.rs            # Ephemeral v3 Onion Hidden Service Controller
+    │   ├── src/daemon.rs                   # Isolated Tor Daemon Lifecycle & Sandboxed Process Manager
     │   └── src/bridge.rs                   # obfs4 / Snowflake Pluggable Transport Manager
     │
     ├── wraith-forensic/                    # [Anti-Forensics & Hardware Cloaking Layer]
     │   ├── src/shred.rs                    # Multi-Pass Crypto Shredder with FS Sync & Zeroization
     │   ├── src/memory.rs                   # Volatile RAM & Swap Partition Cleaner (with 5s Emergency Timeout)
     │   ├── src/anti_debug_probe.rs         # Dynamic RE Detection (PTRACE_TRACEME, TracerPid Probe)
+    │   ├── src/anti_fingerprint.rs         # WebGL, Canvas, AudioContext & Letterboxing Profile Hardener
+    │   ├── src/font_jail.rs                # Fontconfig Strict Whitelist Sandbox (<20 Standard Fonts)
     │   ├── src/display_jail.rs             # Xvfb Standardized 1920x1080@24bit Virtual Display Sandbox
     │   ├── src/hardware_cloaker.rs         # Hardware Serial & /etc/machine-id Mutator
-    │   ├── src/browser.rs                  # Browser Profile Hardener (Canvas, WebGL, Audio Shield)
+    │   ├── src/browser.rs                  # Firefox Profile user.js Automated Security Injector
     │   └── src/logs.rs                     # System Journal, Bash History & Memory Dump Sanitizer
     │
     └── wraith-cli/                         # [Command Interface, Localized TUI & Completions]
-        ├── locales/                        # 65 Native YAML Language Dictionaries
+        ├── locales/                        # 75 Native YAML Language Dictionaries (400 Files)
         ├── src/display.rs                  # Universal Box Renderer, Dynamic ANSI Width Calculator & Help Matrix
         ├── src/commands.rs                 # Operational Command Handlers with Graceful Cleanup Hooks
-        ├── src/tui.rs                      # Native Rust TUI, Interactive Circuit Map & 65-Language Selector
+        ├── src/tui.rs                      # Native Rust Terminal UI & 75-Language Interactive Selector
+        ├── src/diagnostics.rs              # Deep Kernel, Sysctl & Network Health Auditor (Doctor Mode)
         └── src/benchmark.rs                # High-Performance Cryptographic & Kernel Benchmark Suite
 ```
 </details>
