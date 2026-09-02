@@ -341,10 +341,20 @@ Network Isolation & Tunneling:
                                    [aliases: --interval, --rotate, --auto-rotate]
       --jitter                     Inject synthetic traffic cells & Poisson timing jitter (200-1400ms)
       --no-killswitch [--no-ks]    Disable the Fail-Closed KillSwitch watchdog monitor
-  -W, --wireguard <CONF>           Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop)
+  -W, --wireguard <CONF>           Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP bypass)
+      --onion <VIRT:TARGET>        Provision an Ephemeral v3 Onion Hidden Service (e.g. --onion 80:8080)
+                                   [aliases: --onion-service, --hidden-service]
+      --shaper                     Inject Linux Kernel TC Netem traffic shaping (35ms delay, 12ms jitter)
+                                   [aliases: --traffic-shaper, --netem, --packet-shaper]
       --spawn-monitor              Automatically spawn dedicated DPI/IDS monitor window on startup
 
 System Hardening & Anti-Fingerprinting:
+      --honey-ports                Arm localhost deception honeypot traps (:2222, :3306, :5432, :6379, :8080, :27017)
+                                   [aliases: --honeypot, --honey-trap, --trap-ports]
+      --honey-lan                  🚨 LAN SENSOR MODE: Bind honeypots to 0.0.0.0 (Trap & tarpit Wi-Fi/LAN port scanners)
+                                   [aliases: --lan-honeypot, --lan-trap, --deception-sensor]
+      --display-sandbox            Spawn isolated X11 Virtual Display sandbox (Xvfb 1920x1080@24bit) to mask EDID
+                                   [aliases: --virtual-display, --xvfb, --display-jail]
       --browser-shield             Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint profiles
                                    [aliases: --shield, --canvas-shield]
       --font-sandbox               Restrict OS-level font discovery via Fontconfig sandbox
@@ -352,7 +362,7 @@ System Hardening & Anti-Fingerprinting:
       --tcp-mask                   Normalize TCP/IP L4 stack parameters (TTL=128, TS=0) for p0f evasion
       --machine-id                 Rotate unique OS /etc/machine-id and system hardware identifiers
                                    [alias: --cloaking]
-  -F, --full-security              Engage ALL 16 non-destructive defense layers (Shield, NetNS, MAC, Machine-ID, TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault)
+  -F, --full-security              Engage ALL 16 non-destructive defense layers (Shield, NetNS, MAC, Machine-ID, TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault, Honeypot, Netem)
                                    [aliases: -Fs, --full, --strict, --harden, --full-defense, --strict-hardening, --max-hardening]
 
 High-Risk & Forensic Operations (Explicit Opt-In Only):
