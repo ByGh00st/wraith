@@ -242,7 +242,7 @@ sudo ./build.sh
 ```
 
 > [!NOTE]
-> Upon build completion, `build.sh` automatically presents the **Native Rust 65-Language Selector TUI**. Select your language with Arrow Keys and press `[ENTER]`. The system will automatically generate **100% localized Bash & Zsh Shell Auto-Completion scripts** tailored to your chosen language!
+> Upon build completion, `build.sh` automatically presents the **Native Rust 75-Language Selector TUI**. Select your language with Arrow Keys and press `[ENTER]`. The system will automatically generate **100% localized Bash & Zsh Shell Auto-Completion scripts** tailored to your chosen language!
 
 ### 2. Manual Cargo Compilation & Binary Setup
 ```bash
@@ -269,11 +269,13 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 
 | Shortcut | Command Format | Operational Action |
 | :--- | :--- | :--- |
-| `-s` | `sudo wraith -s [OPTIONS]` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
-| `-x` | `sudo wraith -x [-d]` | **Stop Wraith**: Restores normal network, netfilter rules, and DNS. (`-d` self-destructs binary). |
+| `-s` | `sudo wraith -s [OPTIONS]` / `wraith start` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
+| `-x` | `sudo wraith -x [-d]` / `wraith stop` | **Stop Wraith**: Restores normal network, netfilter rules, and DNS. (`-d` self-destructs binary). |
 | `-r` | `sudo wraith -r` / `wraith switch` | **Circuit Rotation**: Issues `SIGNAL NEWNYM` to request a fresh Tor exit node identity. |
 | `-t` | `sudo wraith -t` / `wraith test` | **Leak Verification Suite**: Executes active tests for DNS, IPv6, and WebRTC leaks. |
-| `-i` | `sudo wraith -i` / `wraith info` | **Status Dashboard**: Displays live connection status, active exit IP, and circuit topology. |
+| `-i` | `sudo wraith -i` / `wraith info` | **Status Telemetry**: Displays live connection status, active exit IP, and circuit topology. |
+| `-p` | `sudo wraith -p <NAME>` / `wraith profile` | **Geographic Exit Profiler**: Enforces Tor exit nodes (`stealth`, `speed`, `journalists`, `research`, `darkweb`). |
+| `-F` | `sudo wraith -F` / `wraith -s -F` | **Full Security Mode**: Engages ALL 16 non-destructive defense layers simultaneously. |
 | `-u` | `sudo wraith -u` / `wraith update` | **Atomic In-Place Updater**: Hot-swaps release binary directly from GitHub repository. |
 | `-c` | `sudo wraith -c` / `wraith cleanup`| **Anti-Forensic Purge**: Clears volatile RAM caches, temporary state, and session traces. |
 | — | `sudo wraith --cleanup-full` | **Deep Anti-Forensic Purge**: Wipes RAM, swap partitions, and all system authentication logs. |
@@ -281,9 +283,10 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | — | `sudo wraith doctor` | **Kernel Integrity Auditor**: Deeply audits IPv4/IPv6 sysctls, Tor daemon state, Netlink, and Seccomp. |
 | — | `sudo wraith benchmark` | **Cryptographic Benchmark**: Evaluates ChaCha20-Poly1305, SHA-256, HMAC, and Netlink throughput. |
 | — | `sudo wraith mac` | **Hardware Randomizer**: Randomizes L2 MAC address and system hostname immediately. |
-| — | `sudo wraith profile <NAME>` | **Geographic Exit Profiler**: Enforces Tor exit nodes by region (`stealth`, `speed`, `research`, `darkweb`). |
 | — | `sudo wraith pentest` | **Security Audit Guide**: Displays isolation guidelines for Nmap, Sqlmap, Ffuf, Metasploit. |
 | — | `sudo wraith shred <FILE>` | **Crypto File Shredder**: Overwrites target file with DoD 5220.22-M 7-pass cryptosequence. |
+| — | `sudo wraith --select-lang` | **75-Language Selector**: Launches interactive Unicode terminal UI to change system language. |
+| — | `sudo wraith --lang <CODE>` | **Runtime Language Override**: Dynamically executes any command in any of the 75 supported locales. |
 
 ---
 
@@ -324,7 +327,7 @@ Network Isolation & Tunneling:
   -m, --mac                        Randomize network interface L2 MAC address and hostname
   -b, --bridge                     Route traffic through censorship-resistant obfs4 Tor bridges
   -n, --namespace                  Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)
-  -p, --profile <PROFILE>          Enforce geographic Tor exit node profile (stealth, speed, research, darkweb)
+  -p, --profile <PROFILE>          Enforce geographic Tor exit node profile (stealth, speed, journalists, research, darkweb)
       --rotate-interval <SECS>     Automatically rotate Tor exit node identity every N seconds (e.g. --rotate 60)
                                    [aliases: --interval, --rotate, --auto-rotate]
       --jitter                     Inject synthetic traffic cells & Poisson timing jitter (200-1400ms)
