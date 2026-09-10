@@ -67,7 +67,7 @@ sudo wraith -x     # Stop and restore recorded settings
 ```
 
 <p align="center">
-  <a href="#installation"><b>Installation</b></a> · <a href="#browser-tls">TLS profiles</a> · <a href="#privacy-matrix">Comparison</a> · <a href="#updates">Updates</a> · <a href="#codebase-metrics">Source metrics</a> · <a href="#validation">Validation</a>
+  <a href="#installation"><b>Installation</b></a> · <a href="https://github.com/ByGh00st/wraith/wiki"><b>Wiki guides</b></a> · <a href="#browser-tls">TLS profiles</a> · <a href="#privacy-matrix">Comparison</a> · <a href="#updates">Updates</a> · <a href="#codebase-metrics">Source metrics</a> · <a href="#validation">Validation</a>
 </p>
 
 <details>
