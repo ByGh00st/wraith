@@ -12,6 +12,8 @@ pub const IPV6_LOCKDOWN_SYSCTLS: &[(&str, &str)] = &[
     ("/proc/sys/net/ipv6/conf/default/disable_ipv6", "1\n"),
     ("/proc/sys/net/ipv6/conf/all/accept_ra", "0\n"),
     ("/proc/sys/net/ipv6/conf/default/accept_ra", "0\n"),
+    ("/proc/sys/net/ipv6/conf/all/accept_redirects", "0\n"),
+    ("/proc/sys/net/ipv6/conf/default/accept_redirects", "0\n"),
 ];
 
 pub const IPV6_RESTORE_SYSCTLS: &[(&str, &str)] = &[
@@ -19,6 +21,8 @@ pub const IPV6_RESTORE_SYSCTLS: &[(&str, &str)] = &[
     ("/proc/sys/net/ipv6/conf/default/disable_ipv6", "0\n"),
     ("/proc/sys/net/ipv6/conf/all/accept_ra", "1\n"),
     ("/proc/sys/net/ipv6/conf/default/accept_ra", "1\n"),
+    ("/proc/sys/net/ipv6/conf/all/accept_redirects", "1\n"),
+    ("/proc/sys/net/ipv6/conf/default/accept_redirects", "1\n"),
 ];
 
 pub fn apply_ipv6_block() -> Result<()> {
@@ -30,13 +34,15 @@ pub fn apply_ipv6_block() -> Result<()> {
         }
     }
 
-    // 2. Netfilter Level: Apply fail-closed DROP silently
+    // 2. Netfilter Level: Apply fail-closed DROP policies FIRST before flushing
     let commands: Vec<Vec<&str>> = vec![
-        vec!["ip6tables", "-F"],
-        vec!["ip6tables", "-X"],
         vec!["ip6tables", "-P", "INPUT", "DROP"],
         vec!["ip6tables", "-P", "FORWARD", "DROP"],
         vec!["ip6tables", "-P", "OUTPUT", "DROP"],
+        vec!["ip6tables", "-F"],
+        vec!["ip6tables", "-X"],
+        vec!["ip6tables", "-t", "nat", "-F"],
+        vec!["ip6tables", "-t", "nat", "-X"],
         vec!["ip6tables", "-A", "INPUT", "-i", "lo", "-j", "ACCEPT"],
         vec!["ip6tables", "-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"],
     ];

@@ -4,7 +4,7 @@
 
 use rand::RngCore;
 use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use tracing::{debug, info, warn};
@@ -147,11 +147,24 @@ impl EncryptedRamVault {
 
         // Mount or create secure directory
         if !path.exists() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                let mut builder = fs::DirBuilder::new();
+                builder.recursive(true);
+                builder.mode(0o700);
+                builder.create(&path)?;
+            }
+            #[cfg(not(unix))]
             fs::create_dir_all(&path)?;
         }
 
         #[cfg(unix)]
         {
+            // Lock directory permissions to 0o700
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o700));
+
             // SAFETY: Calling libc::mlockall with valid flags to lock RAM pages and prevent swap-to-disk leaks.
             unsafe {
                 let res = libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE);
@@ -175,6 +188,16 @@ impl EncryptedRamVault {
     }
 
     pub fn write_secret(&mut self, secret_name: &str, data: &[u8]) -> Result<()> {
+        // Path Traversal & Symlink Defense
+        if secret_name.contains('/') || secret_name.contains('\\')
+            || secret_name.contains("..")
+            || secret_name.contains('\0')
+        {
+            return Err(WraithError::Custom(
+                "Invalid secret identifier: path traversal or null byte detected".into(),
+            ));
+        }
+
         let mut rng = rand::thread_rng();
         let mut nonce = [0u8; 12];
         rng.fill_bytes(&mut nonce);
@@ -187,7 +210,15 @@ impl EncryptedRamVault {
         )?;
 
         let target_file = self.vault_path.join(format!("{secret_name}.enc"));
-        let mut file = OpenOptions::new().write(true).create(true).truncate(true).open(&target_file)?;
+        let mut options = OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+            options.custom_flags(libc::O_NOFOLLOW);
+        }
+        let mut file = options.open(&target_file)?;
 
         file.write_all(&nonce)?;
         file.write_all(&tag)?;
@@ -200,6 +231,16 @@ impl EncryptedRamVault {
     }
 
     pub fn read_secret(&self, secret_name: &str) -> Result<Vec<u8>> {
+        // Path Traversal & Symlink Defense
+        if secret_name.contains('/') || secret_name.contains('\\')
+            || secret_name.contains("..")
+            || secret_name.contains('\0')
+        {
+            return Err(WraithError::Custom(
+                "Invalid secret identifier: path traversal or null byte detected".into(),
+            ));
+        }
+
         // Fast path: In-memory protected key ring
         if let Some(protected) = self.key_ring.get(secret_name) {
             return Ok(protected.with_unmasked(|bytes| bytes.to_vec()));
@@ -210,7 +251,14 @@ impl EncryptedRamVault {
             return Err(WraithError::Custom(format!("Secret '{secret_name}' not found in vault")));
         }
 
-        let mut file = File::open(&target_file)?;
+        let mut options = OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(libc::O_NOFOLLOW);
+        }
+        let mut file = options.open(&target_file)?;
         let mut nonce = [0u8; 12];
         let mut tag = [0u8; 16];
 
@@ -286,5 +334,27 @@ mod tests {
 
         let result = chacha20_poly1305_decrypt(&key, &nonce, aad, &ciphertext, &tag);
         assert!(result.is_err(), "Decryption must fail when ciphertext is tampered");
+    }
+
+    #[test]
+    fn test_vault_path_traversal_rejection() {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let mut vault = EncryptedRamVault {
+            vault_path: temp_dir.path().to_path_buf(),
+            master_key: VaultKey::generate(),
+            key_ring: HashMap::new(),
+        };
+
+        // Attempting path traversal in write_secret must fail
+        assert!(vault.write_secret("../../etc/shadow", b"secret").is_err());
+        assert!(vault.write_secret("foo/bar", b"secret").is_err());
+        assert!(vault.write_secret("foo\\bar", b"secret").is_err());
+        assert!(vault.write_secret("foo\0bar", b"secret").is_err());
+
+        // Attempting path traversal in read_secret must fail
+        assert!(vault.read_secret("../../etc/shadow").is_err());
+        assert!(vault.read_secret("foo/bar").is_err());
+        assert!(vault.read_secret("foo\\bar").is_err());
+        assert!(vault.read_secret("foo\0bar").is_err());
     }
 }

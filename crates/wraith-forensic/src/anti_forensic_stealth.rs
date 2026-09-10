@@ -40,14 +40,35 @@ pub const SHELL_HISTORY_PATTERNS: &[&str] = &[
     ".sqlite_history",
 ];
 
+fn open_no_follow_write(path: &Path) -> std::io::Result<fs::File> {
+    let mut options = OpenOptions::new();
+    options.write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    options.open(path)
+}
+
 /// DoD 5220.22-M 7-Pass Cryptographic Shredder
 pub fn dod_7pass_shred(file_path: &Path) -> Result<()> {
-    if !file_path.exists() {
+    // CRITICAL: Symlink defense — never follow symlinks into target files
+    let sym_meta = match fs::symlink_metadata(file_path) {
+        Ok(m) => m,
+        Err(_) => return Ok(()),
+    };
+
+    if sym_meta.file_type().is_symlink() {
+        tracing::warn!(
+            "Refusing to shred symlink target {:?} — removing link only",
+            file_path
+        );
+        let _ = fs::remove_file(file_path);
         return Ok(());
     }
 
-    let meta = fs::metadata(file_path)?;
-    let size = meta.len();
+    let size = sym_meta.len();
     if size == 0 {
         let _ = fs::remove_file(file_path);
         return Ok(());
@@ -62,7 +83,7 @@ pub fn dod_7pass_shred(file_path: &Path) -> Result<()> {
             .unwrap_or(false);
 
         if !discard_success {
-            let mut file = OpenOptions::new().write(true).open(file_path)?;
+            let mut file = open_no_follow_write(file_path)?;
             let rand_buf = vec![0u8; 4096];
             let mut written = 0u64;
             while written < size {
@@ -80,7 +101,7 @@ pub fn dod_7pass_shred(file_path: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let mut file = OpenOptions::new().write(true).open(file_path)?;
+    let mut file = open_no_follow_write(file_path)?;
     let mut rng = rand::thread_rng();
 
     let passes: [u8; 5] = [0x00, 0xFF, 0x96, 0x69, 0xAA];
@@ -214,5 +235,25 @@ mod tests {
         let res = dod_7pass_shred(&target);
         assert!(res.is_ok());
         assert!(!target.exists());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_dod_shred_symlink_preserves_target() {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let target_file = temp_dir.path().join("legit_target.txt");
+        let symlink_file = temp_dir.path().join("malicious_symlink.lnk");
+
+        fs::write(&target_file, b"SENSITIVE TARGET DATA").expect("write target");
+        std::os::unix::fs::symlink(&target_file, &symlink_file).expect("create symlink");
+
+        let res = dod_7pass_shred(&symlink_file);
+        assert!(res.is_ok());
+
+        // Symlink itself must be removed, but target file must remain intact!
+        assert!(!symlink_file.exists());
+        assert!(target_file.exists());
+        let content = fs::read(&target_file).expect("read target");
+        assert_eq!(content, b"SENSITIVE TARGET DATA");
     }
 }

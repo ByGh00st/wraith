@@ -7,7 +7,8 @@ pub const RESOLV_BACKUP: &str = "/etc/resolv.conf.wraith.bak";
 pub const STATE_FILE: &str = "/var/run/wraith.state";
 pub const LOG_DIR: &str = "/var/log/wraith";
 pub const CONFIG_DIR: &str = "/etc/wraith";
-pub const CONFIG_FILE: &str = "/etc/wraith/config.json";
+pub const CONFIG_FILE: &str = "/etc/wraith/config.toml";
+pub const CONFIG_FILE_LEGACY: &str = "/etc/wraith/config.json";
 
 // Tor Network Configuration
 pub const TOR_TRANS_PORT: u16 = 9040;

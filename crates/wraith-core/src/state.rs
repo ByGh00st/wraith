@@ -28,6 +28,7 @@ pub struct StateData {
     pub mac_old: Option<String>,
     pub mac_new: Option<String>,
     pub mac_interface: Option<String>,
+    pub target_interface: Option<String>,
     pub hostname_old: Option<String>,
     pub bridge_enabled: bool,
     pub bridge_count: usize,
@@ -86,11 +87,21 @@ impl StateManager {
 
         {
             let mut file = File::create(&temp_path)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(&temp_path, fs::Permissions::from_mode(0o600));
+            }
             file.write_all(serialized.as_bytes())?;
             file.sync_all()?;
         }
 
         fs::rename(temp_path, &self.path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(0o600));
+        }
         Ok(())
     }
 
@@ -127,6 +138,11 @@ impl StateManager {
         }
         let serialized = serde_json::to_string_pretty(data)?;
         let mut file = File::create(path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+        }
         file.write_all(serialized.as_bytes())?;
         file.sync_all()?;
         Ok(())

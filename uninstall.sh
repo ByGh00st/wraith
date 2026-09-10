@@ -40,10 +40,14 @@ mount -o remount,rw / 2>/dev/null || true
 mount -o remount,rw /usr 2>/dev/null || true
 mount -o remount,rw /usr/local 2>/dev/null || true
 
-echo -e "  ${CLR_CYAN}◈ [1/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Halting any active Wraith instances...${CLR_RESET}"
+echo -e "  ${CLR_CYAN}◈ [1/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Halting any active Wraith services and instances...${CLR_RESET}"
+systemctl stop wraith.service 2>/dev/null || true
+systemctl disable wraith.service 2>/dev/null || true
+rm -f /etc/systemd/system/wraith.service /etc/systemd/system/wraith-early.service 2>/dev/null || true
+systemctl daemon-reload 2>/dev/null || true
 killall -9 wraith 2>/dev/null || true
 pkill -9 -f "wraith" 2>/dev/null || true
-echo -e "        ${CLR_EMERALD}✔ [KILLED]${CLR_RESET} Processes terminated."
+echo -e "        ${CLR_EMERALD}✔ [KILLED]${CLR_RESET} Services stopped & processes terminated."
 
 echo -e "\n  ${CLR_CYAN}◈ [2/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Restoring network restrictions and DNS...${CLR_RESET}"
 nft flush ruleset 2>/dev/null || true

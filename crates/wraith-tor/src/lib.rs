@@ -1,19 +1,23 @@
 rust_i18n::i18n!("locales");
 
 pub mod bridge;
+pub mod bridge_discovery;
 pub mod circuit;
 pub mod control;
 pub mod daemon;
 pub mod grease;
 pub mod multichain;
+pub mod moat;
 pub mod onion_service;
 pub mod tls_camouflage;
 
 pub use bridge::*;
+pub use bridge_discovery::*;
 pub use circuit::*;
 pub use control::*;
 pub use daemon::*;
 pub use grease::*;
+pub use moat::*;
 pub use multichain::*;
 pub use onion_service::*;
 pub use tls_camouflage::*;

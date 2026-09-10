@@ -1,6 +1,6 @@
 //! Wraith JA3/JA4 TLS ClientHello Camouflage & In-Flight HTTP DPI Sanitizer Proxy
 //! Spawns an async transparent proxy (127.0.0.1:9055) bridging into Tor.
-//! Intercepts outbound HTTP traffic in-flight, rewrites offensive signatures (sqlmap, nikto, curl, etc.)
+//! Intercepts outbound HTTP traffic in-flight, rewrites security audit and scanner signatures (sqlmap, nikto, curl, etc.)
 //! into genuine Google Chrome User-Agents on the wire, and tunnels cleanly over Tor SOCKS5.
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -18,15 +18,17 @@ pub const BROWSER_USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
 ];
 
-pub const OFFENSIVE_SIGNATURES: &[&str] = &[
+pub const AUDIT_TOOL_SIGNATURES: &[&str] = &[
     "sqlmap", "nikto", "nmap", "masscan", "curl", "wget", "python-requests",
     "python-urllib", "gobuster", "dirbuster", "wfuzz", "ffuf", "hydra",
     "medusa", "burpsuite", "owasp zap", "zap", "metasploit", "postman",
 ];
+
+pub const OFFENSIVE_SIGNATURES: &[&str] = AUDIT_TOOL_SIGNATURES;
 
 /// Dynamically generates active RFC 8701 GREASE TLS 1.3 & JA3/JA4 fingerprint profile
 pub fn get_active_tls_profile() -> DynamicTlsFingerprint {
@@ -92,7 +94,7 @@ impl TlsCamouflageServer {
     }
 }
 
-/// Rewrites offensive or custom User-Agents in-flight in the HTTP header
+/// Rewrites security auditing or custom User-Agents in-flight in the HTTP header
 fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
     let req_str = String::from_utf8_lossy(req_data);
     let mut target_host = String::new();
@@ -107,10 +109,10 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
             modified_lines.push(line.to_string());
         } else if line.to_lowercase().starts_with("user-agent:") {
             let current_ua = line[11..].trim();
-            let is_offensive = OFFENSIVE_SIGNATURES.iter().any(|&sig| current_ua.to_lowercase().contains(sig));
+            let is_audit_tool = AUDIT_TOOL_SIGNATURES.iter().any(|&sig| current_ua.to_lowercase().contains(sig));
             let is_browser = current_ua.starts_with("Mozilla/5.0");
 
-            if is_offensive || !is_browser {
+            if is_audit_tool || !is_browser {
                 was_sanitized = true;
                 modified_lines.push(format!("User-Agent: {target_ua}"));
             } else {

@@ -72,6 +72,10 @@ pub fn create_namespace() -> Result<()> {
     let _ = run_cmd("iptables", &["-t", "nat", "-A", "POSTROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-o", "lo", "-j", "MASQUERADE"]);
     let _ = run_cmd("iptables", &["-t", "nat", "-A", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
     let _ = run_cmd("iptables", &["-t", "nat", "-A", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
+    // Route non-DNS TCP traffic from namespace to Tor TransPort (9040)
+    let _ = run_cmd("iptables", &["-t", "nat", "-A", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--syn", "-j", "REDIRECT", "--to-ports", "9040"]);
+    let _ = run_cmd("iptables", &["-A", "FORWARD", "-s", &format!("{NS_SUBNET}.0/24"), "-j", "ACCEPT"]);
+    let _ = run_cmd("iptables", &["-A", "FORWARD", "-d", &format!("{NS_SUBNET}.0/24"), "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"]);
     let _ = run_cmd("sysctl", &["-w", "net.ipv4.ip_forward=1"]);
 
     info!("Network namespace {} successfully isolated and linked to Tor", NAMESPACE_NAME);
@@ -90,6 +94,9 @@ pub fn destroy_namespace() -> Result<()> {
     let _ = run_cmd("iptables", &["-t", "nat", "-D", "POSTROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-o", "lo", "-j", "MASQUERADE"]);
     let _ = run_cmd("iptables", &["-t", "nat", "-D", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
     let _ = run_cmd("iptables", &["-t", "nat", "-D", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
+    let _ = run_cmd("iptables", &["-t", "nat", "-D", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--syn", "-j", "REDIRECT", "--to-ports", "9040"]);
+    let _ = run_cmd("iptables", &["-D", "FORWARD", "-s", &format!("{NS_SUBNET}.0/24"), "-j", "ACCEPT"]);
+    let _ = run_cmd("iptables", &["-D", "FORWARD", "-d", &format!("{NS_SUBNET}.0/24"), "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"]);
 
     let netns_dir = format!("/etc/netns/{NAMESPACE_NAME}");
     if Path::new(&netns_dir).exists() {

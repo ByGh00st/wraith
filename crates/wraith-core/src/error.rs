@@ -18,6 +18,8 @@ pub enum WraithError {
     Forensic(String),
     Guard(String),
     Command(String),
+    Configuration(String),
+    Network(String),
     Custom(String),
 }
 
@@ -37,6 +39,8 @@ impl std::fmt::Display for WraithError {
             WraithError::Forensic(msg) => write!(f, "{} {}", t!("err.forensic"), msg),
             WraithError::Guard(msg) => write!(f, "{} {}", t!("err.guard"), msg),
             WraithError::Command(msg) => write!(f, "{} {}", t!("err.command"), msg),
+            WraithError::Configuration(msg) => write!(f, "Configuration fault: {}", msg),
+            WraithError::Network(msg) => write!(f, "Network fault: {}", msg),
             WraithError::Custom(msg) => write!(f, "{} {}", t!("err.custom"), msg),
         }
     }

@@ -1,6 +1,6 @@
-﻿{
+{
   "name": "Wraith Prime",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "High-assurance kernel-grade network anonymization, FIB routing, and anti-forensics engine in pure safe Rust. Features Netlink FIB Table 52 routing, RFC 8701 GREASE & JA3/JA4 TLS synthesis, WireGuard & Tor TransProxy multi-hop mesh, and zero-trace in-memory RAMFS execution.",
   "developer": "ByGhost",
   "website": "https://byghost.tr",

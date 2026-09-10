@@ -625,10 +625,15 @@ impl NetlinkSocket {
             let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(resp_buf.as_ptr() as *const _) };
 
             if nl_hdr.nlmsg_type == NLMSG_ERROR {
-                if bytes_read < size_of::<NlMsgErr>() {
+                let err_total_size = size_of::<NlMsgHdr>() + size_of::<NlMsgErr>();
+                if bytes_read < err_total_size {
                     return Err(WraithError::Custom("Truncated NLMSG_ERROR payload".into()));
                 }
-                let err_msg: NlMsgErr = unsafe { std::ptr::read_unaligned(resp_buf.as_ptr() as *const _) };
+                // SAFETY: Reading NlMsgErr from immediately after NlMsgHdr within validated bounds.
+                let err_offset = size_of::<NlMsgHdr>();
+                let err_msg: NlMsgErr = unsafe {
+                    std::ptr::read_unaligned(resp_buf[err_offset..].as_ptr() as *const _)
+                };
                 if err_msg.error != 0 {
                     let os_err = Error::from_raw_os_error(-err_msg.error);
                     return Err(WraithError::Custom(format!(
@@ -719,8 +724,14 @@ impl NetlinkSocket {
                     }
 
                     if nl_hdr.nlmsg_type == NLMSG_ERROR {
-                        // SAFETY: Reading error header from within validated buffer bounds.
-                        let err_msg: NlMsgErr = unsafe { std::ptr::read_unaligned(recv_buf[offset..].as_ptr() as *const _) };
+                        let err_inner_offset = offset + size_of::<NlMsgHdr>();
+                        if err_inner_offset + size_of::<NlMsgErr>() > bytes_read {
+                            break;
+                        }
+                        // SAFETY: Reading error header starting after NlMsgHdr within validated bounds.
+                        let err_msg: NlMsgErr = unsafe {
+                            std::ptr::read_unaligned(recv_buf[err_inner_offset..].as_ptr() as *const _)
+                        };
                         if err_msg.error != 0 {
                             return Err(WraithError::Custom(format!("Dump error: {}", -err_msg.error)));
                         }

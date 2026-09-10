@@ -44,27 +44,41 @@ pub async fn get_current_ip_geo() -> IpGeoInfo {
     let mut info = IpGeoInfo::default();
     let timeout_str = "3".to_string();
 
-    // 1. Query ipwho.is for full country & city info
+    // 1. Authoritative Tor verification via check.torproject.org
+    let (is_tor, tor_ip) = verify_tor_connection().await;
+    info.is_tor = is_tor;
+    if let Some(ref ip) = tor_ip {
+        info.ip = ip.clone();
+    }
+
+    // 2. Query ipwho.is for full country & city geolocation
+    let geo_url = if !info.ip.is_empty() {
+        format!("https://ipwho.is/{}", info.ip)
+    } else {
+        "https://ipwho.is/".to_string()
+    };
+
     if let Ok(output) = Command::new("curl")
-        .args(["-s", "--connect-timeout", "2", "-m", &timeout_str, "https://ipwho.is/"])
+        .args(["-s", "--connect-timeout", "2", "-m", &timeout_str, &geo_url])
         .output()
     {
         if output.status.success() {
             let text = String::from_utf8_lossy(&output.stdout);
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                 if let Some(ip) = json.get("ip").and_then(|v| v.as_str()) {
-                    info.ip = ip.to_string();
+                    if info.ip.is_empty() {
+                        info.ip = ip.to_string();
+                    }
                     info.country_code = json.get("country_code").and_then(|v| v.as_str()).map(|s| s.to_string());
                     info.country_name = json.get("country").and_then(|v| v.as_str()).map(|s| s.to_string());
                     info.city = json.get("city").and_then(|v| v.as_str()).map(|s| s.to_string());
-                    info.is_tor = true;
                     return info;
                 }
             }
         }
     }
 
-    // 2. Fallback to api.myip.com
+    // 3. Fallback geolocation via api.myip.com
     if let Ok(output) = Command::new("curl")
         .args(["-s", "--connect-timeout", &timeout_str, "-m", &timeout_str, "https://api.myip.com"])
         .output()
@@ -73,20 +87,20 @@ pub async fn get_current_ip_geo() -> IpGeoInfo {
             let text = String::from_utf8_lossy(&output.stdout);
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                 if let Some(ip) = json.get("ip").and_then(|v| v.as_str()) {
-                    info.ip = ip.to_string();
+                    if info.ip.is_empty() {
+                        info.ip = ip.to_string();
+                    }
                     info.country_code = json.get("cc").and_then(|v| v.as_str()).map(|s| s.to_string());
                     info.country_name = json.get("country").and_then(|v| v.as_str()).map(|s| s.to_string());
-                    info.is_tor = true;
                     return info;
                 }
             }
         }
     }
 
-    // 3. Fallback to Tor check API
-    let (is_tor, tor_ip) = verify_tor_connection().await;
-    info.is_tor = is_tor;
-    info.ip = tor_ip.or(get_current_ip().await).unwrap_or_else(|| "Hidden".to_string());
+    if info.ip.is_empty() {
+        info.ip = get_current_ip().await.unwrap_or_else(|| "Hidden".to_string());
+    }
     info
 }
 

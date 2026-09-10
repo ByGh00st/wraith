@@ -367,6 +367,13 @@ pub fn show_status_dashboard(state: &StateData, is_tor: bool, ip: &str, circuits
         Cell::new("✔ Active (/dev/shm, mlockall + MADV_DONTDUMP + XOR rotation)").fg(Color::Green),
     ]);
 
+    if let Some(iface) = &state.target_interface {
+        table.add_row(vec![
+            Cell::new("Target Network Interface"),
+            Cell::new(format!("✔ Locked Adapter: {iface}")).fg(Color::Cyan),
+        ]);
+    }
+
     if let Some(mac) = &state.mac_new {
         table.add_row(vec![
             Cell::new("Hardware MAC Spoof"),
@@ -521,6 +528,10 @@ pub fn print_localized_help() {
         ("update", t!("help.cmd_update")),
         ("shred <PATH>", t!("help.cmd_shred")),
         ("monitor", t!("help.cmd_monitor")),
+        ("config [show|get|set]", t!("help.cmd_config")),
+        ("bridge [moat|list]", t!("help.cmd_bridge")),
+        ("doh [-s]", t!("help.cmd_doh")),
+        ("interfaces [-a]", t!("help.cmd_interfaces")),
     ];
     for (cmd, desc) in commands {
         println!("    {:<28} {}", cmd.bold().bright_green(), desc);
@@ -528,8 +539,13 @@ pub fn print_localized_help() {
 
     println!("\n  {}", t!("help.sec_net_header").bold().bright_yellow());
     let net_opts = [
+        ("-I, --interface <NIC>", t!("help.opt_interface")),
+        ("--select-interface", t!("help.opt_select_interface")),
         ("-m, --mac", t!("help.opt_mac")),
         ("-b, --bridge", t!("help.opt_bridge")),
+        ("--bridge-type <TYPE>", t!("help.opt_bridge_type")),
+        ("-D, --doh <PRESET|URL>", t!("help.opt_doh")),
+        ("--select-doh", t!("help.opt_select_doh")),
         ("-n, --namespace", t!("help.opt_namespace")),
         ("-p, --profile <PROFILE>", t!("help.opt_profile")),
         ("--jitter", t!("help.opt_jitter")),
@@ -577,6 +593,8 @@ pub fn print_localized_help() {
     println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -m -p stealth".bright_cyan(), format!("→ {}", t!("help.ex_stealth")).dimmed());
     println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -L".bright_cyan(), format!("→ {}", t!("help.ex_wipe")).dimmed());
     println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -d".bright_cyan(), format!("→ {}", t!("help.ex_destruct")).dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs --bridge-type moat".bright_cyan(), format!("→ {}", t!("help.ex_moat")).dimmed());
+    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -D quad9".bright_cyan(), format!("→ {}", t!("help.ex_doh")).dimmed());
     println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-x".bright_cyan(), format!("→ {}", t!("help.ex_stop")).dimmed());
     println!("    {} {:<28} {}\n", "sudo wraith".bold().bright_white(), "-u".bright_cyan(), format!("→ {}", t!("help.ex_update")).dimmed());
 }
@@ -586,8 +604,13 @@ pub fn build_localized_command() -> clap::Command {
     let mut cmd = crate::Cli::command();
     cmd = cmd.about(t!("help.desc").into_owned());
 
-    cmd = cmd.mut_arg("mac", |a| a.help(t!("help.opt_mac").into_owned()))
+    cmd = cmd.mut_arg("interface", |a| a.help(t!("help.opt_interface").into_owned()))
+        .mut_arg("select_interface", |a| a.help(t!("help.opt_select_interface").into_owned()))
+        .mut_arg("mac", |a| a.help(t!("help.opt_mac").into_owned()))
         .mut_arg("bridge", |a| a.help(t!("help.opt_bridge").into_owned()))
+        .mut_arg("bridge_type", |a| a.help(t!("help.opt_bridge_type").into_owned()))
+        .mut_arg("doh", |a| a.help(t!("help.opt_doh").into_owned()))
+        .mut_arg("select_doh", |a| a.help(t!("help.opt_select_doh").into_owned()))
         .mut_arg("namespace", |a| a.help(t!("help.opt_namespace").into_owned()))
         .mut_arg("profile", |a| a.help(t!("help.opt_profile").into_owned()))
         .mut_arg("jitter", |a| a.help(t!("help.opt_jitter").into_owned()))
@@ -619,7 +642,8 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("cleanup", |a| a.help(t!("help.cmd_cleanup").into_owned()))
         .mut_arg("cleanup_full", |a| a.help(t!("help.cmd_cleanup_full").into_owned()))
         .mut_arg("shred", |a| a.help(t!("help.cmd_shred").into_owned()))
-        .mut_arg("monitor", |a| a.help(t!("help.cmd_monitor").into_owned()));
+        .mut_arg("monitor", |a| a.help(t!("help.cmd_monitor").into_owned()))
+        .mut_arg("interfaces", |a| a.help(t!("help.cmd_interfaces").into_owned()));
 
     cmd = cmd.mut_subcommand("start", |s| s.about(t!("help.cmd_start").into_owned()))
         .mut_subcommand("stop", |s| s.about(t!("help.cmd_stop").into_owned()))
@@ -634,7 +658,11 @@ pub fn build_localized_command() -> clap::Command {
         .mut_subcommand("pentest", |s| s.about(t!("help.cmd_pentest").into_owned()))
         .mut_subcommand("update", |s| s.about(t!("help.cmd_update").into_owned()))
         .mut_subcommand("shred", |s| s.about(t!("help.cmd_shred").into_owned()))
-        .mut_subcommand("monitor", |s| s.about(t!("help.cmd_monitor").into_owned()));
+        .mut_subcommand("monitor", |s| s.about(t!("help.cmd_monitor").into_owned()))
+        .mut_subcommand("config", |s| s.about(t!("help.cmd_config").into_owned()))
+        .mut_subcommand("bridge", |s| s.about(t!("help.cmd_bridge").into_owned()))
+        .mut_subcommand("doh", |s| s.about(t!("help.cmd_doh").into_owned()))
+        .mut_subcommand("interfaces", |s| s.about(t!("help.cmd_interfaces").into_owned()));
 
     cmd
 }
@@ -642,46 +670,46 @@ pub fn build_localized_command() -> clap::Command {
 pub fn print_demo_showcase() {
     print_banner(true);
 
-    print_step("Enforcing Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)...", "info");
-    print_step("Process memory secured against dumpers (PR_SET_DUMPABLE=0, mlockall)", "ok");
+    print_step(&t!("commands.demo_step_1_info"), "info");
+    print_step(&t!("commands.demo_step_1_ok"), "ok");
 
-    print_step("Enforcing Linux Kernel Lockdown & DMA Hardware Defense...", "info");
-    print_step("Kernel Lockdown integrity verified (Confidentiality mode active, DMA protected)", "ok");
+    print_step(&t!("commands.demo_step_2_info"), "info");
+    print_step(&t!("commands.demo_step_2_ok"), "ok");
 
-    print_step("Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...", "info");
-    print_step("Anti-hata ayıklama tuzağı devrede [AÇIK ONAYLI]", "ok");
+    print_step(&t!("commands.demo_step_3_info"), "info");
+    print_step(&t!("commands.demo_step_3_ok"), "ok");
 
-    print_step("Masking process name in kernel scheduler ([kworker/u16:0])...", "info");
-    print_step("Process identity cloaked as kernel worker [ARMED]", "ok");
+    print_step(&t!("commands.demo_step_4_info"), "info");
+    print_step(&t!("commands.demo_step_4_ok"), "ok");
 
-    print_step("Donanım L2 MAC adresi ve Hostname rastgeleleştiriliyor...", "info");
-    print_step("Hardware MAC randomized (e2:4a:91:bc:55:18) & Hostname set to [dark-core-42]", "ok");
+    print_step(&t!("commands.demo_step_5_info"), "info");
+    print_step(&t!("commands.demo_step_5_ok"), "ok");
 
-    print_step("Rotating OS /etc/machine-id unique hardware identifier...", "info");
-    print_step("Machine-ID rotated: unknown ➔ 9f928f32d42299fb1bdfde337e014b3d", "ok");
+    print_step(&t!("commands.demo_step_6_info"), "info");
+    print_step(&t!("commands.demo_step_6_ok"), "ok");
 
-    print_step("Normalizing TCP/IP L4 Stack (p0f/TTL/Window Evasion)...", "info");
-    print_step("TCP/IP stack forged: TTL=128 (Windows 11 Profile), timestamps=0", "ok");
+    print_step(&t!("commands.demo_step_7_info"), "info");
+    print_step(&t!("commands.demo_step_7_ok"), "ok");
 
-    print_step("Initializing In-Flight DPI Sanitization Engine & AF_PACKET Zero-Copy Sniffer...", "info");
-    print_step("50+ Offensive tools (Nmap, Sqlmap, Ffuf) sanitized to modern Chrome/131 User-Agents", "ok");
+    print_step(&t!("commands.demo_step_8_info"), "info");
+    print_step(&t!("commands.demo_step_8_ok"), "ok");
 
-    print_step("Establishing Multi-Hop WireGuard Cryptographic Encapsulation...", "info");
-    print_step("WireGuard tunnel [ChaCha20-Poly1305] active over Tor 3-Hop Circuit", "ok");
+    print_step(&t!("commands.demo_step_9_info"), "info");
+    print_step(&t!("commands.demo_step_9_ok"), "ok");
 
-    print_step("Applying Geographic Exit Node Profile [stealth]...", "info");
-    print_step("Five Eyes Alliance excluded ({us},{gb},{au},{ca},{nz}) | Exit Nodes: {ch},{is},{ro},{md},{pa}", "ok");
+    print_step(&t!("commands.demo_step_10_info"), "info");
+    print_step(&t!("commands.demo_step_10_ok"), "ok");
 
-    print_step("Enforcing Fail-Closed Netfilter TransProxy & eBPF clsact Driver...", "info");
-    print_step("Netfilter TransProxy rules loaded (Fail-Closed Drop on 9040/5353)", "ok");
-    print_step("IPv6 leak prevention active (Kernel IPv6 stack completely dropped)", "ok");
+    print_step(&t!("commands.demo_step_11_info"), "info");
+    print_step(&t!("commands.demo_step_11_ok"), "ok");
+    print_step(&t!("commands.demo_step_11_ipv6"), "ok");
 
-    print_step("Configuring Sovereign DNS Engine & EDNS0 468B Padding...", "info");
-    print_step("Sovereign DNS active (127.0.0.1:5353) with QNAME minimization", "ok");
+    print_step(&t!("commands.demo_step_12_info"), "info");
+    print_step(&t!("commands.demo_step_12_ok"), "ok");
 
-    print_step("Activating Live IDS Traffic Watchdog...", "info");
-    print_step("Real-time zero-copy traffic sniffer & watchdog active", "ok");
+    print_step(&t!("commands.demo_step_13_info"), "info");
+    print_step(&t!("commands.demo_step_13_ok"), "ok");
 
-    print_success("WRAITH ENGINE FULLY ARMED // ALL 16 SECURITY LAYERS ACTIVE");
+    print_success(&t!("commands.demo_success"));
 }
 

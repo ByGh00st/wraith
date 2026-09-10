@@ -31,13 +31,13 @@ pub const TYPE_MX: u16 = 15;
 pub const TYPE_TXT: u16 = 16;
 pub const TYPE_AAAA: u16 = 28;
 pub const TYPE_SRV: u16 = 33;
-pub const TYPE_OPT: u16 = 41;      // EDNS0
-pub const TYPE_DS: u16 = 43;       // DNSSEC Delegation Signer
-pub const TYPE_RRSIG: u16 = 46;    // DNSSEC Signature
-pub const TYPE_NSEC: u16 = 47;     // DNSSEC Next Secure
-pub const TYPE_DNSKEY: u16 = 48;   // DNSSEC Key Record
-pub const TYPE_NSEC3: u16 = 50;    // DNSSEC NSEC3
-pub const TYPE_HTTPS: u16 = 65;    // Service Binding (RFC 9460)
+pub const TYPE_OPT: u16 = 41; // EDNS0
+pub const TYPE_DS: u16 = 43; // DNSSEC Delegation Signer
+pub const TYPE_RRSIG: u16 = 46; // DNSSEC Signature
+pub const TYPE_NSEC: u16 = 47; // DNSSEC Next Secure
+pub const TYPE_DNSKEY: u16 = 48; // DNSSEC Key Record
+pub const TYPE_NSEC3: u16 = 50; // DNSSEC NSEC3
+pub const TYPE_HTTPS: u16 = 65; // Service Binding (RFC 9460)
 pub const TYPE_ANY: u16 = 255;
 
 pub const CLASS_IN: u16 = 1;
@@ -144,15 +144,31 @@ impl DnsHeader {
 
     pub fn to_bytes(&self) -> [u8; 12] {
         let mut flags: u16 = 0;
-        if self.qr { flags |= 0x8000; }
+        if self.qr {
+            flags |= 0x8000;
+        }
         flags |= ((self.opcode as u16) & 0x0F) << 11;
-        if self.aa { flags |= 0x0400; }
-        if self.tc { flags |= 0x0200; }
-        if self.rd { flags |= 0x0100; }
-        if self.ra { flags |= 0x0080; }
-        if self.z { flags |= 0x0040; }
-        if self.ad { flags |= 0x0020; }
-        if self.cd { flags |= 0x0010; }
+        if self.aa {
+            flags |= 0x0400;
+        }
+        if self.tc {
+            flags |= 0x0200;
+        }
+        if self.rd {
+            flags |= 0x0100;
+        }
+        if self.ra {
+            flags |= 0x0080;
+        }
+        if self.z {
+            flags |= 0x0040;
+        }
+        if self.ad {
+            flags |= 0x0020;
+        }
+        if self.cd {
+            flags |= 0x0010;
+        }
         flags |= (self.rcode as u16) & 0x0F;
 
         let mut out = [0u8; 12];
@@ -211,8 +227,14 @@ pub enum RData {
     CName(String),
     Ptr(String),
     Txt(Vec<String>),
-    Mx { preference: u16, exchange: String },
-    Opt { udp_payload_size: u16, options: Vec<u8> },
+    Mx {
+        preference: u16,
+        exchange: String,
+    },
+    Opt {
+        udp_payload_size: u16,
+        options: Vec<u8>,
+    },
     Raw(Vec<u8>),
 }
 
@@ -262,7 +284,11 @@ impl DnsPacket {
             let qclass = u16::from_be_bytes([buf[offset + 2], buf[offset + 3]]);
             offset += 4;
 
-            questions.push(DnsQuestion { name, qtype, qclass });
+            questions.push(DnsQuestion {
+                name,
+                qtype,
+                qclass,
+            });
         }
 
         Ok(Self {
@@ -302,7 +328,9 @@ impl DnsPacket {
                 offset = ptr_offset;
                 jumps_performed += 1;
                 if jumps_performed > 10 {
-                    return Err(WraithError::Custom("DNS pointer cycle loop detected".into()));
+                    return Err(WraithError::Custom(
+                        "DNS pointer cycle loop detected".into(),
+                    ));
                 }
                 continue;
             }
@@ -316,7 +344,9 @@ impl DnsPacket {
             }
 
             if offset + len > buf.len() {
-                return Err(WraithError::Custom("DNS label exceeds buffer bounds".into()));
+                return Err(WraithError::Custom(
+                    "DNS label exceeds buffer bounds".into(),
+                ));
             }
 
             let label = String::from_utf8_lossy(&buf[offset..offset + len]).to_string();
@@ -412,12 +442,152 @@ pub struct CachedDnsResponse {
 pub type DnsCache = Arc<RwLock<HashMap<String, CachedDnsResponse>>>;
 
 // ==============================================================================
-// 6. ASYNC SOVEREIGN DNS SERVER
+// 6. ASYNC SOVEREIGN DNS SERVER & DOH PROVIDER MATRIX
 // ==============================================================================
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DohPresetInfo {
+    pub key: &'static str,
+    pub name: &'static str,
+    pub url: &'static str,
+    pub description: &'static str,
+    pub jurisdiction: &'static str,
+    pub features: &'static str,
+}
+
+pub const DOH_PRESETS: &[DohPresetInfo] = &[
+    DohPresetInfo {
+        key: "quad9",
+        name: "Quad9 (Hardened / Privacy)",
+        url: "https://dns.quad9.net/dns-query",
+        description: "Zero-logging Swiss jurisdiction with malware & phishing threat intelligence",
+        jurisdiction: "Switzerland (GDPR / FADP)",
+        features: "No-Logs | Threat Intelligence | DNSSEC",
+    },
+    DohPresetInfo {
+        key: "mullvad",
+        name: "Mullvad VPN Privacy DNS",
+        url: "https://dns.mullvad.net/dns-query",
+        description: "Strict no-logs policy, ad/tracker and spyware sinkhole protection",
+        jurisdiction: "Sweden (EU GDPR)",
+        features: "No-Logs | Ad/Tracker Sinkhole | Audit-Verified",
+    },
+    DohPresetInfo {
+        key: "cloudflare",
+        name: "Cloudflare (1.1.1.1)",
+        url: "https://cloudflare-dns.com/dns-query",
+        description: "Ultra fast Anycast low-latency routing, RFC 8484 standard",
+        jurisdiction: "United States",
+        features: "Ultra Low Latency | DNSSEC | Fast Anycast",
+    },
+    DohPresetInfo {
+        key: "adguard",
+        name: "AdGuard DNS",
+        url: "https://dns.adguard-dns.com/dns-query",
+        description: "Aggressive advertising and spyware telemetry filtering",
+        jurisdiction: "Cyprus (EU GDPR)",
+        features: "Ad-Blocker | Telemetry Sinkhole | Family Safe",
+    },
+    DohPresetInfo {
+        key: "controld",
+        name: "Control D (High-Speed)",
+        url: "https://freedns.controld.com/p0",
+        description: "Uncensored high-performance recursive Anycast resolver",
+        jurisdiction: "Canada",
+        features: "Unfiltered | High Throughput | Anycast",
+    },
+    DohPresetInfo {
+        key: "google",
+        name: "Google Public DNS",
+        url: "https://dns.google/dns-query",
+        description: "Worldwide Anycast infrastructure (8.8.8.8 / 8.8.4.4)",
+        jurisdiction: "United States",
+        features: "Global Anycast | 99.99% Uptime | DNSSEC",
+    },
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DohProvider {
+    Preset(&'static DohPresetInfo),
+    Custom(String),
+}
+
+impl DohProvider {
+    pub fn parse_input(input: &str) -> Result<Self> {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Ok(Self::default_provider());
+        }
+
+        let lower = trimmed.to_lowercase();
+        for preset in DOH_PRESETS {
+            if preset.key == lower || preset.key == lower.replace(['-', '_'], "") {
+                return Ok(Self::Preset(preset));
+            }
+        }
+
+        if trimmed.starts_with("https://") {
+            if trimmed.len() > 10 && trimmed.contains('.') {
+                return Ok(Self::Custom(trimmed.to_string()));
+            } else {
+                return Err(WraithError::Configuration(format!(
+                    "Invalid custom DoH URL '{trimmed}': missing valid hostname"
+                )));
+            }
+        }
+
+        Err(WraithError::Configuration(format!(
+            "Unknown DoH provider or invalid URL '{trimmed}'. Valid presets: quad9, mullvad, cloudflare, adguard, controld, google (or https://... for custom)"
+        )))
+    }
+
+    pub fn default_provider() -> Self {
+        Self::Preset(&DOH_PRESETS[0])
+    }
+
+    pub fn url(&self) -> &str {
+        match self {
+            Self::Preset(p) => p.url,
+            Self::Custom(u) => u.as_str(),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Preset(p) => p.name,
+            Self::Custom(_) => "Custom Upstream DoH Resolver",
+        }
+    }
+
+    pub fn jurisdiction(&self) -> &str {
+        match self {
+            Self::Preset(p) => p.jurisdiction,
+            Self::Custom(_) => "User Defined",
+        }
+    }
+
+    pub fn features(&self) -> &str {
+        match self {
+            Self::Preset(p) => p.features,
+            Self::Custom(_) => "Custom RFC 8484 Wire Protocol",
+        }
+    }
+
+    pub fn all_presets() -> &'static [DohPresetInfo] {
+        DOH_PRESETS
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DnsTransport {
+    UdpTor,
+    DoH(String),
+}
 
 pub struct SovereignDnsServer {
     bind_addr: String,
     upstream_addr: String,
+    transport: DnsTransport,
     cache: DnsCache,
     cancel_token: CancellationToken,
 }
@@ -431,6 +601,14 @@ impl Default for SovereignDnsServer {
 
 impl SovereignDnsServer {
     pub fn new(bind_port: Option<u16>, upstream_port: Option<u16>) -> (Self, CancellationToken) {
+        Self::new_with_transport(bind_port, upstream_port, DnsTransport::UdpTor)
+    }
+
+    pub fn new_with_transport(
+        bind_port: Option<u16>,
+        upstream_port: Option<u16>,
+        transport: DnsTransport,
+    ) -> (Self, CancellationToken) {
         let b_port = bind_port.unwrap_or(DNS_LOCAL_PORT);
         let u_port = upstream_port.unwrap_or(TOR_DNS_PORT);
         let cancel_token = CancellationToken::new();
@@ -438,6 +616,7 @@ impl SovereignDnsServer {
         let srv = Self {
             bind_addr: format!("127.0.0.1:{b_port}"),
             upstream_addr: format!("127.0.0.1:{u_port}"),
+            transport,
             cache: Arc::new(RwLock::new(HashMap::new())),
             cancel_token: cancel_token.clone(),
         };
@@ -449,13 +628,16 @@ impl SovereignDnsServer {
         let socket = match UdpSocket::bind(&self.bind_addr).await {
             Ok(s) => s,
             Err(e) => {
-                warn!("Cannot bind DNS server to {}: {e} (Port 53 in use by systemd-resolved?)", self.bind_addr);
+                warn!(
+                    "Cannot bind DNS server to {}: {e} (Port 53 in use by systemd-resolved?)",
+                    self.bind_addr
+                );
                 return Ok(());
             }
         };
 
-        info!("Sovereign RFC 1035 DNS Proxy listening on {} -> Forwarding to Tor DNSPort {}",
-            self.bind_addr, self.upstream_addr);
+        info!("Sovereign RFC 1035 DNS Proxy listening on {} (Transport: {:?}) -> Forwarding to Tor DNSPort {}",
+            self.bind_addr, self.transport, self.upstream_addr);
 
         let socket = Arc::new(socket);
         let mut recv_buf = vec![0u8; DNS_MAX_PACKET_SIZE];
@@ -472,6 +654,7 @@ impl SovereignDnsServer {
                             let query_bytes = recv_buf[..bytes_read].to_vec();
                             let socket_clone = socket.clone();
                             let upstream = self.upstream_addr.clone();
+                            let transport = self.transport.clone();
                             let cache = self.cache.clone();
 
                             tokio::spawn(async move {
@@ -480,6 +663,7 @@ impl SovereignDnsServer {
                                     query_bytes,
                                     peer_addr,
                                     upstream,
+                                    transport,
                                     cache,
                                 ).await;
                             });
@@ -500,6 +684,7 @@ impl SovereignDnsServer {
         query_bytes: Vec<u8>,
         peer_addr: SocketAddr,
         upstream: String,
+        transport: DnsTransport,
         cache: DnsCache,
     ) -> Result<()> {
         let parsed_pkt = match DnsPacket::parse(&query_bytes) {
@@ -541,45 +726,120 @@ impl SovereignDnsServer {
             }
         }
 
-        // 3. Relay Query to Local Tor DNSPort (5353)
-        if let Ok(upstream_socket) = UdpSocket::bind("127.0.0.1:0").await {
-            let _ = upstream_socket.connect(&upstream).await;
-            let _ = upstream_socket.send(&query_bytes).await;
+        // 3. Relay Query via DoH or Local Tor DNSPort (5353)
+        let mut response_bytes: Option<Vec<u8>> = None;
 
-            let mut tor_resp_buf = vec![0u8; DNS_MAX_PACKET_SIZE];
-            if let Ok(Ok(n)) = tokio::time::timeout(
-                Duration::from_millis(2500),
-                upstream_socket.recv(&mut tor_resp_buf),
-            ).await {
-                let tor_resp = tor_resp_buf[..n].to_vec();
-
-                let jitter_secs = {
-                    let mut rng = rand::thread_rng();
-                    rng.gen_range(30..120)
-                };
-                {
-                    let mut w_cache = cache.write().await;
-                    w_cache.insert(
-                        cache_key,
-                        CachedDnsResponse {
-                            response: tor_resp.clone(),
-                            expires_at: Instant::now() + Duration::from_secs(jitter_secs),
-                        },
-                    );
+        if let DnsTransport::DoH(ref doh_url) = transport {
+            if let Ok(resp) = Self::query_doh(doh_url, &query_bytes).await {
+                if !resp.is_empty() {
+                    response_bytes = Some(resp);
                 }
-
-                let padded = DnsPacket::apply_edns0_padding(tor_resp, EDNS0_TARGET_PADDING_SIZE);
-                let _ = socket.send_to(&padded, peer_addr).await;
             }
         }
 
+        if response_bytes.is_none() {
+            if let Ok(upstream_socket) = UdpSocket::bind("127.0.0.1:0").await {
+                let _ = upstream_socket.connect(&upstream).await;
+                let _ = upstream_socket.send(&query_bytes).await;
+
+                let mut tor_resp_buf = vec![0u8; DNS_MAX_PACKET_SIZE];
+                if let Ok(Ok(n)) = tokio::time::timeout(
+                    Duration::from_millis(2500),
+                    upstream_socket.recv(&mut tor_resp_buf),
+                )
+                .await
+                {
+                    response_bytes = Some(tor_resp_buf[..n].to_vec());
+                }
+            }
+        }
+
+        if let Some(mut final_resp) = response_bytes {
+            // Restore original client query ID to match response
+            if final_resp.len() >= 2 {
+                final_resp[0..2].copy_from_slice(&parsed_pkt.header.id.to_be_bytes());
+            }
+
+            let jitter_secs = {
+                let mut rng = rand::thread_rng();
+                rng.gen_range(30..120)
+            };
+            {
+                let mut w_cache = cache.write().await;
+                w_cache.insert(
+                    cache_key,
+                    CachedDnsResponse {
+                        response: final_resp.clone(),
+                        expires_at: Instant::now() + Duration::from_secs(jitter_secs),
+                    },
+                );
+            }
+
+            let padded = DnsPacket::apply_edns0_padding(final_resp, EDNS0_TARGET_PADDING_SIZE);
+            let _ = socket.send_to(&padded, peer_addr).await;
+        }
+
         Ok(())
+    }
+
+    /// Queries upstream DoH endpoint using RFC 8484 application/dns-message POST wire format
+    async fn query_doh(url: &str, query_bytes: &[u8]) -> Result<Vec<u8>> {
+        use std::process::Stdio;
+        use tokio::io::AsyncWriteExt;
+
+        if !url.starts_with("https://") {
+            return Err(WraithError::Custom(
+                "Invalid DoH provider URL: must be HTTPS".into(),
+            ));
+        }
+
+        let mut child = tokio::process::Command::new("curl")
+            .args([
+                "-s",
+                "-X",
+                "POST",
+                "--connect-timeout",
+                "2",
+                "-m",
+                "4",
+                "-H",
+                "Content-Type: application/dns-message",
+                "-H",
+                "Accept: application/dns-message",
+                "--data-binary",
+                "@-",
+                "--",
+                url,
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| WraithError::Network(format!("Failed to spawn DoH process: {e}")))?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(query_bytes).await;
+        }
+
+        let output = child
+            .wait_with_output()
+            .await
+            .map_err(|e| WraithError::Network(format!("DoH execution failed: {e}")))?;
+
+        if output.status.success() && !output.stdout.is_empty() {
+            Ok(output.stdout)
+        } else {
+            Err(WraithError::Network(
+                "DoH upstream returned empty response or error".into(),
+            ))
+        }
     }
 
     pub fn spawn_server(&self) -> tokio::task::JoinHandle<()> {
         let cancel = self.cancel_token.clone();
         let bind_addr = self.bind_addr.clone();
         let upstream = self.upstream_addr.clone();
+        let transport = self.transport.clone();
         let cache = self.cache.clone();
 
         tokio::spawn(async move {
@@ -602,9 +862,10 @@ impl SovereignDnsServer {
                             let q_bytes = recv_buf[..n].to_vec();
                             let s_clone = socket.clone();
                             let u_clone = upstream.clone();
+                            let t_clone = transport.clone();
                             let c_clone = cache.clone();
                             tokio::spawn(async move {
-                                let _ = Self::handle_dns_query(s_clone, q_bytes, peer, u_clone, c_clone).await;
+                                let _ = Self::handle_dns_query(s_clone, q_bytes, peer, u_clone, t_clone, c_clone).await;
                             });
                         }
                     }
@@ -619,3 +880,69 @@ impl SovereignDnsServer {
 }
 
 pub type SovereignDnsEngine = SovereignDnsServer;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_doh_provider_presets() {
+        let quad9 = DohProvider::parse_input("quad9").unwrap();
+        assert_eq!(quad9.url(), "https://dns.quad9.net/dns-query");
+        assert_eq!(quad9.jurisdiction(), "Switzerland (GDPR / FADP)");
+
+        let mullvad = DohProvider::parse_input("mullvad").unwrap();
+        assert_eq!(mullvad.url(), "https://dns.mullvad.net/dns-query");
+        assert_eq!(mullvad.jurisdiction(), "Sweden (EU GDPR)");
+
+        let cf = DohProvider::parse_input("cloudflare").unwrap();
+        assert_eq!(cf.url(), "https://cloudflare-dns.com/dns-query");
+
+        let default_prov = DohProvider::default_provider();
+        assert_eq!(default_prov.url(), "https://dns.quad9.net/dns-query");
+
+        // Empty input defaults to Quad9
+        let empty_input = DohProvider::parse_input("").unwrap();
+        assert_eq!(empty_input.url(), "https://dns.quad9.net/dns-query");
+    }
+
+    #[test]
+    fn test_doh_provider_custom_url() {
+        let custom = DohProvider::parse_input("https://dns.adguard-dns.com/dns-query").unwrap();
+        assert_eq!(custom.url(), "https://dns.adguard-dns.com/dns-query");
+        assert_eq!(custom.name(), "Custom Upstream DoH Resolver");
+        assert_eq!(custom.jurisdiction(), "User Defined");
+    }
+
+    #[test]
+    fn test_doh_provider_invalid_inputs() {
+        // Plaintext HTTP must be rejected
+        let http_res = DohProvider::parse_input("http://insecure.dns/query");
+        assert!(http_res.is_err());
+
+        // Malformed custom URL
+        let bad_url = DohProvider::parse_input("https://nodots");
+        assert!(bad_url.is_err());
+
+        // Unknown preset name
+        let unknown = DohProvider::parse_input("random_nonexistent_provider");
+        assert!(unknown.is_err());
+    }
+
+    #[test]
+    fn test_dns_header_creation() {
+        let hdr = DnsHeader::new_query(0x1337);
+        assert_eq!(hdr.id, 0x1337);
+        assert!(!hdr.qr);
+        assert_eq!(hdr.qdcount, 1);
+        assert_eq!(hdr.ancount, 0);
+        assert_eq!(hdr.rcode, RCODE_NOERROR);
+    }
+
+    #[test]
+    fn test_sinkhole_telemetry_match() {
+        assert!(SINKHOLE_DOMAINS.iter().any(|sink| "telemetry.microsoft.com".ends_with(sink)));
+        assert!(SINKHOLE_DOMAINS.iter().any(|sink| "stats.g.doubleclick.net".ends_with(sink)));
+        assert!(!SINKHOLE_DOMAINS.iter().any(|sink| "torproject.org".ends_with(sink)));
+    }
+}

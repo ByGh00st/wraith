@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WRAITH-PRIME // SOVEREIGN KERNEL FORGE & AUTOMATED BUILD ENGINE v1.2.0
+# WRAITH-PRIME // SOVEREIGN KERNEL FORGE & AUTOMATED BUILD ENGINE v1.3.0
 # High-Assurance Ring-0/Ring-3 Defense & Anonymization Engine
 # Absolute Precision. Zero Telemetry. Pure Technical Execution.
 # ==============================================================================
@@ -34,7 +34,7 @@ echo "   ██║███╗██║██╔══██╗██╔══�
 echo "   ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║"
 echo "    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝"
 echo -e "${CLR_AMBER}  ╭── [ ⚔ WRAITH-PRIME // SOVEREIGN FORGE & COMPILER ] ──────────────────────────╮"
-echo -e "  │  ${CLR_SLATE}CORE ENGINE :${CLR_RESET} ${CLR_RED}${CLR_BOLD}WRAITH v1.2.0 // KERNEL ANONYMIZATION GATE${CLR_RESET}                  ${CLR_AMBER}│"
+echo -e "  │  ${CLR_SLATE}CORE ENGINE :${CLR_RESET} ${CLR_RED}${CLR_BOLD}WRAITH v1.3.0 // KERNEL ANONYMIZATION GATE${CLR_RESET}                  ${CLR_AMBER}│"
 echo -e "  │  ${CLR_SLATE}TARGET HOST :${CLR_RESET} ${CLR_EMERALD}${TARGET_OS} [${ARCH}]${CLR_RESET}                                      ${CLR_AMBER}│"
 echo -e "  │  ${CLR_SLATE}KERNEL SPEC :${CLR_RESET} ${CLR_WHITE}Linux ${KERNEL_REL}${CLR_RESET}                                             ${CLR_AMBER}│"
 echo -e "  │  ${CLR_SLATE}FORGE MODE  :${CLR_RESET} ${CLR_RED}${CLR_BOLD}LTO + SIMD OPTIMIZED RELEASE // MAXIMUM DEFENSE ARMED${CLR_RESET}        ${CLR_AMBER}│"

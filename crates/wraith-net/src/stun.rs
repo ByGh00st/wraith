@@ -23,7 +23,20 @@ pub fn block_stun_ports() -> Result<()> {
             .stderr(Stdio::null())
             .status();
     }
-    info!("STUN/TURN ports blocked ({} ports dropped)", STUN_PORTS.len());
+
+    // Block mDNS local candidate gathering (UDP 5353 / 224.0.0.251)
+    let _ = Command::new("iptables")
+        .args(["-A", "OUTPUT", "-p", "udp", "--dport", "5353", "-j", "DROP"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let _ = Command::new("iptables")
+        .args(["-A", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    info!("STUN/TURN/mDNS ports blocked ({} ports dropped + mDNS candidate suppression)", STUN_PORTS.len());
     Ok(())
 }
 
@@ -41,6 +54,17 @@ pub fn unblock_stun_ports() -> Result<()> {
             .stderr(Stdio::null())
             .status();
     }
-    info!("STUN/TURN port blocks removed");
+    let _ = Command::new("iptables")
+        .args(["-D", "OUTPUT", "-p", "udp", "--dport", "5353", "-j", "DROP"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let _ = Command::new("iptables")
+        .args(["-D", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    info!("STUN/TURN/mDNS port blocks removed");
     Ok(())
 }

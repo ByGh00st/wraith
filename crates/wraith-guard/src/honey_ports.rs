@@ -136,7 +136,15 @@ impl HoneyPortTrap {
         auto_freeze: bool,
         cancel: CancellationToken,
     ) {
-        let rogue_info = Self::investigate_peer_process(peer_addr.port());
+        // SECURITY: Only loopback connections can be resolved to local processes.
+        // For external/LAN connections, the client port belongs to a remote host and
+        // could collide with a local ephemeral port, causing DoS on innocent local services.
+        let is_local_origin = peer_addr.ip().is_loopback();
+        let rogue_info = if is_local_origin {
+            Self::investigate_peer_process(peer_addr.port())
+        } else {
+            None
+        };
 
         if let Some(ref proc) = rogue_info {
             error!(
@@ -144,11 +152,17 @@ impl HoneyPortTrap {
                 proc.name, proc.pid, proc.exe_path
             );
 
-            if auto_freeze {
+            // SECURITY: PID 0, PID 1 (init/systemd), and Wraith itself must NEVER be signaled.
+            let my_pid = std::process::id();
+            if auto_freeze && proc.pid > 1 && proc.pid != my_pid {
                 Self::neutralize_rogue_process(proc.pid, false);
             }
-        } else {
+        } else if is_local_origin {
             error!("🚨 ACTIVE HONEYPOT INTRUSION: Unknown local connection on decoy port :{port} from {peer_addr}!");
+        } else {
+            error!(
+                "🚨 LAN DECEPTION SENSOR: External network probe detected on decoy port :{port} from {peer_addr}"
+            );
         }
 
         // Execute deceptive authentic protocol handshake and TCP tarpit
@@ -311,6 +325,13 @@ impl HoneyPortTrap {
 
     /// Neutralizes a rogue process by sending SIGSTOP (freeze for forensics) or SIGKILL
     pub fn neutralize_rogue_process(pid: u32, kill: bool) -> bool {
+        // Critical safeguard: Never signal init/systemd (PID 1), kernel task (PID 0), or self
+        let my_pid = std::process::id();
+        if pid <= 1 || pid == my_pid {
+            warn!("Refusing to neutralize protected PID {pid} (init/kernel/self)");
+            return false;
+        }
+
         #[cfg(unix)]
         {
             let sig = if kill { libc::SIGKILL } else { libc::SIGSTOP };
@@ -371,6 +392,17 @@ mod tests {
         let banner_str = String::from_utf8_lossy(&banner[..n]);
         assert!(banner_str.contains("SSH-2.0-OpenSSH"));
         ct.cancel();
+    }
+
+    #[test]
+    fn test_neutralize_rogue_process_guards_protected_pids() {
+        let my_pid = std::process::id();
+        assert!(!HoneyPortTrap::neutralize_rogue_process(0, false));
+        assert!(!HoneyPortTrap::neutralize_rogue_process(1, false));
+        assert!(!HoneyPortTrap::neutralize_rogue_process(my_pid, false));
+        assert!(!HoneyPortTrap::neutralize_rogue_process(0, true));
+        assert!(!HoneyPortTrap::neutralize_rogue_process(1, true));
+        assert!(!HoneyPortTrap::neutralize_rogue_process(my_pid, true));
     }
 }
 

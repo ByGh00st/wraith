@@ -31,55 +31,72 @@ pub fn is_rotational_device(path: &Path) -> bool {
     true // default to rotational if unknown
 }
 
+fn open_no_follow_write(path: &Path) -> std::io::Result<fs::File> {
+    let mut options = OpenOptions::new();
+    options.write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    options.open(path)
+}
+
 pub fn secure_delete_file(path: &Path, passes: u8) -> Result<()> {
-    if !path.exists() {
+    // CRITICAL: Symlink defense — never follow symlinks into target files
+    let sym_meta = match fs::symlink_metadata(path) {
+        Ok(m) => m,
+        Err(_) => return Ok(()),
+    };
+
+    if sym_meta.file_type().is_symlink() {
+        warn!("Refusing to shred symlink target {:?} — removing link only", path);
+        let _ = fs::remove_file(path);
         return Ok(());
     }
 
-    if let Ok(metadata) = fs::metadata(path) {
-        let size = metadata.len() as usize;
-        if size > 0 {
-            let is_ssd = !is_rotational_device(path);
-            
-            if is_ssd {
-                let discard_success = std::process::Command::new("fallocate")
-                    .args(["-p", "-n", "-o", "0", "-l", &size.to_string(), path.to_string_lossy().as_ref()])
-                    .status()
-                    .map(|s| s.success())
-                    .unwrap_or(false);
+    let size = sym_meta.len() as usize;
+    if size > 0 {
+        let is_ssd = !is_rotational_device(path);
+        
+        if is_ssd {
+            let discard_success = std::process::Command::new("fallocate")
+                .args(["-p", "-n", "-o", "0", "-l", &size.to_string(), path.to_string_lossy().as_ref()])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
 
-                if !discard_success {
-                    let mut file = OpenOptions::new().write(true).open(path)?;
-                    let buffer = vec![0u8; size.min(1024 * 1024)];
-                    let mut written = 0;
-                    while written < size {
-                        let to_write = (size - written).min(buffer.len());
-                        file.write_all(&buffer[..to_write])?;
-                        written += to_write;
-                    }
-                    file.sync_all()?;
-                    warn!("SSD detected on {path:?}: fallocate punch-hole failed, fell back to single pass zero-fill. Note: In-place overwriting on SSD is not perfectly secure due to wear-leveling.");
-                } else {
-                    info!("SSD detected: Successfully applied fallocate punch-hole (TRIM) on {path:?}");
+            if !discard_success {
+                let mut file = open_no_follow_write(path)?;
+                let buffer = vec![0u8; size.min(1024 * 1024)];
+                let mut written = 0;
+                while written < size {
+                    let to_write = (size - written).min(buffer.len());
+                    file.write_all(&buffer[..to_write])?;
+                    written += to_write;
                 }
+                file.sync_all()?;
+                warn!("SSD detected on {path:?}: fallocate punch-hole failed, fell back to single pass zero-fill. Note: In-place overwriting on SSD is not perfectly secure due to wear-leveling.");
             } else {
-                let mut rng = rand::thread_rng();
-                let mut buffer = vec![0u8; size.min(1024 * 1024)]; // 1MB chunk
-
-                for _ in 0..passes {
-                    let mut file = OpenOptions::new().write(true).open(path)?;
-                    let mut written = 0;
-                    while written < size {
-                        let to_write = (size - written).min(buffer.len());
-                        rng.fill_bytes(&mut buffer[..to_write]);
-                        file.write_all(&buffer[..to_write])?;
-                        written += to_write;
-                    }
-                    file.sync_all()?;
-                }
-
-                buffer.zeroize();
+                info!("SSD detected: Successfully applied fallocate punch-hole (TRIM) on {path:?}");
             }
+        } else {
+            let mut rng = rand::thread_rng();
+            let mut buffer = vec![0u8; size.min(1024 * 1024)]; // 1MB chunk
+
+            for _ in 0..passes {
+                let mut file = open_no_follow_write(path)?;
+                let mut written = 0;
+                while written < size {
+                    let to_write = (size - written).min(buffer.len());
+                    rng.fill_bytes(&mut buffer[..to_write]);
+                    file.write_all(&buffer[..to_write])?;
+                    written += to_write;
+                }
+                file.sync_all()?;
+            }
+
+            buffer.zeroize();
         }
     }
 
@@ -90,4 +107,40 @@ pub fn secure_delete_file(path: &Path, passes: u8) -> Result<()> {
 
     debug!("Cryptographically purged: {}", path.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_secure_delete_file_basic() {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let test_file = temp_dir.path().join("secure_delete_target.bin");
+        fs::write(&test_file, b"CONFIDENTIAL OVERWRITE TEST").expect("write test file");
+        assert!(test_file.exists());
+
+        let res = secure_delete_file(&test_file, 2);
+        assert!(res.is_ok());
+        assert!(!test_file.exists());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_secure_delete_symlink_preserves_target() {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let target_file = temp_dir.path().join("legit_target.txt");
+        let symlink_file = temp_dir.path().join("malicious_symlink.lnk");
+
+        fs::write(&target_file, b"SENSITIVE TARGET DATA").expect("write target");
+        std::os::unix::fs::symlink(&target_file, &symlink_file).expect("create symlink");
+
+        let res = secure_delete_file(&symlink_file, 2);
+        assert!(res.is_ok());
+
+        assert!(!symlink_file.exists());
+        assert!(target_file.exists());
+        let content = fs::read(&target_file).expect("read target");
+        assert_eq!(content, b"SENSITIVE TARGET DATA");
+    }
 }

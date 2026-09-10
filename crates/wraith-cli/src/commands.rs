@@ -116,6 +116,36 @@ impl BackgroundServices {
 }
 
 pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
+    // 0-CFG. Merge persistent configuration defaults if not explicitly provided
+    let mut args = args;
+    if let Ok(cfg) = wraith_core::WraithConfig::load() {
+        if args.interface.is_none() && !args.select_interface {
+            args.interface = cfg.network.default_interface.or(cfg.default_interface);
+        }
+        if args.profile.is_none() {
+            args.profile = cfg.tor.default_profile.or(cfg.default_profile);
+        }
+        if !args.bridge {
+            if let Some(b) = cfg.tor.bridge.or(cfg.bridge) {
+                args.bridge = b;
+            }
+        }
+        if args.bridge_type.is_none() {
+            args.bridge_type = cfg.tor.bridge_type.or(cfg.bridge_type);
+        }
+        if args.doh.is_none() && !args.select_doh {
+            args.doh = cfg.dns.upstream.or(cfg.doh_upstream);
+        }
+        if !args.strict_hardening {
+            if let Some(s) = cfg.hardening.strict.or(cfg.strict_hardening) {
+                args.strict_hardening = s;
+            }
+        }
+        if args.rotate_interval.is_none() {
+            args.rotate_interval = cfg.tor.rotate_interval.or(cfg.rotate_interval);
+        }
+    }
+
     print_banner(args.strict_hardening);
     let state_mgr = StateManager::default();
 
@@ -129,7 +159,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     // WireGuard Multi-Hop early configuration validation
     if let Some(ref wg_conf) = args.wireguard {
         if wg_conf.trim().is_empty() {
-            print_error("WireGuard multi-hop requires a valid config file. Use --wireguard <path/to/wg.conf>");
+            print_error(&t!("commands.cmd_err_wg_conf"));
             return Err(WraithError::Custom(
                 "WireGuard multi-hop requires a config file. Use --wireguard <path/to/wg.conf>".into(),
             ));
@@ -152,92 +182,114 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     let mut bg_services = BackgroundServices::default();
 
     // 0. Kernel Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)
-    print_step(
-        "Enforcing Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)...",
-        "info",
-    );
+    print_step(&t!("commands.cmd_step_65"), "info");
     match enforce_process_lockdown() {
-        Ok(()) => print_step(
-            "Process memory secured against dumpers (PR_SET_DUMPABLE=0, mlockall)",
-            "ok",
-        ),
-        Err(e) => print_step(&format!("Process memory lockdown warning: {e}"), "warn"),
+        Ok(()) => print_step(&t!("commands.cmd_step_66"), "ok"),
+        Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_mem_lockdown", e = e.to_string())), "warn"),
     }
 
     if is_strict {
-        print_step(
-            "Enforcing Linux Kernel Lockdown & DMA Hardware Defense...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_67"), "info");
         match enforce_kernel_lockdown() {
             Ok(lockdown) => print_step(
-                &format!(
-                    "Kernel Lockdown evaluated ({:?}, /dev/mem & DMA IOMMU verified)",
-                    lockdown
-                ),
+                &format!("{}", t!("commands.cmd_step_kernel_lockdown_eval", lockdown = format!("{:?}", lockdown))),
                 "ok",
             ),
-            Err(e) => print_step(&format!("Kernel Lockdown warning: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_kernel_lockdown", e = e.to_string())), "warn"),
         }
     }
 
     // 0a. Anti-Debug Abort Trap (Armed under strict hardening -Fs OR explicit -A)
     if args.aggressive_anti_debug || is_strict {
-        print_step(
-            "Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_68"), "info");
         match wraith_forensic::AntiDebugProbe::enforce_anti_debug_trap(is_strict) {
             Ok(()) => print_step(&t!("commands.cmd_step_0"), "ok"),
-            Err(e) => print_step(&format!("Anti-debug probe warning: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_anti_debug", e = e.to_string())), "warn"),
         }
     }
 
     // 0b. Process Masquerading (Armed under strict hardening -Fs OR explicit -K)
     if args.aggressive_masquerade || is_strict {
-        print_step(
-            "Masking process name in kernel scheduler ([kworker/u16:0])...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_69"), "info");
         match wraith_forensic::cloaked_process_masquerade("[kworker/u16:0]") {
-            Ok(()) => print_step(
-                "Process identity cloaked as kernel worker [ARMED]",
-                "ok",
-            ),
-            Err(e) => print_step(&format!("Process masquerade warning: {e}"), "warn"),
+            Ok(()) => print_step(&t!("commands.cmd_step_70"), "ok"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_masquerade", e = e.to_string())), "warn"),
         }
     }
 
     // 0c. Explicit Destructive Log & History Wipe (Destructive Cleanup Opt-In)
     if args.forensic_wipe_logs {
-        print_step(
-            "Executing destructive system event log and history wipe...",
-            "warn",
-        );
+        print_step(&t!("commands.cmd_step_71"), "warn");
         match wraith_forensic::scrub_system_logs() {
-            Ok(count) => print_step(&format!("Scrubbed {count} system log file(s)"), "ok"),
-            Err(e) => print_step(&format!("System log scrub failed: {e}"), "warn"),
+            Ok(count) => print_step(&format!("{}", t!("commands.cmd_step_scrubbed_logs", count = count)), "ok"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_log_scrub_err", e = e.to_string())), "warn"),
         }
         match wraith_forensic::wipe_all_user_histories() {
             Ok(count) => print_step(
-                &format!("Wiped {count} shell history file(s) [EXPLICIT OPT-IN]"),
+                &format!("{}", t!("commands.cmd_step_history_wiped", count = count)),
                 "ok",
             ),
-            Err(e) => print_step(&format!("History wipe failed: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_history_wipe_err", e = e.to_string())), "warn"),
         }
     }
+
+    // 0-PRE. Target Network Adapter Resolution & Lockdown
+    let target_interface: String = if args.select_interface {
+        let candidate_interfaces = wraith_net::list_physical_interfaces()?;
+        let selected = if candidate_interfaces.is_empty() {
+            print_step(&t!("commands.cmd_step_72"), "warn");
+            let all = wraith_net::list_all_interfaces()?;
+            crate::interface_tui::select_interface_tui(&all)?
+        } else {
+            crate::interface_tui::select_interface_tui(&candidate_interfaces)?
+        };
+        print_step(&format!("{}", t!("runtime.interface_locked", selected = &selected)), "ok");
+        selected
+    } else if let Some(ref iface_name) = args.interface {
+        wraith_net::validate_interface(iface_name)?;
+        print_step(&format!("{}", t!("runtime.interface_locked_cli", iface = iface_name.as_str())), "ok");
+        iface_name.clone()
+    } else {
+        match wraith_net::get_best_active_interface() {
+            Ok(iface) => {
+                print_step(&format!("{}", t!("commands.cmd_step_default_iface", iface = &iface)), "ok");
+                iface
+            }
+            Err(_) => {
+                let physical = wraith_net::list_physical_interfaces().unwrap_or_default();
+                let fallback = physical.first().map(|i| i.name.clone()).unwrap_or_else(|| "eth0".to_string());
+                print_step(&format!("{}", t!("runtime.interface_fallback", iface = &fallback)), "warn");
+                fallback
+            }
+        }
+    };
+    state_data.target_interface = Some(target_interface.clone());
+    let _ = state_mgr.activate(state_data.clone());
+
+    // 0-DOH. DNS-over-HTTPS Resolver Resolution
+    let selected_doh: Option<wraith_guard::DohProvider> = if args.select_doh {
+        let provider = crate::doh_tui::select_doh_tui()?;
+        print_step(&format!("{}", t!("runtime.doh_locked", name = provider.name(), url = provider.url())), "ok");
+        Some(provider)
+    } else if let Some(ref doh_input) = args.doh {
+        let provider = wraith_guard::DohProvider::parse_input(doh_input)?;
+        print_step(&format!("{}", t!("runtime.doh_locked_cli", name = provider.name(), url = provider.url())), "ok");
+        Some(provider)
+    } else {
+        None
+    };
 
     // 1. MAC & Hostname Randomization
     if args.mac || is_strict {
         print_step(&t!("commands.cmd_step_1"), "info");
-        match change_mac(None, None) {
+        match change_mac(Some(&target_interface), None) {
             Ok((iface, old_m, new_m)) => {
-                print_step(&format!("MAC altered: {old_m} ➔ {new_m} on {iface}"), "ok");
+                print_step(&format!("{}", t!("commands.cmd_step_mac_altered", old_m = &old_m, new_m = &new_m, iface = &iface)), "ok");
                 state_data.mac_interface = Some(iface);
                 state_data.mac_old = Some(old_m);
                 state_data.mac_new = Some(new_m);
             }
-            Err(e) => print_step(&format!("MAC randomization skipped: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_mac_skip", e = e.to_string())), "warn"),
         }
 
         match randomize_hostname() {
@@ -252,10 +304,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     // 2. Machine-ID & Hardware DMI Cloaking
     if args.machine_id_rotation || is_strict {
-        print_step(
-            "Rotating OS /etc/machine-id unique hardware identifier...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_73"), "info");
         match rotate_machine_id() {
             Ok((old_mid, new_mid)) => {
                 print_step(&format!("Machine-ID rotated: {old_mid} ➔ {new_mid}"), "ok");
@@ -268,16 +317,10 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     // 3. TCP/IP Stack Normalization (p0f OS Fingerprint Evasion)
     if args.tcp_mask || is_strict {
-        print_step(
-            "Normalizing TCP/IP L4 Stack (p0f/TTL/Window Evasion)...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_74"), "info");
         match backup_and_apply_tcp_mask() {
             Ok(_backup_map) => {
-                print_step(
-                    "TCP/IP stack forged: TTL=128 (Windows Profile), timestamps=0",
-                    "ok",
-                );
+                print_step(&t!("commands.cmd_step_75"), "ok");
                 state_data.tcp_stack_masked = true;
             }
             Err(e) => print_step(&format!("TCP/IP stack normalization warning: {e}"), "warn"),
@@ -291,33 +334,50 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         let handle = server.spawn_server();
         let prof = get_active_tls_profile();
         print_step(
-            &format!(
-                "Armed In-Flight HTTP DPI & TLS Camouflage Gate on 127.0.0.1:9055 ({}, JA4: {})",
-                prof.name, prof.ja4_hash
-            ),
+            &format!("{}", t!("commands.cmd_step_dpi_tls_gate", name = &prof.name, ja4 = &prof.ja4_hash)),
             "ok",
         );
         bg_services.tls = Some((ct, handle));
     }
 
     // 5. Tor Configuration & Bridges
-    if args.bridge {
-        print_step(&t!("commands.cmd_step_2"), "info");
-        match write_bridge_torrc(None) {
-            Ok(count) => {
-                print_step(
-                    &format!("Bridge mode enabled with {count} obfs4 bridges"),
-                    "ok",
-                );
-                state_data.bridge_enabled = true;
-                state_data.bridge_count = count;
-            }
-            Err(e) => {
-                print_step(
-                    &format!("Bridge error: {e}, falling back to direct Tor"),
-                    "warn",
-                );
-                write_torrc()?;
+    if args.bridge || args.bridge_type.is_some() {
+        let b_type = args.bridge_type.as_deref().unwrap_or("obfs4");
+        if b_type.eq_ignore_ascii_case("moat") {
+            print_step(&t!("bridge_tui.moat_engaging"), "info");
+            let moat = wraith_tor::MoatClient::default();
+            let bridges = moat.auto_discover_or_fallback("obfs4").await;
+            let count = wraith_tor::write_pluggable_transport_torrc(
+                wraith_tor::PluggableTransportType::Obfs4,
+                Some(bridges),
+            )?;
+            print_step(&format!("{}", t!("bridge_tui.moat_active", count = count)), "ok");
+            state_data.bridge_enabled = true;
+            state_data.bridge_count = count;
+        } else if let Some(pt) = wraith_tor::PluggableTransportType::from_str(b_type) {
+            print_step(&format!("{}", t!("bridge_tui.bridge_configuring", pt = pt.as_str())), "info");
+            let count = wraith_tor::write_pluggable_transport_torrc(pt, None)?;
+            print_step(&format!("{}", t!("bridge_tui.bridge_enabled", count = count, pt = pt.as_str())), "ok");
+            state_data.bridge_enabled = true;
+            state_data.bridge_count = count;
+        } else {
+            print_step(&t!("commands.cmd_step_2"), "info");
+            match write_bridge_torrc(None) {
+                Ok(count) => {
+                    print_step(
+                        &format!("{}", t!("commands.cmd_step_bridge_obfs4_enabled", count = count)),
+                        "ok",
+                    );
+                    state_data.bridge_enabled = true;
+                    state_data.bridge_count = count;
+                }
+                Err(e) => {
+                    print_step(
+                        &format!("{}", t!("bridge_tui.bridge_fallback", error = e.to_string())),
+                        "warn",
+                    );
+                    write_torrc()?;
+                }
             }
         }
     } else {
@@ -347,7 +407,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 wg_active_iface = Some(wg_iface);
             }
             Err(e) => {
-                print_step(&format!("Multi-Hop WireGuard setup failed: {e}"), "error");
+                print_step(&format!("{}", t!("commands.cmd_err_multihop_wg", e = e.to_string())), "error");
                 return Err(e);
             }
         }
@@ -356,7 +416,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     // 6. Start Tor Daemon FIRST (Before modifying DNS / Firewall)
     print_step(&t!("commands.cmd_step_5"), "info");
     if let Err(e) = start_tor_daemon().await {
-        print_step(&format!("Tor bootstrap failed: {e}"), "error");
+        print_step(&format!("{}", t!("commands.cmd_err_tor_bootstrap", e = e.to_string())), "error");
         let _ = restore_dns();
         let _ = flush_rules();
         let _ = flush_ipv6_block();
@@ -370,11 +430,24 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         tracing::warn!("Failed creating resolv.conf backup: {e}");
     }
     if let Err(e) = configure_dns() {
-        print_step(&format!("DNS configuration failed: {e}"), "error");
+        print_step(&format!("{}", t!("commands.cmd_err_dns_config", e = e.to_string())), "error");
         let _ = restore_dns();
         return Err(e);
     }
     print_step(&t!("commands.cmd_step_8"), "ok");
+
+    // 7b. Sovereign DNS Engine & DoH Forwarder
+    let dns_transport = if let Some(ref provider) = selected_doh {
+        print_step(&format!("{}", t!("runtime.doh_engine_armed", url = provider.url())), "info");
+        wraith_guard::DnsTransport::DoH(provider.url().to_string())
+    } else {
+        wraith_guard::DnsTransport::UdpTor
+    };
+
+    let (dns_srv, dns_ct) = wraith_guard::SovereignDnsServer::new_with_transport(None, None, dns_transport);
+    let dns_handle = dns_srv.spawn_server();
+    bg_services.dns = Some((dns_ct, dns_handle));
+    print_step(&t!("commands.cmd_step_76"), "ok");
 
     // 8. Exit Node Profile
     let exit_prof = if is_strict && args.profile.is_none() {
@@ -385,15 +458,15 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     if let Some(prof_name) = &exit_prof {
         print_step(
-            &format!("Applying geographic exit profile: {prof_name}..."),
+            &format!("{}", t!("commands.cmd_step_exit_prof_applying", prof = prof_name)),
             "info",
         );
         match apply_exit_profile(prof_name).await {
             Ok(p) => {
-                print_step(&format!("Profile '{}' active ({})", p.name, p.desc), "ok");
+                print_step(&format!("{}", t!("commands.cmd_step_exit_prof_active", name = &p.name, desc = &p.desc)), "ok");
                 state_data.exit_profile = Some(prof_name.clone());
             }
-            Err(e) => print_step(&format!("Exit profile error: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_exit_profile", e = e.to_string())), "warn"),
         }
     }
 
@@ -424,7 +497,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 state_data.onion_hostname = Some(hostname);
                 let _ = state_mgr.activate(state_data.clone());
             }
-            Err(e) => print_step(&format!("Onion Service provisioning warning: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_onion_provision", e = e.to_string())), "warn"),
         }
     }
 
@@ -452,91 +525,64 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 print_step(&t!("commands.cmd_step_49"), "ok");
             }
             Ok(false) => {
-                print_step(
-                    &format!("WireGuard interface {wg_iface} up, but Tor routing not confirmed"),
-                    "warn",
-                );
+                print_step(&format!("{}", t!("commands.cmd_warn_wg_routing", iface = &wg_iface)), "warn");
             }
             Err(e) => {
-                print_step(&format!("Failed binding Tor to WireGuard: {e}"), "warn");
+                print_step(&format!("{}", t!("commands.cmd_warn_tor_wg_bind", e = e.to_string())), "warn");
             }
         }
     }
 
     // 10. eBPF / TC Egress Fastpath Filter
     if is_strict {
-        print_step(
-            "Injecting Linux Traffic Control (TC) / eBPF Egress Fastpath...",
-            "info",
-        );
-        match EgressFastpath::new(None) {
+        print_step(&t!("commands.cmd_step_77"), "info");
+        match EgressFastpath::new(Some(&target_interface)) {
             Ok(mut fp) => {
                 if let Err(e) = fp.attach() {
-                    print_step(&format!("eBPF Fastpath attach warning: {e}"), "warn");
+                    print_step(&format!("{}", t!("commands.cmd_warn_ebpf_attach", e = e.to_string())), "warn");
                 } else {
                     print_step(&t!("commands.cmd_step_15"), "ok");
                 }
             }
-            Err(e) => print_step(&format!("eBPF Fastpath init error: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_ebpf_init", e = e.to_string())), "warn"),
         }
     }
 
     // 11. Zero-Copy IDS Raw Packet Sniffer & Egress Watchdog (Acquire raw AF_PACKET before Seccomp sandbox)
-    print_step(
-        "Arming Zero-Copy IDS Raw Packet Sniffer & DPI Engine (AF_PACKET)...",
-        "info",
-    );
+    print_step(&t!("commands.cmd_step_78"), "info");
     let (ids, _telemetry, ct) = EgressIntrusionDetector::new();
     let handle = ids.spawn_sniffer();
-    print_step(
-        "Zero-Copy IDS Watchdog & DPI Engine active (Real-time leak & signature traps armed)",
-        "ok",
-    );
+    print_step(&t!("commands.cmd_step_79"), "ok");
     bg_services.ids = Some((ct, handle));
 
     // 12. Seccomp-BPF Syscall Sandboxing (Raw Socket Filter)
     if is_strict {
-        print_step(
-            "Arming Seccomp-BPF Syscall Filter (SOCK_RAW / AF_PACKET hook trap)...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_80"), "info");
         match enforce_seccomp_socket_jail() {
-            Ok(()) => print_step(
-                "Syscall filter active: Rogue raw sockets will trigger immediate SIGSYS",
-                "ok",
-            ),
-            Err(e) => print_step(&format!("Seccomp-BPF jail warning: {e}"), "warn"),
+            Ok(()) => print_step(&t!("commands.cmd_step_81"), "ok"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_seccomp", e = e.to_string())), "warn"),
         }
     }
 
     // 13. Hardware, GPU, Font & Resolution Browser Shield
     if args.browser_shield || is_strict {
-        print_step(
-            "Deploying GPU, WebGL, Font & Resolution Anti-Fingerprint Shield...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_82"), "info");
         match deploy_hardware_and_font_shield() {
             Ok(count) => {
-                print_step(
-                    &format!("Injected anti-fingerprint shield into {count} browser profile(s)"),
-                    "ok",
-                );
+                print_step(&format!("{}", t!("commands.cmd_step_browser_injected", count = count)), "ok");
                 state_data.browser_hardened = count;
                 let _ = state_mgr.activate(state_data.clone());
             }
-            Err(e) => print_step(&format!("Browser shield warning: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_browser_shield", e = e.to_string())), "warn"),
         }
     }
 
     // 14. System-level Font Sandbox
     if args.font_sandbox || is_strict {
-        print_step(
-            "Restricting OS-level font discovery (fontconfig sandbox)...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_83"), "info");
         match enforce_font_jail() {
             Ok(()) => print_step(&t!("commands.cmd_step_16"), "ok"),
-            Err(e) => print_step(&format!("Font sandbox warning: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_font_sandbox", e = e.to_string())), "warn"),
         }
     }
 
@@ -553,7 +599,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 let _ = state_mgr.activate(state_data.clone());
                 bg_services.virtual_display = Some(vd);
             }
-            Err(e) => print_step(&format!("Virtual Display sandbox warning: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_virtual_display", e = e.to_string())), "warn"),
         }
     }
 
@@ -578,7 +624,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 state_data.namespace_active = true;
                 let _ = state_mgr.activate(state_data.clone());
             }
-            Err(e) => print_step(&format!("Network namespace warning: {e}"), "warn"),
+            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_net_ns", e = e.to_string())), "warn"),
         }
     }
 
@@ -587,37 +633,28 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     sleep(Duration::from_secs(2)).await;
     let geo = get_current_ip_geo().await;
     if geo.is_tor {
-        print_step(&format!("Connected through Tor ➔ {geo}"), "ok");
+        print_step(&format!("{}", t!("commands.cmd_step_tor_connected", geo = geo.to_string())), "ok");
     } else {
-        print_step(
-            &format!("Current IP: {} (Tor verification pending)", geo.ip),
-            "warn",
-        );
+        print_step(&format!("{}", t!("commands.cmd_warn_tor_pending", ip = &geo.ip)), "warn");
     }
 
     // 18. Background Traffic Padding & Anti-Correlation Jitter
     if args.jitter || is_strict {
-        print_step(
-            "Spawning Traffic Padding & Anti-Correlation Jitter engine...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_84"), "info");
         let (je, ct) = TrafficJitterEngine::new();
         let handle = je.spawn_obfuscator();
-        print_step(
-            "Synthetic traffic padding active (200-1400ms Poisson jitter)",
-            "ok",
-        );
+        print_step(&t!("commands.cmd_step_85"), "ok");
         bg_services.jitter = Some((ct, handle));
     }
 
     // 18b. Kernel-level TC Netem Traffic Shaper
     if args.traffic_shaper || (args.jitter && is_strict) {
         print_step(&t!("commands.cmd_step_54"), "info");
-        match TrafficShaper::new(None) {
+        match TrafficShaper::new(Some(&target_interface)) {
             Ok(mut shaper) => {
                 let prof = TrafficShapingProfile::default();
                 if let Err(e) = shaper.apply_shaping(&prof) {
-                    print_step(&format!("Kernel Traffic Shaper apply warning: {e}"), "warn");
+                    print_step(&format!("{}", t!("commands.cmd_warn_shaper_apply", e = e.to_string())), "warn");
                 } else {
                     print_step(&t!("commands.cmd_step_55"), "ok");
                     state_data.traffic_shaper_active = true;
@@ -656,10 +693,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     // 19. Encrypted In-Memory Ephemeral RAMFS Vault
     let _ram_vault = if is_strict {
-        print_step(
-            "Constructing In-Memory ChaCha20-Poly1305 Encrypted Vault (/dev/shm)...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_86"), "info");
         match EncryptedRamVault::init() {
             Ok(mut vault) => {
                 match serde_json::to_vec(&state_data) {
@@ -672,14 +706,11 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                         tracing::warn!("Failed serializing state for encrypted vault: {e}");
                     }
                 }
-                print_step(
-                    "Encrypted RAMFS Vault active (MADV_DONTDUMP memory locked)",
-                    "ok",
-                );
+                print_step(&t!("commands.cmd_step_87"), "ok");
                 Some(vault)
             }
             Err(e) => {
-                print_step(&format!("Encrypted RAMFS Vault init warning: {e}"), "warn");
+                print_step(&format!("{}", t!("commands.cmd_warn_vault", e = e.to_string())), "warn");
                 None
             }
         }
@@ -689,23 +720,17 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     // 20. Async DNS Engine with EDNS0 Padding & Sinkhole
     if is_strict {
-        print_step(
-            "Spawning RFC 1035 DNS Proxy Engine with EDNS0 Padding...",
-            "info",
-        );
+        print_step(&t!("commands.cmd_step_88"), "info");
         let (dns_srv, ct) = SovereignDnsEngine::new(None, None);
         let handle = dns_srv.spawn_server();
-        print_step(
-            "DNS Engine active on 127.0.0.1:53 (EDNS0 468B Padded + Telemetry Sinkhole)",
-            "ok",
-        );
+        print_step(&t!("commands.cmd_step_89"), "ok");
         bg_services.dns = Some((ct, handle));
     }
 
     // 21. Automatic IP Rotation Engine
     if let Some(interval) = args.rotate_interval {
         print_step(
-            &format!("Arming Automatic IP Rotation Engine (Interval: {interval}s)..."),
+            &format!("{}", t!("commands.cmd_step_auto_rotate_arming", interval = interval)),
             "info",
         );
         let ct = CancellationToken::new();
@@ -721,14 +746,14 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                         if client.connect().await.is_ok() && client.signal_newnym().await.is_ok() {
                             tokio::time::sleep(Duration::from_secs(3)).await;
                             let new_geo = get_current_ip_geo().await;
-                            println!("\n  [🔄 AUTO-ROTATE] Tor Circuit Identity Switched ➔ {new_geo}\n");
+                            println!("\n  {}\n", t!("commands.cmd_auto_rotate_switched", geo = &new_geo));
                         }
                     }
                 }
             }
         });
         print_step(
-            &format!("Auto IP rotation active: Fresh circuit & exit identity every {interval}s"),
+            &format!("{}", t!("commands.cmd_step_auto_rotate_active", interval = interval)),
             "ok",
         );
         bg_services.rotator = Some((ct, handle));
@@ -744,10 +769,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         let (ks, cancel_token) = KillSwitch::new();
         let ks_handle = ks.spawn_monitor();
         bg_services.killswitch = Some((cancel_token, ks_handle));
-        print_step(
-            "Fail-Closed Watchdog armed & monitoring kernel egress",
-            "ok",
-        );
+        print_step(&t!("commands.cmd_step_90"), "ok");
     }
 
     crate::display::print_session_hud(&geo, is_strict, args.rotate_interval);
@@ -770,7 +792,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     let _ = crossterm::terminal::disable_raw_mode();
-                    println!("\r\n  ◈ [🛑 EMERGENCY SIGNAL: SIGINT (Ctrl+C)] Restoring system state...\r\n");
+                    println!("\r\n  {}\r\n", t!("commands.cmd_signal_sigint"));
                     break;
                 }
                 _ = async {
@@ -784,7 +806,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                     std::future::pending::<()>().await;
                 } => {
                     let _ = crossterm::terminal::disable_raw_mode();
-                    println!("\r\n  ◈ [🛑 EMERGENCY SIGNAL: SIGTERM] Restoring system state...\r\n");
+                    println!("\r\n  {}\r\n", t!("commands.cmd_signal_sigterm"));
                     break;
                 }
                 _ = async {
@@ -798,7 +820,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                     std::future::pending::<()>().await;
                 } => {
                     let _ = crossterm::terminal::disable_raw_mode();
-                    println!("\r\n  ◈ [🛑 EMERGENCY SIGNAL: SIGHUP] Restoring system state...\r\n");
+                    println!("\r\n  {}\r\n", t!("commands.cmd_signal_sighup"));
                     break;
                 }
                 key_res = tokio::task::spawn_blocking(|| {
@@ -818,7 +840,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                             || k.code == crossterm::event::KeyCode::Esc
                         {
                             let _ = crossterm::terminal::disable_raw_mode();
-                            println!("\r\n  ◈ [🛑 CLEAN DISCONNECT] Restoring system network & security to original state...\r\n");
+                            println!("\r\n  {}\r\n", t!("commands.cmd_signal_clean_disconnect"));
                             break;
                         }
 
@@ -831,14 +853,14 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                                     if client.connect().await.is_ok() && client.signal_newnym().await.is_ok() {
                                         tokio::time::sleep(Duration::from_millis(800)).await;
                                         let new_geo = get_current_ip_geo().await;
-                                        print!("  ✔ [ACTIVE IDENTITY] New Tor Exit Node ➔ {}\r\n\r\n", new_geo);
+                                        println!("  {}\r\n", t!("commands.cmd_hotkey_identity_active", geo = &new_geo));
                                     } else {
-                                        print!("  ✖ [ERROR] Failed to signal Tor ControlPort.\r\n\r\n");
+                                        println!("  {}\r\n", t!("commands.cmd_hotkey_tor_ctrl_err"));
                                     }
                                 }
                                 crossterm::event::KeyCode::Char('t') | crossterm::event::KeyCode::Char('T') => {
                                     let _ = crossterm::terminal::disable_raw_mode();
-                                    println!("\n  ◈ [🧪 LEAK AUDIT] Executing comprehensive Ring-0 leak inspection suite...");
+                                    println!("\n  {}", t!("commands.cmd_hotkey_leak_audit"));
                                     let report = run_full_leak_test().await;
                                     show_leak_report(&report);
                                     println!();
@@ -846,15 +868,15 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                                 }
                                 crossterm::event::KeyCode::Char('m') | crossterm::event::KeyCode::Char('M') => {
                                     if spawn_monitor_terminal() {
-                                        print!("\r\n  ◈ [🖥️ POP-UP MONITOR] Dedicated real-time DPI & IDS telemetry window spawned!\r\n\r\n");
+                                        print!("\r\n  {}\r\n\r\n", t!("commands.cmd_hotkey_popup_spawned"));
                                     } else {
-                                        print!("\r\n  ⚠️ [POP-UP MONITOR] To view dedicated monitor, run in a separate terminal: sudo wraith monitor\r\n\r\n");
+                                        print!("\r\n  {}\r\n\r\n", t!("commands.cmd_hotkey_popup_manual"));
                                     }
                                 }
                                 crossterm::event::KeyCode::Char('c') | crossterm::event::KeyCode::Char('C') => {
-                                    print!("\r\n  ◈ [🧹 MEMORY PURGE] Purging volatile caches, RAMFS secrets, ARP tables & buffers (<10ms)...\r\n");
+                                    print!("\r\n  {}\r\n", t!("commands.cmd_hotkey_memory_purge"));
                                     let _ = wraith_forensic::logs::fast_ram_and_arp_purge();
-                                    print!("  ✔ [ERADICATED] Kernel drop_caches, memory compaction, and ARP routing tables wiped.\r\n\r\n");
+                                    print!("  {}\r\n\r\n", t!("commands.cmd_hotkey_memory_eradicated"));
                                 }
                                 _ => {}
                             }
@@ -871,7 +893,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
         cmd_stop(args.forensic_self_destruct).await?;
     } else {
-        println!("  Run 'sudo wraith stop' to restore network.\n");
+        println!("  {}\n", t!("commands.cmd_stop_restore_hint"));
     }
 
     Ok(())
@@ -915,7 +937,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         tracing::warn!("Destroy cgroup warning: {e}");
     }
 
-    if let Ok(mut fp) = EgressFastpath::new(None) {
+    let stop_target_iface = state_info.target_interface.as_deref().or(state_info.mac_interface.as_deref());
+
+    if let Ok(mut fp) = EgressFastpath::new(stop_target_iface) {
         if let Err(e) = fp.detach() {
             tracing::warn!("Fastpath detach warning: {e}");
         }
@@ -946,7 +970,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     }
 
     if state_info.traffic_shaper_active {
-        if let Ok(mut shaper) = TrafficShaper::new(None) {
+        if let Ok(mut shaper) = TrafficShaper::new(stop_target_iface) {
             let _ = shaper.restore();
             print_step(&t!("commands.cmd_step_64"), "ok");
         }
@@ -999,17 +1023,11 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let _ = restore_font_jail();
     print_step(&t!("commands.cmd_step_38"), "ok");
 
-    print_step(
-        "Executing anti-forensic memory & volatile state purge...",
-        "info",
-    );
+    print_step(&t!("commands.cmd_step_91"), "info");
     if let Err(e) = panic_emergency_purge(self_destruct) {
         print_step(&format!("Emergency purge warning: {e}"), "warn");
     }
-    print_step(
-        "RAM caches, ARP tables, logs, and volatile state eradicated",
-        "ok",
-    );
+    print_step(&t!("commands.cmd_step_92"), "ok");
 
     // Final Network Carrier & Clearnet Guaranteed Reconnection
     print_step(&t!("commands.cmd_step_39"), "info");
@@ -1063,13 +1081,13 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
     print_banner(false);
     print_step(
-        &format!("Executing DoD 5220.22-M shredding ({passes} passes) on {target}..."),
+        &format!("{}", t!("commands.cmd_step_shred_start", passes = passes, target = target)),
         "info",
     );
 
     let path = Path::new(target);
     if !path.exists() {
-        print_error(&format!("Target file does not exist: {target}"));
+        print_error(&format!("{}", t!("commands.cmd_err_target_not_found", target = target)));
         return Ok(());
     }
 
@@ -1186,7 +1204,7 @@ pub async fn cmd_update() -> Result<()> {
 
     // 3. Autonomous Git Clone from Upstream
     print_step(
-        &format!("Fetching latest code directly from GitHub into {temp_build_dir}..."),
+        &format!("{}", t!("commands.cmd_step_git_fetching", dir = &temp_build_dir)),
         "info",
     );
     let clone_status = Command::new("git")
@@ -1205,19 +1223,19 @@ pub async fn cmd_update() -> Result<()> {
         }
         Ok(s) => {
             let _ = fs::remove_dir_all(&temp_build_dir);
-            print_step(&format!("Failed cloning upstream repo (exit code: {s})"), "error");
+            print_step(&format!("{}", t!("commands.cmd_err_git_clone", code = s.to_string())), "error");
             return Err(WraithError::Custom(format!("Git clone failed with code: {s}")));
         }
         Err(e) => {
             let _ = fs::remove_dir_all(&temp_build_dir);
-            print_step(&format!("Failed spawning git clone process: {e}"), "error");
+            print_step(&format!("{}", t!("commands.cmd_err_git_spawn", err = e.to_string())), "error");
             return Err(WraithError::Io(e));
         }
     }
 
     // 4. Compile in workspace reusing persistent cargo home or fallback
     print_step(
-        &format!("Compiling optimized release binary with {cargo_bin}..."),
+        &format!("{}", t!("commands.cmd_step_cargo_compiling", bin = &cargo_bin)),
         "info",
     );
 
@@ -1259,10 +1277,7 @@ pub async fn cmd_update() -> Result<()> {
     }
 
     // 5. Eradicate old binaries and install new binary across all system PATHs
-    print_step(
-        "Overwriting old installations and deploying fresh binary across PATH...",
-        "info",
-    );
+    print_step(&t!("commands.cmd_step_93"), "info");
 
     let mut target_paths = vec![
         "/usr/local/bin/wraith".to_string(),
@@ -1321,11 +1336,11 @@ pub async fn cmd_update() -> Result<()> {
     };
 
     print_step(
-        &format!("SHA-256: {} (not verified against a trusted source — use at your own risk)", &bin_hash[..16.min(bin_hash.len())]),
+        &format!("{}", t!("commands.cmd_warn_sha256_unverified", hash = &bin_hash[..16.min(bin_hash.len())])),
         "warn",
     );
     print_success(&t!("runtime.updated_success"));
-    println!("  Universal binary: /usr/local/bin/wraith\n");
+    println!("  {}\n", t!("commands.cmd_universal_bin"));
     Ok(())
 }
 
@@ -1405,7 +1420,7 @@ pub fn cmd_pentest() -> Result<()> {
         "HTTP CAMOUFLAGE   : 127.0.0.1:9055 (JA3/JA4 Chrome v130+ Spoofing Proxy)".to_string(),
         "DNS SINKHOLE GATE : 127.0.0.1:5353 (Tor TransProxy DNS Resolver)".to_string(),
     ];
-    let p_box1 = render_box("⚔️ WRAITH-PRIME // OFFENSIVE SECURITY & PENTEST SANITIZATION", &p_rows1, BoxCorner::Rounded, 78);
+    let p_box1 = render_box("🛡️ WRAITH-PRIME // AUTHORIZED SECURITY AUDITING & PENTEST SANITIZATION", &p_rows1, BoxCorner::Rounded, 78);
     println!("{}", p_box1[0].bright_yellow());
     for row in &p_box1[1..p_box1.len() - 1] {
         println!("{row}");
@@ -1414,14 +1429,14 @@ pub fn cmd_pentest() -> Result<()> {
 
     let p_rows2 = vec![
         "".to_string(),
-        "[NMAP STEALTH TCP SYN SCAN OVER SOCKS5]:".to_string(),
+        "[NMAP AUTHORIZED TCP SYN AUDIT OVER SOCKS5]:".to_string(),
         "  nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>".to_string(),
         "".to_string(),
-        "[CURL / WEB FUZZING WITH JA4 TLS EVASION]:".to_string(),
+        "[CURL / WEB FUZZING WITH JA4 TLS NORMALIZATION]:".to_string(),
         "  curl -x http://127.0.0.1:9055 https://target.com/login".to_string(),
         "       -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64)\"".to_string(),
         "".to_string(),
-        "[SQLMAP EXPLOITATION OVER TOR SOCKS5]:".to_string(),
+        "[SQLMAP VULNERABILITY AUDITING OVER TOR SOCKS5]:".to_string(),
         "  sqlmap -u \"http://<target>/id=1\" \\".to_string(),
         "         --proxy=\"socks5://127.0.0.1:9050\" --random-agent".to_string(),
         "".to_string(),
@@ -1429,10 +1444,10 @@ pub fn cmd_pentest() -> Result<()> {
         "  set Proxies socks5:127.0.0.1:9050".to_string(),
         "  set HTTP_USER_AGENT Mozilla/5.0 (Windows NT 10.0; Win64)".to_string(),
         "".to_string(),
-        "[HYDRA / SSH BRUTE-FORCE OVER TOR]:".to_string(),
+        "[HYDRA / AUTHENTICATION RESILIENCE AUDIT OVER TOR]:".to_string(),
         "  hydra -s 22 -l root -P pass.txt -t 4 <target_ip> ssh".to_string(),
     ];
-    let p_box2 = render_box("🎯 RECOMMENDED OFFENSIVE STRIKE COMMAND WRAPPERS", &p_rows2, BoxCorner::Square, 78);
+    let p_box2 = render_box("🎯 RECOMMENDED AUTHORIZED SECURITY AUDIT COMMAND WRAPPERS", &p_rows2, BoxCorner::Square, 78);
     println!("{}", p_box2[0].bright_cyan());
     for row in &p_box2[1..p_box2.len() - 1] {
         println!("{row}");
@@ -1519,7 +1534,7 @@ pub async fn cmd_monitor() -> Result<()> {
     println!("{}", render_box_row("HOTKEYS       : Press [Q] or [Ctrl+C] to close this monitor window", 78));
     println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_cyan());
 
-    println!("  ◈ [MONITOR ARMED] Listening for Layer-4 HTTP / Offensive Tool Egress on wire...\n");
+    println!("  {}\n", t!("commands.cmd_monitor_armed"));
 
     #[cfg(unix)]
     {
@@ -1535,11 +1550,11 @@ pub async fn cmd_monitor() -> Result<()> {
 
         if sock_fd < 0 {
             let err = std::io::Error::last_os_error();
-            println!("  ℹ️  [DPI PROMISCUOUS MONITOR ACTIVE]");
-            println!("  [NOTE] AF_PACKET promiscuous sniffer filtered by Seccomp / Environment: {err}");
-            println!("  In-Flight HTTP DPI Rewriter & TLS Proxy is actively sanitizing wire on port 9055.");
-            println!("  Live interceptor is operational in transparent proxy mode.\n");
-            println!("  Listening for in-flight traffic... (Press 'q' or Enter to close)");
+            println!("  {}", t!("commands.cmd_monitor_promisc_active"));
+            println!("  {}", t!("commands.cmd_monitor_seccomp_filtered", err = err.to_string()));
+            println!("  {}", t!("commands.cmd_monitor_in_flight_sanitizing"));
+            println!("  {}\n", t!("commands.cmd_monitor_interceptor_op"));
+            println!("  {}", t!("commands.cmd_monitor_listening"));
             
             let mut line = String::new();
             let _ = std::io::stdin().read_line(&mut line);
@@ -1641,9 +1656,131 @@ pub async fn cmd_monitor() -> Result<()> {
 
     #[cfg(not(unix))]
     {
-        println!("  Real-time packet monitor requires Linux AF_PACKET raw sockets.");
+        println!("  {}", t!("commands.cmd_monitor_linux_req"));
     }
 
-    println!("\r\n  ◈ [MONITOR CLOSED] Returning to shell...\n");
+    println!("\r\n  {}\n", t!("commands.cmd_monitor_closed"));
     Ok(())
 }
+
+pub async fn cmd_bridge(action: Option<crate::BridgeAction>) -> Result<()> {
+    match action.unwrap_or(crate::BridgeAction::List) {
+        crate::BridgeAction::List => {
+            print_banner(false);
+            println!("  \x1b[1;36m{}\x1b[0m\n", t!("commands.cmd_bridge_pool_header"));
+            println!("  \x1b[1;33m{}\x1b[0m", t!("commands.cmd_bridge_pool_obfs4"));
+            for b in wraith_tor::BUILTIN_OBFS4_BRIDGES {
+                println!("    {b}");
+            }
+            println!("\n  \x1b[1;33m{}\x1b[0m", t!("commands.cmd_bridge_pool_snowflake"));
+            for b in wraith_tor::BUILTIN_SNOWFLAKE_BRIDGES {
+                println!("    {b}");
+            }
+            println!("\n  \x1b[1;33m{}\x1b[0m", t!("commands.cmd_bridge_pool_meek"));
+            for b in wraith_tor::BUILTIN_MEEK_BRIDGES {
+                println!("    {b}");
+            }
+            println!();
+        }
+        crate::BridgeAction::Moat { transport, solution, auto } => {
+            print_banner(false);
+            println!("  \x1b[1;36m{}\x1b[0m\n", t!("commands.cmd_moat_connecting"));
+            let moat = wraith_tor::MoatClient::default();
+
+            let bridges = if auto {
+                print_step(&t!("commands.cmd_step_94"), "info");
+                moat.auto_discover_or_fallback(&transport).await
+            } else if let Some(sol) = solution {
+                print_step(&t!("commands.cmd_step_95"), "info");
+                match moat.fetch_challenge(&transport).await {
+                    Ok(ch) => {
+                        match moat.check_solution(&transport, &ch.challenge, &sol).await {
+                            Ok(br) => br,
+                            Err(e) => {
+                                print_step(&format!("{}", t!("commands.cmd_moat_sol_rejected", err = e.to_string())), "warn");
+                                moat.auto_discover_or_fallback(&transport).await
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        print_step(&format!("{}", t!("commands.cmd_moat_challenge_failed", err = e.to_string())), "warn");
+                        moat.auto_discover_or_fallback(&transport).await
+                    }
+                }
+            } else {
+                print_step(&format!("{}", t!("commands.cmd_moat_requesting_challenge", transport = transport)), "info");
+                match moat.fetch_challenge(&transport).await {
+                    Ok(ch) => {
+                        let tmp_captcha = std::path::Path::new("/tmp/wraith_moat_captcha.png");
+                        if let Err(e) = wraith_tor::MoatClient::save_captcha_image(&ch.image_base64, tmp_captcha) {
+                            tracing::warn!("Could not save captcha PNG: {e}");
+                        }
+
+                        println!("\n  ┌── [ 🛡️ TOR MOAT PROTOCOL // BRIDGEDB CHALLENGE ] ────────────────────────┐");
+                        println!("  │ Challenge Token: {:<56} │", ch.challenge);
+                        println!("  │ Transport      : {:<56} │", ch.transport);
+                        println!("  │ CAPTCHA Image  : {:<56} │", "/tmp/wraith_moat_captcha.png");
+                        println!("  │                                                                          │");
+                        println!("  │ View the image and enter solution, or press Enter for circumvention pool: │");
+                        println!("  └──────────────────────────────────────────────────────────────────────────┘\n");
+
+                        use std::io::Write;
+                        print!("  \x1b[1;36m{}\x1b[0m ", t!("commands.cmd_moat_enter_solution"));
+                        let _ = std::io::stdout().flush();
+                        let mut user_sol = String::new();
+                        let _ = std::io::stdin().read_line(&mut user_sol);
+                        let trimmed = user_sol.trim();
+
+                        if !trimmed.is_empty() {
+                            match moat.check_solution(&transport, &ch.challenge, trimmed).await {
+                                Ok(br) => br,
+                                Err(e) => {
+                                    print_step(&format!("{}", t!("commands.cmd_moat_solution_error", err = e.to_string())), "warn");
+                                    moat.auto_discover_or_fallback(&transport).await
+                                }
+                            }
+                        } else {
+                            print_step(&t!("commands.cmd_step_96"), "info");
+                            moat.auto_discover_or_fallback(&transport).await
+                        }
+                    }
+                    Err(e) => {
+                        print_step(&format!("Moat challenge unreachable: {e}. Falling back to resilient pools."), "warn");
+                        moat.auto_discover_or_fallback(&transport).await
+                    }
+                }
+            };
+
+            let pt_type = wraith_tor::PluggableTransportType::from_str(&transport)
+                .unwrap_or(wraith_tor::PluggableTransportType::Obfs4);
+            let count = wraith_tor::write_pluggable_transport_torrc(pt_type, Some(bridges.clone()))?;
+            print_success(&format!("Successfully configured {count} {pt_type} bridges in /etc/tor/wraithrc"));
+            for b in &bridges {
+                println!("    Bridge {b}");
+            }
+            println!();
+        }
+    }
+    Ok(())
+}
+
+pub fn cmd_doh(select: bool) -> Result<()> {
+    if select {
+        let provider = crate::doh_tui::select_doh_tui()?;
+        print_banner(false);
+        print_success(&format!("Selected DoH Provider: {} [{}]", provider.name(), provider.url()));
+
+        let mut cfg = wraith_core::WraithConfig::load().unwrap_or_default();
+        cfg.dns.transport = Some("doh".to_string());
+        cfg.dns.provider = Some(provider.name().to_string());
+        cfg.dns.upstream = Some(provider.url().to_string());
+        cfg.doh_upstream = Some(provider.url().to_string());
+        let path = cfg.save()?;
+        print_step(&format!("Saved active DoH provider to {path:?}"), "ok");
+    } else {
+        print_banner(false);
+        crate::doh_tui::print_doh_table();
+    }
+    Ok(())
+}
+

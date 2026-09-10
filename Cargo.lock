@@ -1802,7 +1802,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "wraith-cli"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1820,6 +1820,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "toml",
  "tracing",
  "tracing-subscriber",
  "unicode-width",
@@ -1832,7 +1833,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-core"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "chacha20poly1305",
@@ -1849,13 +1850,14 @@ dependencies = [
  "sys-locale",
  "tempfile",
  "thiserror",
+ "toml",
  "tracing",
  "zeroize",
 ]
 
 [[package]]
 name = "wraith-forensic"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "libc",
@@ -1874,7 +1876,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-guard"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "libc",
@@ -1893,13 +1895,14 @@ dependencies = [
 
 [[package]]
 name = "wraith-net"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "libc",
  "nix",
  "rand",
  "rust-i18n",
+ "serde",
  "tempfile",
  "thiserror",
  "tokio",
@@ -1910,7 +1913,7 @@ dependencies = [
 
 [[package]]
 name = "wraith-tor"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "hex",

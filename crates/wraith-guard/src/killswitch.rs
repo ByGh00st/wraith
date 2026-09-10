@@ -73,11 +73,27 @@ impl KillSwitch {
         error!("KILLSWITCH TRIGGERED — Immediate global egress blackout enforced!");
         self.is_killed.store(true, Ordering::SeqCst);
 
-        // Atomic global firewall drop
-        let _ = Command::new("iptables").args(["-F"]).status();
+        // 1. Enforce strict DROP policy FIRST to eliminate race condition window
         let _ = Command::new("iptables").args(["-P", "OUTPUT", "DROP"]).status();
+        let _ = Command::new("iptables").args(["-P", "FORWARD", "DROP"]).status();
+        let _ = Command::new("iptables").args(["-P", "INPUT", "DROP"]).status();
+
+        // 2. Flush existing filter and NAT rules while DROP policies are strictly holding
+        let _ = Command::new("iptables").args(["-F"]).status();
+        let _ = Command::new("iptables").args(["-X"]).status();
+        let _ = Command::new("iptables").args(["-t", "nat", "-F"]).status();
+        let _ = Command::new("iptables").args(["-t", "nat", "-X"]).status();
+
+        // 3. Only allow local loopback communications
+        let _ = Command::new("iptables").args(["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"]).status();
         let _ = Command::new("iptables").args(["-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"]).status();
-        let _ = Command::new("iptables").args(["-A", "OUTPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"]).status();
+
+        // 4. Enforce strict IPv6 total blackout
+        let _ = Command::new("ip6tables").args(["-P", "INPUT", "DROP"]).status();
+        let _ = Command::new("ip6tables").args(["-P", "OUTPUT", "DROP"]).status();
+        let _ = Command::new("ip6tables").args(["-P", "FORWARD", "DROP"]).status();
+        let _ = Command::new("ip6tables").args(["-F"]).status();
+        let _ = Command::new("ip6tables").args(["-X"]).status();
 
         let _ = apply_ipv6_block();
     }

@@ -5,6 +5,8 @@ mod benchmark;
 mod commands;
 mod diagnostics;
 mod display;
+pub mod doh_tui;
+pub mod interface_tui;
 pub mod tui;
 
 use clap::{Args, Parser, Subcommand};
@@ -17,13 +19,58 @@ rust_i18n::i18n!("locales");
 #[command(args_override_self = true)]
 pub struct StartArgs {
     // ─── [1. NETWORK & ROUTING ISOLATION] ──────────────────────────────────────────
+    /// Target network interface adapter for L2/L3 operations (e.g. -I eth0, --interface wlan0)
+    #[arg(
+        short = 'I',
+        long = "interface",
+        visible_aliases = ["iface", "nic", "adapter"],
+        value_name = "INTERFACE",
+        help_heading = "Network Isolation"
+    )]
+    pub interface: Option<String>,
+
+    /// Launch interactive TUI menu to select target network interface adapter
+    #[arg(
+        long = "select-interface",
+        visible_aliases = ["pick-nic", "choose-interface"],
+        help_heading = "Network Isolation"
+    )]
+    pub select_interface: bool,
+
     /// Randomize network interface L2 MAC address and hostname
     #[arg(short = 'm', long = "mac", help_heading = "Network Isolation")]
     pub mac: bool,
 
-    /// Route traffic through censorship-resistant obfs4 Tor bridges
+    /// Route traffic through censorship-resistant Tor bridges
     #[arg(short = 'b', long = "bridge", help_heading = "Network Isolation")]
     pub bridge: bool,
+
+    /// Pluggable transport type or circumvention protocol (obfs4, snowflake, meek, webtunnel, moat)
+    #[arg(
+        long = "bridge-type",
+        visible_aliases = ["transport", "pt"],
+        value_name = "TYPE",
+        help_heading = "Network Isolation"
+    )]
+    pub bridge_type: Option<String>,
+
+    /// Upstream DNS-over-HTTPS resolver preset (quad9, mullvad, cloudflare, adguard, controld, google) or custom URL
+    #[arg(
+        short = 'D',
+        long = "doh",
+        visible_aliases = ["doh-provider", "doh-url", "dns"],
+        value_name = "PRESET_OR_URL",
+        help_heading = "Network Isolation"
+    )]
+    pub doh: Option<String>,
+
+    /// Launch interactive TUI menu to select or input custom DNS-over-HTTPS resolver
+    #[arg(
+        long = "select-doh",
+        visible_aliases = ["pick-doh", "choose-doh"],
+        help_heading = "Network Isolation"
+    )]
+    pub select_doh: bool,
 
     /// Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)
     #[arg(short = 'n', long = "namespace", help_heading = "Network Isolation")]
@@ -177,8 +224,13 @@ pub struct StartArgs {
 impl StartArgs {
     /// Checks if any anonymization, shield, or network flag was passed at top-level
     pub fn has_active_flags(&self) -> bool {
-        self.mac
+        self.interface.is_some()
+            || self.select_interface
+            || self.mac
             || self.bridge
+            || self.bridge_type.is_some()
+            || self.doh.is_some()
+            || self.select_doh
             || self.namespace
             || self.profile.is_some()
             || self.wireguard.is_some()
@@ -249,7 +301,7 @@ struct Cli {
     #[arg(long)]
     bench: bool,
 
-    /// Display offensive security & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
+    /// Display authorized security auditing & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
     #[arg(long)]
     pentest: bool,
 
@@ -288,6 +340,10 @@ struct Cli {
     /// Print demonstration showcase screen with all 16 layers armed
     #[arg(long = "demo", hide = true)]
     demo: bool,
+
+    /// Enumerate network adapters and display hardware attributes
+    #[arg(long = "interfaces", visible_aliases = ["nics", "adapters", "ifaces"])]
+    interfaces: bool,
 }
 
 #[derive(Subcommand)]
@@ -300,6 +356,13 @@ enum Commands {
         /// ⚠ Cryptographically shred binary and state files during shutdown
         #[arg(short = 'd', long = "forensic-self-destruct", visible_aliases = ["self-destruct"])]
         self_destruct: bool,
+    },
+    /// Enumerate network interfaces and display adapter attributes
+    #[command(name = "interfaces", visible_aliases = ["nics", "adapters", "ifaces"])]
+    Interfaces {
+        /// Display all interfaces including loopback and virtual adapters
+        #[arg(short = 'a', long = "all")]
+        all: bool,
     },
     /// Request new Tor exit identity
     Switch,
@@ -324,7 +387,7 @@ enum Commands {
         #[arg(value_parser = ["stealth", "speed", "journalists", "research", "darkweb"])]
         name: String,
     },
-    /// Display offensive security & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
+    /// Display authorized security auditing & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
     Pentest,
     /// Fetch latest upstream updates and recompile binary in-place
     Update,
@@ -339,6 +402,61 @@ enum Commands {
     /// Launch real-time dedicated DPI & IDS live interceptor monitor
     #[command(name = "monitor", visible_aliases = ["live", "ids-monitor"])]
     Monitor,
+    /// Manage persistent configuration settings (/etc/wraith/config.toml)
+    #[command(name = "config")]
+    Config {
+        #[command(subcommand)]
+        action: Option<ConfigAction>,
+    },
+    /// Manage censorship circumvention bridges via Tor Moat Protocol
+    #[command(name = "bridge", visible_aliases = ["bridges", "moat"])]
+    Bridge {
+        #[command(subcommand)]
+        action: Option<BridgeAction>,
+    },
+    /// Inspect or select DNS-over-HTTPS (DoH) providers
+    #[command(name = "doh", visible_aliases = ["dns"])]
+    Doh {
+        /// Launch interactive TUI selector
+        #[arg(short = 's', long = "select")]
+        select: bool,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum BridgeAction {
+    /// Query Tor BridgeDB via Moat Protocol (JSON-API)
+    Moat {
+        /// Transport protocol (obfs4, snowflake, webtunnel, meek-azure)
+        #[arg(short = 't', long, default_value = "obfs4")]
+        transport: String,
+        /// Challenge solution if known
+        #[arg(short = 's', long)]
+        solution: Option<String>,
+        /// Automatically fallback to circumvention defaults
+        #[arg(short = 'a', long)]
+        auto: bool,
+    },
+    /// List built-in censorship evasion bridge pools
+    List,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum ConfigAction {
+    /// Show current persistent configuration settings
+    Show,
+    /// Get individual configuration value
+    Get {
+        /// Configuration key (e.g. interface, profile, bridge, strict, lang)
+        key: String,
+    },
+    /// Set individual configuration value and save to disk
+    Set {
+        /// Configuration key (e.g. interface, profile, bridge, strict, lang)
+        key: String,
+        /// New configuration value
+        value: String,
+    },
 }
 
 fn install_emergency_panic_sentry() {
@@ -512,6 +630,8 @@ pub async fn main() -> Result<()> {
         Commands::Shred { target: target.clone(), passes: 7 }
     } else if cli.monitor {
         Commands::Monitor
+    } else if cli.interfaces {
+        Commands::Interfaces { all: false }
     } else {
         display::print_banner(false);
         println!("  {}\n", rust_i18n::t!("runtime.help_hint"));
@@ -520,7 +640,7 @@ pub async fn main() -> Result<()> {
 
     // Check root privileges for system-modifying operations
     match &command {
-        Commands::Pentest => {} // Read-only pentest matrix does not require root
+        Commands::Pentest | Commands::Interfaces { .. } | Commands::Config { .. } => {} // Read-only or self-managing operations do not require root
         _ => {
             if let Err(e) = check_root() {
                 display::print_error(&format!("{}", rust_i18n::t!("runtime.root_required", e = e.to_string())));
@@ -531,6 +651,73 @@ pub async fn main() -> Result<()> {
 
     // Single unified dispatch pipeline with fail-safe SIGINT guard
     match command {
+        Commands::Config { action } => {
+            let mut cfg = wraith_core::WraithConfig::load().unwrap_or_default();
+            match action.unwrap_or(ConfigAction::Show) {
+                ConfigAction::Show => {
+                    display::print_banner(false);
+                    let pretty = toml::to_string_pretty(&cfg).unwrap_or_default();
+                    println!("  \x1b[1;36m{}\x1b[0m\n", rust_i18n::t!("config_cmd.show_title"));
+                    for line in pretty.lines() {
+                        println!("    {line}");
+                    }
+                    println!();
+                }
+                ConfigAction::Get { key } => {
+                    let val: String = match key.to_lowercase().as_str() {
+                        "interface" | "nic" | "adapter" | "network.interface" => {
+                            cfg.network.default_interface.or(cfg.default_interface).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "profile" | "tor.profile" => {
+                            cfg.tor.default_profile.or(cfg.default_profile).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "bridge" | "tor.bridge" => {
+                            cfg.tor.bridge.or(cfg.bridge).map(|b| b.to_string()).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "bridge_type" | "tor.bridge_type" => {
+                            cfg.tor.bridge_type.or(cfg.bridge_type).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "moat_transport" | "tor.moat_transport" => {
+                            cfg.tor.moat_transport.unwrap_or_else(|| "unset".to_string())
+                        }
+                        "strict" | "hardening.strict" => {
+                            cfg.hardening.strict.or(cfg.strict_hardening).map(|b| b.to_string()).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "dns" | "dns_transport" | "dns.transport" => {
+                            cfg.dns.transport.or(cfg.dns_transport).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "provider" | "dns.provider" => {
+                            cfg.dns.provider.unwrap_or_else(|| "unset".to_string())
+                        }
+                        "doh" | "upstream" | "dns.upstream" => {
+                            cfg.dns.upstream.or(cfg.doh_upstream).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "rotate" | "interval" | "tor.rotate_interval" => {
+                            cfg.tor.rotate_interval.or(cfg.rotate_interval).map(|n| n.to_string()).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "lang" | "general.lang" => {
+                            cfg.general.lang.or(cfg.lang).unwrap_or_else(|| "unset".to_string())
+                        }
+                        _ => rust_i18n::t!("config_cmd.key_unknown").to_string(),
+                    };
+                    println!("{val}");
+                }
+                ConfigAction::Set { key, value } => {
+                    cfg.set_key(&key, &value)?;
+                    let path = cfg.save()?;
+                    display::print_success(&format!("{}", rust_i18n::t!("config_cmd.set_success", key = &key, value = &value, path = format!("{path:?}"))));
+                }
+            }
+        }
+        Commands::Interfaces { all } => {
+            let ifaces = if all {
+                wraith_net::list_all_interfaces()?
+            } else {
+                wraith_net::list_physical_interfaces()?
+            };
+            display::print_banner(false);
+            interface_tui::print_interfaces_table(&ifaces);
+        }
         Commands::Start(args) => {
             tokio::select! {
                 res = commands::cmd_start(args) => {
@@ -593,6 +780,12 @@ pub async fn main() -> Result<()> {
         Commands::Monitor => {
             commands::cmd_monitor().await?;
         }
+        Commands::Bridge { action } => {
+            commands::cmd_bridge(action).await?;
+        }
+        Commands::Doh { select } => {
+            commands::cmd_doh(select)?;
+        }
     }
 
     Ok(())
@@ -640,6 +833,52 @@ mod tests {
         assert!(cli6.start_opts.honey_lan);
         assert!(cli6.start_opts.display_sandbox);
         assert!(cli6.start_opts.has_active_flags());
+
+        let cli7 = Cli::try_parse_from(["wraith", "-I", "wlan0"]).expect("Failed to parse -I wlan0");
+        assert_eq!(cli7.start_opts.interface.as_deref(), Some("wlan0"));
+        assert!(cli7.start_opts.has_active_flags());
+
+        let cli8 = Cli::try_parse_from(["wraith", "--select-interface"]).expect("Failed to parse --select-interface");
+        assert!(cli8.start_opts.select_interface);
+        assert!(cli8.start_opts.has_active_flags());
+
+        let cli9 = Cli::try_parse_from(["wraith", "interfaces", "-a"]).expect("Failed to parse interfaces -a");
+        if let Some(Commands::Interfaces { all }) = cli9.command {
+            assert!(all);
+        } else {
+            panic!("Expected Commands::Interfaces");
+        }
+
+        let cli10 = Cli::try_parse_from(["wraith", "--doh", "quad9"]).expect("Failed to parse --doh quad9");
+        assert_eq!(cli10.start_opts.doh.as_deref(), Some("quad9"));
+        assert!(cli10.start_opts.has_active_flags());
+
+        let cli11 = Cli::try_parse_from(["wraith", "--select-doh"]).expect("Failed to parse --select-doh");
+        assert!(cli11.start_opts.select_doh);
+        assert!(cli11.start_opts.has_active_flags());
+
+        let cli12 = Cli::try_parse_from(["wraith", "config", "set", "tor.profile", "stealth"]).expect("Failed to parse config set");
+        if let Some(Commands::Config { action: Some(ConfigAction::Set { key, value }) }) = cli12.command {
+            assert_eq!(key, "tor.profile");
+            assert_eq!(value, "stealth");
+        } else {
+            panic!("Expected Commands::Config Set");
+        }
+
+        let cli13 = Cli::try_parse_from(["wraith", "bridge", "moat", "--transport", "obfs4", "-a"]).expect("Failed to parse bridge moat");
+        if let Some(Commands::Bridge { action: Some(BridgeAction::Moat { transport, auto, .. }) }) = cli13.command {
+            assert_eq!(transport, "obfs4");
+            assert!(auto);
+        } else {
+            panic!("Expected Commands::Bridge Moat");
+        }
+
+        let cli14 = Cli::try_parse_from(["wraith", "doh", "-s"]).expect("Failed to parse doh -s");
+        if let Some(Commands::Doh { select }) = cli14.command {
+            assert!(select);
+        } else {
+            panic!("Expected Commands::Doh");
+        }
     }
 }
 
