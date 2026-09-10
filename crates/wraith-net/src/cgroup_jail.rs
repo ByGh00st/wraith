@@ -44,3 +44,19 @@ pub fn destroy_cgroup_jail() -> Result<()> {
     }
     Ok(())
 }
+
+pub fn current_cgroup() -> Result<String> {
+    fs::read_to_string("/proc/self/cgroup")?.lines()
+        .find_map(|line| line.strip_prefix("0::").map(str::to_owned))
+        .ok_or_else(|| WraithError::Namespace("Unified cgroup membership unavailable".into()))
+}
+
+pub fn restore_current_cgroup(original: &str) -> Result<()> {
+    let path = Path::new(original);
+    if !path.is_absolute() || path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err(WraithError::Namespace("Invalid saved cgroup path".into()));
+    }
+    let target = Path::new("/sys/fs/cgroup").join(path.strip_prefix("/").map_err(|e| WraithError::Namespace(e.to_string()))?).join("cgroup.procs");
+    fs::write(target, std::process::id().to_string())?;
+    Ok(())
+}

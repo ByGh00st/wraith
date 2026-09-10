@@ -6,7 +6,7 @@ Wraith is a Rust workspace for Linux network privacy experiments. It routes supp
 
 ## Platform and installation
 
-The runtime targets **x86_64 Linux**, primarily Debian/Kali-style environments. Network setup requires root, `iproute2` (`ip`, `tc`), iptables/ip6tables and their save/restore commands, Tor, curl, and a dedicated `debian-tor` account. Optional features need their own dependencies, including WireGuard or Xvfb. Windows is a development/test environment, not a supported network-hardening runtime.
+The runtime targets **x86_64 Linux**, primarily Debian/Kali-style environments. Network setup requires root, `iproute2` (`ip`, `tc`), iptables/ip6tables and their save/restore commands, Tor, curl, and a dedicated `debian-tor` account. Optional features need their own dependencies, including WireGuard or Xvfb plus `xauth`. Windows is a development/test environment, not a supported network-hardening runtime.
 
 Build as an ordinary user, then install the resulting binary:
 
@@ -17,7 +17,7 @@ cargo build --release --locked
 sudo install -m 0755 target/release/wraith /usr/local/bin/wraith
 ```
 
-Inspect `build.sh` and `install-daemon.sh` before using automated host or service setup. The built-in updater compiles upstream code with elevated privileges and does not verify signed releases; the manual build above avoids running Cargo as root.
+Inspect `build.sh` and `install-daemon.sh` before using automated host or service setup. The built-in updater requires sudo from a non-root account, builds as that account with supplementary groups cleared, and atomically replaces only `/usr/local/bin/wraith`. It does not verify signed upstream releases.
 
 ## Usage
 
@@ -34,7 +34,7 @@ wraith --help
 
 Keep the foreground process running. Ctrl+C requests shutdown. `-Fs` combines `-F` (full-security preset) with `-s` (start); it is not a certification or a promise of complete anonymity. Strict mode requires the kill switch and rejects `--no-killswitch`.
 
-Strict mode enables MAC/hostname changes, namespace routing and several host/browser hardening steps. Required setup errors stop activation. Some host changes are irreversible until reboot, and startup is not a single transaction. Test this preset in a disposable Linux VM with console access before using it on your primary connection.
+Strict mode enables MAC/hostname changes, namespace routing and several host/browser hardening steps. Required setup errors stop activation. Startup errors now attempt saved-state cleanup and abort background tasks. Some host changes remain irreversible until reboot, and startup is not a single transaction. Test this preset in a disposable Linux VM with console access before using it on your primary connection.
 
 Useful options include:
 
@@ -76,7 +76,7 @@ Host root access, privileged raw-packet applications, a compromised kernel, brow
 
 Run `sudo wraith -x` to request cleanup of a recorded session after a failed start. Retain console access: changes to firewall rules or MAC addresses can interrupt remote access. If cleanup reports errors, inspect the recorded state and host networking before restarting. Do not assume an error means original settings were restored. Kernel lockdown settings can require a reboot.
 
-Normal stop does not perform global log/history destruction. Explicit forensic cleanup and self-destruct options are destructive and are not required for the strict network preset. Optional Xvfb, onion-service, bridge and service-installer paths still need separate runtime validation.
+A process panic preserves the network policy and state instead of opening direct egress. Normal stop does not perform global log/history destruction. Explicit forensic cleanup and self-destruct options are destructive and are not required for the strict network preset. Xvfb requires a private Xauthority cookie and disables TCP listening; applications must explicitly use its DISPLAY and XAUTHORITY. Optional Xvfb, onion-service, bridge and service-installer paths still need separate runtime validation. The service installer defaults to standard network-online ordering and does not start immediately; unsupported early boot mode is rejected. Uninstall retains configuration/logs and stops on session-cleanup errors.
 
 The traffic shaper uses reserved netem handle `a731:` and refuses to replace an existing configured root qdisc. Cleanup checks that handle and kind before removal. This convention prevents accidental deletion of unrelated queues; it is not protection against another privileged process using the same handle.
 

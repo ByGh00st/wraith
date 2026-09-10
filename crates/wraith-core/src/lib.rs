@@ -17,3 +17,5 @@ pub use kernel_lockdown::*;
 pub use process_lockdown::*;
 pub use state::{State, StateData, StateManager};
 pub use vault::*;
+
+pub mod deployment;

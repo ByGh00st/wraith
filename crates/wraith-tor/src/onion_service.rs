@@ -97,6 +97,7 @@ impl OnionServiceManager {
             return Err(WraithError::Configuration("Onion ports must be nonzero".into()));
         }
         let torrc = Path::new(TORRC_PATH);
+        if !torrc.is_file() { return Err(WraithError::Configuration("Tor configuration is missing".into())); }
         if torrc.exists() {
             let mut content = fs::read_to_string(torrc)?;
             let marker = format!("HiddenServiceDir {ONION_SERVICE_DIR}");
@@ -127,11 +128,8 @@ impl OnionServiceManager {
     pub fn purge_onion_service() -> Result<()> {
         let service_dir = Path::new(ONION_SERVICE_DIR);
         if service_dir.exists() {
-            if let Err(e) = fs::remove_dir_all(service_dir) {
-                tracing::warn!("Failed removing Onion Service directory {}: {e}", service_dir.display());
-            } else {
-                info!("Ephemeral Onion service keys and descriptors completely purged");
-            }
+            fs::remove_dir_all(service_dir)?;
+            info!("Ephemeral Onion service directory removed");
         }
         Ok(())
     }

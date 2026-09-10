@@ -74,8 +74,11 @@ impl TlsCamouflageServer {
         let listener = TcpListener::bind(&addr).await?;
         info!("HTTP proxy listening on {addr}");
         Ok(tokio::spawn(async move {
+            let mut clients = tokio::task::JoinSet::new();
             loop {
                 tokio::select! {
+                    biased;
+                    _ = clients.join_next(), if !clients.is_empty() => {},
                     _ = self.cancel_token.cancelled() => {
                         info!("HTTP DPI Sanitizer Proxy received shutdown signal");
                         break;
@@ -84,7 +87,8 @@ impl TlsCamouflageServer {
                         match accept_res {
                             Ok((client_stream, client_addr)) => {
                                 debug!("Incoming HTTP/SOCKS connection from {client_addr}");
-                                tokio::spawn(async move {
+                                if clients.len() >= 128 { continue; }
+                                clients.spawn(async move {
                                     if let Err(e) = handle_proxy_client(client_stream).await {
                                         debug!("Proxy client handler debug: {e}");
                                     }
@@ -97,6 +101,7 @@ impl TlsCamouflageServer {
                     }
                 }
             }
+            clients.shutdown().await;
         }))
     }
 }

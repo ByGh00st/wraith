@@ -234,8 +234,7 @@ fn enumerate_unix_interfaces() -> Result<Vec<NetworkInterface>> {
     if !net_sysfs.exists() || !net_sysfs.is_dir() {
         debug!("/sys/class/net not found, falling back to getifaddrs dictionary");
         let mut fallback_list = Vec::new();
-        let mut idx = 1;
-        for (name, (ipv4, ipv6)) in addrs_map {
+        for (idx, (name, (ipv4, ipv6))) in (1..).zip(addrs_map) {
             let is_loopback = name == "lo";
             fallback_list.push(NetworkInterface {
                 index: idx,
@@ -251,7 +250,6 @@ fn enumerate_unix_interfaces() -> Result<Vec<NetworkInterface>> {
                 driver: None,
                 speed_mbps: None,
             });
-            idx += 1;
         }
         return Ok(fallback_list);
     }

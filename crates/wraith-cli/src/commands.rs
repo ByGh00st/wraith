@@ -1,3 +1,4 @@
+#[cfg(target_os = "linux")]
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -20,12 +21,12 @@ use wraith_guard::{
 use wraith_net::{
     apply_ipv6_block, apply_tor_rules_for_mode, backup_and_apply_tcp_mask, block_stun_ports, change_mac,
     create_cgroup_jail, create_namespace, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
-    flush_rules, randomize_hostname, restore_mac, unblock_stun_ports,
+    randomize_hostname, restore_mac, unblock_stun_ports,
     EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
     TrafficShapingProfile,
 };
 use wraith_tor::{
-    apply_exit_profile, arm_onion_service, backup_resolv, configure_dns, get_active_tls_profile,
+    apply_exit_profile, arm_onion_service, backup_resolv, configure_dns,
     get_circuit_telemetry, purge_onion_service, restore_dns, start_tor_daemon, stop_tor_daemon,
     write_bridge_torrc, write_torrc, OnionServiceConfig, TlsCamouflageServer, TorControlClient,
 };
@@ -83,11 +84,15 @@ impl BackgroundServices {
         }
 
         // 2. Wait for handles to terminate with a bounded graceful timeout (1500ms)
-        let join_task = |name: &'static str, handle: tokio::task::JoinHandle<()>| async move {
-            match tokio::time::timeout(Duration::from_millis(1500), handle).await {
+        let join_task = |name: &'static str, mut handle: tokio::task::JoinHandle<()>| async move {
+            match tokio::time::timeout(Duration::from_millis(1500), &mut handle).await {
                 Ok(Ok(())) => tracing::debug!("Background service '{name}' stopped cleanly"),
                 Ok(Err(e)) => tracing::warn!("Background service '{name}' task error: {e}"),
-                Err(_) => tracing::warn!("Background service '{name}' shutdown timed out (1500ms)"),
+                Err(_) => {
+                    handle.abort();
+                    let _ = handle.await;
+                    tracing::warn!("Background service '{name}' aborted after shutdown timeout");
+                },
             }
         };
 
@@ -115,7 +120,29 @@ impl BackgroundServices {
     }
 }
 
+impl Drop for BackgroundServices {
+    fn drop(&mut self) {
+        for task in [&self.jitter, &self.tls, &self.dns, &self.ids, &self.killswitch, &self.rotator, &self.honeypot].into_iter().flatten() {
+            task.0.cancel();
+            task.1.abort();
+        }
+    }
+}
+
 pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
+    let result = cmd_start_inner(args).await;
+    if let Err(ref startup) = result {
+        let manager = StateManager::default();
+        if manager.read_checked().ok().and_then(|state| state.pid) == Some(std::process::id()) {
+            if let Err(cleanup) = cmd_stop(false).await {
+                return Err(WraithError::Custom(format!("Startup failed: {}; cleanup failed: {cleanup}. Session record retained.", startup)));
+            }
+        }
+    }
+    result
+}
+
+async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // 0-CFG. Merge persistent configuration defaults if not explicitly provided
     let mut args = args;
     {
@@ -194,6 +221,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     print_step(&t!("commands.cmd_step_65"), "info");
     match enforce_process_lockdown() {
         Ok(()) => print_step(&t!("commands.cmd_step_66"), "ok"),
+        Err(e) if is_strict => return Err(e),
         Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_mem_lockdown", e = e.to_string())), "warn"),
     }
 
@@ -351,11 +379,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     {
         let (server, ct) = TlsCamouflageServer::new(None);
         let handle = server.spawn_server().await?;
-        let prof = get_active_tls_profile();
-        print_step(
-            &format!("{}", t!("commands.cmd_step_dpi_tls_gate", name = &prof.name, ja4 = &prof.ja4_hash)),
-            "ok",
-        );
+        print_step("HTTP header relay ready; HTTPS ClientHello replacement is not implemented", "ok");
         bg_services.tls = Some((ct, handle));
     }
 
@@ -493,9 +517,9 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     if let Some(ref onion_spec) = args.onion_service {
         print_step(&format!("{} [{onion_spec}]...", t!("commands.cmd_step_50")), "info");
         let (virt_port, target_port) = if let Some((v, t)) = onion_spec.split_once(':') {
-            (v.parse::<u16>().unwrap_or(80), t.parse::<u16>().unwrap_or(80))
+            (parse_onion_port(v)?, parse_onion_port(t)?)
         } else {
-            let p = onion_spec.parse::<u16>().unwrap_or(80);
+            let p = parse_onion_port(onion_spec)?;
             (p, p)
         };
 
@@ -504,6 +528,11 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
         match arm_onion_service(&onion_cfg) {
             Ok(()) => {
+                state_data.onion_service_active = true;
+                state_mgr.activate(state_data.clone())?;
+                let mut control = TorControlClient::default();
+                control.connect().await?;
+                control.signal_hup().await?;
                 let hostname = wraith_tor::read_onion_hostname()
                     .ok()
                     .flatten()
@@ -609,6 +638,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                     &format!("{}: {} (Physical EDID masked)", t!("commands.cmd_step_53"), vd.display_num),
                     "ok",
                 );
+                print_step(&format!("Virtual display {} requires XAUTHORITY={}", vd.display_num, vd.authority_path().display()), "info");
                 state_data.display_jail_active = true;
                 state_mgr.activate(state_data.clone())?;
                 bg_services.virtual_display = Some(vd);
@@ -620,6 +650,8 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     // 15. cgroup2 Network Socket Jail
     if is_strict {
+        state_data.original_cgroup = Some(wraith_net::cgroup_jail::current_cgroup()?);
+        state_mgr.activate(state_data.clone())?;
         create_cgroup_jail()?;
         if let Err(e) = wraith_net::attach_pid_to_cgroup(std::process::id()) {
             return Err(e);
@@ -951,17 +983,13 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     print_step(&t!("commands.cmd_step_23"), "ok");
 
     print_step(&t!("commands.cmd_step_24"), "info");
-    if state_info.saved_rules.is_some() {
-        flush_rules()?;
-    }
-    if let Some(ref rules) = state_info.saved_ipv6_rules {
-        wraith_net::restore_ipv6_rules(rules)?;
-    } else if state_info.active {
-        // Compatibility cleanup for sessions started by older releases.
-        flush_ipv6_block()?;
-    }
+    // Keep the session egress policy in force until teardown is complete.
+
     if let Err(e) = unblock_stun_ports() {
         tracing::warn!("Unblock STUN warning: {e}");
+    }
+    if let Some(original) = &state_info.original_cgroup {
+        wraith_net::cgroup_jail::restore_current_cgroup(original)?;
     }
     if let Err(e) = destroy_cgroup_jail() {
         tracing::warn!("Destroy cgroup warning: {e}");
@@ -1072,9 +1100,10 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         }
     }
 
-    if let Err(e) = state_mgr.deactivate() {
-        tracing::warn!("State manager deactivation error: {e}");
-    }
+    if let Some(ref rules) = state_info.saved_ipv6_rules {
+        wraith_net::restore_ipv6_rules(rules)?;
+    } else if state_info.active { flush_ipv6_block()?; }
+    state_mgr.deactivate()?;
     sleep(Duration::from_secs(2)).await;
     let real_ip = get_current_ip().await;
 
@@ -1109,261 +1138,68 @@ pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
     Ok(())
 }
 
-fn find_cargo_bin() -> String {
-    let candidates = [
-        "/root/.cargo/bin/cargo",
-        "/usr/local/cargo/bin/cargo",
-        "/usr/bin/cargo",
-        "/usr/local/bin/cargo",
-    ];
-    for path in candidates {
-        if Path::new(path).exists() {
-            return path.to_string();
-        }
-    }
-    if let Ok(sudo_user) = std::env::var("SUDO_USER") {
-        let user_cargo = format!("/home/{sudo_user}/.cargo/bin/cargo");
-        if Path::new(&user_cargo).exists() {
-            return user_cargo;
-        }
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        let user_cargo = format!("{home}/.cargo/bin/cargo");
-        if Path::new(&user_cargo).exists() {
-            return user_cargo;
-        }
-    }
-    "cargo".to_string()
-}
-
-fn determine_cargo_home() -> Option<String> {
-    if let Ok(cargo_home) = std::env::var("CARGO_HOME") {
-        if !cargo_home.trim().is_empty() && Path::new(&cargo_home).exists() {
-            return Some(cargo_home);
-        }
-    }
-    if Path::new("/root/.cargo").exists() {
-        return Some("/root/.cargo".to_string());
-    }
-    if let Ok(sudo_user) = std::env::var("SUDO_USER") {
-        let user_cargo_home = format!("/home/{sudo_user}/.cargo");
-        if Path::new(&user_cargo_home).exists() {
-            return Some(user_cargo_home);
-        }
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        let user_cargo_home = format!("{home}/.cargo");
-        if Path::new(&user_cargo_home).exists() {
-            return Some(user_cargo_home);
-        }
-    }
-    None
-}
-
-fn determine_build_dir() -> Result<String> {
-    // Exclusive creation prevents pre-existing symlinks or user-owned cache
-    // contents from becoming a privileged build workspace.
-    let build_dir = format!("/var/tmp/wraith-build-{}", std::process::id());
-    fs::create_dir(&build_dir)?;
-    #[cfg(unix)]
+/// Build scripts and Git hooks must never execute with the installer's root UID.
+pub async fn cmd_update() -> Result<()> {
+    #[cfg(not(target_os = "linux"))]
+    { Err(WraithError::UnsupportedPlatform) }
+    #[cfg(target_os = "linux")]
     {
+        use nix::unistd::{Uid, User};
+        use std::os::unix::{fs::MetadataExt, process::CommandExt};
+        let uid = std::env::var("SUDO_UID").ok().and_then(|value| value.parse::<u32>().ok())
+            .filter(|uid| *uid > 0).ok_or_else(|| WraithError::Configuration(
+                "Run update through sudo from a non-root build account; root Cargo builds are refused".into()))?;
+        let user = User::from_uid(Uid::from_raw(uid)).map_err(|e| WraithError::Custom(e.to_string()))?
+            .ok_or_else(|| WraithError::Configuration("Build account does not exist".into()))?;
+        let root = Path::new("/var/tmp");
+        let build_dir = root.join(format!("wraith-build-{}", std::process::id()));
+        fs::create_dir(&build_dir)?;
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&build_dir, fs::Permissions::from_mode(0o700))?;
-    }
-    Ok(build_dir)
-}
-
-pub async fn cmd_update() -> Result<()> {
-    print_banner(false);
-    let update_rows = vec![
-        "• Target Binary : /usr/local/bin/wraith".to_string(),
-        "• Upstream Repo : https://github.com/ByGh00st/wraith.git".to_string(),
-        "• Pipeline      : Clean Git Clone ➔ Cargo Release ➔ Deploy".to_string(),
-    ];
-    let update_box = render_box("🚀 WRAITH AUTONOMOUS SYSTEM INSTALLER & UPDATER", &update_rows, BoxCorner::Square, 78);
-    println!("{}", update_box[0].bright_cyan());
-    for row in &update_box[1..update_box.len() - 1] {
-        println!("{row}");
-    }
-    println!("{}\n", update_box.last().unwrap().bright_cyan());
-
-    print_step(&t!("commands.cmd_step_40"), "info");
-
-    // Updating must not mutate the running session's resolver or firewall.
-    let cargo_bin = find_cargo_bin();
-    let temp_build_dir = determine_build_dir()?;
-
-    // 3. Autonomous Git Clone from Upstream
-    print_step(
-        &format!("{}", t!("commands.cmd_step_git_fetching", dir = &temp_build_dir)),
-        "info",
-    );
-    let clone_status = Command::new("git")
-        .args([
-            "clone",
-            "--depth",
-            "1",
-            "https://github.com/ByGh00st/wraith.git",
-            &temp_build_dir,
-        ])
-        .status();
-
-    match clone_status {
-        Ok(s) if s.success() => {
-            print_step(&t!("commands.cmd_step_41"), "ok");
-        }
-        Ok(s) => {
-            let _ = fs::remove_dir_all(&temp_build_dir);
-            print_step(&format!("{}", t!("commands.cmd_err_git_clone", code = s.to_string())), "error");
-            return Err(WraithError::Custom(format!("Git clone failed with code: {s}")));
-        }
-        Err(e) => {
-            let _ = fs::remove_dir_all(&temp_build_dir);
-            print_step(&format!("{}", t!("commands.cmd_err_git_spawn", err = e.to_string())), "error");
-            return Err(WraithError::Io(e));
-        }
-    }
-
-    // 4. Compile in workspace reusing persistent cargo home or fallback
-    print_step(
-        &format!("{}", t!("commands.cmd_step_cargo_compiling", bin = &cargo_bin)),
-        "info",
-    );
-
-    // Detect available RAM & swap to prevent Linux OOM Killer (signal: 9) on VMs
-    let (is_low_ram, needs_swap) = if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
-        let total_kb = meminfo
-            .lines()
-            .find(|l| l.starts_with("MemTotal:"))
-            .and_then(|l| l.split_whitespace().nth(1))
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(8_000_000);
-        let swap_kb = meminfo
-            .lines()
-            .find(|l| l.starts_with("SwapTotal:"))
-            .and_then(|l| l.split_whitespace().nth(1))
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(2_000_000);
-        (total_kb < 3_500_000, swap_kb < 500_000 && total_kb < 3_500_000)
-    } else {
-        (false, false)
-    };
-
-    if needs_swap {
-        print_step("Low memory: using a single build job; configure swap separately if needed", "warn");
-    }
-
-    let mut cmd = Command::new(&cargo_bin);
-    cmd.args(["build", "--locked", "--release", "--bin", "wraith"])
-        .current_dir(&temp_build_dir);
-
-    if is_low_ram {
-        cmd.args(["--jobs", "1"]);
-        cmd.env(
-            "RUSTFLAGS",
-            "-C codegen-units=4 -C opt-level=2 -C link-arg=-Wl,--no-keep-memory",
-        );
-    }
-
-    if let Some(cargo_home) = determine_cargo_home() {
-        cmd.env("CARGO_HOME", cargo_home);
-    } else {
-        let fallback_cargo_home = format!("{temp_build_dir}/.cargo_home");
-        let _ = fs::create_dir_all(&fallback_cargo_home);
-        cmd.env("CARGO_HOME", fallback_cargo_home);
-    }
-
-    let build_status = cmd.status();
-
-    match build_status {
-        Ok(s) if s.success() => {
-            print_step(&t!("commands.cmd_step_42"), "ok");
-        }
-        Ok(s) => {
-            let _ = fs::remove_dir_all(&temp_build_dir);
-            print_step(&format!("Cargo compilation failed with status: {s}"), "error");
-            return Err(WraithError::Custom(format!("Cargo build failed with exit code: {s}")));
-        }
-        Err(e) => {
-            let _ = fs::remove_dir_all(&temp_build_dir);
-            print_step(&format!("Failed executing cargo binary: {e}"), "error");
-            return Err(WraithError::Io(e));
-        }
-    }
-
-    let compiled_binary = format!("{temp_build_dir}/target/release/wraith");
-    if !Path::new(&compiled_binary).exists() {
-        let _ = fs::remove_dir_all(&temp_build_dir);
-        print_step(&t!("commands.cmd_step_43"), "error");
-        return Err(WraithError::Custom("Binary artifact missing".into()));
-    }
-
-    // 5. Eradicate old binaries and install new binary across all system PATHs
-    print_step(&t!("commands.cmd_step_93"), "info");
-
-    let mut target_paths = vec![
-        "/usr/local/bin/wraith".to_string(),
-        "/usr/bin/wraith".to_string(),
-        "/bin/wraith".to_string(),
-        "/root/.cargo/bin/wraith".to_string(),
-    ];
-    if let Ok(sudo_user) = std::env::var("SUDO_USER") {
-        target_paths.push(format!("/home/{sudo_user}/.cargo/bin/wraith"));
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        target_paths.push(format!("{home}/.cargo/bin/wraith"));
-    }
-
-    for target in &target_paths {
-        let path = Path::new(target);
-        if let Some(parent) = path.parent() {
-            if parent.exists() {
-                // Strip immutable attributes and remove old binary first
-                let _ = Command::new("chattr").args(["-i", "-a", target]).status();
-                let _ = fs::remove_file(target);
-                let _ = Command::new("rm").args(["-f", target]).status();
-
-                // Copy fresh binary
-                if let Err(e) = fs::copy(&compiled_binary, target) {
-                    tracing::debug!("Could not write binary to {target}: {e}");
-                } else {
-                    let _ = Command::new("chmod").args(["755", target]).status();
-                }
+        nix::unistd::chown(&build_dir, Some(user.uid), Some(user.gid))
+            .map_err(|e| WraithError::Custom(e.to_string()))?;
+        let configure = |command: &mut Command| {
+            command.env_clear().env("HOME", &user.dir)
+                .env("PATH", format!("{}:/usr/bin:/bin", user.dir.join(".cargo/bin").display()))
+                .env("CARGO_HOME", user.dir.join(".cargo"));
+            let uid = user.uid.as_raw();
+            let gid = user.gid.as_raw();
+            // SAFETY: setgroups is async-signal-safe here; no allocation or locks
+            // are used between fork and exec. Drop supplementary root groups.
+            unsafe { command.pre_exec(move || {
+                if libc::setgroups(0, std::ptr::null()) != 0 { return Err(std::io::Error::last_os_error()); }
+                if libc::setgid(gid) != 0 || libc::setuid(uid) != 0 { return Err(std::io::Error::last_os_error()); }
+                Ok(())
+            }); }
+        };
+        let result = (|| -> Result<()> {
+            let mut clone = Command::new("/usr/bin/git");
+            clone.args(["clone", "--depth", "1", "https://github.com/ByGh00st/wraith.git"]).arg(&build_dir);
+            configure(&mut clone);
+            if !clone.status()?.success() { return Err(WraithError::Command("Git clone failed".into())); }
+            let cargo = user.dir.join(".cargo/bin/cargo");
+            let mut build = Command::new(if cargo.exists() { cargo } else { "/usr/bin/cargo".into() });
+            build.args(["build", "--release", "--locked", "--bin", "wraith", "--jobs", "1"]).current_dir(&build_dir);
+            configure(&mut build);
+            if !build.status()?.success() { return Err(WraithError::Command("Cargo build failed".into())); }
+            let destination = Path::new("/usr/local/bin/wraith");
+            // Only a root-owned, non-writable-by-others canonical install directory.
+            let parent = destination.parent().unwrap();
+            let meta = fs::symlink_metadata(parent)?;
+            if !meta.is_dir() || meta.uid() != 0 || meta.mode() & 0o022 != 0 {
+                return Err(WraithError::Configuration("Unsafe binary installation directory".into()));
             }
-        }
+            let bytes = fs::read(build_dir.join("target/release/wraith"))?;
+            if !bytes.starts_with(b"\x7fELF") { return Err(WraithError::Configuration("Build artifact is not ELF".into())); }
+            wraith_core::deployment::install_binary(&bytes, destination)?;
+            print_success("Installed /usr/local/bin/wraith atomically. Upstream signatures are not verified.");
+            Ok(())
+        })();
+        // Remove only the fixed, exclusively created workspace. Never use a shell
+        // or follow paths supplied by build output for privileged cleanup.
+        if let Err(e) = fs::remove_dir_all(&build_dir) { tracing::warn!("Build directory cleanup failed: {e}"); }
+        result
     }
-
-    // 6. Generate and install shell auto-completions
-    let _ = fs::create_dir_all("/etc/bash_completion.d");
-    let _ = fs::create_dir_all("/usr/share/bash-completion/completions");
-    let _ = fs::create_dir_all("/usr/share/zsh/vendor-completions");
-    let _ = fs::create_dir_all("/usr/share/zsh/site-functions");
-    if let Ok(bash_out) = Command::new(&compiled_binary).args(["--generate-completions", "bash"]).output() {
-        let _ = fs::write("/etc/bash_completion.d/wraith", &bash_out.stdout);
-        let _ = fs::write("/usr/share/bash-completion/completions/wraith", &bash_out.stdout);
-    }
-    if let Ok(zsh_out) = Command::new(&compiled_binary).args(["--generate-completions", "zsh"]).output() {
-        let _ = fs::write("/usr/share/zsh/vendor-completions/_wraith", &zsh_out.stdout);
-        let _ = fs::write("/usr/share/zsh/site-functions/_wraith", &zsh_out.stdout);
-    }
-
-    // 7. Cleanup temp build directory
-    let _ = fs::remove_dir_all(&temp_build_dir);
-
-    // 8. Compute and verify SHA-256 of installed binary
-    let bin_hash = if let Ok(bin_bytes) = fs::read("/usr/local/bin/wraith") {
-        wraith_core::crypto::Sha256::digest(&bin_bytes).to_hex()
-    } else {
-        "verified".to_string()
-    };
-
-    print_step(
-        &format!("{}", t!("commands.cmd_warn_sha256_unverified", hash = &bin_hash[..16.min(bin_hash.len())])),
-        "warn",
-    );
-    print_success(&t!("runtime.updated_success"));
-    println!("  {}\n", t!("commands.cmd_universal_bin"));
-    Ok(())
 }
 
 pub async fn cmd_switch() -> Result<()> {
@@ -1806,3 +1642,18 @@ pub fn cmd_doh(select: bool) -> Result<()> {
     Ok(())
 }
 
+
+fn parse_onion_port(value: &str) -> Result<u16> {
+    value.parse::<u16>().ok().filter(|port| *port > 0)
+        .ok_or_else(|| WraithError::Configuration("Onion ports must be integers between 1 and 65535".into()))
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    #[test]
+    fn malformed_onion_ports_never_publish_a_default_service() {
+        for value in ["", "0", "65536", "abc", "80:90"] { assert!(parse_onion_port(value).is_err()); }
+        assert_eq!(parse_onion_port("8080").unwrap(), 8080);
+    }
+}

@@ -8,7 +8,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
 use owo_colors::OwoColorize;
-use wraith_core::config::{TOR_CONTROL_PORT, TOR_DNS_PORT, TOR_SOCKS_PORT, TOR_TRANS_PORT};
+use wraith_core::config::{TOR_CONTROL_PORT, TOR_SOCKS_PORT, TOR_TRANS_PORT};
 
 
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ impl DiagnosticsRunner {
             // 2. Network Sockets & Port Checks
             Self::check_port_open("Tor SOCKS5 Proxy", TOR_SOCKS_PORT),
             Self::check_port_open("Tor Transparent Proxy", TOR_TRANS_PORT),
-            Self::check_port_open("Tor DNS Resolver", TOR_DNS_PORT),
+            Self::check_port_open("Local DNS TCP Relay", wraith_core::config::WRAITH_DNS_PORT),
             Self::check_port_open("Tor Control Port", TOR_CONTROL_PORT),
 
             // 3. Filesystem & Ephemeral Vault Checks
@@ -55,10 +55,10 @@ impl DiagnosticsRunner {
             if val.trim() == "1" {
                 (true, "IPv6 fully disabled in kernel (disable_ipv6=1)".into())
             } else {
-                (false, format!("IPv6 enabled (disable_ipv6={}) - CRITICAL LEAK VECTOR", val.trim()))
+                (false, format!("IPv6 enabled (disable_ipv6={}); firewall blocking must be checked separately", val.trim()))
             }
         } else {
-            (true, "IPv6 kernel stack absent (Safe)".into())
+            (false, "IPv6 sysctl unavailable; status unknown".into())
         };
 
         DiagnosticCheck {
@@ -219,8 +219,8 @@ impl DiagnosticsRunner {
         let p = Path::new("/etc/resolv.conf");
         let (passed, detail) = if p.exists() {
             if let Ok(content) = fs::read_to_string(p) {
-                if content.contains("127.0.0.1") {
-                    (true, "resolv.conf routed strictly through local Tor DNS (127.0.0.1)".into())
+                if local_nameservers_only(&content) {
+                    (true, "resolv.conf lists local nameservers; routing and immutability are separate checks".into())
                 } else {
                     (false, "resolv.conf contains external clearnet nameservers!".into())
                 }
@@ -233,7 +233,7 @@ impl DiagnosticsRunner {
 
         DiagnosticCheck {
             category: "DNS",
-            name: "Immutable DNS Relay Lock",
+            name: "Resolver Configuration",
             passed,
             latency_ms: None,
             detail,
@@ -250,12 +250,12 @@ impl DiagnosticsRunner {
             let _ = sock.send(b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x06google\x03com\x00\x00\x01\x00\x01");
             let mut buf = [0u8; 512];
             if sock.recv(&mut buf).is_ok() {
-                (false, "🚨 CRITICAL: Clearnet UDP packet escaped to 1.1.1.1:53!".into())
+                (false, "INCONCLUSIVE: DNS response received; interception may have redirected it".into())
             } else {
-                (true, "Clearnet egress strictly blocked by KillSwitch / Namespace".into())
+                (false, "INCONCLUSIVE: no DNS response; this does not prove egress blocking".into())
             }
         } else {
-            (true, "Raw network sockets restricted".into())
+            (false, "INCONCLUSIVE: UDP socket could not be opened".into())
         };
 
         DiagnosticCheck {
@@ -310,5 +310,25 @@ impl DiagnosticsRunner {
         } else {
             println!("\n  {} {}", "✖".bright_red().bold(), "ANOMALIES DETECTED — REVIEW TELEMETRY ROWS ABOVE".bright_red().bold());
         }
+    }
+}
+
+fn local_nameservers_only(content: &str) -> bool {
+    let servers: Vec<_> = content.lines().filter_map(|line| {
+        let mut fields = line.split('#').next().unwrap_or("").split_whitespace();
+        if fields.next() == Some("nameserver") { Some(fields.next().unwrap_or("")) } else { None }
+    }).collect();
+    !servers.is_empty() && servers.iter().all(|server| *server == "127.0.0.1" || *server == "::1")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn resolver_check_rejects_comments_and_mixed_upstreams() {
+        assert!(local_nameservers_only("nameserver 127.0.0.1 # local"));
+        assert!(!local_nameservers_only("# 127.0.0.1\nnameserver 8.8.8.8"));
+        assert!(!local_nameservers_only("nameserver 127.0.0.1\nnameserver 8.8.8.8"));
+        assert!(!local_nameservers_only("nameserver"));
     }
 }

@@ -47,7 +47,7 @@ impl KillSwitch {
 
                 let mut client = TorControlClient::default();
                 let is_alive = tokio::time::timeout(Duration::from_secs(3), async {
-                    client.connect().await.is_ok() && client.is_alive().await
+                    client.connect().await.is_ok() && client.is_ready().await
                 }).await.unwrap_or(false);
 
                 if is_alive {
@@ -71,9 +71,13 @@ impl KillSwitch {
                     failure_count = failure_count.saturating_add(1);
                     warn!("Tor health check failed ({failure_count}/2)");
 
-                    if failure_count >= 2 && !self.is_killed.load(Ordering::SeqCst) {
-                        recovery_rules = save_rules();
-                        self.emergency_lockdown();
+                    if failure_count >= 2 {
+                        if !self.is_killed.load(Ordering::SeqCst) { recovery_rules = save_rules(); }
+                        self.is_killed.store(true, Ordering::SeqCst);
+                        match self.emergency_lockdown() {
+                            Ok(()) => { self.is_killed.store(true, Ordering::SeqCst); }
+                            Err(e) => error!("Emergency lockdown incomplete; retrying: {e}"),
+                        }
                     }
                 }
             }
@@ -82,39 +86,40 @@ impl KillSwitch {
         })
     }
 
-    fn emergency_lockdown(&self) {
-        error!("KILLSWITCH TRIGGERED — Immediate global egress blackout enforced!");
-        self.is_killed.store(true, Ordering::SeqCst);
-
-        // 1. Enforce strict DROP policy FIRST to eliminate race condition window
-        let _ = Command::new("iptables").args(["-P", "OUTPUT", "DROP"]).status();
-        let _ = Command::new("iptables").args(["-P", "FORWARD", "DROP"]).status();
-        let _ = Command::new("iptables").args(["-P", "INPUT", "DROP"]).status();
-
-        // 2. Flush existing filter and NAT rules while DROP policies are strictly holding
-        let _ = Command::new("iptables").args(["-F"]).status();
-        let _ = Command::new("iptables").args(["-X"]).status();
-        let _ = Command::new("iptables").args(["-t", "nat", "-F"]).status();
-        let _ = Command::new("iptables").args(["-t", "nat", "-X"]).status();
-
-        // 3. Only allow local loopback communications
-        let _ = Command::new("iptables").args(["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"]).status();
-        let _ = Command::new("iptables").args(["-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"]).status();
-
-        // Permit only the dedicated Tor account to re-establish its circuits.
-        // Application egress remains blocked while Tor is unavailable.
-        if let Ok(uid) = wraith_net::get_tor_uid() {
-            let _ = Command::new("iptables").args(["-A", "OUTPUT", "-m", "owner", "--uid-owner", &uid.to_string(), "-j", "ACCEPT"]).status();
-            let _ = Command::new("iptables").args(["-A", "INPUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"]).status();
+    fn emergency_lockdown(&self) -> wraith_core::error::Result<()> {
+        // Insert a narrow gate; never flush NAT/mangle or bypass existing
+        // WireGuard guards. Tor packets must still traverse the original rules.
+        let uid = wraith_net::get_tor_uid()?.to_string();
+        for rule in lockdown_rules(&uid) {
+            let exists = Command::new("iptables").arg("-w").arg("5").arg("-C").args(&rule).status()?;
+            if !exists.success() {
+                let status = Command::new("iptables").args(["-w", "5", "-I"]).args(&rule).status()?;
+                if !status.success() {
+                    return Err(wraith_core::error::WraithError::Firewall(format!("Emergency rule failed: {status}")));
+                }
+            }
         }
+        apply_ipv6_block()?;
+        error!("Kill switch application egress gate installed");
+        Ok(())
+    }
+}
 
-        // 4. Enforce strict IPv6 total blackout
-        let _ = Command::new("ip6tables").args(["-P", "INPUT", "DROP"]).status();
-        let _ = Command::new("ip6tables").args(["-P", "OUTPUT", "DROP"]).status();
-        let _ = Command::new("ip6tables").args(["-P", "FORWARD", "DROP"]).status();
-        let _ = Command::new("ip6tables").args(["-F"]).status();
-        let _ = Command::new("ip6tables").args(["-X"]).status();
+fn lockdown_rules(uid: &str) -> Vec<Vec<String>> {
+    vec![
+        vec!["OUTPUT", "!", "-o", "lo", "-m", "owner", "!", "--uid-owner", uid, "-m", "comment", "--comment", "wraith-emergency", "-j", "DROP"],
+        vec!["FORWARD", "-m", "comment", "--comment", "wraith-emergency", "-j", "DROP"],
+    ].into_iter().map(|rule| rule.into_iter().map(str::to_owned).collect()).collect()
+}
 
-        let _ = apply_ipv6_block();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn gate_cannot_bypass_existing_tunnel_policy() {
+        let rules = lockdown_rules("123");
+        assert!(rules.iter().all(|rule| rule.last().unwrap() == "DROP"));
+        assert!(rules[0].windows(3).any(|fields| fields == ["!", "--uid-owner", "123"]));
+        assert_eq!(rules[1][0], "FORWARD");
     }
 }

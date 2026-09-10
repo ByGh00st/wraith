@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 use tracing::{info, warn};
 
-use crate::error::Result;
+use crate::error::{Result, WraithError};
 
 pub const LOCKDOWN_PATH: &str = "/sys/kernel/security/lockdown";
 pub const IOMMU_PATH: &str = "/sys/kernel/iommu_groups";
@@ -107,5 +107,9 @@ pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
         warn!("IOMMU not discovered in sysfs; ensure VT-d/IOMMU is active in BIOS for hardware DMA defense");
     }
 
-    Ok(get_lockdown_status())
+    let final_state = get_lockdown_status();
+    if !matches!(final_state, LockdownState::Integrity | LockdownState::Confidentiality) {
+        return Err(WraithError::Custom("Kernel lockdown was not activated; strict mode cannot report this layer active".into()));
+    }
+    Ok(final_state)
 }

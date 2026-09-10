@@ -1,93 +1,22 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# 💀 WRAITH-PRIME // UNINSTALL & SYSTEM PURGE
-# High-Assurance Ring-0/Ring-3 Defense & Anonymization Engine
-# Absolute Precision. Zero Telemetry. Pure Technical Execution.
-# ==============================================================================
-
+# Remove the managed installation only after recorded session cleanup succeeds.
 set -euo pipefail
-
-# ─── [ TRUECOLOR PALETTE & ANSI TOKENS ] ────────────────────────────────────────
-CLR_PURPLE='\033[38;2;168;85;247m'
-CLR_CYAN='\033[38;2;6;182;212m'
-CLR_EMERALD='\033[38;2;16;185;129m'
-CLR_RED='\033[38;2;239;68;68m'
-CLR_AMBER='\033[38;2;245;158;11m'
-CLR_SLATE='\033[38;2;100;116;139m'
-CLR_WHITE='\033[38;2;248;250;252m'
-CLR_BOLD='\033[1m'
-CLR_RESET='\033[0m'
-
-echo -e "\n${CLR_PURPLE}${CLR_BOLD}"
-echo "   ██╗    ██╗██████╗  █████╗ ██╗████████╗██╗  ██╗"
-echo "   ██║    ██║██╔══██╗██╔══██╗██║╚══██╔══╝██║  ██║"
-echo "   ██║ █╗ ██║██████╔╝███████║██║   ██║   ███████║"
-echo "   ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║"
-echo "   ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║"
-echo "    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝"
-echo -e "${CLR_CYAN}  ╭── [ ⚔️ WRAITH-PRIME // UNINSTALLER & SYSTEM RESTORE ] ──────────────────╮"
-echo -e "  │  ${CLR_SLATE}TARGET :${CLR_RESET} ${CLR_AMBER}Complete removal of binaries, configs, and network constraints${CLR_RESET} │"
-echo -e "  ╰──────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
-
-if [ "$EUID" -ne 0 ]; then
-    echo -e "  ${CLR_RED}${CLR_BOLD}✖ [ACCESS DENIED]${CLR_RESET} Root clearance required for uninstall."
-    echo -e "      ${CLR_SLATE}Execute with root privileges: ${CLR_WHITE}sudo ./uninstall.sh${CLR_RESET}\n"
+if [[ $EUID -ne 0 ]]; then
+    echo "Run with sudo." >&2
     exit 1
 fi
-
-# Force remount root and /usr as read-write to prevent read-only filesystem locks
-mount -o remount,rw / 2>/dev/null || true
-mount -o remount,rw /usr 2>/dev/null || true
-mount -o remount,rw /usr/local 2>/dev/null || true
-
-echo -e "  ${CLR_CYAN}◈ [1/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Halting any active Wraith services and instances...${CLR_RESET}"
-systemctl stop wraith.service 2>/dev/null || true
-systemctl disable wraith.service 2>/dev/null || true
-rm -f /etc/systemd/system/wraith.service /etc/systemd/system/wraith-early.service 2>/dev/null || true
-systemctl daemon-reload 2>/dev/null || true
-killall -9 wraith 2>/dev/null || true
-pkill -9 -f "wraith" 2>/dev/null || true
-echo -e "        ${CLR_EMERALD}✔ [KILLED]${CLR_RESET} Services stopped & processes terminated."
-
-echo -e "\n  ${CLR_CYAN}◈ [2/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Restoring network restrictions and DNS...${CLR_RESET}"
-nft flush ruleset 2>/dev/null || true
-iptables -F 2>/dev/null || true
-iptables -X 2>/dev/null || true
-iptables -t nat -F 2>/dev/null || true
-iptables -t nat -X 2>/dev/null || true
-chattr -R -i -a /etc/resolv.conf 2>/dev/null || true
-(echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf) 2>/dev/null || true
-systemctl restart NetworkManager 2>/dev/null || true
-echo -e "        ${CLR_EMERALD}✔ [RESTORED]${CLR_RESET} Network tables flushed & DNS unlocked."
-
-echo -e "\n  ${CLR_CYAN}◈ [3/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Purging binary artifacts from system paths...${CLR_RESET}"
-chattr -R -i -a /usr/local/bin/wraith /usr/bin/wraith /bin/wraith /root/.cargo/bin/wraith /root/.local/bin/wraith 2>/dev/null || true
-rm -f /usr/local/bin/wraith \
-      /usr/bin/wraith \
-      /bin/wraith \
-      /root/.cargo/bin/wraith \
-      /root/.local/bin/wraith 2>/dev/null || true
-
-for user_home in /home/*; do
-    if [ -d "$user_home/.cargo/bin" ]; then
-        chattr -R -i -a "$user_home/.cargo/bin/wraith" 2>/dev/null || true
-        rm -f "$user_home/.cargo/bin/wraith" 2>/dev/null || true
+if systemctl is-active --quiet wraith.service; then
+    systemctl stop wraith.service
+fi
+if [[ -e /var/run/wraith.state ]]; then
+    if [[ ! -x /usr/local/bin/wraith ]]; then
+        echo "Session state exists but the managed binary is missing. Recover networking before uninstalling." >&2
+        exit 1
     fi
-done
-hash -r 2>/dev/null || true
-echo -e "        ${CLR_EMERALD}✔ [ERADICATED]${CLR_RESET} Binaries removed."
-
-echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Wiping configurations, logs, completions, and artifacts...${CLR_RESET}"
-chattr -R -i -a /etc/wraith /var/log/wraith /etc/tor/wraithrc /etc/profile.d/wraith_lang.sh /var/run/wraith.pid /var/run/wraith_state.json /etc/bash_completion.d/wraith /usr/share/bash-completion/completions/wraith /usr/share/zsh/vendor-completions/_wraith /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
-rm -rf /etc/wraith 2>/dev/null || true
-rm -rf /var/log/wraith 2>/dev/null || true
-rm -f /etc/tor/wraithrc 2>/dev/null || true
-rm -f /etc/profile.d/wraith_lang.sh 2>/dev/null || true
-rm -f /var/run/wraith.pid /var/run/wraith_state.json 2>/dev/null || true
-rm -f /etc/bash_completion.d/wraith /usr/share/bash-completion/completions/wraith 2>/dev/null || true
-rm -f /usr/share/zsh/vendor-completions/_wraith /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
-echo -e "        ${CLR_EMERALD}✔ [CLEARED]${CLR_RESET} Persistent data obliterated."
-
-echo -e "\n${CLR_PURPLE}  ╭── [ 🛡️ WRAITH PURGE COMPLETE // SYSTEM RESTORED TO DEFAULT ] ────────────╮${CLR_RESET}"
-echo -e "${CLR_PURPLE}  │  ${CLR_WHITE}All Wraith traces have been successfully removed from the host system.  ${CLR_PURPLE}│${CLR_RESET}"
-echo -e "${CLR_PURPLE}  ╰──────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
+    /usr/local/bin/wraith -x
+fi
+systemctl disable wraith.service 2>/dev/null || true
+rm -f -- /etc/systemd/system/wraith.service /etc/systemd/system/wraith-early.service
+systemctl daemon-reload
+rm -f -- /usr/local/bin/wraith /etc/bash_completion.d/wraith /usr/share/bash-completion/completions/wraith /usr/share/zsh/vendor-completions/_wraith /usr/share/zsh/site-functions/_wraith
+echo "Managed installation removed. Configuration and logs retained; unrelated firewall and DNS settings were not reset."

@@ -38,6 +38,8 @@ pub struct StateData {
     pub bridge_count: usize,
     pub exit_profile: Option<String>,
     pub namespace_active: bool,
+    #[serde(default)]
+    pub original_cgroup: Option<String>,
     pub browser_hardened: usize,
     pub saved_rules: Option<String>,
     #[serde(default)]

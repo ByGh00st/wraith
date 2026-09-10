@@ -31,14 +31,15 @@ pub fn enforce_process_lockdown() -> Result<()> {
             // 3. Lock memory pages into RAM (MCL_CURRENT | MCL_FUTURE) so keys/buffers never hit swap
             let res = libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE);
             if res != 0 {
-                // Non-fatal if RLIMIT_MEMLOCK is exceeded, but log warning
-                tracing::warn!(
-                    "mlockall warning (non-fatal): {}",
-                    std::io::Error::last_os_error()
-                );
+                return Err(WraithError::Custom(format!(
+                    "Memory locking failed: {}", std::io::Error::last_os_error()
+                )));
             }
         }
         info!("Kernel process lockdown enforced: PR_SET_DUMPABLE=0, NO_NEW_PRIVS=1, mlockall active");
     }
+    #[cfg(not(unix))]
+    return Err(crate::error::WraithError::UnsupportedPlatform);
+    #[cfg(unix)]
     Ok(())
 }

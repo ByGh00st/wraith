@@ -92,12 +92,30 @@ const MANAGED_END: &str = "// WRAITH MANAGED PREFERENCES END";
 pub(crate) fn write_managed_preferences(path: &std::path::Path, payload: Option<&str>) -> Result<()> {
     use std::io::Write;
     use wraith_core::error::WraithError;
+    #[cfg(target_os = "linux")]
+    let (_parent_handle, pinned_path) = pin_preference_parent(path)?;
+    #[cfg(target_os = "linux")]
+    let path = pinned_path.as_path();
     if let Ok(metadata) = fs::symlink_metadata(path) {
         if !metadata.is_file() || metadata.file_type().is_symlink() {
             return Err(WraithError::Forensic("Refusing non-regular browser preference file".into()));
         }
     }
-    let original = match fs::read_to_string(path) {
+    let read_original = || -> std::io::Result<String> {
+        use std::io::Read;
+        let mut options = fs::OpenOptions::new();
+        options.read(true);
+        #[cfg(target_os = "linux")] {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+        }
+        let mut file = options.open(path)?;
+        if !file.metadata()?.is_file() { return Err(std::io::Error::other("Preferences must be a regular file")); }
+        let mut content = String::new();
+        file.read_to_string(&mut content)?;
+        Ok(content)
+    };
+    let original = match read_original() {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(e) => return Err(e.into()),
@@ -131,9 +149,44 @@ pub(crate) fn write_managed_preferences(path: &std::path::Path, payload: Option<
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
+fn pin_preference_parent(path: &std::path::Path) -> Result<(fs::File, std::path::PathBuf)> {
+    use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+    use std::path::{Component, Path, PathBuf};
+    use wraith_core::error::WraithError;
+    let absolute = if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir()?.join(path) };
+    let parent = absolute.parent().ok_or_else(|| WraithError::Forensic("Missing profile parent".into()))?;
+    let mut directory = fs::File::open("/")?;
+    for component in parent.components() {
+        match component {
+            Component::RootDir | Component::CurDir => {},
+            Component::Normal(name) => {
+                let anchored = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd())).join(name);
+                directory = fs::OpenOptions::new().read(true)
+                    .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW).open(anchored)?;
+            }
+            _ => return Err(WraithError::Forensic("Invalid profile parent path".into())),
+        }
+    }
+    let anchored = Path::new(&format!("/proc/self/fd/{}", directory.as_raw_fd())).join(absolute.file_name().unwrap());
+    Ok((directory, anchored))
+}
+
 #[cfg(test)]
 mod preference_tests {
     use super::*;
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn refuses_symlinked_profile_parent() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real");
+        fs::create_dir(&real).unwrap();
+        let linked = dir.path().join("linked");
+        std::os::unix::fs::symlink(&real, &linked).unwrap();
+        assert!(write_managed_preferences(&linked.join("user.js"), Some("test")).is_err());
+        assert!(!real.join("user.js").exists());
+    }
+
     #[test]
     fn preserves_user_preferences_across_apply_and_remove() {
         let dir = tempfile::tempdir().unwrap();

@@ -43,12 +43,11 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Remount paths as rw
-mount -o remount,rw / 2>/dev/null || true
-mount -o remount,rw /etc 2>/dev/null || true
+
 
 # Check binary existence
 WRAITH_BIN=""
-for b in /usr/local/bin/wraith /usr/bin/wraith ./target/release/wraith; do
+for b in /usr/local/bin/wraith /usr/bin/wraith; do
     if [ -x "$b" ]; then
         WRAITH_BIN="$b"
         break
@@ -68,7 +67,7 @@ OPT_PROFILE="stealth"
 OPT_INTERFACE=""
 OPT_DOH="quad9"
 OPT_BRIDGE="none"
-OPT_BOOT_MODE="early" # early, standard, manual
+OPT_BOOT_MODE="standard" # standard, manual; early mode is rejected
 OPT_ROTATE="0"
 OPT_STRICT=true
 OPT_ANTI_DEBUG=true
@@ -76,7 +75,7 @@ OPT_MASQUERADE=true
 OPT_TCP_MASK=true
 OPT_MAC=true
 OPT_MACHINE_ID=true
-OPT_START_NOW=true
+OPT_START_NOW=false
 
 print_usage() {
     echo -e "Usage: $0 [OPTIONS]"
@@ -298,6 +297,18 @@ if [ "$INTERACTIVE" = true ]; then
     echo -e "      ${CLR_EMERALD}✔ Seçildi:${CLR_RESET} ${CLR_WHITE}${OPT_ROTATE}s${CLR_RESET}\n"
 fi
 
+# Reject syntax that systemd would expand or parse as additional directives.
+for value in "$WRAITH_BIN" "$OPT_PROFILE" "$OPT_INTERFACE" "$OPT_DOH" "$OPT_BRIDGE" "$OPT_ROTATE" "$OPT_BOOT_MODE"; do
+    if [[ "$value" =~ [^a-zA-Z0-9_./:?=+@,-] ]]; then
+        echo "Unsupported characters in service configuration." >&2
+        exit 1
+    fi
+done
+if [[ "$OPT_BOOT_MODE" != standard && "$OPT_BOOT_MODE" != manual ]]; then
+    echo "Choose standard or manual boot mode; early mode requires a separate validated boot firewall." >&2
+    exit 1
+fi
+
 # ─── [ ASSEMBLE WRAITH DAEMON EXECUTION PARAMETERS ] ───────────────────────────
 DAEMON_ARGS=()
 
@@ -354,38 +365,8 @@ SERVICE_FILE="/etc/systemd/system/wraith.service"
 echo -e "  ${CLR_CYAN}◈ [DEPLOY]${CLR_RESET} ${CLR_WHITE}Forging systemd unit artifact: ${CLR_AMBER}${SERVICE_FILE}${CLR_RESET}"
 
 if [ "$OPT_BOOT_MODE" = "early" ]; then
-    # Early-Boot Warfare Configuration:
-    # Hooks into network-pre.target BEFORE any interface is brought up or DHCP is executed.
-    # DefaultDependencies=no ensures it triggers prior to basic.target and user login!
-    cat <<EOF > "$SERVICE_FILE"
-[Unit]
-Description=Wraith Sovereign Kernel Defense & Early-Boot Anonymization Engine
-Documentation=https://github.com/ByGh00st/wraith
-DefaultDependencies=no
-Conflicts=shutdown.target
-Before=network-pre.target basic.target systemd-networkd.service NetworkManager.service networking.service
-Wants=network-pre.target
-After=local-fs.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/etc/wraith
-ExecStart=${CMD_EXEC_LINE}
-ExecStop=${WRAITH_BIN} stop
-Restart=always
-RestartSec=3s
-KillSignal=SIGTERM
-TimeoutStopSec=20s
-LimitNOFILE=65535
-LimitMEMLOCK=infinity
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=basic.target
-EOF
-
+    echo "Early boot mode is unsupported: Tor startup requires working networking. Choose standard or manual." >&2
+    exit 1
 else
     # Standard Multi-User Background Daemon
     cat <<EOF > "$SERVICE_FILE"
@@ -404,7 +385,7 @@ ExecStop=${WRAITH_BIN} stop
 Restart=on-failure
 RestartSec=5s
 KillSignal=SIGTERM
-TimeoutStopSec=20s
+TimeoutStopSec=45s
 LimitNOFILE=65535
 LimitMEMLOCK=infinity
 StandardOutput=journal

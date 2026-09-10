@@ -469,7 +469,7 @@ fn install_emergency_panic_sentry() {
         let panic_str = format!("CRASH DIAGNOSIS : {}", format!("{panic_info}").chars().take(50).collect::<String>());
         let rows = vec![
             panic_str,
-            "AUTO-RECOVERY   : Restoring netfilter, DNS, DHCP, and clearnet routes...".to_string(),
+            "POLICY RETAINED : Use sudo wraith -x for recorded-session recovery.".to_string(),
         ];
         let p_box = crate::display::render_box("💥 CRITICAL ENGINE FAULT TRAPPED", &rows, crate::display::BoxCorner::Rounded, 78);
         eprintln!("\n\r{}", p_box[0]);
@@ -483,38 +483,9 @@ fn install_emergency_panic_sentry() {
 }
 
 pub fn emergency_kernel_recovery() {
-    #[cfg(unix)]
-    {
-        let _ = std::process::Command::new("chattr").args(["-i", "/etc/resolv.conf"]).output();
-        let _ = std::fs::write("/etc/resolv.conf", "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1\n");
-        let _ = std::process::Command::new("iptables").args(["-P", "INPUT", "ACCEPT"]).output();
-        let _ = std::process::Command::new("iptables").args(["-P", "FORWARD", "ACCEPT"]).output();
-        let _ = std::process::Command::new("iptables").args(["-P", "OUTPUT", "ACCEPT"]).output();
-        let _ = std::process::Command::new("iptables").args(["-F"]).output();
-        let _ = std::process::Command::new("iptables").args(["-X"]).output();
-        let _ = std::process::Command::new("iptables").args(["-t", "nat", "-F"]).output();
-        let _ = std::process::Command::new("iptables").args(["-t", "nat", "-X"]).output();
-        let _ = std::process::Command::new("iptables").args(["-t", "mangle", "-F"]).output();
-
-        let _ = std::process::Command::new("ip6tables").args(["-P", "INPUT", "ACCEPT"]).output();
-        let _ = std::process::Command::new("ip6tables").args(["-P", "FORWARD", "ACCEPT"]).output();
-        let _ = std::process::Command::new("ip6tables").args(["-P", "OUTPUT", "ACCEPT"]).output();
-        let _ = std::process::Command::new("ip6tables").args(["-F"]).output();
-        let _ = std::process::Command::new("ip6tables").args(["-X"]).output();
-
-        let _ = std::process::Command::new("pkill").args(["-f", "tor.*-f"]).output();
-        let _ = std::process::Command::new("pkill").args(["-9", "dhclient"]).output();
-
-        let iface = wraith_net::get_default_interface().unwrap_or_else(|_| "eth0".to_string());
-        let _ = std::process::Command::new("ip").args(["link", "set", &iface, "up"]).output();
-        let _ = std::process::Command::new("systemctl").args(["restart", "NetworkManager"]).output();
-        let _ = std::process::Command::new("service").args(["NetworkManager", "restart"]).output();
-        let _ = std::process::Command::new("nmcli").args(["networking", "on"]).output();
-        let _ = std::process::Command::new("nmcli").args(["device", "set", &iface, "managed", "yes"]).output();
-        let _ = std::process::Command::new("nmcli").args(["device", "connect", &iface]).output();
-        let _ = std::process::Command::new("dhclient").args(["-v", &iface]).output();
-        let _ = std::process::Command::new("resolvectl").arg("flush-caches").output();
-    }
+    // A panic must never open clearnet or overwrite the saved resolver.
+    // Retain the policy and session record for an explicit recovery operation.
+    eprintln!("Wraith stopped unexpectedly. Network policy retained; use sudo wraith -x from a console to recover.");
 }
 
 fn check_root() -> Result<()> {
