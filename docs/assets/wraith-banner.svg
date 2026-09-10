@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+  <title id="title">Wraith — Your network. Your terms.</title>
+  <desc id="desc">Linux privacy toolkit. Tor routing, verified DNS and browser TLS profiles, with a violet network illustration.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0b1020"/><stop offset="1" stop-color="#17112e"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#67e8f9"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#8b5cf6" stop-opacity=".25"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#c4b5fd" stroke-opacity=".045"/></pattern>
+  </defs>
+  <rect width="1200" height="400" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="400" rx="24" fill="url(#grid)"/>
+  <circle cx="970" cy="200" r="240" fill="url(#glow)"/>
+  <rect x="52" y="48" width="30" height="3" rx="1.5" fill="url(#accent)"/>
+  <text x="96" y="55" fill="#a5b4cf" font-family="sans-serif" font-size="12" letter-spacing="3">LINUX PRIVACY TOOLKIT</text>
+  <text x="48" y="155" fill="#f5f3ff" font-family="sans-serif" font-size="78" font-weight="800" letter-spacing="7">WRAITH</text>
+  <text x="53" y="203" fill="#d4c9f4" font-family="sans-serif" font-size="27">Your network. Your terms.</text>
+  <text x="54" y="252" fill="#9caec5" font-family="sans-serif" font-size="17">Tor routing. Verified DNS. Browser TLS profiles.</text>
+  <path d="M54 291H658" stroke="#3a3155"/>
+  <text x="54" y="330" fill="#b9a2ff" font-family="monospace" font-size="13">RUST</text>
+  <circle cx="113" cy="325" r="2" fill="#59617b"/>
+  <text x="130" y="330" fill="#9caec5" font-family="monospace" font-size="13">OPEN SOURCE</text>
+  <circle cx="245" cy="325" r="2" fill="#59617b"/>
+  <text x="262" y="330" fill="#9caec5" font-family="monospace" font-size="13">RECOVERABLE SESSIONS</text>
+  <g fill="none" stroke="#a78bfa">
+    <circle cx="965" cy="194" r="137" stroke-opacity=".17"/>
+    <circle cx="965" cy="194" r="101" stroke-opacity=".28" stroke-dasharray="3 11"/>
+    <path d="M828 194L913 133L1023 122L1102 194L1009 286L896 269Z" stroke-opacity=".28"/>
+    <path d="M913 133L1009 286M1023 122L896 269M828 194H1102" stroke-opacity=".18"/>
+  </g>
+  <path d="M923 214V179a42 42 0 0 1 84 0v72l-21-12-21 12-21-12-21 12Z" fill="#1c1935" stroke="url(#accent)" stroke-width="2.5" stroke-linejoin="round"/>
+  <rect x="943" y="181" width="8" height="15" rx="4" fill="#ddd6fe"/>
+  <rect x="979" y="181" width="8" height="15" rx="4" fill="#ddd6fe"/>
+  <g fill="#a78bfa"><circle cx="913" cy="133" r="5"/><circle cx="1102" cy="194" r="5"/><circle cx="896" cy="269" r="5"/></g>
+  <g fill="#67e8f9"><circle cx="828" cy="194" r="4"/><circle cx="1023" cy="122" r="4"/><circle cx="1009" cy="286" r="4"/></g>
+</svg>

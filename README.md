@@ -1,57 +1,77 @@
 <a id="top"></a>
+
 <p align="center">
-  <img src="https://img.shields.io/badge/WRAITH--PRIME-v1.3.0_RELEASE-8855ff?style=for-the-badge&logo=ghostery&logoColor=white" alt="Version">
-  <img src="https://img.shields.io/badge/LANGUAGE-RUST_2021-00d4ff?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
-  <img src="https://img.shields.io/badge/TARGET-x86__64--unknown--linux--gnu-ff3366?style=for-the-badge&logo=linux&logoColor=white" alt="Platform">
-  <img src="https://img.shields.io/badge/SECURITY-ACTIVE_HARDENING-00ff88?style=for-the-badge&logo=matrix&logoColor=white" alt="Standard">
-  <img src="https://img.shields.io/badge/LOCALIZATION-17_NATIVE_LOCALES-ffaa00?style=for-the-badge&logo=google-translate&logoColor=white" alt="Locales">
-  <img src="https://img.shields.io/badge/TEST_SUITE-92%2F92_PORTABLE_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="docs/assets/wraith-banner.svg" alt="Wraith — Linux privacy toolkit: Tor routing, verified DNS and browser TLS profiles" width="1200">
 </p>
 
-```ascii
- ██╗    ██╗██████╗  █████╗ ██╗████████╗██╗  ██╗   ██████╗ ██████╗ ██╗███╗   ███╗███████╗
- ██║    ██║██╔══██╗██╔══██╗██║╚══██╔══╝██║  ██║   ██╔══██╗██╔══██╗██║████╗ ████║██╔════╝
- ██║ █╗ ██║██████╔╝███████║██║   ██║   ███████║   ██████╔╝██████╔╝██║██╔████╔██║█████╗
- ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║   ██╔═══╝ ██╔══██╗██║██║╚██╔╝██║██╔══╝
- ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║   ██║     ██║  ██║██║██║ ╚═╝ ██║███████╗
-  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝
-```
-
-<h1 align="center">Wraith — Linux Tor Proxy & Network Privacy</h1>
+<h1 align="center">Linux network privacy, in one terminal.</h1>
 <p align="center">
-  <b>6 Modular Rust Crates • 17 Native Locales • 1,338 Signature Entries • Linux Network Privacy</b><br>
-  <i>A Rust CLI for Tor routing, DNSSEC over DoH, browser TLS profiles, firewall kill switches and recoverable Linux privacy sessions.</i>
+  Route TCP through Tor. Validate DNS locally. Make verified HTTPS requests with browser TLS profiles.<br>
+  <b>Configure a session. Inspect the route. Restore your settings.</b>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ByGh00st/wraith/stargazers"><img src="https://img.shields.io/github/stars/ByGh00st/wraith?style=flat-square&color=a78bfa" alt="GitHub stars"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-38bdf8?style=flat-square" alt="GPL-3.0 license"></a>
-  <a href="https://github.com/ByGh00st/wraith/issues"><img src="https://img.shields.io/github/issues/ByGh00st/wraith?style=flat-square&color=fbbf24" alt="GitHub issues"></a>
+  <a href="#installation"><img src="https://img.shields.io/badge/Get_started-a78bfa?style=for-the-badge&amp;logo=linux&amp;logoColor=0b1020" alt="Get started"></a>
+  <a href="#cli-reference"><img src="https://img.shields.io/badge/Explore_commands-20263b?style=for-the-badge&amp;logo=gnometerminal&amp;logoColor=c4b5fd" alt="Explore commands"></a>
+  <a href="#privacy-matrix"><img src="https://img.shields.io/badge/Compare_tools-20263b?style=for-the-badge&amp;logoColor=c4b5fd" alt="Compare tools"></a>
 </p>
 
-**Route supported TCP through Tor. Validate DNS locally. Keep control of your host settings.**
-
-Wraith combines a terminal interface with Linux netfilter, Tor SOCKS/transparent proxying, a DNSSEC-validating DNS-over-HTTPS relay, browser-profile HTTPS requests and optional Tor-over-WireGuard. Start a session, select the controls you need, inspect circuit telemetry, then restore the recorded configuration.
-
-| 🌐 Route | 🔒 Resolve | 🛡️ Control | 💻 Operate |
-| :--- | :--- | :--- | :--- |
-| Tor TCP + optional WireGuard | Local DNSSEC over Tor DoH | Strict egress policy + watchdog | CLI + 17-language terminal UI |
-| [Network architecture](#core-architecture) | [DNS pipeline](#dns-over-https) | [Full-security preset](#full-security) | [Command reference](#cli-reference) |
-
-```bash
-sudo wraith -s                  # Start a foreground privacy session
-sudo wraith -i                  # Inspect status and Tor circuits
-sudo wraith -x                  # Stop and restore saved settings
-sudo wraith -u                  # Update from official GitHub
-```
-
-New installation? Start with [Linux requirements and installation](#installation). For `-Fs`, review the [strict host prerequisites](#full-security).
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.3.0-8172b3?style=flat-square" alt="Version 1.3.0">
+  <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
+  <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
+  <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-92_passed-547d85?style=flat-square" alt="92 portable tests passed"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-547d85?style=flat-square" alt="GPL 3.0"></a>
+  <a href="https://github.com/ByGh00st/wraith/stargazers"><img src="https://img.shields.io/github/stars/ByGh00st/wraith?style=flat-square&amp;color=8172b3" alt="GitHub stars"></a>
+</p>
 
 ---
 
+**Wraith is an open-source Linux Tor proxy and privacy session manager.** It brings network routing, DNSSEC over DoH, browser-profile HTTPS requests and recoverable host controls into a Rust CLI with a localized terminal interface.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<h3>🌐 Choose your route</h3>
+<p>Tor TCP routing, optional network namespaces and Tor-over-WireGuard, with session controls in one place.</p>
+<a href="#core-architecture">Explore the architecture →</a>
+</td>
+<td width="50%" valign="top">
+<h3>🔒 Verify your connections</h3>
+<p>Local DNSSEC validation over Tor DoH. Certificate-verified HTTPS with Chrome, Firefox or Safari TLS profiles.</p>
+<a href="#browser-tls">See TLS profiles and scope →</a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<h3>⌨️ Stay in the terminal</h3>
+<p>Interface and resolver selectors, circuit telemetry, 17 locales and a concise command workflow.</p>
+<a href="#cli-reference">Find your command →</a>
+</td>
+<td width="50%" valign="top">
+<h3>↩️ Keep a way back</h3>
+<p>Recorded configuration changes, explicit session shutdown and retryable recovery when cleanup fails.</p>
+<a href="#full-security">Read setup and recovery →</a>
+</td>
+</tr>
+</table>
+
+### A session in three commands
+
+After [installation](#installation), keep the session running in its terminal. Use another terminal to inspect or stop it.
+
+```bash
+sudo wraith -s     # Start a foreground session
+sudo wraith -i     # Inspect status and Tor circuits
+sudo wraith -x     # Stop and restore recorded settings
+```
+
 <p align="center">
-  <a href="#installation">Install</a> · <a href="#cli-reference">Commands</a> · <a href="#full-security">Full Security</a> · <a href="#browser-tls">TLS Profiles</a> · <a href="#updates">Update</a> · <a href="#privacy-matrix">Compare</a> · <a href="#codebase-metrics">Tokei</a> · <a href="#validation">Development</a>
+  <a href="#installation"><b>Installation</b></a> · <a href="#browser-tls">TLS profiles</a> · <a href="#privacy-matrix">Comparison</a> · <a href="#updates">Updates</a> · <a href="#codebase-metrics">Source metrics</a> · <a href="#validation">Validation</a>
 </p>
+
+<details>
+<summary><b>Browse the complete technical guide</b></summary>
 
 ## 📋 Table of Contents
 
@@ -86,6 +106,9 @@ New installation? Start with [Linux requirements and installation](#installation
 - [⚖️ Legal & Operational Disclaimer](#legal-disclaimer)
 - [📜 License](#-license)
 
+</details>
+
+
 ---
 
 <a id="system-overview"></a>
@@ -93,7 +116,7 @@ New installation? Start with [Linux requirements and installation](#installation
 
 **Wraith-Prime** brings Tor routing, DNS policy, host settings and a localized terminal interface into one Linux session manager. Its six-crate Rust workspace combines netfilter rules, network namespaces, a local HTTP relay and optional browser controls.
 
-Start a foreground session, inspect its status, and stop it to restore recorded settings. The strict `-Fs` preset requires its core controls to succeed before activation and retains recovery state when cleanup fails.
+Start a foreground session, inspect its status, and stop it to restore recorded settings. Advanced presets and their host prerequisites are covered in [setup and recovery](#full-security).
 
 | Layer | Role |
 | :--- | :--- |
@@ -112,7 +135,7 @@ Start a foreground session, inspect its status, and stop it to restore recorded 
 ## 📊 Codebase Metrics & Language Breakdown
 
 <details open>
-<summary><b>🔍 Click to Expand / Collapse Tokei Workspace Code Verification Table</b></summary>
+<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-11</b></summary>
 
 Measured **2026-09-11** with Tokei 12.1.2. Scope: source crates, manifests, Cargo configuration and the three shell scripts; documentation and build output are excluded.
 
@@ -166,30 +189,42 @@ The watchdog preserves application egress restrictions when Tor becomes unhealth
 <a id="privacy-matrix"></a>
 ## 🛡️ Privacy & Security Comparison Matrix
 
-These projects work at different scopes. This compares architecture and workflow, without unmeasured performance or security rankings.
+<p align="center"><b>Find the right scope for your workflow.</b><br>
+Host sessions, application proxying and a dedicated operating system solve different problems.</p>
 
-<div align="center">
+### At a glance
 
-**🖥️ Host sessions · 🔗 Application proxying · 💿 Dedicated operating system**
-
-</div>
-
-| Architecture & workflow | 👻 **Wraith** | 🦜 **AnonSurf** | 👤 **TorGhost** | 🔗 **Proxychains-NG** | 💿 **Tails** |
+| | **Wraith** | **AnonSurf** | **TorGhost** | **Proxychains-NG** | **Tails** |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| Deployment | Existing x86_64 Linux host | Parrot anonymous mode | Existing Linux host | Selected compatible programs | Bootable operating system |
-| Network approach | Netfilter + Tor; optional namespace | Parrot-integrated Tor tooling | Tor redirection script | Preloaded socket hooks → configured proxies | Integrated Tor networking |
-| Operator interface | Rust CLI, selectors, granular flags | Distribution tooling | Command-line script | Prefix a program command | Desktop environment |
-| DNS approach | Local DNSSEC validation over Tor DoH | See project configuration | Documents DNS redirection through Tor | Proxy DNS options; compatibility matters | OS-integrated network policy |
-| Profiled HTTPS client | Chrome / Firefox / Safari TLS + HTTP2 for owned requests | No equivalent asserted here | No equivalent asserted here | Uses application TLS | Tor Browser integration |
-| Session model | Saved host settings and explicit restoration | Anonymous mode on the host | Start/stop host routing | Per-process proxy use | Separate live OS; optional persistence |
-| Strongest fit | Configurable Linux privacy sessions and integrations | Parrot users | Script-based Tor routing workflows | Selected dynamically linked TCP clients | A dedicated privacy desktop |
-| Essential limitation | Privileged runtime needs host validation | Depends on host and configuration | Does not turn arbitrary protocols into Tor TCP | Not a system-wide firewall; no arbitrary UDP | Requires its own boot environment |
+| **Scope** | Linux session | Parrot host | Linux host | Selected apps | Bootable OS |
+| **Core approach** | Netfilter + Tor | Parrot Tor tooling | Tor routing script | Socket preloading | Integrated Tor |
+| **Interface** | CLI + selectors | Distribution tools | CLI | Command prefix | Desktop |
+| **DNS path** | DNSSEC over Tor DoH | Project configuration | Tor redirection | Proxy DNS options | OS network policy |
+| **Session model** | Record & restore | Host anonymous mode | Start / stop | Per process | Live OS + optional persistence |
 
-**Reading the matrix:** these are documented design choices, not a benchmark or a claim that one project defeats all threats. “No equivalent asserted” means this comparison does not establish that capability; it is not a security defect. Tails is an operating system, so its scope is broader than a host utility. No speed, anonymity score or leak ranking has been invented.
+### Where each project fits
 
-Sources, reviewed **2026-09-11**: [AnonSurf upstream](https://github.com/ParrotSec/anonsurf), [TorGhost upstream](https://github.com/SusmithKrishnan/torghost), [Proxychains-NG README](https://github.com/rofl0r/proxychains-ng#readme), [How Tails works](https://tails.net/about/index.en.html). Wraith entries refer to the source in this repository.
+| Project | A good fit when you want… | Consider before choosing |
+| :--- | :--- | :--- |
+| **[Wraith](#installation)** | A configurable Rust toolkit on your existing Linux host, with DNSSEC, profiled HTTPS requests and recorded recovery. | Privileged controls depend on the host; live Linux integration is still unverified. |
+| **[AnonSurf](https://github.com/ParrotSec/anonsurf)** | Anonymous-mode tooling integrated with the Parrot ecosystem. | Behavior depends on the distribution and its configuration. |
+| **[TorGhost](https://github.com/SusmithKrishnan/torghost)** | A script-driven start/stop workflow for Tor and DNS redirection. | Tor does not transport arbitrary protocols as TCP. |
+| **[Proxychains-NG](https://github.com/rofl0r/proxychains-ng)** | To send selected compatible, dynamically linked TCP programs through configured proxies. | Application compatibility matters; it is not a system-wide firewall. |
+| **[Tails](https://tails.net/about/index.en.html)** | A separate privacy desktop with integrated Tor networking and its own persistence model. | It requires its own boot environment. |
 
-### Wraith capability matrix
+<details>
+<summary><b>Comparison notes &amp; upstream sources</b></summary>
+
+This matrix compares documented architecture and workflow, not measured anonymity or speed. A capability omitted from a cell is not an assertion that a project lacks it. Wraith's browser TLS profiles apply to its own HTTPS client and DoH; CONNECT tunnels preserve the application's TLS stream. Tails has the broader scope of an operating system.
+
+Sources reviewed **2026-09-11**: [AnonSurf](https://github.com/ParrotSec/anonsurf), [TorGhost](https://github.com/SusmithKrishnan/torghost), [Proxychains-NG README](https://github.com/rofl0r/proxychains-ng#readme), [How Tails works](https://tails.net/about/index.en.html). Wraith entries refer to this repository's implementation and [validation results](#validation).
+
+</details>
+
+### Inside Wraith
+
+<details>
+<summary><b>Implementation details &amp; practical boundaries</b></summary>
 
 | Capability | Implementation | Boundary |
 | :--- | :--- | :--- |
@@ -207,6 +242,10 @@ Sources, reviewed **2026-09-11**: [AnonSurf upstream](https://github.com/ParrotS
 | Optional netem | Owned qdisc and guarded cleanup | No demonstrated traffic-correlation resistance |
 | Recovery | Pre-mutation journals and retryable cleanup | Unrelated privileged writers are not coordinated |
 
+</details>
+
+<p align="center"><a href="#installation"><b>Get started →</b></a> · <a href="#browser-tls">Explore TLS profiles</a></p>
+
 ---
 
 <a id="crate-topology"></a>
@@ -215,8 +254,8 @@ Sources, reviewed **2026-09-11**: [AnonSurf upstream](https://github.com/ParrotS
 
 Wraith is cleanly architected into 6 Rust crates with separate responsibilities:
 
-<details open>
-<summary><b>📁 Click to Expand / Collapse Complete 6-Crate Directory Structure</b></summary>
+<details>
+<summary><b>Explore the six-crate source tree</b></summary>
 
 ```
 wraith/
@@ -852,6 +891,20 @@ Do not use the project for unauthorized access, disruption, credential theft, un
 **License and warranty.** Distribution and modification rights are governed by [GNU GPL v3.0](LICENSE). Its warranty and liability provisions, including sections 15–17, apply as stated and to the extent permitted by applicable law. This responsible-use guidance does not add restrictions to the GPL license.
 
 ---
+
+<details>
+<summary><b>Wraith terminal wordmark</b></summary>
+
+```ascii
+ ██╗    ██╗██████╗  █████╗ ██╗████████╗██╗  ██╗   ██████╗ ██████╗ ██╗███╗   ███╗███████╗
+ ██║    ██║██╔══██╗██╔══██╗██║╚══██╔══╝██║  ██║   ██╔══██╗██╔══██╗██║████╗ ████║██╔════╝
+ ██║ █╗ ██║██████╔╝███████║██║   ██║   ███████║   ██████╔╝██████╔╝██║██╔████╔██║█████╗
+ ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║   ██╔═══╝ ██╔══██╗██║██║╚██╔╝██║██╔══╝
+ ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║   ██║     ██║  ██║██║██║ ╚═╝ ██║███████╗
+  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝
+```
+
+</details>
 
 ## 📜 License
 
