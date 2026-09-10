@@ -12,6 +12,8 @@ use wraith_core::config::{IP_CHECK_APIS, REQUEST_TIMEOUT_SECS, TOR_CHECK_API};
 pub struct LeakReport {
     pub ip_address: Option<String>,
     pub is_tor: bool,
+    #[serde(default)]
+    pub dns_checked: bool,
     pub dns_leak: bool,
     pub ipv6_leak: bool,
     pub webrtc_leak: bool,
@@ -188,11 +190,14 @@ pub async fn run_full_leak_test() -> LeakReport {
 
     let (is_tor, tor_ip) = verify_tor_connection().await;
     report.is_tor = is_tor;
-    report.ip_address = tor_ip.or(get_current_ip().await);
+    report.ip_address = match tor_ip { Some(ip) => Some(ip), None => get_current_ip().await };
 
     report.ipv6_leak = check_ipv6_leak();
-    report.dns_leak = check_dns_leak();
-
-    report.secure = report.is_tor && !report.ipv6_leak && !report.dns_leak;
+    // Redirected DNS responses cannot establish whether egress was direct.
+    report.dns_checked = false;
+    report.errors.push("DNS egress path is inconclusive; resolver responses alone do not establish the route.".into());
+    report.errors.push("WebRTC was not tested. Failed IPv6 probes do not prove firewall enforcement.".into());
+    if !report.is_tor { report.errors.push("Tor exit could not be verified.".into()); }
+    report.secure = report.is_tor && report.dns_checked && !report.ipv6_leak && !report.dns_leak;
     report
 }

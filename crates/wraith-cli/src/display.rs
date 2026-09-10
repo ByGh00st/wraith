@@ -449,14 +449,16 @@ pub fn show_leak_report(report: &LeakReport) {
         Cell::new("✖ FAIL").fg(Color::Red).add_attribute(Attribute::Bold)
     };
 
-    let dns_status = if !report.dns_leak {
+    let dns_status = if !report.dns_checked {
+        Cell::new("INCONCLUSIVE").fg(Color::Yellow)
+    } else if !report.dns_leak {
         Cell::new("✔ NO LEAK").fg(Color::Green).add_attribute(Attribute::Bold)
     } else {
         Cell::new("✖ LEAK DETECTED").fg(Color::Red).add_attribute(Attribute::Bold)
     };
 
     let ipv6_status = if !report.ipv6_leak {
-        Cell::new("✔ FULL DROP").fg(Color::Green).add_attribute(Attribute::Bold)
+        Cell::new("✔ NO CONNECTION OBSERVED").fg(Color::Green).add_attribute(Attribute::Bold)
     } else {
         Cell::new("✖ LEAK DETECTED").fg(Color::Red).add_attribute(Attribute::Bold)
     };
@@ -464,16 +466,17 @@ pub fn show_leak_report(report: &LeakReport) {
     let overall = if report.secure {
         Cell::new("✔ NO LEAKS DETECTED (this test)").fg(Color::Green).add_attribute(Attribute::Bold)
     } else {
-        Cell::new("✖ VULNERABLE").fg(Color::Red).add_attribute(Attribute::Bold)
+        Cell::new("✖ NOT VERIFIED").fg(Color::Red).add_attribute(Attribute::Bold)
     };
 
     table.add_row(vec![Cell::new("Public Exit IP"), Cell::new(ip_val).fg(Color::White), Cell::new("Tor Network Exit Relay")]);
-    table.add_row(vec![Cell::new("Tor Transparent Proxy"), tor_status, Cell::new("All TCP egress routed through TransPort 9040")]);
+    table.add_row(vec![Cell::new("Tor Transparent Proxy"), tor_status, Cell::new("Tor exit API result for this request")]);
     table.add_row(vec![Cell::new("DNS Leak Protection"), dns_status, Cell::new("DNS relay: 5354; Tor upstream: 5353")]);
-    table.add_row(vec![Cell::new("IPv6 Dual-Stack Leak"), ipv6_status, Cell::new("Kernel netfilter unconditional drop")]);
+    table.add_row(vec![Cell::new("IPv6 Dual-Stack Leak"), ipv6_status, Cell::new("TCP probes to two IPv6 resolvers")]);
     table.add_row(vec![Cell::new("Overall Defense Grade"), overall, Cell::new("Operational Security & Forensic Assessment")]);
 
     println!("{table}\n");
+    for detail in &report.errors { println!("  {detail}"); }
 }
 
 pub fn show_circuit_telemetry(telemetry: &TorTelemetry) {

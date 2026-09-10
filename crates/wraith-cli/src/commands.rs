@@ -1003,8 +1003,10 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
     if state_info.traffic_shaper_active {
         if let Ok(mut shaper) = TrafficShaper::new(stop_target_iface) {
-            let _ = shaper.restore();
-            print_step(&t!("commands.cmd_step_64"), "ok");
+            match shaper.restore() {
+                Ok(()) => print_step(&t!("commands.cmd_step_64"), "ok"),
+                Err(e) => print_step(&format!("Traffic shaper cleanup failed: {e}"), "warn"),
+            }
         }
     }
 
