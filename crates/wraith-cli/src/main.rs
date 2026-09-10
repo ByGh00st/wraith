@@ -86,7 +86,7 @@ pub struct StartArgs {
     )]
     pub profile: Option<String>,
 
-    /// Inject synthetic traffic cells & Poisson timing jitter to resist traffic flow correlation
+    /// Run experimental local SOCKS timing probes (not end-to-end cover traffic)
     #[arg(long = "jitter", help_heading = "Network Isolation")]
     pub jitter: bool,
 
@@ -117,7 +117,7 @@ pub struct StartArgs {
     )]
     pub onion_service: Option<String>,
 
-    /// Enforce Linux TC/Netem kernel traffic shaping & jitter distribution (anti-flow correlation)
+    /// Apply optional Linux TC/Netem delay, jitter, loss and rate settings
     #[arg(
         long = "shaper",
         visible_aliases = ["traffic-shaper", "netem", "tc-shaper"],
@@ -773,6 +773,15 @@ pub async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn updater_supports_github_and_requires_complete_offline_inputs() {
+        assert!(Cli::try_parse_from(["wraith", "-u"]).unwrap().update);
+        assert!(matches!(Cli::try_parse_from(["wraith", "update"]).unwrap().command,
+            Some(Commands::Update { artifact: None, manifest: None, signature: None })));
+        assert!(Cli::try_parse_from(["wraith", "update", "--artifact", "binary"]).is_err());
+        assert!(Cli::try_parse_from(["wraith", "update", "--artifact", "binary", "--manifest", "release.json", "--signature", "release.minisig"]).is_ok());
+    }
     use clap::Parser;
 
     #[test]

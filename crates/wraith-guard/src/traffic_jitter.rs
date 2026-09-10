@@ -1,5 +1,5 @@
-//! Wraith Traffic Padding & Timing Jitter Obfuscation Engine
-//! Injects randomized micro-dummy traffic cells and interval jitter to defeat ISP/DPI flow correlation attacks.
+//! Experimental local SOCKS timing probes. These do not establish Tor streams
+//! or provide end-to-end cover traffic or demonstrated correlation resistance.
 
 use rand::Rng;
 use std::time::Duration;
@@ -27,17 +27,17 @@ impl TrafficJitterEngine {
 
     pub fn spawn_obfuscator(self) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            info!("Traffic Padding & Anti-Correlation Jitter generator active");
+            info!("Experimental local SOCKS timing probes active");
 
             while !self.cancel_token.is_cancelled() {
-                // Random sleep interval between 200ms and 1400ms (disrupts regular burst signatures)
+                // Random local probe interval between 200ms and 1400ms.
                 let delay_ms = {
                     let mut rng = rand::thread_rng();
                     rng.gen_range(200..1400)
                 };
                 sleep(Duration::from_millis(delay_ms)).await;
 
-                // Send micro dummy SOCKS5 handshake probe to generate synthetic cell activity
+                // A SOCKS greeting alone does not request a Tor exit stream.
                 if let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{TOR_SOCKS_PORT}")).await {
                     let dummy_probe = [0x05, 0x01, 0x00];
                     let _ = stream.write_all(&dummy_probe).await;

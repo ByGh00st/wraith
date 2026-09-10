@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/TARGET-x86__64--unknown--linux--gnu-ff3366?style=for-the-badge&logo=linux&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/SECURITY-ACTIVE_HARDENING-00ff88?style=for-the-badge&logo=matrix&logoColor=white" alt="Standard">
   <img src="https://img.shields.io/badge/LOCALIZATION-17_NATIVE_LOCALES-ffaa00?style=for-the-badge&logo=google-translate&logoColor=white" alt="Locales">
-  <img src="https://img.shields.io/badge/TEST_SUITE-84%2F84_PORTABLE_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/TEST_SUITE-85%2F85_PORTABLE_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
 </p>
 
 ```ascii
@@ -17,16 +17,40 @@
   ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝
 ```
 
-<h3 align="center">Linux Network Privacy, Tor Routing & Host Hardening</h3>
+<h1 align="center">Wraith — Linux Tor Proxy & Network Privacy</h1>
 <p align="center">
   <b>6 Modular Rust Crates • 17 Native Locales • 1,338 Signature Entries • Linux Network Privacy</b><br>
-  <i>Tor TCP Routing • Local DNSSEC Validation • HTTP Header Normalization • Saved-State Recovery • Optional WireGuard</i>
+  <i>A Rust CLI for Tor routing, DNSSEC over DoH, firewall kill switches and recoverable Linux privacy sessions.</i>
 </p>
+
+<p align="center">
+  <a href="https://github.com/ByGh00st/wraith/stargazers"><img src="https://img.shields.io/github/stars/ByGh00st/wraith?style=flat-square&color=a78bfa" alt="GitHub stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-38bdf8?style=flat-square" alt="GPL-3.0 license"></a>
+  <a href="https://github.com/ByGh00st/wraith/issues"><img src="https://img.shields.io/github/issues/ByGh00st/wraith?style=flat-square&color=fbbf24" alt="GitHub issues"></a>
+</p>
+
+**Route supported TCP through Tor. Validate DNS locally. Keep control of your host settings.**
+
+Wraith combines a terminal interface with Linux netfilter, Tor SOCKS/transparent proxying, a DNSSEC-validating DNS-over-HTTPS relay and optional Tor-over-WireGuard. Start a session, select the controls you need, inspect circuit telemetry, then restore the recorded configuration.
+
+| 🌐 Route | 🔒 Resolve | 🛡️ Control | 💻 Operate |
+| :--- | :--- | :--- | :--- |
+| Tor TCP + optional WireGuard | Local DNSSEC over Tor DoH | Strict egress policy + watchdog | CLI + 17-language terminal UI |
+| [Network architecture](#core-architecture) | [DNS pipeline](#dns-over-https) | [Full-security preset](#full-security) | [Command reference](#cli-reference) |
+
+```bash
+sudo wraith -s                  # Start a foreground privacy session
+sudo wraith -i                  # Inspect status and Tor circuits
+sudo wraith -x                  # Stop and restore saved settings
+sudo wraith -u                  # Update from official GitHub
+```
+
+New installation? Start with [Linux requirements and installation](#installation). For `-Fs`, review the [strict host prerequisites](#full-security).
 
 ---
 
 <p align="center">
-  <a href="#installation">Install</a> · <a href="#cli-reference">Commands</a> · <a href="#full-security">Full Security</a> · <a href="#updates">Update</a> · <a href="#privacy-matrix">Compare</a> · <a href="#codebase-metrics">Tokei</a> · <a href="SECURITY_AUDIT.md">Security Review</a>
+  <a href="#installation">Install</a> · <a href="#cli-reference">Commands</a> · <a href="#full-security">Full Security</a> · <a href="#updates">Update</a> · <a href="#privacy-matrix">Compare</a> · <a href="#codebase-metrics">Tokei</a> · <a href="#validation">Development</a>
 </p>
 
 ## 📋 Table of Contents
@@ -77,7 +101,7 @@ Start a foreground session, inspect its status, and stop it to restore recorded 
 | 🧠 Host | Reversible sysctl/configuration snapshots, memory controls and strict prerequisites |
 | 💻 Operations | Interface selection, 17-language TUI, circuit telemetry and official GitHub updates |
 
-**Development status:** portable regressions are tested; live Linux network integration remains unverified. The [security review](SECURITY_AUDIT.md) records the scope. Neither the preset nor header normalization guarantees anonymity or exemption from destination blocklists.
+**Validation scope:** portable regressions and Linux cross-compilation are checked. Live Linux network integration remains unverified; see [development and validation](#validation) for the measured results.
 
 ---
 
@@ -99,14 +123,14 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
  Shell                   3          644          519           57           68
- TOML                    8          220          203            0           17
+ TOML                    8          221          204            0           17
  YAML                  342        10530        10513            0           17
 -------------------------------------------------------------------------------
- Rust                   65        17120        14715          556         1849
+ Rust                   65        17128        14722          556         1850
  |- Markdown            59          379            0          378            1
- (Total)                          17499        14715          934         1850
+ (Total)                          17507        14722          934         1851
 ===============================================================================
- Total                 418        28514        25950          613         1951
+ Total                 418        28523        25958          613         1952
 ===============================================================================
 ```
 
@@ -653,7 +677,7 @@ The panic handler restores terminal presentation while preserving restrictive po
 4. Retain state and report failures when cleanup is incomplete.
 5. Restore saved firewall settings and release state after successful cleanup.
 
-Use `sudo wraith -x` to retry recovery. See the [audit](SECURITY_AUDIT.md) for Linux integration scenarios.
+Use `sudo wraith -x` to retry recovery. The troubleshooting table below explains the main recovery conditions.
 
 <a id="full-security"></a>
 ## 🔧 Full-Security Setup & Recovery
@@ -712,7 +736,9 @@ sudo wraith -u
 sudo wraith update
 ```
 
-Wraith fetches official `ByGh00st/wraith` source over HTTPS, builds with `Cargo.lock` as the non-root sudo caller, and atomically installs `/usr/local/bin/wraith`. Git global/system configuration is suppressed and certificate verification stays enabled. Build failure preserves the installed executable. No manual key or manifest is needed.
+Wraith fetches the official `ByGh00st/wraith` **main** branch over HTTPS, builds with `Cargo.lock` as the non-root sudo caller, and atomically installs `/usr/local/bin/wraith`. Git global/system configuration is suppressed and certificate verification stays enabled. Build failure preserves the installed executable. No manual key or manifest is needed.
+
+Run the updater through `sudo` from the account that owns your Rust toolchain. It uses a unique build workspace under `/var/tmp`, one Cargo build job, an explicit Linux target and a fixed output directory. A user-level Cargo target-directory setting cannot redirect the expected artifact. Git, a current Rust toolchain, a C compiler and sufficient disk space must be available; a direct root shell without a non-root sudo caller is rejected.
 
 <details>
 <summary><b>🔐 Optional signed offline release installation</b></summary>
@@ -741,6 +767,8 @@ Publishers sign exact manifest bytes with `minisign -Sm release.json -s /secure/
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
+Latest local checks: **85 portable tests passed** and Linux-target Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
+
 ```bash
 cargo test --workspace --locked
 cargo check --workspace --tests --target x86_64-unknown-linux-gnu --locked
@@ -750,7 +778,7 @@ cargo audit --deny warnings
 
 Cross-compilation needs the Rust Linux target and a compatible C cross-compiler for ring. Portable regressions cover framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. They do not execute Linux firewall/kernel-hardening commands.
 
-Measured results and dependency advisories are recorded in [SECURITY_AUDIT.md](SECURITY_AUDIT.md). Report failures with the command, distribution, interface and sanitized logs; omit passwords, private keys and tokens.
+Report failures with the command, distribution, interface and sanitized logs; omit passwords, private keys and tokens. Include the expected behavior and the exact failing step so an issue can be reproduced.
 
 <p align="right"><a href="#top">⬆ Back to Top</a></p>
 
@@ -767,4 +795,4 @@ Use Wraith only on systems and networks you are authorized to administer. Explic
 
 Distributed under **GNU GPL v3.0**. See [LICENSE](LICENSE).
 
-<p align="center"><a href="#top">⬆ Back to Top</a> · <a href="https://github.com/ByGh00st/wraith/issues">Report an Issue</a> · <a href="SECURITY_AUDIT.md">Security Review</a></p>
+<p align="center"><a href="#top">⬆ Back to Top</a> · <a href="https://github.com/ByGh00st/wraith/issues">Report an Issue</a> · <a href="https://github.com/ByGh00st/wraith/stargazers">Star Wraith</a></p>

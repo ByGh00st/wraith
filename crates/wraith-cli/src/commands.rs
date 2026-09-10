@@ -390,7 +390,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     }
     state_mgr.activate(state_data.clone())?;
 
-    // 4. JA3/JA4 TLS ClientHello Camouflage & In-Flight HTTP DPI Sanitizer Proxy
+    // 4. Initial cleartext HTTP header normalization and HTTPS CONNECT relay.
     {
         let (server, ct) = TlsCamouflageServer::new(None);
         let handle = server.spawn_server().await?;
@@ -718,12 +718,11 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         print_step(&format!("{}", t!("commands.cmd_warn_tor_pending", ip = &geo.ip)), "warn");
     }
 
-    // 18. Background Traffic Padding & Anti-Correlation Jitter
-    if args.jitter || is_strict {
-        print_step(&t!("commands.cmd_step_84"), "info");
+    // Experimental local probes are opt-in, not a strict-mode protection layer.
+    if args.jitter {
+        print_step("Experimental local SOCKS probes; no end-to-end cover traffic", "warn");
         let (je, ct) = TrafficJitterEngine::new();
         let handle = je.spawn_obfuscator();
-        print_step(&t!("commands.cmd_step_85"), "ok");
         bg_services.jitter = Some((ct, handle));
     }
 
@@ -1124,12 +1123,11 @@ async fn cmd_update_from_github() -> Result<()> {
                 "Run update through sudo from a non-root build account; root Cargo builds are refused".into()))?;
         let user = User::from_uid(Uid::from_raw(uid)).map_err(|e| WraithError::Custom(e.to_string()))?
             .ok_or_else(|| WraithError::Configuration("Build account does not exist".into()))?;
-        let root = Path::new("/var/tmp");
-        let build_dir = root.join(format!("wraith-build-{}", std::process::id()));
-        fs::create_dir(&build_dir)?;
+        let workspace = tempfile::Builder::new().prefix("wraith-build-").tempdir_in("/var/tmp")?;
+        let build_dir = workspace.path();
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&build_dir, fs::Permissions::from_mode(0o700))?;
-        nix::unistd::chown(&build_dir, Some(user.uid), Some(user.gid))
+        fs::set_permissions(build_dir, fs::Permissions::from_mode(0o700))?;
+        nix::unistd::chown(build_dir, Some(user.uid), Some(user.gid))
             .map_err(|e| WraithError::Custom(e.to_string()))?;
         let configure = |command: &mut Command| {
             command.env_clear().env("HOME", &user.dir)
@@ -1149,12 +1147,13 @@ async fn cmd_update_from_github() -> Result<()> {
         };
         let result = (|| -> Result<()> {
             let mut clone = Command::new("/usr/bin/git");
-            clone.args(["-c", "http.sslVerify=true", "-c", "http.followRedirects=false", "-c", "protocol.file.allow=never", "clone", "--depth", "1", "https://github.com/ByGh00st/wraith.git"]).arg(&build_dir);
+            clone.args(["-c", "http.sslVerify=true", "-c", "http.followRedirects=false", "-c", "protocol.file.allow=never", "clone", "--depth", "1", "--branch", "main", "--single-branch", "https://github.com/ByGh00st/wraith.git"]).arg(build_dir);
             configure(&mut clone);
             if !clone.status()?.success() { return Err(WraithError::Command("Git clone failed".into())); }
             let cargo = user.dir.join(".cargo/bin/cargo");
             let mut build = Command::new(if cargo.exists() { cargo } else { "/usr/bin/cargo".into() });
-            build.args(["build", "--release", "--locked", "--bin", "wraith", "--jobs", "1"]).current_dir(&build_dir);
+            build.args(["build", "--release", "--locked", "--bin", "wraith", "--jobs", "1", "--target", "x86_64-unknown-linux-gnu", "--target-dir"])
+                .arg(build_dir.join("target")).current_dir(build_dir);
             configure(&mut build);
             if !build.status()?.success() { return Err(WraithError::Command("Cargo build failed".into())); }
             let destination = Path::new("/usr/local/bin/wraith");
@@ -1164,7 +1163,7 @@ async fn cmd_update_from_github() -> Result<()> {
             if !meta.is_dir() || meta.uid() != 0 || meta.mode() & 0o022 != 0 {
                 return Err(WraithError::Configuration("Unsafe binary installation directory".into()));
             }
-            let bytes = read_update_file(&build_dir.join("target/release/wraith"), 128 * 1024 * 1024)?;
+            let bytes = read_update_file(&build_dir.join("target/x86_64-unknown-linux-gnu/release/wraith"), 128 * 1024 * 1024)?;
             if !bytes.starts_with(b"\x7fELF") { return Err(WraithError::Configuration("Build artifact is not ELF".into())); }
             wraith_core::deployment::install_binary(&bytes, destination)?;
             print_success("Updated /usr/local/bin/wraith from the official GitHub repository.");
@@ -1172,7 +1171,7 @@ async fn cmd_update_from_github() -> Result<()> {
         })();
         // Remove only the fixed, exclusively created workspace. Never use a shell
         // or follow paths supplied by build output for privileged cleanup.
-        if let Err(e) = fs::remove_dir_all(&build_dir) { tracing::warn!("Build directory cleanup failed: {e}"); }
+        if let Err(e) = workspace.close() { tracing::warn!("Build directory cleanup failed: {e}"); }
         result
     }
 }
@@ -1295,8 +1294,8 @@ pub fn cmd_pentest() -> Result<()> {
     print_banner(false);
     let p_rows1 = vec![
         "SOCKS5 PROXY      : 127.0.0.1:9050 (Tor Native SOCKS5 Transport)".to_string(),
-        "HTTP CAMOUFLAGE   : 127.0.0.1:9055 (JA3/JA4 Chrome v130+ Spoofing Proxy)".to_string(),
-        "DNS SINKHOLE GATE : 127.0.0.1:5353 (Tor TransProxy DNS Resolver)".to_string(),
+        "HTTP RELAY       : 127.0.0.1:9055 (Cleartext headers / HTTPS CONNECT)".to_string(),
+        "DNS RELAY        : 127.0.0.1:5354 (UDP/TCP, local DNSSEC over Tor DoH)".to_string(),
     ];
     let p_box1 = render_box("🛡️ WRAITH-PRIME // AUTHORIZED SECURITY AUDITING & PENTEST SANITIZATION", &p_rows1, BoxCorner::Rounded, 78);
     println!("{}", p_box1[0].bright_yellow());
@@ -1310,7 +1309,7 @@ pub fn cmd_pentest() -> Result<()> {
         "[NMAP AUTHORIZED TCP SYN AUDIT OVER SOCKS5]:".to_string(),
         "  nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>".to_string(),
         "".to_string(),
-        "[CURL / WEB FUZZING WITH JA4 TLS NORMALIZATION]:".to_string(),
+        "[CURL THROUGH THE HTTP CONNECT RELAY]:".to_string(),
         "  curl -x http://127.0.0.1:9055 https://target.com/login".to_string(),
         "       -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64)\"".to_string(),
         "".to_string(),
@@ -1518,7 +1517,7 @@ pub async fn cmd_monitor() -> Result<()> {
                             d.subsec_millis()
                         );
                         println!("\r  ┌── [ ⚠️ WEBRTC STUN LEAK INTERCEPTED // {} ] ─────────────────────────", time_str.bold().red());
-                        println!("\r  │  🛑 Action: Neutralized at Netfilter Ring-0 Boundary (<1ms drop)");
+                        println!("\r  │  Observation: STUN packet detected; this monitor cannot confirm a firewall drop");
                         println!("\r  └─────────────────────────────────────────────────────────────────────────────\r\n");
                     }
                 }
