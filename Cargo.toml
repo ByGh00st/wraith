@@ -47,3 +47,11 @@ md-5 = "0.10"
 unicode-width = "0.2"
 toml = "0.8"
 
+[profile.release]
+opt-level = 2
+codegen-units = 1
+lto = "off"
+panic = "abort"
+strip = true
+debug = false
+

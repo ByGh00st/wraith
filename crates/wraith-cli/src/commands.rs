@@ -20,7 +20,7 @@ use wraith_guard::{
 use wraith_net::{
     apply_ipv6_block, apply_tor_rules, backup_and_apply_tcp_mask, block_stun_ports, change_mac,
     create_cgroup_jail, create_namespace, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
-    flush_rules, randomize_hostname, restore_mac, restore_tcp_stack, unblock_stun_ports,
+    flush_rules, randomize_hostname, restore_default_tcp_stack, restore_mac, unblock_stun_ports,
     EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
     TrafficShapingProfile,
 };
@@ -315,18 +315,17 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         let _ = state_mgr.activate(state_data.clone());
     }
 
-    // 3. TCP/IP Stack Normalization (p0f OS Fingerprint Evasion)
-    if args.tcp_mask || is_strict {
-        print_step(&t!("commands.cmd_step_74"), "info");
-        match backup_and_apply_tcp_mask() {
-            Ok(_backup_map) => {
-                print_step(&t!("commands.cmd_step_75"), "ok");
-                state_data.tcp_stack_masked = true;
-            }
-            Err(e) => print_step(&format!("TCP/IP stack normalization warning: {e}"), "warn"),
+    // 3. TCP/IP Stack Normalization (p0f OS Fingerprint Evasion & Anti-Clock Skew)
+    // Always enforce TCP timestamp eradication (TS=0) and L4 stack normalization
+    print_step(&t!("commands.cmd_step_74"), "info");
+    match backup_and_apply_tcp_mask() {
+        Ok(_backup_map) => {
+            print_step(&t!("commands.cmd_step_75"), "ok");
+            state_data.tcp_stack_masked = true;
         }
-        let _ = state_mgr.activate(state_data.clone());
+        Err(e) => print_step(&format!("TCP/IP stack normalization warning: {e}"), "warn"),
     }
+    let _ = state_mgr.activate(state_data.clone());
 
     // 4. JA3/JA4 TLS ClientHello Camouflage & In-Flight HTTP DPI Sanitizer Proxy
     {
@@ -1001,12 +1000,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         }
     }
 
-    // Unconditionally restore default Linux TCP stack (TTL=64, TS=1)
+    // Unconditionally restore default Linux TCP stack (TTL=64, TS=1, SACK, etc.)
     print_step(&t!("commands.cmd_step_33"), "info");
-    let mut default_map = std::collections::HashMap::new();
-    default_map.insert("net.ipv4.ip_default_ttl".to_string(), "64".to_string());
-    default_map.insert("net.ipv4.tcp_timestamps".to_string(), "1".to_string());
-    let _ = restore_tcp_stack(&default_map);
+    let _ = restore_default_tcp_stack();
     print_step(&t!("commands.cmd_step_34"), "ok");
 
     if state_info.namespace_active {
@@ -1239,9 +1235,42 @@ pub async fn cmd_update() -> Result<()> {
         "info",
     );
 
+    // Detect available RAM & swap to prevent Linux OOM Killer (signal: 9) on VMs
+    let (is_low_ram, needs_swap) = if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
+        let total_kb = meminfo
+            .lines()
+            .find(|l| l.starts_with("MemTotal:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(8_000_000);
+        let swap_kb = meminfo
+            .lines()
+            .find(|l| l.starts_with("SwapTotal:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(2_000_000);
+        (total_kb < 3_500_000, swap_kb < 500_000 && total_kb < 3_500_000)
+    } else {
+        (false, false)
+    };
+
+    let mut created_swap = false;
+    if needs_swap {
+        print_step("Low RAM VM detected with zero swap; provisioning ephemeral build swap", "warn");
+        let swap_cmd = "fallocate -l 1536M /var/tmp/wraith_build_swap 2>/dev/null || dd if=/dev/zero of=/var/tmp/wraith_build_swap bs=1M count=1536 2>/dev/null; chmod 600 /var/tmp/wraith_build_swap && mkswap /var/tmp/wraith_build_swap 2>/dev/null && swapon /var/tmp/wraith_build_swap 2>/dev/null";
+        if let Ok(s) = Command::new("sh").args(["-c", swap_cmd]).status() {
+            created_swap = s.success();
+        }
+    }
+
     let mut cmd = Command::new(&cargo_bin);
     cmd.args(["build", "--release", "--bin", "wraith"])
         .current_dir(&temp_build_dir);
+
+    if is_low_ram {
+        cmd.args(["--jobs", "1"]);
+        cmd.env("RUSTFLAGS", "-C codegen-units=1 -C opt-level=2");
+    }
 
     if let Some(cargo_home) = determine_cargo_home() {
         cmd.env("CARGO_HOME", cargo_home);
@@ -1252,6 +1281,12 @@ pub async fn cmd_update() -> Result<()> {
     }
 
     let build_status = cmd.status();
+
+    if created_swap {
+        let _ = Command::new("sh")
+            .args(["-c", "swapoff /var/tmp/wraith_build_swap 2>/dev/null; rm -f /var/tmp/wraith_build_swap 2>/dev/null"])
+            .status();
+    }
 
     match build_status {
         Ok(s) if s.success() => {

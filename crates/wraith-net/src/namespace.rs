@@ -78,6 +78,11 @@ pub fn create_namespace() -> Result<()> {
     let _ = run_cmd("iptables", &["-A", "FORWARD", "-d", &format!("{NS_SUBNET}.0/24"), "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"]);
     let _ = run_cmd("sysctl", &["-w", "net.ipv4.ip_forward=1"]);
 
+    // 9. Normalize TCP/IP stack inside network namespace (Eradicate TCP timestamps & align TTL)
+    for (key, val) in crate::tcp_stack::TARGET_SYSCTL_SETTINGS {
+        let _ = run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "sysctl", "-w", &format!("{key}={val}")]);
+    }
+
     info!("Network namespace {} successfully isolated and linked to Tor", NAMESPACE_NAME);
     Ok(())
 }

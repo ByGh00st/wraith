@@ -28,6 +28,8 @@ impl DiagnosticsRunner {
         vec![
             // 1. Kernel Parameter Checks
             Self::check_ipv6_disabled(),
+            Self::check_tcp_timestamps(),
+            Self::check_ip_default_ttl(),
             Self::check_reverse_path_filter(),
             Self::check_memory_compaction(),
             Self::check_kptr_restrict(),
@@ -56,12 +58,54 @@ impl DiagnosticsRunner {
                 (false, format!("IPv6 enabled (disable_ipv6={}) - CRITICAL LEAK VECTOR", val.trim()))
             }
         } else {
-            (true, "IPv6 kernel stack absent (Sovereign Safe)".into())
+            (true, "IPv6 kernel stack absent (Safe)".into())
         };
 
         DiagnosticCheck {
             category: "KERNEL",
             name: "IPv6 Stack Lockdown",
+            passed,
+            latency_ms: None,
+            detail,
+        }
+    }
+
+    fn check_tcp_timestamps() -> DiagnosticCheck {
+        let p = "/proc/sys/net/ipv4/tcp_timestamps";
+        let (passed, detail) = if let Ok(val) = fs::read_to_string(p) {
+            if val.trim() == "0" {
+                (true, "TCP Timestamps disabled (RFC 7323) - Uptime & Clock Skew Leakage Blocked (TS=0)".into())
+            } else {
+                (false, format!("TCP Timestamps enabled (TS={}) - UPTIME & CLOCK SKEW CORRELATION RISK", val.trim()))
+            }
+        } else {
+            (true, "TCP procfs parameter absent (Safe)".into())
+        };
+
+        DiagnosticCheck {
+            category: "KERNEL",
+            name: "TCP Timestamp Evasion (RFC 7323)",
+            passed,
+            latency_ms: None,
+            detail,
+        }
+    }
+
+    fn check_ip_default_ttl() -> DiagnosticCheck {
+        let p = "/proc/sys/net/ipv4/ip_default_ttl";
+        let (passed, detail) = if let Ok(val) = fs::read_to_string(p) {
+            if val.trim() == "128" {
+                (true, "Normalized TTL armed (ip_default_ttl=128 - Windows generic profile)".into())
+            } else {
+                (false, format!("Default Linux TTL active (ip_default_ttl={}) - OS Fingerprintable", val.trim()))
+            }
+        } else {
+            (true, "TTL procfs parameter absent (Safe)".into())
+        };
+
+        DiagnosticCheck {
+            category: "KERNEL",
+            name: "L4 TTL Stack Normalization",
             passed,
             latency_ms: None,
             detail,
@@ -263,7 +307,7 @@ impl DiagnosticsRunner {
         println!("\n{}", table);
 
         if all_ok {
-            println!("\n  {} {}", "✔".bright_green().bold(), "ALL SOVEREIGN SUBSYSTEMS ARMED & SECURE".bright_green().bold());
+            println!("\n  {} {}", "✔".bright_green().bold(), "ALL HARDENED SUBSYSTEMS ARMED & SECURE".bright_green().bold());
         } else {
             println!("\n  {} {}", "✖".bright_red().bold(), "ANOMALIES DETECTED — REVIEW TELEMETRY ROWS ABOVE".bright_red().bold());
         }
