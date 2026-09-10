@@ -41,12 +41,6 @@ pub fn select_interface_tui(interfaces: &[NetworkInterface]) -> Result<String> {
         ));
     }
 
-    if interfaces.len() == 1 {
-        let only = &interfaces[0].name;
-        eprintln!("{}", t!("commands.single_adapter_locked", iface = only));
-        return Ok(only.clone());
-    }
-
     let _guard = TerminalGuardStderr::new();
     let total = interfaces.len();
     let mut cursor: usize = 0;

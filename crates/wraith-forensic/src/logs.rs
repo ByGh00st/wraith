@@ -19,15 +19,35 @@ pub fn clear_shell_histories() -> Result<usize> {
 
 pub fn clear_dns_and_arp_caches() -> Result<()> {
     // DNS Flushes
-    let _ = Command::new("systemd-resolve").arg("--flush-caches").status();
-    let _ = Command::new("resolvectl").arg("flush-caches").status();
-    let _ = Command::new("nscd").args(["-i", "hosts"]).status();
+    let _ = Command::new("systemd-resolve")
+        .arg("--flush-caches")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    let _ = Command::new("resolvectl")
+        .arg("flush-caches")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    let _ = Command::new("nscd")
+        .args(["-i", "hosts"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 
     // ARP neighbor table flush
-    let _ = Command::new("ip").args(["neigh", "flush", "all"]).status();
+    let _ = Command::new("ip")
+        .args(["neigh", "flush", "all"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 
     // Netfilter Connection Tracking flush
-    let _ = Command::new("conntrack").arg("-F").status();
+    let _ = Command::new("conntrack")
+        .arg("-F")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 
     info!("DNS, ARP neighbors, and Netfilter conntrack tables flushed");
     Ok(())

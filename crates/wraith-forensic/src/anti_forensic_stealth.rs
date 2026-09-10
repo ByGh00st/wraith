@@ -213,8 +213,16 @@ pub fn scrub_system_logs() -> Result<usize> {
 
     // Clear systemd journal directory if present
     if Path::new("/var/log/journal").exists() {
-        let _ = std::process::Command::new("journalctl").args(["--vacuum-time=1s"]).status();
-        let _ = std::process::Command::new("journalctl").args(["--rotate"]).status();
+        let _ = std::process::Command::new("journalctl")
+            .args(["--vacuum-time=1s"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        let _ = std::process::Command::new("journalctl")
+            .args(["--rotate"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
     }
 
     info!("System journal and forensic logs sanitized ({scrubbed} log sinks cleared)");

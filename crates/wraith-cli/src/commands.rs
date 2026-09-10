@@ -987,6 +987,8 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     if let Some(old_host) = &state_info.hostname_old {
         let _ = std::process::Command::new("hostname")
             .arg(old_host)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .status();
         print_step(&t!("commands.cmd_step_30"), "ok");
     }

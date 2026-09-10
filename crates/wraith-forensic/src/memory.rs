@@ -3,10 +3,10 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
-use tracing::{info, warn};
+use tracing::{debug, info};
 use wraith_core::error::Result;
 
 pub fn clear_memory_caches() -> Result<()> {
@@ -51,11 +51,17 @@ pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
                 info!("Securing and wiping swap space: {device} (size: {size_mb}MB, used: {used_bytes}B, emergency: {is_emergency})");
 
                 let wipe_fn = move || {
-                    let _ = Command::new("swapoff").arg(&device).status();
+                    let _ = Command::new("swapoff")
+                        .arg(&device)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status();
 
                     // 1. Attempt hardware TRIM / blkdiscard if block device
                     let discard_success = Command::new("blkdiscard")
                         .arg(&device)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
                         .status()
                         .map(|s| s.success())
                         .unwrap_or(false);
@@ -65,11 +71,21 @@ pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
                         let wipe_count = if is_emergency { used_mb.min(256) } else { size_mb };
                         let _ = Command::new("dd")
                             .args(["if=/dev/zero", &format!("of={device}"), "bs=1M", &format!("count={wipe_count}"), "status=none"])
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
                             .status();
                     }
 
-                    let _ = Command::new("mkswap").arg(&device).status();
-                    let _ = Command::new("swapon").arg(&device).status();
+                    let _ = Command::new("mkswap")
+                        .arg(&device)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status();
+                    let _ = Command::new("swapon")
+                        .arg(&device)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status();
                 };
 
                 if is_emergency {
@@ -80,7 +96,7 @@ pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
                     });
 
                     if rx.recv_timeout(Duration::from_secs(5)).is_err() {
-                        warn!("Swap wipe timeout exceeded (5s emergency limit) — continuing emergency exit");
+                        debug!("Swap wipe timeout exceeded (5s emergency limit) — continuing emergency exit");
                     }
                 } else {
                     wipe_fn();

@@ -190,8 +190,8 @@ commands:
   cmd_warn_font_sandbox: 'Yazı tipi kum havuzu uyarısı: {}'
   cmd_warn_virtual_display: 'Sanal Ekran kum havuzu uyarısı: {}'
   cmd_warn_net_ns: 'Ağ isim alanı (namespace) uyarısı: {}'
-  cmd_step_tor_connected: 'Tor üzerinden bağlanıldı ➔ {}'
-  cmd_warn_tor_pending: 'Mevcut IP: {} (Tor doğrulaması bekleniyor)'
+  cmd_step_tor_connected: 'Tor üzerinden bağlanıldı ➔ %{geo}'
+  cmd_warn_tor_pending: 'Mevcut IP: %{ip} (Tor doğrulaması bekleniyor)'
   cmd_step_84: Trafik Dolgusu & Anti-Korelasyon Dalgalanma motoru başlatılıyor...
   cmd_step_85: Sentetik trafik dolgusu aktif (200-1400ms Poisson dalgalanması)
   cmd_warn_shaper_apply: 'Çekirdek Trafik Şekillendirici uygulama uyarısı: {}'
@@ -425,8 +425,8 @@ runtime:
   updated_success: Wraith başarıyla güncellendi ve yerinde yeniden devreye alındı!
   doh_locked: 'DoH Çözücü kilitlendi: {} [{}]'
   doh_locked_cli: 'CLI üzerinden DoH Çözücü kilitlendi: {} [{}]'
-  interface_locked: 'Hedef ağ adaptörü kilitlendi: {}'
-  interface_locked_cli: 'CLI üzerinden hedef ağ adaptörü kilitlendi: {}'
-  interface_fallback: 'Yedek ağ adaptörü seçildi: {}'
+  interface_locked: 'Hedef ağ adaptörü kilitlendi: %{selected}'
+  interface_locked_cli: 'CLI üzerinden hedef ağ adaptörü kilitlendi: %{iface}'
+  interface_fallback: 'Yedek ağ adaptörü seçildi: %{iface}'
   doh_engine_armed: 'RFC 8484 Şifreli DoH Motoru silahlandı -> {}'
 
