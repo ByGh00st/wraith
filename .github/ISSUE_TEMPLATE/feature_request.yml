@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose a focused improvement and explain its scope.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the workflow and who benefits.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe inputs, expected behavior and compatibility considerations.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and boundaries
+      description: Existing workarounds, affected privacy assumptions and how the feature could be validated.

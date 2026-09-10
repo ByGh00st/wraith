@@ -104,6 +104,7 @@ sudo wraith -x     # Stop and restore recorded settings
 - [⬆️ Official GitHub Updates](#updates)
 - [🧪 Development & Validation](#validation)
 - [⚖️ Legal & Operational Disclaimer](#legal-disclaimer)
+- [🤝 Project guides](#project-guides)
 - [📜 License](#-license)
 
 </details>
@@ -189,35 +190,74 @@ The watchdog preserves application egress restrictions when Tor becomes unhealth
 <a id="privacy-matrix"></a>
 ## 🛡️ Privacy & Security Comparison Matrix
 
-<p align="center"><b>Find the right scope for your workflow.</b><br>
-Host sessions, application proxying and a dedicated operating system solve different problems.</p>
+<p align="center">
+  <b>Different tools. Different boundaries. One detailed comparison.</b><br>
+  Compare routing, application privacy and everyday operation by documented capability.
+</p>
 
-### At a glance
+<p align="center">
+  <a href="#matrix-network">🌐 Network</a> · <a href="#matrix-privacy">🔐 Privacy</a> · <a href="#matrix-workflow">⌨️ Workflow</a> · <a href="#matrix-evidence">📚 Evidence</a>
+</p>
 
-| | **Wraith** | **AnonSurf** | **TorGhost** | **Proxychains-NG** | **Tails** |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Scope** | Linux session | Parrot host | Linux host | Selected apps | Bootable OS |
-| **Core approach** | Netfilter + Tor | Parrot Tor tooling | Tor routing script | Socket preloading | Integrated Tor |
-| **Interface** | CLI + selectors | Distribution tools | CLI | Command prefix | Desktop |
-| **DNS path** | DNSSEC over Tor DoH | Project configuration | Tor redirection | Proxy DNS options | OS network policy |
-| **Session model** | Record & restore | Host anonymous mode | Start / stop | Per process | Live OS + optional persistence |
+| ✅ Supported | ◐ Conditional / limited | ❌ Not provided in the compared scope | — Not established / not applicable |
+| :---: | :---: | :---: | :---: |
 
-### Where each project fits
+**Read the qualifiers:** a tick means an implemented or documented capability, not a security score. Optional controls still require configuration. Wraith's privileged paths have portable tests and Linux cross-compilation coverage; live Linux network integration remains unverified.
 
-| Project | A good fit when you want… | Consider before choosing |
-| :--- | :--- | :--- |
-| **[Wraith](#installation)** | A configurable Rust toolkit on your existing Linux host, with DNSSEC, profiled HTTPS requests and recorded recovery. | Privileged controls depend on the host; live Linux integration is still unverified. |
-| **[AnonSurf](https://github.com/ParrotSec/anonsurf)** | Anonymous-mode tooling integrated with the Parrot ecosystem. | Behavior depends on the distribution and its configuration. |
-| **[TorGhost](https://github.com/SusmithKrishnan/torghost)** | A script-driven start/stop workflow for Tor and DNS redirection. | Tor does not transport arbitrary protocols as TCP. |
-| **[Proxychains-NG](https://github.com/rofl0r/proxychains-ng)** | To send selected compatible, dynamically linked TCP programs through configured proxies. | Application compatibility matters; it is not a system-wide firewall. |
-| **[Tails](https://tails.net/about/index.en.html)** | A separate privacy desktop with integrated Tor networking and its own persistence model. | It requires its own boot environment. |
+<a id="matrix-network"></a>
+### 🌐 01 / Network & transport
 
-<details>
-<summary><b>Comparison notes &amp; upstream sources</b></summary>
+| Capability | 👻 **Wraith** | 🦜 **AnonSurf** | 👤 **TorGhost** | 🔗 **Proxychains-NG** | 💿 **Tails** |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Host-level Tor TCP routing** | ✅ Netfilter | ✅ Netfilter | ✅ Netfilter | ❌ Per-app hooks | ✅ OS policy |
+| **Application socket proxying** | ◐ Local Tor relay | — | — | ✅ SOCKS / HTTP chains | ◐ Tor applications |
+| **Non-Tor egress restrictions** | ✅ Strict policy | ◐ LAN exclusions | ◐ LAN exclusions | ❌ No host firewall | ✅ OS policy¹ |
+| **DNS sent through Tor** | ✅ DoH relay | ✅ Tor DNS | ✅ Tor DNS | ◐ Proxy DNS setup | ✅ Integrated |
+| **Local DNSSEC proof validation** | ✅ Hickory | — | ❌ Tor DNS only | ❌ No validator | — |
+| **TCP + UDP port-53 interception** | ✅ Both | ◐ UDP rule | ◐ UDP rule | ❌ No interception | — |
+| **Explicit host IPv6 restriction** | ✅ Session rules | ✅ Disable IPv6 | ❌ No IPv6 rule² | ❌ No host policy | — |
+| **General UDP transport through Tor** | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-This matrix compares documented architecture and workflow, not measured anonymity or speed. A capability omitted from a cell is not an assertion that a project lacks it. Wraith's browser TLS profiles apply to its own HTTPS client and DoH; CONNECT tunnels preserve the application's TLS stream. Tails has the broader scope of an operating system.
+<a id="matrix-privacy"></a>
+### 🔐 02 / Application privacy & recovery
 
-Sources reviewed **2026-09-11**: [AnonSurf](https://github.com/ParrotSec/anonsurf), [TorGhost](https://github.com/SusmithKrishnan/torghost), [Proxychains-NG README](https://github.com/rofl0r/proxychains-ng#readme), [How Tails works](https://tails.net/about/index.en.html). Wraith entries refer to this repository's implementation and [validation results](#validation).
+| Capability | 👻 **Wraith** | 🦜 **AnonSurf** | 👤 **TorGhost** | 🔗 **Proxychains-NG** | 💿 **Tails** |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Selectable Chrome / Firefox / Safari TLS client** | ✅ Owned requests³ | — | ❌ | ❌ App TLS | ◐ Tor Browser⁴ |
+| **Initial cleartext HTTP header normalization** | ◐ Local relay | — | ❌ | ❌ | — |
+| **Other apps' HTTPS ClientHello rewriting** | ❌ CONNECT passthrough | — | ❌ | ❌ | — |
+| **Saved firewall restoration** | ✅ Journaled tables | ✅ Saved rules | ❌ Flush/reset² | — No host policy | — Separate OS |
+| **Resolver backup / restoration** | ✅ Saved entry | ✅ dnstool | ✅ Backup file | — | — Separate OS |
+| **MAC address randomization** | ✅ Optional | — | ❌ | ❌ | ✅ Default⁵ |
+| **Encrypted persistent OS storage** | ❌ Runtime vault only | ❌ Host tool | ❌ Host tool | ❌ App tool | ✅ Optional⁶ |
+| **Browser privacy preferences** | ✅ Managed profiles | — | ❌ | ❌ | ✅ Tor Browser⁴ |
+
+<a id="matrix-workflow"></a>
+### ⌨️ 03 / Deployment & daily workflow
+
+| Capability | 👻 **Wraith** | 🦜 **AnonSurf** | 👤 **TorGhost** | 🔗 **Proxychains-NG** | 💿 **Tails** |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Use on an existing Linux installation** | ✅ | ✅ Parrot focus | ✅ | ✅ | ❌ Boot environment |
+| **Dedicated bootable privacy OS** | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Graphical desktop interface** | ❌ Terminal UI | ✅ GTK | ❌ CLI | ❌ CLI | ✅ Desktop |
+| **Native runtime on a non-Linux OS** | ❌ Runtime | ❌ | ❌ | ✅ BSD / macOS / others | ❌ Dedicated OS |
+| **Start / stop command workflow** | ✅ Sessions | ✅ Sessions | ✅ Sessions | ◐ Per process | ◐ Boot / shutdown |
+| **Operator-requested Tor identity change** | ✅ NEWNYM | ✅ Identity action | ✅ NEWNYM | — Upstream proxy | ✅ Tor Browser⁴ |
+
+<a id="matrix-evidence"></a>
+<details open>
+<summary><b>📚 Evidence, scope and comparison notes</b></summary>
+
+Reviewed **2026-09-11** against upstream documentation and source. A dash is deliberately not a cross: an unverified capability must not be presented as absent. These projects differ in deployment scope; there is no overall winner or calculated anonymity score.
+
+1. [How Tails works](https://tails.net/about/index.en.html) describes its integrated environment and Tor limits. Its explicitly separate Unsafe Browser is not an anonymous Tor browsing path.
+2. [TorGhost routing source](https://github.com/SusmithKrishnan/torghost/blob/master/torghost.py) defines the compared rules, resolver backup and stop/reset behavior. Entries describe that implementation, not every possible external Tor configuration.
+3. Wraith's profiles apply to `fetch`, its native client API and DoH. The HTTP relay normalizes the first cleartext request; CONNECT retains application TLS. [TLS scope](#browser-tls) · [Threat model](docs/THREAT_MODEL.md) · [Validation](#validation).
+4. Tails integrates Tor Browser; this is not equivalent to a three-profile HTTP client API. Browser identity controls have a different scope from system-wide identity changes. See [Tails included software](https://tails.net/doc/about/features/index.en.html).
+5. [Tails MAC address anonymization](https://tails.net/doc/first_steps/welcome_screen/mac_spoofing/index.en.html) documents its defaults and compatibility limits.
+6. [Tails Persistent Storage](https://tails.net/doc/persistent_storage/index.en.html) is encrypted optional storage. Wraith's in-memory vault serves a different purpose.
+
+Additional sources: [AnonSurf routing and restoration](https://github.com/ParrotSec/anonsurf/blob/master/scripts/anondaemon), [AnonSurf project and interfaces](https://github.com/ParrotSec/anonsurf), [Proxychains-NG capabilities and compatibility](https://github.com/rofl0r/proxychains-ng#readme).
 
 </details>
 
@@ -262,7 +302,12 @@ wraith/
 ├── Cargo.toml                              # Workspace Root Manifest (v1.3.0)
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
-├── build.sh                                # Automated Linux Build, Shell Completion & Language Deployment
+├── SECURITY.md                             # Private Vulnerability Reporting Policy
+├── CONTRIBUTING.md                         # Development & Review Guide
+├── SUPPORT.md                              # Support Routes & Troubleshooting
+├── CODE_OF_CONDUCT.md                      # Community Expectations
+├── docs/THREAT_MODEL.md                    # Protection Scope & Trust Assumptions
+├── build.sh                                # User-Privilege Build & Atomic Installation
 ├── install-daemon.sh                       # Systemd Network-Online Service Deployment
 ├── uninstall.sh                            # Uninstaller with Recorded-Session Cleanup
 └── crates/
@@ -905,6 +950,15 @@ Do not use the project for unauthorized access, disruption, credential theft, un
 ```
 
 </details>
+
+<a id="project-guides"></a>
+## 🤝 Project guides
+
+| Report securely | Contribute | Get support | Understand scope |
+| :--- | :--- | :--- | :--- |
+| [Security policy](SECURITY.md) | [Contribution guide](CONTRIBUTING.md) | [Support guide](SUPPORT.md) | [Threat model](docs/THREAT_MODEL.md) |
+
+Bug and feature forms are available in [Issues](https://github.com/ByGh00st/wraith/issues/new/choose). Sensitive vulnerabilities use the private channel described in the security policy. Collaboration follows the [community code of conduct](CODE_OF_CONDUCT.md).
 
 ## 📜 License
 

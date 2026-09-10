@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible functional problem with sanitized details.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suspected vulnerability? Use [private reporting](https://github.com/ByGh00st/wraith/security/advisories/new), not this public form. See [SECURITY.md](https://github.com/ByGh00st/wraith/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: wraith --version and/or git rev-parse HEAD
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Distribution, kernel, interface type, Tor version and relevant optional features. Omit identifying information.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Exact command and minimal steps on a system you are authorized to test. Remove secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Include whether startup or cleanup failed and the specific reported resource.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Never include passwords, keys, tokens or sensitive packet contents.
+      render: text

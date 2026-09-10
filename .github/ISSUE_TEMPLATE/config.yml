@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/ByGh00st/wraith/security/advisories/new
+    about: Coordinate sensitive security reports through a private advisory.
+  - name: Documentation and troubleshooting
+    url: https://github.com/ByGh00st/wraith/wiki
+    about: Installation, supported behavior and recovery guidance.
