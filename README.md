@@ -517,27 +517,20 @@ sudo wraith -u
 
 When authorized security auditing tools, vulnerability scanners, or compliance assessment scripts send HTTP requests through Wraith, their default headers expose identifiable signatures (`User-Agent: sqlmap/1.8`, `User-Agent: Nmap Scripting Engine`, `theHarvester/4.0`, `Metasploit/MSF`, etc.) to target intrusion detection systems (IDS), web application firewalls (WAF), and network telemetry gateways.
 
-Wraith embeds a **Zero-Copy `AF_PACKET` Deep Packet Inspection (DPI) Engine** (`crates/wraith-net/src/ids.rs`) that intercepts Layer-4 egress streams on the fly and **automatically rewrites security audit and scanner signatures into legitimate, randomized modern browser headers** before packets leave the host gateway.
+Wraith's local HTTP proxy (`127.0.0.1:9055`) handles redirected cleartext HTTP on port 80 and forwards it through Tor SOCKS5. The separate `AF_PACKET` monitor inspects packet copies; editing those copies does not rewrite live network traffic. HTTPS remains encrypted, and this proxy does not replace a browser's TLS handshake.
 
-```
-[Audit Tool Egress: "User-Agent: sqlmap/1.8"] ➔ [Wraith In-Flight DPI] ➔ [Wire: "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0"]
-```
+The proxy buffers complete initial HTTP headers, preserves binary request bodies, and drains responses after a client half-close. Header normalization is limited to the initial cleartext request; it does not guarantee anonymity or prevent site blocks. Tor exit reputation, request patterns, and site policies still apply.
 
-### 🛡️ Why Compile-Time XOR-0x7A Encoding is Used (EDR & Antivirus Heuristic Defense)
+### Connection reliability
 
-When an executable binary is compiled and written to disk, all static literal strings (such as `"metasploit"`, `"mimikatz"`, `"theharvester"`, `"cobaltstrike"`, `"sqlmap"`, etc.) are placed in the read-only data section (`.rodata` in ELF binaries on Linux, or `.rdata` in PE binaries on Windows).
+- Full security (`-Fs`) uses UID-aware firewall routing without a physical-interface TC filter that would also drop Tor relay connections.
+- MAC rotation is explicit (`--mac`); full security alone no longer changes the active adapter's MAC.
+- One DNS service runs with the selected transport. `--no-ks` disables the watchdog while keeping the foreground proxy services running.
+- Stop with Ctrl+C or `sudo wraith -x` to restore networking. The saved DNS configuration is preserved during teardown.
 
-#### 1. The Threat: Static String Inspection & Heuristic False Positives
-Modern Endpoint Detection and Response (EDR) agents, next-gen antivirus engines (Windows Defender, CrowdStrike Falcon, SentinelOne, Elastic Security, ClamAV), and CI/CD security linters continuously monitor filesystem events:
-* **String-Based Signatures**: If an executable contains dozens or hundreds of raw ASCII/UTF-8 strings matching known offensive testing frameworks or exploitation tools, static signature scanners flag the binary as a `HackTool`, `Riskware`, or `PUA/PUP` (Potentially Unwanted Application).
-* **Execution Blocker**: On Windows systems, this triggers **`OS Error 225: Operation did not complete successfully because the file contains a virus or potentially unwanted software`**, immediately locking or quarantining the binary during compilation or deployment.
-* **Telemetry Leak**: Host EDRs submit file hashes and detected string tables to cloud telemetry gateways, inadvertently exposing the security researcher's toolchain.
+### Signature data
 
-#### 2. The Solution: Compile-Time Byte-Wise XOR (`0x7A`) Obfuscation
-To eliminate static heuristic signatures while preserving zero-cost execution speed:
-* **Zero Plaintext Strings in `.rodata`**: Every single tool signature across all 1,338+ identifiers is transformed at compile-time using a deterministic byte-wise XOR key (`0x7A`). The binary on disk contains only high-entropy pseudorandom byte slices, completely blinding static YARA rules and string scanners.
-* **Single-Phase On-Demand Decryption (`OnceLock`)**: Strings are decrypted dynamically in memory **only once** upon the first network inspection using Rust's thread-safe, lock-free `std::sync::OnceLock<Vec<String>>`.
-* **Zero Runtime Overhead**: After initialization, in-flight DPI string matching runs at native memory speed with zero repeated allocations, zero heap fragmentation, and zero CPU jitter.
+The monitor's signature table uses XOR-encoded strings decoded on first use. This is an implementation detail, not encryption or a guarantee against antivirus classification. Use the project for authorized testing and respect target service policies.
 
 ---
 

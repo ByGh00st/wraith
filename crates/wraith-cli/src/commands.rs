@@ -15,7 +15,7 @@ use wraith_forensic::{
 };
 use wraith_guard::{
     enforce_seccomp_socket_jail, get_current_ip, get_current_ip_geo, run_full_leak_test,
-    verify_tor_connection, HoneyPortTrap, KillSwitch, SovereignDnsEngine, TrafficJitterEngine,
+    verify_tor_connection, HoneyPortTrap, KillSwitch, TrafficJitterEngine,
 };
 use wraith_net::{
     apply_ipv6_block, apply_tor_rules, backup_and_apply_tcp_mask, block_stun_ports, change_mac,
@@ -280,7 +280,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     };
 
     // 1. MAC & Hostname Randomization
-    if args.mac || is_strict {
+    if args.mac {
         print_step(&t!("commands.cmd_step_1"), "info");
         match change_mac(Some(&target_interface), None) {
             Ok((iface, old_m, new_m)) => {
@@ -330,7 +330,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     // 4. JA3/JA4 TLS ClientHello Camouflage & In-Flight HTTP DPI Sanitizer Proxy
     {
         let (server, ct) = TlsCamouflageServer::new(None);
-        let handle = server.spawn_server();
+        let handle = server.spawn_server().await?;
         let prof = get_active_tls_profile();
         print_step(
             &format!("{}", t!("commands.cmd_step_dpi_tls_gate", name = &prof.name, ja4 = &prof.ja4_hash)),
@@ -532,20 +532,9 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         }
     }
 
-    // 10. eBPF / TC Egress Fastpath Filter
-    if is_strict {
-        print_step(&t!("commands.cmd_step_77"), "info");
-        match EgressFastpath::new(Some(&target_interface)) {
-            Ok(mut fp) => {
-                if let Err(e) = fp.attach() {
-                    print_step(&format!("{}", t!("commands.cmd_warn_ebpf_attach", e = e.to_string())), "warn");
-                } else {
-                    print_step(&t!("commands.cmd_step_15"), "ok");
-                }
-            }
-            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_ebpf_init", e = e.to_string())), "warn"),
-        }
-    }
+    // Physical-interface TC filters cannot distinguish Tor relay traffic from
+    // application traffic. Keep UID-aware netfilter enforcement here; filtering
+    // relay TCP by the local TransPort number disconnects Tor itself.
 
     // 11. Zero-Copy IDS Raw Packet Sniffer & Egress Watchdog (Acquire raw AF_PACKET before Seccomp sandbox)
     print_step(&t!("commands.cmd_step_78"), "info");
@@ -717,14 +706,8 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         None
     };
 
-    // 20. Async DNS Engine with EDNS0 Padding & Sinkhole
-    if is_strict {
-        print_step(&t!("commands.cmd_step_88"), "info");
-        let (dns_srv, ct) = SovereignDnsEngine::new(None, None);
-        let handle = dns_srv.spawn_server();
-        print_step(&t!("commands.cmd_step_89"), "ok");
-        bg_services.dns = Some((ct, handle));
-    }
+    // The DNS service was already started in step 7b with the selected transport.
+    // Starting another listener here loses its cancellation handle and races bind.
 
     // 21. Automatic IP Rotation Engine
     if let Some(interval) = args.rotate_interval {
@@ -773,7 +756,8 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 
     crate::display::print_session_hud(&geo, is_strict, args.rotate_interval);
 
-    if !args.no_ks {
+    // DNS and HTTP proxy services must remain alive even without the watchdog.
+    {
         #[cfg(unix)]
         let mut sigterm =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok();
@@ -891,8 +875,6 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         bg_services.shutdown_and_join().await;
 
         cmd_stop(args.forensic_self_destruct).await?;
-    } else {
-        println!("  {}\n", t!("commands.cmd_stop_restore_hint"));
     }
 
     Ok(())
@@ -911,10 +893,6 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         .stderr(std::process::Stdio::null())
         .status();
     let _ = restore_dns();
-    let _ = std::fs::write(
-        "/etc/resolv.conf",
-        "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1\n",
-    );
     let _ = std::process::Command::new("resolvectl")
         .arg("flush-caches")
         .stdout(std::process::Stdio::null())
