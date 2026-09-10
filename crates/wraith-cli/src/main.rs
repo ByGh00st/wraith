@@ -390,8 +390,15 @@ enum Commands {
     },
     /// Display authorized security auditing & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
     Pentest,
-    /// Fetch latest upstream updates and recompile binary in-place
-    Update,
+    /// Update from official GitHub, or install an optional signed offline release
+    Update {
+        #[arg(long, requires_all = ["manifest", "signature"])]
+        artifact: Option<std::path::PathBuf>,
+        #[arg(long, requires_all = ["artifact", "signature"])]
+        manifest: Option<std::path::PathBuf>,
+        #[arg(long, requires_all = ["artifact", "manifest"])]
+        signature: Option<std::path::PathBuf>,
+    },
     /// Securely shred and overwrite a file using DoD 5220.22-M 7-pass standard
     Shred {
         /// Target file path to shred
@@ -597,7 +604,7 @@ pub async fn main() -> Result<()> {
     } else if cli.pentest {
         Commands::Pentest
     } else if cli.update {
-        Commands::Update
+        Commands::Update { artifact: None, manifest: None, signature: None }
     } else if let Some(ref target) = cli.shred {
         Commands::Shred { target: target.clone(), passes: 7 }
     } else if cli.monitor {
@@ -743,8 +750,8 @@ pub async fn main() -> Result<()> {
         Commands::Pentest => {
             commands::cmd_pentest()?;
         }
-        Commands::Update => {
-            commands::cmd_update().await?;
+        Commands::Update { artifact, manifest, signature } => {
+            commands::cmd_update(artifact, manifest, signature).await?;
         }
         Commands::Shred { target, passes } => {
             commands::cmd_shred(&target, passes).await?;

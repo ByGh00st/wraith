@@ -55,24 +55,12 @@ pub fn backup_resolv() -> Result<bool> {
 }
 
 pub fn configure_dns() -> Result<()> {
-    let resolv = Path::new(RESOLV_PATH);
-    // 1. Remove immutable attribute if present before write
-    let _ = Command::new("chattr").args(["-i", RESOLV_PATH]).stdout(Stdio::null()).stderr(Stdio::null()).output();
-
-    if resolv.exists() {
-        if let Ok(current) = fs::read_to_string(resolv) {
-            if current.trim() == RESOLV_CONTENT.trim() {
-                // Ensure immutable attribute is active
-                let _ = Command::new("chattr").args(["+i", RESOLV_PATH]).stdout(Stdio::null()).stderr(Stdio::null()).output();
-                return Ok(());
-            }
-        }
-    }
-
-    fs::write(resolv, RESOLV_CONTENT)?;
-    // Lock /etc/resolv.conf as immutable to prevent NetworkManager or systemd-resolved race-conditions
-    let _ = Command::new("chattr").args(["+i", RESOLV_PATH]).stdout(Stdio::null()).stderr(Stdio::null()).output();
-    info!("DNS configured to use Tor transparent resolver (127.0.0.1) and locked immutable (+i)");
+    // Replace the resolver entry, never write through systemd-resolved's symlink
+    // or change persistent inode flags. The original entry is journaled by CLI.
+    wraith_core::file_snapshot::FileSnapshot::File {
+        bytes: RESOLV_CONTENT.as_bytes().to_vec(), mode: 0o644, uid: 0, gid: 0,
+    }.restore(Path::new(RESOLV_PATH))?;
+    info!("DNS configured to use the local validated relay");
     Ok(())
 }
 
@@ -108,11 +96,6 @@ pub fn stop_existing_tor() {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
-    let _ = Command::new("fuser")
-        .args(["-k", &format!("{TOR_CONTROL_PORT}/tcp")])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
     std::thread::sleep(Duration::from_millis(500));
 }
 
@@ -130,9 +113,10 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
     info!("Spawning Tor daemon process...");
 
     // Ensure Tor runtime directory exists with correct ownership
-    let _ = fs::create_dir_all("/run/tor");
-    let _ = Command::new("chown").args(["-R", TOR_USER, "/run/tor"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-    let _ = Command::new("chmod").args(["750", "/run/tor"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    let runtime = fs::symlink_metadata("/run/tor")?;
+    if !runtime.is_dir() {
+        return Err(WraithError::Configuration("Tor runtime directory must be provisioned by the Tor package".into()));
+    }
 
     let status = Command::new("sudo")
         .args(["-u", TOR_USER, tor_bin, "-f", TORRC_PATH])

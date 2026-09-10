@@ -86,11 +86,7 @@ pub fn enforce_font_jail() -> Result<()> {
         WraithError::Forensic(format!("Failed writing font jail configuration: {e}"))
     })?;
 
-    let _ = std::process::Command::new("fc-cache")
-        .arg("-f")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
+    refresh_font_cache()?;
 
     info!("System-level font discovery restricted via fontconfig shield");
     Ok(())
@@ -107,6 +103,10 @@ pub fn restore_font_jail() -> Result<()> {
         if content.contains("WRAITH SYSTEM-LEVEL FONT ENUMERATION SHIELD") { fs::remove_file(target)?; }
     }
 
+    refresh_font_cache()
+}
+
+pub fn refresh_font_cache() -> Result<()> {
     let status = std::process::Command::new("fc-cache").arg("-f")
         .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status()?;
     if !status.success() { return Err(WraithError::Forensic("Font cache refresh failed".into())); }

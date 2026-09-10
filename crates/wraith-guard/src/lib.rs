@@ -16,3 +16,5 @@ pub use leak::*;
 pub use seccomp_jail::*;
 pub use traffic_jitter::*;
 
+
+mod dnssec;

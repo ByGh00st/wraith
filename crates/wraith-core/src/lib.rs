@@ -19,3 +19,7 @@ pub use state::{State, StateData, StateManager};
 pub use vault::*;
 
 pub mod deployment;
+
+pub mod signed_update;
+
+pub mod file_snapshot;

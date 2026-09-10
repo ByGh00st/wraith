@@ -25,3 +25,6 @@ md-5.workspace = true
 rust-i18n = "4.2.1"
 sys-locale = "0.3.2"
 
+
+minisign-verify = "0.2.5"
+semver = "1.0"

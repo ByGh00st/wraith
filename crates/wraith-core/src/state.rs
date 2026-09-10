@@ -22,6 +22,8 @@ pub enum State {
 pub struct StateData {
     pub active: bool,
     #[serde(default)]
+    pub saved_files: std::collections::HashMap<String, crate::file_snapshot::FileSnapshot>,
+    #[serde(default)]
     pub dns_configured: bool,
     #[serde(default)]
     pub tor_started: bool,

@@ -29,7 +29,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 owo-colors = "4.0"
 comfy-table = "7.1"
-indicatif = "0.17"
+indicatif = "0.18"
 zeroize = { version = "1.8", features = ["derive"] }
 rand = "0.8"
 walkdir = "2.5"

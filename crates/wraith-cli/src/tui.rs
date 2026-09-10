@@ -116,7 +116,7 @@ pub fn run_language_selector_tui() -> Result<String> {
         ));
 
         let box_lines = crate::display::render_box(
-            "🌐 SYSTEM DEFAULT LANGUAGE CONFIGURATION // 75 LOCALES",
+            "🌐 SYSTEM DEFAULT LANGUAGE CONFIGURATION // 17 LOCALES",
             &rows,
             crate::display::BoxCorner::Square,
             BOX_WIDTH,

@@ -398,6 +398,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         bg_services.tls = Some((ct, handle));
     }
 
+    journal_file(&state_mgr, &mut state_data, wraith_core::config::TORRC_PATH, false)?;
     // 5. Tor Configuration & Bridges
     if args.bridge || args.bridge_type.is_some() {
         let b_type = args.bridge_type.as_deref().unwrap_or("obfs4");
@@ -488,6 +489,8 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
 
     // 7. DNS Configuration (Applied ONLY after Tor is ready)
     print_step(&t!("commands.cmd_step_7"), "info");
+    journal_file(&state_mgr, &mut state_data, wraith_core::config::RESOLV_PATH, true)?;
+    journal_file(&state_mgr, &mut state_data, wraith_core::config::RESOLV_BACKUP, false)?;
     state_data.saved_resolver = Some(std::fs::read_to_string(wraith_core::config::RESOLV_PATH)?);
     state_data.dns_configured = true;
     state_mgr.activate(state_data.clone())?;
@@ -503,7 +506,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         print_step(&format!("{}", t!("runtime.doh_engine_armed", url = provider.url())), "info");
         wraith_guard::DnsTransport::DoH(provider.url().to_string())
     } else {
-        wraith_guard::DnsTransport::UdpTor
+        wraith_guard::DnsTransport::DoH(wraith_guard::DohProvider::default_provider().url().to_string())
     };
 
     let (dns_srv, dns_ct) = wraith_guard::SovereignDnsServer::new_with_transport(None, None, dns_transport);
@@ -647,6 +650,8 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // 14. System-level Font Sandbox
     if args.font_sandbox || is_strict {
         print_step(&t!("commands.cmd_step_83"), "info");
+        journal_file(&state_mgr, &mut state_data, wraith_forensic::FONT_CONFIG_PATH, false)?;
+        journal_file(&state_mgr, &mut state_data, wraith_forensic::FONT_CONFIG_BACKUP, false)?;
         state_data.font_configured = true;
         state_mgr.activate(state_data.clone())?;
         match enforce_font_jail() {
@@ -999,7 +1004,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
 
     let mut errors = Vec::new();
-    if state_info.dns_configured || state_info.active {
+    if (state_info.dns_configured || state_info.active) && !state_info.saved_files.contains_key(wraith_core::config::RESOLV_PATH) {
         let restored = match &state_info.saved_resolver {
             Some(content) => wraith_tor::restore_dns_snapshot(content),
             None => restore_dns(),
@@ -1045,10 +1050,18 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     if state_info.browser_configured || state_info.browser_hardened > 0 {
         record_cleanup("browser preferences", remove_hardware_and_font_shield().map(|_| ()), &mut errors);
     }
-    if state_info.font_configured || state_info.active {
+    if (state_info.font_configured || state_info.active) && !state_info.saved_files.contains_key(wraith_forensic::FONT_CONFIG_PATH) {
         record_cleanup("font configuration", restore_font_jail(), &mut errors);
     }
     record_cleanup("kernel settings", wraith_core::kernel_lockdown::restore_reversible_controls(&state_info.kernel_sysctl_backup), &mut errors);
+    for (path, snapshot) in &state_info.saved_files {
+        if ![wraith_core::config::TORRC_PATH, wraith_core::config::RESOLV_PATH, wraith_core::config::RESOLV_BACKUP, wraith_forensic::FONT_CONFIG_PATH, wraith_forensic::FONT_CONFIG_BACKUP].contains(&path.as_str()) {
+            errors.push(format!("Unrecognized snapshot path: {path}"));
+        } else { record_cleanup(path, snapshot.restore(Path::new(path)), &mut errors); }
+    }
+    if state_info.saved_files.contains_key(wraith_forensic::FONT_CONFIG_PATH) {
+        record_cleanup("font cache", wraith_forensic::font_jail::refresh_font_cache(), &mut errors);
+    }
     // Retain both the recovery record and restrictive policy on incomplete cleanup.
     if !errors.is_empty() { return state_mgr.finish_cleanup(&errors); }
     if let Some(saved) = &state_info.saved_rules {
@@ -1099,7 +1112,7 @@ pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
 }
 
 /// Build scripts and Git hooks must never execute with the installer's root UID.
-pub async fn cmd_update() -> Result<()> {
+async fn cmd_update_from_github() -> Result<()> {
     #[cfg(not(target_os = "linux"))]
     { Err(WraithError::UnsupportedPlatform) }
     #[cfg(target_os = "linux")]
@@ -1121,7 +1134,9 @@ pub async fn cmd_update() -> Result<()> {
         let configure = |command: &mut Command| {
             command.env_clear().env("HOME", &user.dir)
                 .env("PATH", format!("{}:/usr/bin:/bin", user.dir.join(".cargo/bin").display()))
-                .env("CARGO_HOME", user.dir.join(".cargo"));
+                .env("CARGO_HOME", user.dir.join(".cargo"))
+                .env("GIT_CONFIG_NOSYSTEM", "1").env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .env("GIT_TERMINAL_PROMPT", "0");
             let uid = user.uid.as_raw();
             let gid = user.gid.as_raw();
             // SAFETY: setgroups is async-signal-safe here; no allocation or locks
@@ -1134,7 +1149,7 @@ pub async fn cmd_update() -> Result<()> {
         };
         let result = (|| -> Result<()> {
             let mut clone = Command::new("/usr/bin/git");
-            clone.args(["clone", "--depth", "1", "https://github.com/ByGh00st/wraith.git"]).arg(&build_dir);
+            clone.args(["-c", "http.sslVerify=true", "-c", "http.followRedirects=false", "-c", "protocol.file.allow=never", "clone", "--depth", "1", "https://github.com/ByGh00st/wraith.git"]).arg(&build_dir);
             configure(&mut clone);
             if !clone.status()?.success() { return Err(WraithError::Command("Git clone failed".into())); }
             let cargo = user.dir.join(".cargo/bin/cargo");
@@ -1149,10 +1164,10 @@ pub async fn cmd_update() -> Result<()> {
             if !meta.is_dir() || meta.uid() != 0 || meta.mode() & 0o022 != 0 {
                 return Err(WraithError::Configuration("Unsafe binary installation directory".into()));
             }
-            let bytes = fs::read(build_dir.join("target/release/wraith"))?;
+            let bytes = read_update_file(&build_dir.join("target/release/wraith"), 128 * 1024 * 1024)?;
             if !bytes.starts_with(b"\x7fELF") { return Err(WraithError::Configuration("Build artifact is not ELF".into())); }
             wraith_core::deployment::install_binary(&bytes, destination)?;
-            print_success("Installed /usr/local/bin/wraith atomically. Upstream signatures are not verified.");
+            print_success("Updated /usr/local/bin/wraith from the official GitHub repository.");
             Ok(())
         })();
         // Remove only the fixed, exclusively created workspace. Never use a shell
@@ -1160,6 +1175,51 @@ pub async fn cmd_update() -> Result<()> {
         if let Err(e) = fs::remove_dir_all(&build_dir) { tracing::warn!("Build directory cleanup failed: {e}"); }
         result
     }
+}
+
+pub async fn cmd_update(artifact: Option<std::path::PathBuf>, manifest: Option<std::path::PathBuf>, signature: Option<std::path::PathBuf>) -> Result<()> {
+    if artifact.is_none() && manifest.is_none() && signature.is_none() { return cmd_update_from_github().await; }
+    let (Some(artifact), Some(manifest), Some(signature)) = (artifact, manifest, signature) else {
+        return Err(WraithError::Configuration("Use update --artifact FILE --manifest FILE --signature FILE; pin the publisher's trusted key at /etc/wraith/update.pub first".into()));
+    };
+    #[cfg(not(target_os = "linux"))]
+    { let _ = (artifact, manifest, signature); Err(WraithError::UnsupportedPlatform) }
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::fs::MetadataExt;
+        for directory in ["/etc", "/etc/wraith", "/usr", "/usr/local", "/usr/local/bin"] {
+            let metadata = fs::symlink_metadata(directory)?;
+            if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
+                return Err(WraithError::Configuration(format!("Unsafe update directory: {directory}")));
+            }
+        }
+        let key_path = Path::new("/etc/wraith/update.pub");
+        let metadata = fs::symlink_metadata(key_path)?;
+        if !metadata.is_file() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
+            return Err(WraithError::Configuration("Update key must be root-owned and not writable by other users".into()));
+        }
+        let key = String::from_utf8(read_update_file(key_path, 4096)?).map_err(|e| WraithError::Configuration(e.to_string()))?;
+        let manifest = read_update_file(&manifest, 16384)?;
+        let signature = String::from_utf8(read_update_file(&signature, 8192)?).map_err(|e| WraithError::Configuration(e.to_string()))?;
+        let binary = read_update_file(&artifact, 128 * 1024 * 1024)?;
+        let release = wraith_core::signed_update::verify_release(&key, &manifest, &signature, &binary, env!("CARGO_PKG_VERSION"))?;
+        // Install exactly the bytes whose hash was authenticated, not a reopened path.
+        wraith_core::deployment::install_binary(&binary, Path::new("/usr/local/bin/wraith"))?;
+        print_success(&format!("Verified and installed signed Wraith {}", release.version));
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn read_update_file(path: &Path, limit: u64) -> Result<Vec<u8>> {
+    use std::io::Read;
+    use std::os::unix::fs::OpenOptionsExt;
+    let file = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
+    if !file.metadata()?.is_file() { return Err(WraithError::Configuration("Update input is not a regular file".into())); }
+    let mut bytes = Vec::new();
+    file.take(limit + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > limit { return Err(WraithError::Configuration("Update input exceeds size limit".into())); }
+    Ok(bytes)
 }
 
 pub async fn cmd_switch() -> Result<()> {
@@ -1608,6 +1668,16 @@ fn parse_onion_port(value: &str) -> Result<u16> {
         .ok_or_else(|| WraithError::Configuration("Onion ports must be integers between 1 and 65535".into()))
 }
 
+
+fn journal_file(manager: &StateManager, state: &mut StateData, path: &str, allow_symlink: bool) -> Result<()> {
+    if state.saved_files.contains_key(path) { return Ok(()); }
+    let snapshot = wraith_core::file_snapshot::FileSnapshot::capture(Path::new(path))?;
+    if !allow_symlink && matches!(snapshot, wraith_core::file_snapshot::FileSnapshot::Symlink { .. }) {
+        return Err(WraithError::Configuration(format!("Refusing to overwrite symlinked session configuration: {path}")));
+    }
+    state.saved_files.insert(path.into(), snapshot);
+    manager.activate(state.clone())
+}
 
 fn record_cleanup(label: &str, result: Result<()>, errors: &mut Vec<String>) {
     if let Err(error) = result {

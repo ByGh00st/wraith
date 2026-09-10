@@ -676,11 +676,11 @@ impl SovereignDnsServer {
         let mut response_bytes: Option<Vec<u8>> = None;
 
         if let DnsTransport::DoH(ref doh_url) = transport {
-            if let Ok(resp) = Self::query_doh(doh_url, &query_bytes).await {
-                if !resp.is_empty() {
-                    response_bytes = Some(resp);
-                }
-            }
+            let result = tokio::time::timeout(Duration::from_secs(25), crate::dnssec::resolve(doh_url, &query_bytes)).await;
+            return match result {
+                Ok(Ok(response)) => Ok(Some(response)),
+                _ => Ok(Some(crate::dnssec::servfail(&query_bytes)?)),
+            };
         }
 
         if response_bytes.is_none() {
@@ -714,7 +714,7 @@ impl SovereignDnsServer {
     }
 
     /// Queries upstream DoH endpoint using RFC 8484 application/dns-message POST wire format
-    async fn query_doh(url: &str, query_bytes: &[u8]) -> Result<Vec<u8>> {
+    pub(crate) async fn query_doh(url: &str, query_bytes: &[u8]) -> Result<Vec<u8>> {
         use std::process::Stdio;
         use tokio::io::AsyncWriteExt;
 
@@ -754,16 +754,16 @@ impl SovereignDnsServer {
             .map_err(|e| WraithError::Network(format!("Failed to spawn DoH process: {e}")))?;
 
         if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(query_bytes).await;
+            stdin.write_all(query_bytes).await?;
         }
 
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| WraithError::Network(format!("DoH execution failed: {e}")))?;
-
-        if output.status.success() && !output.stdout.is_empty() {
-            Ok(output.stdout)
+        let mut bytes = Vec::new();
+        child.stdout.take().ok_or_else(|| WraithError::Network("DoH output missing".into()))?
+            .take(65536).read_to_end(&mut bytes).await?;
+        if bytes.len() >= 65536 { return Err(WraithError::Network("Oversized DNS response".into())); }
+        let status = child.wait().await?;
+        if status.success() && !bytes.is_empty() {
+            Ok(bytes)
         } else {
             Err(WraithError::Network(
                 "DoH upstream returned empty response or error".into(),
@@ -793,7 +793,7 @@ impl SovereignDnsServer {
                             let transport = transport.clone();
                             tasks.spawn(async move {
                                 let _permit = permit;
-                                let _ = tokio::time::timeout(Duration::from_secs(10), async {
+                                let _ = tokio::time::timeout(Duration::from_secs(30), async {
                                     let len = stream.read_u16().await? as usize;
                                     if !(12..=DNS_MAX_PACKET_SIZE).contains(&len) { return Ok::<(), WraithError>(()); }
                                     let mut query = vec![0; len];
@@ -818,9 +818,12 @@ impl SovereignDnsServer {
                             let transport = transport.clone();
                             tasks.spawn(async move {
                                 let _permit = permit;
-                                let _ = tokio::time::timeout(Duration::from_secs(10), async {
+                                let _ = tokio::time::timeout(Duration::from_secs(30), async {
+                                    let original = query.clone();
                                     if let Ok(Some(response)) = Self::resolve_query(query, upstream, transport).await {
-                                        let _ = socket.send_to(&response, peer).await;
+                                        if let Ok(response) = crate::dnssec::fit_udp(&original, response) {
+                                            let _ = socket.send_to(&response, peer).await;
+                                        }
                                     }
                                 }).await;
                             });

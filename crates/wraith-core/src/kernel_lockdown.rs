@@ -1,6 +1,4 @@
-//! Wraith Linux Kernel Lockdown, SysRq / Core Dump Disabler & Cold-Boot DMA Shield
-//! Enforces hardware memory isolation against PCIe/Thunderbolt DMA sniffers,
-//! disables kernel crash dumps, and activates Linux Kernel Lockdown confidentiality mode.
+//! Verifies strict kernel prerequisites and applies reversible session controls.
 
 use std::fs;
 use std::path::Path;
@@ -43,18 +41,17 @@ pub fn get_lockdown_status() -> LockdownState {
 pub const REQUIRED_CONTROLS: &[(&str, &str)] = &[
     ("/proc/sys/kernel/sysrq", "0"),
     ("/proc/sys/kernel/core_pattern", "|/bin/false"),
-    ("/proc/sys/kernel/kexec_load_disabled", "1"),
-    ("/proc/sys/kernel/yama/ptrace_scope", "3"),
+
 ];
 
 pub fn backup_reversible_controls() -> Result<std::collections::HashMap<String, String>> {
-    REQUIRED_CONTROLS[..2].iter().map(|(path, _)| Ok((path.to_string(), fs::read_to_string(path)?))).collect()
+    REQUIRED_CONTROLS.iter().map(|(path, _)| Ok((path.to_string(), fs::read_to_string(path)?))).collect()
 }
 
 pub fn restore_reversible_controls(backup: &std::collections::HashMap<String, String>) -> Result<()> {
     let mut errors = Vec::new();
     for (path, value) in backup {
-        if !REQUIRED_CONTROLS[..2].iter().any(|(allowed, _)| path == allowed) {
+        if !REQUIRED_CONTROLS.iter().any(|(allowed, _)| path == allowed) {
             errors.push(format!("Unrecognized kernel backup path: {path}"));
         } else if let Err(e) = fs::write(path, value) { errors.push(format!("{path}: {e}")); }
     }
@@ -65,7 +62,7 @@ fn enforce_controls(
     mut read: impl FnMut(&str) -> Result<String>,
     mut write: impl FnMut(&str, &str) -> Result<()>,
 ) -> Result<()> {
-    // Preflight every required control before making irreversible writes.
+    // Preflight every required control before changing session controls.
     for (path, _) in REQUIRED_CONTROLS { read(path)?; }
     for (path, value) in REQUIRED_CONTROLS {
         if read(path)?.trim() != *value { write(path, value)?; }
@@ -77,15 +74,16 @@ fn enforce_controls(
 }
 
 pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
-    if get_lockdown_status() == LockdownState::Unavailable {
-        return Err(WraithError::Custom("Required kernel lockdown interface is unavailable".into()));
-    }
+
     for (path, _) in REQUIRED_CONTROLS { fs::read_to_string(path)?; }
+
     if get_lockdown_status() != LockdownState::Confidentiality {
-        fs::write(LOCKDOWN_PATH, "confidentiality")?;
+        return Err(WraithError::Custom("Strict mode requires pre-enabled confidentiality lockdown; Wraith will not make this irreversible change".into()));
     }
-    if get_lockdown_status() != LockdownState::Confidentiality {
-        return Err(WraithError::Custom("Required confidentiality lockdown did not take effect".into()));
+    for (path, required) in [("/proc/sys/kernel/kexec_load_disabled", "1"), ("/proc/sys/kernel/yama/ptrace_scope", "3")] {
+        if fs::read_to_string(path)?.trim() != required {
+            return Err(WraithError::Configuration(format!("Strict prerequisite {path}={required} is not enabled; refusing irreversible session changes")));
+        }
     }
     enforce_controls(|path| Ok(fs::read_to_string(path)?), |path, value| Ok(fs::write(path, value)?))?;
     if fs::read_dir(IOMMU_PATH).map(|entries| entries.count()).unwrap_or(0) == 0 {
