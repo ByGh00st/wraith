@@ -13,6 +13,7 @@ pub const CONFIG_FILE_LEGACY: &str = "/etc/wraith/config.json";
 // Tor Network Configuration
 pub const TOR_TRANS_PORT: u16 = 9040;
 pub const TOR_DNS_PORT: u16 = 5353;
+pub const WRAITH_DNS_PORT: u16 = 5354;
 pub const TOR_CONTROL_PORT: u16 = 9051;
 pub const TOR_SOCKS_PORT: u16 = 9050;
 pub const TOR_USER: &str = "debian-tor";

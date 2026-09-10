@@ -3,8 +3,8 @@
 
 use std::io::Write;
 use std::process::{Command, Stdio};
-use tracing::{debug, error, info, warn};
-use wraith_core::config::{LOCAL_NETWORKS, LOOPBACK_NETWORKS, TOR_DNS_PORT, TOR_TRANS_PORT, TOR_USER};
+use tracing::{debug, error, info};
+use wraith_core::config::{LOCAL_NETWORKS, LOOPBACK_NETWORKS, WRAITH_DNS_PORT, TOR_TRANS_PORT, TOR_USER};
 use wraith_core::error::{Result, WraithError};
 
 fn execute_command(cmd: &str, args: &[&str]) -> Result<String> {
@@ -25,30 +25,13 @@ fn execute_command(cmd: &str, args: &[&str]) -> Result<String> {
 }
 
 pub fn get_tor_uid() -> Result<u32> {
-    // 1. Try reading /etc/passwd directly for zero-subprocess speed
-    if let Ok(passwd) = std::fs::read_to_string("/etc/passwd") {
-        for line in passwd.lines() {
-            let fields: Vec<&str> = line.split(':').collect();
-            if fields.len() >= 3 && (fields[0] == TOR_USER || fields[0] == "tor" || fields[0] == "_tor") {
-                if let Ok(uid) = fields[2].parse::<u32>() {
-                    return Ok(uid);
-                }
-            }
-        }
+    // Match the account actually used by daemon.rs; never exempt all root traffic.
+    let uid = execute_command("id", &["-u", TOR_USER])?
+        .parse::<u32>().map_err(|_| WraithError::Firewall("Invalid Tor UID".into()))?;
+    if uid == 0 {
+        return Err(WraithError::Firewall("Tor must use a dedicated non-root account".into()));
     }
-
-    // 2. Subprocess fallback
-    let candidate_users = [TOR_USER, "tor", "_tor"];
-    for user in candidate_users {
-        if let Ok(output) = execute_command("id", &["-u", user]) {
-            if let Ok(uid) = output.trim().parse::<u32>() {
-                return Ok(uid);
-            }
-        }
-    }
-
-    // 3. Fallback to 0 (root) if running as root
-    Ok(0)
+    Ok(uid)
 }
 
 pub fn save_rules() -> Option<String> {
@@ -61,7 +44,15 @@ pub fn save_rules() -> Option<String> {
 }
 
 pub fn restore_rules(rules: &str) -> Result<()> {
-    let mut child = Command::new("iptables-restore")
+    restore_rules_with("iptables-restore", rules)
+}
+
+pub fn restore_ipv6_rules(rules: &str) -> Result<()> {
+    restore_rules_with("ip6tables-restore", rules)
+}
+
+fn restore_rules_with(program: &str, rules: &str) -> Result<()> {
+    let mut child = Command::new(program)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -84,20 +75,46 @@ pub fn restore_rules(rules: &str) -> Result<()> {
 }
 
 pub fn apply_tor_rules() -> Result<String> {
-    let saved = match save_rules() {
-        Some(r) => r,
-        None => {
-            warn!("Failed to backup existing iptables rules before applying Tor rules");
-            String::new()
+    apply_tor_rules_for_mode(false)
+}
+
+pub fn apply_tor_rules_for_mode(strict: bool) -> Result<String> {
+    let saved = save_rules().ok_or_else(|| WraithError::Firewall(
+        "Cannot back up firewall; refusing to replace its rules".into()
+    ))?;
+    let result = install_tor_rules(strict);
+    if let Err(error) = result {
+        if let Err(rollback) = restore_rules(&saved) {
+            return Err(WraithError::Firewall(format!("{error}; rollback failed: {rollback}")));
         }
-    };
-    let tor_uid = get_tor_uid()?;
+        return Err(error);
+    }
+    Ok(saved)
+}
+
+fn install_tor_rules(strict: bool) -> Result<()> {
+    install_tor_rules_with(strict, get_tor_uid()?, execute_command)
+}
+
+fn install_tor_rules_with(
+    strict: bool,
+    tor_uid: u32,
+    mut execute_command: impl FnMut(&str, &[&str]) -> Result<String>,
+) -> Result<()> {
+    if tor_uid == 0 {
+        return Err(WraithError::Firewall("Refusing root Tor exemption".into()));
+    }
     let tor_uid_str = tor_uid.to_string();
 
     info!("Configuring Fail-Closed Tor transparent proxy for UID {}", tor_uid);
 
-    let dns_port_str = TOR_DNS_PORT.to_string();
+    let dns_port_str = WRAITH_DNS_PORT.to_string();
     let trans_port_str = TOR_TRANS_PORT.to_string();
+
+    // Hold fail-closed policies throughout incremental replacement.
+    execute_command("iptables", &["-P", "OUTPUT", "DROP"])?;
+    execute_command("iptables", &["-P", "INPUT", "DROP"])?;
+    execute_command("iptables", &["-P", "FORWARD", "DROP"])?;
 
     // 1. Flush active filter, nat, and mangle tables
     let flush_cmds = [
@@ -118,7 +135,7 @@ pub fn apply_tor_rules() -> Result<String> {
     execute_command("iptables", &["-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", &dns_port_str])?;
 
     // 3. Bypass NAT for local subnets and loopback networks (AFTER DNS is caught)
-    for net in LOCAL_NETWORKS.iter().chain(LOOPBACK_NETWORKS.iter()) {
+    for net in LOOPBACK_NETWORKS.iter().chain(LOCAL_NETWORKS.iter().filter(|_| !strict)) {
         execute_command("iptables", &["-t", "nat", "-A", "OUTPUT", "-d", net, "-j", "RETURN"])?;
     }
 
@@ -140,6 +157,8 @@ pub fn apply_tor_rules() -> Result<String> {
     // 2. Allow established and related connections (legitimate return traffic)
     execute_command("iptables", &["-A", "INPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"])?;
 
+    execute_command("iptables", &["-A", "INPUT", "-p", "udp", "--sport", "67", "--dport", "68", "-j", "ACCEPT"])?;
+
     // 3. Allow loopback interface traffic explicitly (for local honeypot & proxy)
     execute_command("iptables", &["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"])?;
 
@@ -156,8 +175,8 @@ pub fn apply_tor_rules() -> Result<String> {
     execute_command("iptables", &["-A", "INPUT", "-p", "udp", "-j", "DROP"])?;
 
     // ─── FILTER Table: Outbound Fail-Closed Enforcement ───────────────────────
-    // Allow established and related connections
-    execute_command("iptables", &["-A", "OUTPUT", "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"])?;
+    // Do not grandfather pre-session clearnet sockets through ESTABLISHED.
+    // Local proxy traffic and Tor-owned relay sockets are allowed below.
 
     // Allow loopback interface explicitly
     execute_command("iptables", &["-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"])?;
@@ -165,8 +184,10 @@ pub fn apply_tor_rules() -> Result<String> {
     // Allow Tor's outgoing connection to relays
     execute_command("iptables", &["-A", "OUTPUT", "-m", "owner", "--uid-owner", &tor_uid_str, "-j", "ACCEPT"])?;
 
+    execute_command("iptables", &["-A", "OUTPUT", "-p", "udp", "--sport", "68", "--dport", "67", "-j", "ACCEPT"])?;
+
     // Allow local LAN subnets
-    for net in LOCAL_NETWORKS.iter().chain(LOOPBACK_NETWORKS.iter()) {
+    for net in LOOPBACK_NETWORKS.iter().chain(LOCAL_NETWORKS.iter().filter(|_| !strict)) {
         execute_command("iptables", &["-A", "OUTPUT", "-d", net, "-j", "ACCEPT"])?;
     }
 
@@ -176,7 +197,7 @@ pub fn apply_tor_rules() -> Result<String> {
     execute_command("iptables", &["-A", "OUTPUT", "-j", "DROP"])?;
 
     info!("IPv4 Fail-Closed Tor & Anti-Nmap Stealth firewall rules successfully armed");
-    Ok(saved)
+    Ok(())
 }
 
 /// Allows inbound traffic to honeypot decoy ports on external LAN interfaces (for LAN Deception Sensor Mode)
@@ -212,4 +233,34 @@ pub fn flush_rules() -> Result<()> {
 
     info!("Firewall rules flushed, default ACCEPT restored");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strict_policy_does_not_allow_existing_clearnet_or_lan() {
+        let mut calls = Vec::new();
+        install_tor_rules_with(true, 109, |_, args| {
+            calls.push(args.join(" "));
+            Ok(String::new())
+        }).unwrap();
+        assert_eq!(calls[0], "-P OUTPUT DROP");
+        assert!(!calls.iter().any(|s| s.contains("-A OUTPUT -m state")));
+        assert!(!calls.iter().any(|s| s.contains("192.168.") || s.contains("10.0.0.0/8")));
+        assert!(calls.iter().any(|s| s == "-A OUTPUT -m owner --uid-owner 109 -j ACCEPT"));
+        assert_eq!(calls.last().unwrap(), "-A OUTPUT -j DROP");
+    }
+
+    #[test]
+    fn refuses_root_and_propagates_failed_rules() {
+        assert!(install_tor_rules_with(true, 0, |_, _| panic!("must not mutate")).is_err());
+        let mut calls = 0;
+        assert!(install_tor_rules_with(true, 109, |_, _| {
+            calls += 1;
+            Err(WraithError::Firewall("injected failure".into()))
+        }).is_err());
+        assert_eq!(calls, 1);
+    }
 }

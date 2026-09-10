@@ -107,5 +107,5 @@ pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
         warn!("IOMMU not discovered in sysfs; ensure VT-d/IOMMU is active in BIOS for hardware DMA defense");
     }
 
-    Ok(state)
+    Ok(get_lockdown_status())
 }

@@ -422,7 +422,7 @@ pub fn show_status_dashboard(state: &StateData, is_tor: bool, ip: &str, circuits
     if state.machine_id_old.is_some() {
         table.add_row(vec![
             Cell::new("Hardware DMI Cloaking"),
-            Cell::new("✔ /etc/machine-id & DMI Serial Rotated").fg(Color::Green),
+            Cell::new("✔ /etc/machine-id rotated (DMI unchanged)").fg(Color::Green),
         ]);
     }
 
@@ -469,7 +469,7 @@ pub fn show_leak_report(report: &LeakReport) {
 
     table.add_row(vec![Cell::new("Public Exit IP"), Cell::new(ip_val).fg(Color::White), Cell::new("Tor Network Exit Relay")]);
     table.add_row(vec![Cell::new("Tor Transparent Proxy"), tor_status, Cell::new("All TCP egress routed through TransPort 9040")]);
-    table.add_row(vec![Cell::new("DNS Leak Protection"), dns_status, Cell::new("All queries forced through Sovereign DNS 5353")]);
+    table.add_row(vec![Cell::new("DNS Leak Protection"), dns_status, Cell::new("DNS relay: 5354; Tor upstream: 5353")]);
     table.add_row(vec![Cell::new("IPv6 Dual-Stack Leak"), ipv6_status, Cell::new("Kernel netfilter unconditional drop")]);
     table.add_row(vec![Cell::new("Overall Defense Grade"), overall, Cell::new("Operational Security & Forensic Assessment")]);
 

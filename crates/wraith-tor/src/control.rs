@@ -38,6 +38,20 @@ impl TorControlClient {
     }
 
     async fn send_command(&mut self, cmd: &str) -> Result<Vec<String>> {
+        if cmd.contains(['\r', '\n']) {
+            return Err(WraithError::Tor("Control command contains a line break".into()));
+        }
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), self.send_command_inner(cmd)).await;
+        match result {
+            Ok(result) => result,
+            Err(_) => {
+                self.stream = None;
+                Err(WraithError::Tor("Control command timed out".into()))
+            }
+        }
+    }
+
+    async fn send_command_inner(&mut self, cmd: &str) -> Result<Vec<String>> {
         let stream = self
             .stream
             .as_mut()
@@ -65,7 +79,7 @@ impl TorControlClient {
             lines.push(trimmed.clone());
 
             if is_err {
-                return Err(WraithError::Tor(format!("Tor command '{cmd}' error: {trimmed}")));
+                return Err(WraithError::Tor(format!("Tor control command rejected: {trimmed}")));
             }
 
             if is_end {
@@ -126,6 +140,11 @@ impl TorControlClient {
 
     pub async fn is_alive(&mut self) -> bool {
         self.send_command("GETINFO version").await.is_ok()
+    }
+
+    pub async fn is_ready(&mut self) -> bool {
+        self.get_info("status/circuit-established").await
+            .map(|value| value == "1").unwrap_or(false)
     }
 
     pub async fn signal_newnym(&mut self) -> Result<()> {

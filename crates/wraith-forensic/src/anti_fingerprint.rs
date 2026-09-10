@@ -81,7 +81,6 @@ pub const HARDWARE_SHIELD_PREFERENCES: &[(&str, &str)] = &[
     // Force standard English locale & UTC timezone representation
     ("javascript.use_us_english_locale", "true"),
     // Keep proxy as direct/system (kernel-level transparent proxy handles Tor egress seamlessly)
-    ("network.proxy.type", "0"),
 
     // --- 9. MEDIA DEVICES & WEBRTC COMPLETE BLACKOUT ---
     ("media.peerconnection.enabled", "false"),
@@ -138,7 +137,7 @@ pub fn deploy_hardware_and_font_shield() -> Result<usize> {
 
     for profile in profiles {
         let user_js_path = profile.join("user.js");
-        fs::write(&user_js_path, &config_payload).map_err(|e| {
+        crate::browser::write_managed_preferences(&user_js_path, Some(&config_payload)).map_err(|e| {
             WraithError::Forensic(format!("Failed deploying shield to {}: {e}", profile.display()))
         })?;
         info!("Hardened GPU, Font, Resolution and WebGL Shield on: {}", profile.display());
@@ -154,30 +153,8 @@ pub fn remove_hardware_and_font_shield() -> Result<usize> {
 
     for profile in profiles {
         let user_js_path = profile.join("user.js");
-        if user_js_path.exists() {
-            let content = fs::read_to_string(&user_js_path).unwrap_or_default();
-            if content.contains("WRAITH SOVEREIGN ANTI-FINGERPRINT") {
-                let _ = fs::remove_file(&user_js_path);
-                removed_count += 1;
-            }
-        }
-
-        // Sanitize any persistent proxy leftovers from prefs.js
-        let prefs_js_path = profile.join("prefs.js");
-        if prefs_js_path.exists() {
-            if let Ok(content) = fs::read_to_string(&prefs_js_path) {
-                let filtered: Vec<&str> = content
-                    .lines()
-                    .filter(|line| !line.contains("network.proxy."))
-                    .collect();
-                let mut new_content = filtered.join("\n");
-                new_content.push_str("\nuser_pref(\"network.proxy.type\", 0);\n");
-                let _ = fs::write(&prefs_js_path, new_content);
-            }
-        }
-
-        // Guarantee direct connection in user.js
-        let _ = fs::write(&user_js_path, "user_pref(\"network.proxy.type\", 0);\n");
+        crate::browser::write_managed_preferences(&user_js_path, None)?;
+        removed_count += 1;
     }
 
     info!("Removed hardware and font shield and reset proxy state from {removed_count} profiles");

@@ -3,7 +3,7 @@
 //! and ~/.config/wraith/config.toml with automatic legacy JSON migration and schema validation.
 
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File};
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tracing::info;
@@ -191,28 +191,11 @@ impl WraithConfig {
             ));
         };
 
-        let temp_path = target_path.with_extension("tmp");
-        {
-            let mut file = File::create(&temp_path)?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = fs::set_permissions(&temp_path, fs::Permissions::from_mode(0o600));
-            }
-            file.write_all(serialized.as_bytes())?;
-            file.sync_all()?;
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(&temp_path, fs::Permissions::from_mode(0o600));
-        }
-        fs::rename(temp_path, &target_path)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(&target_path, fs::Permissions::from_mode(0o600));
-        }
+        let parent = target_path.parent().ok_or_else(|| WraithError::Configuration("Missing config directory".into()))?;
+        let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+        temp.write_all(serialized.as_bytes())?;
+        temp.as_file().sync_all()?;
+        temp.persist(&target_path).map_err(|e| e.error)?;
         info!("Saved persistent TOML configuration to {:?}", target_path);
         Ok(target_path)
     }

@@ -9,6 +9,14 @@ use std::process::Command;
 use tracing::{debug, info, warn};
 use wraith_core::error::{Result, WraithError};
 
+fn checked_status(command: &str, args: &[&str]) -> Result<()> {
+    let output = Command::new(command).args(args).output()?;
+    if !output.status.success() {
+        return Err(WraithError::Network(format!("{command} failed: {}", String::from_utf8_lossy(&output.stderr))));
+    }
+    Ok(())
+}
+
 /// Default WireGuard fwmark for policy routing Tor traffic
 pub const WRAITH_WG_FWMARK: u32 = 0x5182;
 /// Dedicated FIB routing table ID for WireGuard egress
@@ -161,7 +169,7 @@ impl MultiHopTunnelEngine {
                 .map_err(|e| WraithError::Custom(format!("Failed to assign IP to {iface}: {e}")))?;
 
             if !addr_res.success() {
-                debug!("ip addr add returned non-zero for {iface}");
+                return Err(WraithError::Network(format!("ip addr add failed for {iface}")));
             }
         }
 
@@ -197,7 +205,7 @@ impl MultiHopTunnelEngine {
                 .map_err(|e| WraithError::Custom(format!("Failed to configure wg interface {iface}: {e}")))?;
 
             if !wg_res.success() {
-                debug!("wg set returned non-zero for {iface}");
+                return Err(WraithError::Network(format!("wg set failed for {iface}")));
             }
         }
 
@@ -226,31 +234,19 @@ impl MultiHopTunnelEngine {
         let fwmark_str = format!("0x{:x}", WRAITH_WG_FWMARK);
         let table_str = WRAITH_WG_TABLE.to_string();
 
-        // 1. Allow WireGuard UDP traffic to escape to physical network without being looped back
-        let _ = Command::new("iptables")
-            .args([
-                "-t", "nat", "-I", "OUTPUT", "1",
-                "-p", "udp", "--dport", "51820",
-                "-j", "ACCEPT",
-            ])
-            .status();
-
-        let _ = Command::new("iptables")
-            .args([
-                "-I", "OUTPUT", "1",
-                "-p", "udp", "--dport", "51820",
-                "-j", "ACCEPT",
-            ])
-            .status();
+        if tor_uid == 0 {
+            return Err(WraithError::Network("WireGuard binding requires a non-root Tor UID".into()));
+        }
+        // Only WireGuard's kernel-marked outer UDP packets may bypass Tor.
+        // A destination-port-only exemption lets any app leak arbitrary UDP.
+        let transport_mark = "0x5183";
+        checked_status("wg", &["set", wg_iface, "fwmark", transport_mark])?;
+        checked_status("iptables", &["-I", "OUTPUT", "1", "-m", "mark", "--mark", transport_mark, "-p", "udp", "-j", "ACCEPT"])?;
+        checked_status("iptables", &["-I", "OUTPUT", "1", "-m", "owner", "--uid-owner", &tor_uid_str, "!", "-o", wg_iface, "-j", "REJECT"])?;
+        checked_status("iptables", &["-I", "OUTPUT", "1", "-o", "lo", "-j", "ACCEPT"])?;
 
         // 2. Mark Tor UID outbound traffic in mangle table with dedicated fwmark
-        let _ = Command::new("iptables")
-            .args([
-                "-t", "mangle", "-A", "OUTPUT",
-                "-m", "owner", "--uid-owner", &tor_uid_str,
-                "-j", "MARK", "--set-mark", &fwmark_str,
-            ])
-            .status();
+        checked_status("iptables", &["-t", "mangle", "-A", "OUTPUT", "-m", "owner", "--uid-owner", &tor_uid_str, "-j", "MARK", "--set-mark", &fwmark_str])?;
 
         // 3. Inject Netlink Policy Routing Rule & Route Table
         let mut netlink_success = false;
@@ -314,7 +310,7 @@ impl MultiHopTunnelEngine {
             {
                 if output.status.success() {
                     let out_str = String::from_utf8_lossy(&output.stdout);
-                    if out_str.contains(&format!("dev {wg_iface}")) || out_str.contains(wg_iface) {
+                    if out_str.split_whitespace().collect::<Vec<_>>().windows(2).any(|pair| pair == ["dev", wg_iface]) {
                         debug!("Runtime routing verification confirmed for {ip} via {wg_iface}");
                         return true;
                     }

@@ -134,19 +134,14 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
         .map_err(|e| WraithError::Tor(format!("Failed to spawn Tor daemon: {e}")))?;
 
     if !status.success() {
-        // Fallback: spawn as root/current user if debian-tor user fails
-        let _ = Command::new(tor_bin)
-            .args(["-f", TORRC_PATH])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        return Err(WraithError::Tor(format!("Tor failed to start as {TOR_USER}; root fallback is disabled")));
     }
 
     // Wait for Tor bootstrap on ControlPort
     for _ in 0..timeout_secs {
         sleep(Duration::from_secs(1)).await;
         let mut client = TorControlClient::default();
-        if client.connect().await.is_ok() && client.is_alive().await {
+        if client.connect().await.is_ok() && client.is_ready().await {
             info!("Tor daemon initialized and responsive on ControlPort");
             return Ok(());
         }

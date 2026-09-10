@@ -327,7 +327,7 @@ impl HoneyPortTrap {
     pub fn neutralize_rogue_process(pid: u32, kill: bool) -> bool {
         // Critical safeguard: Never signal init/systemd (PID 1), kernel task (PID 0), or self
         let my_pid = std::process::id();
-        if pid <= 1 || pid == my_pid {
+        if pid <= 1 || pid > i32::MAX as u32 || pid == my_pid {
             warn!("Refusing to neutralize protected PID {pid} (init/kernel/self)");
             return false;
         }

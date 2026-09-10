@@ -304,7 +304,7 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | `-t` | `sudo wraith -t` / `wraith test` | **Leak Verification Suite**: Executes active tests for DNS, IPv6, and WebRTC leaks. |
 | `-i` | `sudo wraith -i` / `wraith info` | **Status Telemetry**: Displays live connection status, active exit IP, and circuit topology. |
 | `-p` | `sudo wraith -p <NAME>` / `wraith profile` | **Geographic Exit Profiler**: Enforces Tor exit nodes (`stealth`, `speed`, `journalists`, `research`, `darkweb`). |
-| `-F` | `sudo wraith -F` / `wraith -s -F` | **Full Security Mode**: Engages ALL 16 non-destructive defense layers simultaneously. |
+| `-F` | `sudo wraith -F` / `wraith -s -F` | **Full Security Mode**: Requires strict Tor routing, kill switch and hardening checks; initialization errors do not silently downgrade the session. |
 | `-u` | `sudo wraith -u` / `wraith update` | **Atomic In-Place Updater**: Hot-swaps release binary directly from GitHub repository. |
 | `-c` | `sudo wraith -c` / `wraith cleanup`| **Anti-Forensic Purge**: Clears volatile RAM caches, temporary state, and session traces. |
 | — | `sudo wraith --cleanup-full` | **Deep Anti-Forensic Purge**: Wipes RAM, swap partitions, and all system authentication logs. |
@@ -461,7 +461,7 @@ System Hardening & Anti-Fingerprinting:
       --tcp-mask                   Normalize TCP/IP L4 stack parameters (TTL=128, TS=0) for p0f evasion
       --machine-id                 Rotate unique OS /etc/machine-id and system hardware identifiers
                                    [alias: --cloaking]
-  -F, --full-security              Engage ALL 16 non-destructive defense layers (Shield, NetNS, MAC, Machine-ID, TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault, Honeypot, Netem)
+  -F, --full-security              Require strict routing, kill switch, MAC, browser shield, namespace, seccomp and RAM vault
                                    [aliases: -Fs, --full, --strict, --harden, --full-defense, --strict-hardening, --max-hardening]
 
 High-Risk & Forensic Operations (Explicit Opt-In Only):
@@ -489,7 +489,7 @@ General Options:
 ### 🛡️ Operational Usage Examples
 
 ```bash
-# 1. Standard full-security anonymization (Engage all 16 defense layers)
+# 1. Strict full-security initialization (required checks must succeed)
 sudo wraith -s -Fs
 
 # 2. Maximum OPSEC: MAC randomization + Stealth exit node profile
@@ -523,9 +523,11 @@ The proxy buffers complete initial HTTP headers, preserves binary request bodies
 
 ### Connection reliability
 
+See [the security review](SECURITY_AUDIT.md) for corrected bugs, remaining limitations and the Linux validation checklist. Full security is a strict configuration, not a claim of complete anonymity or independently verified protection against every threat.
+
 - Full security (`-Fs`) uses UID-aware firewall routing without a physical-interface TC filter that would also drop Tor relay connections.
-- MAC rotation is explicit (`--mac`); full security alone no longer changes the active adapter's MAC.
-- One DNS service runs with the selected transport. `--no-ks` disables the watchdog while keeping the foreground proxy services running.
+- Full security includes MAC rotation. A failed change restores the old MAC and brings the adapter back up; static addresses and unrelated DHCP clients are preserved.
+- One UDP/TCP DNS service runs on port 5354 with the selected transport. `--no-ks` is rejected with full security; ordinary mode keeps proxy services running without the watchdog.
 - Stop with Ctrl+C or `sudo wraith -x` to restore networking. The saved DNS configuration is preserved during teardown.
 
 ### Signature data

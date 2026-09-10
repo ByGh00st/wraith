@@ -63,7 +63,7 @@ pub fn apply_firefox_hardening() -> Result<usize> {
 
     for profile in profiles {
         let user_js = profile.join("user.js");
-        if fs::write(&user_js, &full_config).is_ok() {
+        if write_managed_preferences(&user_js, Some(&full_config)).is_ok() {
             info!("Hardened Firefox Profile: {}", profile.display());
             modified += 1;
         }
@@ -78,16 +78,72 @@ pub fn remove_firefox_hardening() -> Result<usize> {
 
     for profile in profiles {
         let user_js = profile.join("user.js");
-        if user_js.exists() {
-            if let Ok(content) = fs::read_to_string(&user_js) {
-                if content.contains("Wraith Browser Anonymization") {
-                    let _ = fs::remove_file(&user_js);
-                    removed += 1;
-                }
-            }
-        }
+        write_managed_preferences(&user_js, None)?;
+        removed += 1;
     }
 
     info!("Removed browser hardening from {removed} profiles");
     Ok(removed)
+}
+
+const MANAGED_BEGIN: &str = "// WRAITH MANAGED PREFERENCES BEGIN";
+const MANAGED_END: &str = "// WRAITH MANAGED PREFERENCES END";
+
+pub(crate) fn write_managed_preferences(path: &std::path::Path, payload: Option<&str>) -> Result<()> {
+    use std::io::Write;
+    use wraith_core::error::WraithError;
+    if let Ok(metadata) = fs::symlink_metadata(path) {
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err(WraithError::Forensic("Refusing non-regular browser preference file".into()));
+        }
+    }
+    let original = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.into()),
+    };
+    let mut retained = original.clone();
+    if let Some(start) = retained.find(MANAGED_BEGIN) {
+        let end = retained[start..].find(MANAGED_END)
+            .ok_or_else(|| WraithError::Forensic("Incomplete managed preference block".into()))?
+            + start + MANAGED_END.len();
+        retained.replace_range(start..end, "");
+    } else if payload.is_none() {
+        return Ok(());
+    }
+    if let Some(payload) = payload {
+        retained.push_str(&format!("\n{MANAGED_BEGIN}\n{payload}\n{MANAGED_END}\n"));
+    }
+    let parent = path.parent().ok_or_else(|| WraithError::Forensic("Missing profile directory".into()))?;
+    let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        use std::os::fd::AsRawFd;
+        let owner = fs::metadata(parent)?;
+        // The browser user must retain access when Wraith runs as root.
+        let result = unsafe { libc::fchown(temp.as_raw_fd(), owner.uid(), owner.gid()) };
+        if result != 0 { return Err(std::io::Error::last_os_error().into()); }
+    }
+    temp.write_all(retained.as_bytes())?;
+    temp.as_file().sync_all()?;
+    temp.persist(path).map_err(|e| e.error)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod preference_tests {
+    use super::*;
+    #[test]
+    fn preserves_user_preferences_across_apply_and_remove() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("user.js");
+        fs::write(&path, "user_pref(\"custom.setting\", true);\n").unwrap();
+        write_managed_preferences(&path, Some("user_pref(\"privacy.setting\", true);")).unwrap();
+        write_managed_preferences(&path, Some("user_pref(\"privacy.setting\", false);")).unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content.matches(MANAGED_BEGIN).count(), 1);
+        write_managed_preferences(&path, None).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap().trim(), "user_pref(\"custom.setting\", true);");
+    }
 }

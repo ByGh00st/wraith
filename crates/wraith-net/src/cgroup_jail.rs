@@ -3,7 +3,6 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use tracing::info;
 use wraith_core::error::{Result, WraithError};
 
@@ -18,13 +17,8 @@ pub fn create_cgroup_jail() -> Result<()> {
         info!("Constructed Linux cgroup2 socket jail at {CGROUP_PATH}");
     }
 
-    // Add iptables cgroup matching rule if cgroup module is available
-    let _ = Command::new("iptables")
-        .args(["-A", "OUTPUT", "-m", "cgroup", "--path", "wraith_jail", "-p", "tcp", "-j", "ACCEPT"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
+    // Membership is bookkeeping only. Netfilter remains responsible for egress;
+    // a cgroup-wide ACCEPT would bypass that enforcement if inserted earlier.
     Ok(())
 }
 
@@ -36,6 +30,8 @@ pub fn attach_pid_to_cgroup(pid: u32) -> Result<()> {
             WraithError::Namespace(format!("Failed attaching PID {pid} to cgroup: {e}"))
         })?;
         info!("Process PID {pid} assigned to cgroup2 network jail");
+    } else {
+        return Err(WraithError::Namespace("cgroup.procs missing; process was not isolated".into()));
     }
     Ok(())
 }
@@ -43,7 +39,7 @@ pub fn attach_pid_to_cgroup(pid: u32) -> Result<()> {
 pub fn destroy_cgroup_jail() -> Result<()> {
     let cgroup_dir = Path::new(CGROUP_PATH);
     if cgroup_dir.exists() {
-        let _ = fs::remove_dir(cgroup_dir);
+        fs::remove_dir(cgroup_dir)?;
         info!("cgroup2 socket jail removed");
     }
     Ok(())

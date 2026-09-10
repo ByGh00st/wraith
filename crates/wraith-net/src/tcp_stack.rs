@@ -82,13 +82,18 @@ pub fn backup_and_apply_tcp_mask() -> Result<HashMap<String, String>> {
 
     info!("Applying TCP/IP Stack Normalizer (p0f/Nmap OS fingerprint mask & clock-skew evasion)");
 
-    for (key, target_val) in TARGET_SYSCTL_SETTINGS {
-        if let Ok(original) = read_sysctl(key) {
-            if !original.is_empty() {
-                backup.insert(key.to_string(), original);
-            }
+    for (key, _) in TARGET_SYSCTL_SETTINGS {
+        let original = read_sysctl(key)?;
+        if original.is_empty() {
+            return Err(WraithError::Firewall(format!("Required sysctl is missing: {key}")));
         }
-        let _ = write_sysctl(key, target_val);
+        backup.insert(key.to_string(), original);
+    }
+    for (key, target_val) in TARGET_SYSCTL_SETTINGS {
+        if let Err(error) = write_sysctl(key, target_val) {
+            restore_tcp_stack(&backup)?;
+            return Err(error);
+        }
     }
 
     info!("TCP/IP Stack parameters normalized to generic Windows/Standard L4 profile (TS=0, TTL=128)");
@@ -98,7 +103,7 @@ pub fn backup_and_apply_tcp_mask() -> Result<HashMap<String, String>> {
 pub fn restore_default_tcp_stack() -> Result<()> {
     info!("Restoring canonical Linux TCP/IP stack parameters");
     for (key, val) in DEFAULT_LINUX_SYSCTL_SETTINGS {
-        let _ = write_sysctl(key, val);
+        write_sysctl(key, val)?;
     }
     Ok(())
 }
@@ -109,7 +114,7 @@ pub fn restore_tcp_stack(backup: &HashMap<String, String>) -> Result<()> {
         return restore_default_tcp_stack();
     }
     for (key, val) in backup {
-        let _ = write_sysctl(key, val);
+        write_sysctl(key, val)?;
     }
     Ok(())
 }

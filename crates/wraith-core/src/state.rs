@@ -21,6 +21,10 @@ pub enum State {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StateData {
     pub active: bool,
+    #[serde(default)]
+    pub dns_configured: bool,
+    #[serde(default)]
+    pub physical_fastpath_disabled: bool,
     pub state: Option<State>,
     pub pid: Option<u32>,
     pub ip: Option<String>,
@@ -36,6 +40,10 @@ pub struct StateData {
     pub namespace_active: bool,
     pub browser_hardened: usize,
     pub saved_rules: Option<String>,
+    #[serde(default)]
+    pub saved_ipv6_rules: Option<String>,
+    #[serde(default)]
+    pub tcp_stack_backup: std::collections::HashMap<String, String>,
     pub machine_id_old: Option<String>,
     pub tcp_stack_masked: bool,
     pub multihop_enabled: bool,
@@ -46,6 +54,8 @@ pub struct StateData {
     pub honeypot_active: bool,
     pub honeypot_lan_active: bool,
     pub display_jail_active: bool,
+    #[serde(default)]
+    pub vault_path: Option<String>,
 }
 
 pub struct StateManager {
@@ -69,34 +79,37 @@ impl StateManager {
         self.path.exists()
     }
 
+    pub fn claim(&self, mut data: StateData) -> Result<()> {
+        let parent = self.path.parent().unwrap_or_else(|| Path::new("/var/run"));
+        fs::create_dir_all(parent)?;
+        data.active = false;
+        data.state = Some(State::Arming);
+        data.pid = Some(std::process::id());
+        let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+        temp.write_all(serde_json::to_string_pretty(&data)?.as_bytes())?;
+        temp.as_file().sync_all()?;
+        temp.persist_noclobber(&self.path).map_err(|e| e.error)?;
+        Ok(())
+    }
+
     pub fn activate(&self, data: StateData) -> Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
 
         let mut payload = data;
-        payload.active = true;
-        payload.state = Some(State::Active);
+        payload.state = Some(payload.state.unwrap_or(State::Active));
+        payload.active = payload.state == Some(State::Active);
         payload.pid = Some(std::process::id());
 
         let serialized = serde_json::to_string_pretty(&payload)?;
 
         // Atomic write via tempfile in same directory
         let parent = self.path.parent().unwrap_or_else(|| Path::new("/var/run"));
-        let temp_path = parent.join(format!(".wraith.state.{}.tmp", std::process::id()));
-
-        {
-            let mut file = File::create(&temp_path)?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = fs::set_permissions(&temp_path, fs::Permissions::from_mode(0o600));
-            }
-            file.write_all(serialized.as_bytes())?;
-            file.sync_all()?;
-        }
-
-        fs::rename(temp_path, &self.path)?;
+        let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+        temp.write_all(serialized.as_bytes())?;
+        temp.as_file().sync_all()?;
+        temp.persist(&self.path).map_err(|e| e.error)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -110,6 +123,10 @@ impl StateManager {
             fs::remove_file(&self.path)?;
         }
         Ok(())
+    }
+
+    pub fn read_checked(&self) -> Result<StateData> {
+        Ok(serde_json::from_str(&fs::read_to_string(&self.path)?)?)
     }
 
     pub fn read(&self) -> StateData {
@@ -165,5 +182,21 @@ impl StateManager {
                 StateData::default()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn concurrent_session_claim_cannot_overwrite_owner() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = StateManager { path: dir.path().join("state") };
+        manager.claim(StateData::default()).unwrap();
+        let before = fs::read(&manager.path).unwrap();
+        assert!(manager.claim(StateData::default()).is_err());
+        assert_eq!(fs::read(&manager.path).unwrap(), before);
+        manager.activate(StateData::default()).unwrap();
+        assert!(manager.read().active);
     }
 }

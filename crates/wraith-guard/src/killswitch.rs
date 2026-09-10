@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
-use wraith_net::{apply_ipv6_block, apply_tor_rules};
+use wraith_net::{apply_ipv6_block, restore_rules, save_rules};
 use wraith_tor::TorControlClient;
 
 pub struct KillSwitch {
@@ -18,6 +18,10 @@ pub struct KillSwitch {
 
 impl KillSwitch {
     pub fn new() -> (Self, CancellationToken) {
+        Self::new_with_mode(false)
+    }
+
+    pub fn new_with_mode(_strict: bool) -> (Self, CancellationToken) {
         let cancel_token = CancellationToken::new();
         (
             Self {
@@ -36,12 +40,15 @@ impl KillSwitch {
         tokio::spawn(async move {
             info!("KillSwitch Fail-Closed watchdog active (1000ms polling cycle)");
             let mut failure_count = 0u8;
+            let mut recovery_rules: Option<String> = None;
 
             while !self.cancel_token.is_cancelled() {
                 sleep(Duration::from_millis(1000)).await;
 
                 let mut client = TorControlClient::default();
-                let is_alive = client.connect().await.is_ok() && client.is_alive().await;
+                let is_alive = tokio::time::timeout(Duration::from_secs(3), async {
+                    client.connect().await.is_ok() && client.is_alive().await
+                }).await.unwrap_or(false);
 
                 if is_alive {
                     if failure_count > 0 {
@@ -51,15 +58,21 @@ impl KillSwitch {
 
                     if self.is_killed.load(Ordering::SeqCst) {
                         info!("Restoring standard Tor routing rules after recovery...");
-                        self.is_killed.store(false, Ordering::SeqCst);
-                        let _ = apply_tor_rules();
-                        let _ = apply_ipv6_block();
+                        // Restore the exact pre-lockdown policy, including namespace
+                        // and WireGuard rules, rather than weakening it to defaults.
+                        if apply_ipv6_block().is_ok() && recovery_rules.as_deref()
+                            .map(|rules| restore_rules(rules).is_ok()).unwrap_or(false) {
+                            self.is_killed.store(false, Ordering::SeqCst);
+                        } else {
+                            error!("Recovery failed; retaining lockdown state");
+                        }
                     }
                 } else {
-                    failure_count += 1;
+                    failure_count = failure_count.saturating_add(1);
                     warn!("Tor health check failed ({failure_count}/2)");
 
                     if failure_count >= 2 && !self.is_killed.load(Ordering::SeqCst) {
+                        recovery_rules = save_rules();
                         self.emergency_lockdown();
                     }
                 }
@@ -87,6 +100,13 @@ impl KillSwitch {
         // 3. Only allow local loopback communications
         let _ = Command::new("iptables").args(["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"]).status();
         let _ = Command::new("iptables").args(["-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"]).status();
+
+        // Permit only the dedicated Tor account to re-establish its circuits.
+        // Application egress remains blocked while Tor is unavailable.
+        if let Ok(uid) = wraith_net::get_tor_uid() {
+            let _ = Command::new("iptables").args(["-A", "OUTPUT", "-m", "owner", "--uid-owner", &uid.to_string(), "-j", "ACCEPT"]).status();
+            let _ = Command::new("iptables").args(["-A", "INPUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"]).status();
+        }
 
         // 4. Enforce strict IPv6 total blackout
         let _ = Command::new("ip6tables").args(["-P", "INPUT", "DROP"]).status();

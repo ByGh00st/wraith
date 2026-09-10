@@ -5,7 +5,7 @@
 //! - unauthorized namespace escapes
 
 #[cfg(unix)]
-use tracing::{info, warn};
+use tracing::info;
 #[cfg(unix)]
 use wraith_core::error::WraithError;
 use wraith_core::error::Result;
@@ -61,6 +61,11 @@ pub fn build_seccomp_bpf_filter() -> Vec<SockFilter> {
         // 3. Load Syscall Number (seccomp_data.nr offset 0)
         SockFilter::stmt(BPF_LD | BPF_W | BPF_ABS, 0),
 
+        // Reject the x32 ABI, which shares the x86_64 audit architecture but
+        // uses different syscall numbers and would bypass the ptrace match.
+        SockFilter::jump(BPF_JMP | 0x30 | BPF_K, 0x40000000, 0, 1),
+        SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+
         // 4. Check if syscall is ptrace (101) -> Deny with EPERM
         SockFilter::jump(BPF_JMP | BPF_JEQ | BPF_K, SYS_PTRACE, 0, 1),
         SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
@@ -72,7 +77,7 @@ pub fn build_seccomp_bpf_filter() -> Vec<SockFilter> {
 
 /// Enforces the Seccomp-BPF filter directly in the Linux kernel
 pub fn enforce_seccomp_socket_jail() -> Result<()> {
-    #[cfg(unix)]
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     {
         let filter = build_seccomp_bpf_filter();
         let fprog = SockFprog {
@@ -92,17 +97,48 @@ pub fn enforce_seccomp_socket_jail() -> Result<()> {
             }
 
             // Step 2: Inject BPF filter via PR_SET_SECCOMP (SECCOMP_MODE_FILTER = 2)
-            const SECCOMP_MODE_FILTER: libc::c_ulong = 2;
-            let res = libc::prctl(libc::PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &fprog as *const _ as libc::c_ulong, 0, 0);
+            // TSYNC applies the filter to existing Tokio workers too.
+            const SECCOMP_SET_MODE_FILTER: libc::c_ulong = 1;
+            const SECCOMP_FILTER_FLAG_TSYNC: libc::c_ulong = 1;
+            let res = libc::syscall(libc::SYS_seccomp, SECCOMP_SET_MODE_FILTER,
+                SECCOMP_FILTER_FLAG_TSYNC, &fprog as *const SockFprog);
             if res != 0 {
-                warn!(
-                    "Seccomp-BPF filter installation returned errno: {}. (Kernel may require CAP_SYS_ADMIN)",
-                    std::io::Error::last_os_error()
-                );
+                return Err(WraithError::Guard(format!("Seccomp installation failed: {}", std::io::Error::last_os_error())));
             } else {
                 info!("Seccomp-BPF Kernel Filter Active: ptrace blocked at Ring 0 (raw sockets exempted for IDS engine)");
             }
         }
     }
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    return Err(wraith_core::error::WraithError::UnsupportedPlatform);
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn decision(arch: u32, syscall: u32) -> u32 {
+        let code = build_seccomp_bpf_filter();
+        let mut pc = 0;
+        let mut value = 0;
+        loop {
+            let instruction = &code[pc];
+            match instruction.code {
+                0x20 => value = if instruction.k == 4 { arch } else { syscall },
+                0x15 => { pc += if value == instruction.k { instruction.jt } else { instruction.jf } as usize; }
+                0x35 => { pc += if value >= instruction.k { instruction.jt } else { instruction.jf } as usize; }
+                0x06 => return instruction.k,
+                _ => panic!("unexpected instruction"),
+            }
+            pc += 1;
+        }
+    }
+    #[test]
+    fn denies_ptrace_and_alternate_abi() {
+        assert_eq!(decision(AUDIT_ARCH_X86_64, 101), SECCOMP_RET_ERRNO | EPERM);
+        assert_eq!(decision(AUDIT_ARCH_X86_64, 0x40000209), SECCOMP_RET_ERRNO | EPERM);
+        assert_eq!(decision(AUDIT_ARCH_X86_64, 1), SECCOMP_RET_ALLOW);
+        assert_eq!(decision(0x40000003, 1), SECCOMP_RET_KILL_PROCESS);
+    }
 }

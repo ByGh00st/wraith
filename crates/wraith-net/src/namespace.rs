@@ -68,15 +68,17 @@ pub fn create_namespace() -> Result<()> {
     fs::create_dir_all(&netns_etc)?;
     fs::write(format!("{netns_etc}/resolv.conf"), format!("nameserver {NS_SUBNET}.1\n"))?;
 
-    // 8. Host NAT & Forwarding rules
-    let _ = run_cmd("iptables", &["-t", "nat", "-A", "POSTROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-o", "lo", "-j", "MASQUERADE"]);
-    let _ = run_cmd("iptables", &["-t", "nat", "-A", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
-    let _ = run_cmd("iptables", &["-t", "nat", "-A", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
-    // Route non-DNS TCP traffic from namespace to Tor TransPort (9040)
-    let _ = run_cmd("iptables", &["-t", "nat", "-A", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--syn", "-j", "REDIRECT", "--to-ports", "9040"]);
-    let _ = run_cmd("iptables", &["-A", "FORWARD", "-s", &format!("{NS_SUBNET}.0/24"), "-j", "ACCEPT"]);
-    let _ = run_cmd("iptables", &["-A", "FORWARD", "-d", &format!("{NS_SUBNET}.0/24"), "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"]);
-    let _ = run_cmd("sysctl", &["-w", "net.ipv4.ip_forward=1"]);
+    // REDIRECT targets the veth address, but Tor listens on loopback only.
+    // DNAT explicitly to loopback, scoped to this veth; never permit forwarding
+    // namespace UDP directly to the physical network.
+    run_cmd("sysctl", &["-w", &format!("net.ipv4.conf.{VETH_HOST}.route_localnet=1")])?;
+    for rule in namespace_rules() {
+        let args: Vec<&str> = rule.iter().map(String::as_str).collect();
+        if let Err(error) = run_cmd("iptables", &args) {
+            let _ = destroy_namespace();
+            return Err(error);
+        }
+    }
 
     // 9. Normalize TCP/IP stack inside network namespace (Eradicate TCP timestamps & align TTL)
     for (key, val) in crate::tcp_stack::TARGET_SYSCTL_SETTINGS {
@@ -88,20 +90,18 @@ pub fn create_namespace() -> Result<()> {
 }
 
 pub fn destroy_namespace() -> Result<()> {
-    if !is_namespace_active() {
-        return Ok(());
-    }
-
     info!("Demolishing network namespace: {}", NAMESPACE_NAME);
 
     let _ = run_cmd("ip", &["netns", "delete", NAMESPACE_NAME]);
     let _ = run_cmd("ip", &["link", "delete", VETH_HOST]);
-    let _ = run_cmd("iptables", &["-t", "nat", "-D", "POSTROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-o", "lo", "-j", "MASQUERADE"]);
-    let _ = run_cmd("iptables", &["-t", "nat", "-D", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
-    let _ = run_cmd("iptables", &["-t", "nat", "-D", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"]);
-    let _ = run_cmd("iptables", &["-t", "nat", "-D", "PREROUTING", "-s", &format!("{NS_SUBNET}.0/24"), "-p", "tcp", "--syn", "-j", "REDIRECT", "--to-ports", "9040"]);
-    let _ = run_cmd("iptables", &["-D", "FORWARD", "-s", &format!("{NS_SUBNET}.0/24"), "-j", "ACCEPT"]);
-    let _ = run_cmd("iptables", &["-D", "FORWARD", "-d", &format!("{NS_SUBNET}.0/24"), "-m", "state", "--state", "ESTABLISHED,RELATED", "-j", "ACCEPT"]);
+    for mut rule in namespace_rules() {
+        if let Some(index) = rule.iter().position(|s| s == "-I") {
+            rule[index] = "-D".into();
+            rule.remove(index + 2); // insertion position is not part of deletion
+        }
+        let args: Vec<&str> = rule.iter().map(String::as_str).collect();
+        let _ = run_cmd("iptables", &args);
+    }
 
     let netns_dir = format!("/etc/netns/{NAMESPACE_NAME}");
     if Path::new(&netns_dir).exists() {
@@ -110,6 +110,24 @@ pub fn destroy_namespace() -> Result<()> {
 
     info!("Namespace purged");
     Ok(())
+}
+
+fn namespace_rules() -> Vec<Vec<String>> {
+    let subnet = format!("{NS_SUBNET}.0/24");
+    let dns = wraith_core::config::WRAITH_DNS_PORT.to_string();
+    let mut rules = Vec::new();
+    let mut add = |args: Vec<&str>| rules.push(args.into_iter().map(String::from).collect());
+    // General TCP first; the DNS rules inserted later take priority.
+    add(vec!["-t", "nat", "-I", "PREROUTING", "1", "-i", VETH_HOST, "-s", &subnet, "-p", "tcp", "--syn", "-j", "DNAT", "--to-destination", "127.0.0.1:9040"]);
+    let dns_target = format!("127.0.0.1:{dns}");
+    for protocol in ["tcp", "udp"] {
+        add(vec!["-t", "nat", "-I", "PREROUTING", "1", "-i", VETH_HOST, "-s", &subnet, "-p", protocol, "--dport", "53", "-j", "DNAT", "--to-destination", &dns_target]);
+        add(vec!["-I", "INPUT", "1", "-i", VETH_HOST, "-s", &subnet, "-d", "127.0.0.1", "-p", protocol, "--dport", &dns, "-j", "ACCEPT"]);
+    }
+    add(vec!["-I", "INPUT", "1", "-i", VETH_HOST, "-s", &subnet, "-d", "127.0.0.1", "-p", "tcp", "--dport", "9040", "-j", "ACCEPT"]);
+    add(vec!["-I", "OUTPUT", "1", "-o", VETH_HOST, "-s", "127.0.0.1", "-d", &subnet, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"]);
+    add(vec!["-I", "FORWARD", "1", "-i", VETH_HOST, "-j", "REJECT"]);
+    rules
 }
 
 pub fn spawn_in_namespace(command: &str, args: &[&str]) -> Result<Child> {
@@ -127,4 +145,18 @@ pub fn spawn_in_namespace(command: &str, args: &[&str]) -> Result<Child> {
         .stderr(Stdio::inherit())
         .spawn()
         .map_err(|e| WraithError::Namespace(format!("Failed to spawn process in namespace: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn namespace_has_no_direct_forwarding_allow_rule() {
+        let rules: Vec<String> = namespace_rules().iter().map(|r| r.join(" ")).collect();
+        assert!(rules.iter().any(|r| r == "-I FORWARD 1 -i veth-wr-host -j REJECT"));
+        assert!(!rules.iter().any(|r| r.contains("FORWARD") && r.contains("ACCEPT")));
+        assert!(rules.iter().any(|r| r.contains("127.0.0.1:5354")));
+        assert!(rules.iter().any(|r| r.contains("127.0.0.1:9040")));
+        assert!(rules.iter().filter(|r| r.contains("PREROUTING")).all(|r| r.contains("-i veth-wr-host -s 10.200.1.0/24")));
+    }
 }

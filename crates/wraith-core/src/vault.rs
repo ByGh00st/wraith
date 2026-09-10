@@ -143,21 +143,10 @@ pub struct EncryptedRamVault {
 
 impl EncryptedRamVault {
     pub fn init() -> Result<Self> {
-        let path = PathBuf::from(VAULT_DIR);
-
-        // Mount or create secure directory
-        if !path.exists() {
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt;
-                let mut builder = fs::DirBuilder::new();
-                builder.recursive(true);
-                builder.mode(0o700);
-                builder.create(&path)?;
-            }
-            #[cfg(not(unix))]
-            fs::create_dir_all(&path)?;
-        }
+        // An unpredictable, exclusively-created directory prevents pre-created
+        // /dev/shm symlinks from redirecting privileged vault writes or cleanup.
+        let path = tempfile::Builder::new().prefix(".wraith-vault-")
+            .tempdir_in("/dev/shm")?.keep();
 
         #[cfg(unix)]
         {
@@ -178,13 +167,17 @@ impl EncryptedRamVault {
         }
 
         let master_key = VaultKey::generate();
-        info!("Initialized ChaCha20-Poly1305 Encrypted RAMFS Vault in {VAULT_DIR}");
+        info!("Initialized ChaCha20-Poly1305 encrypted RAM vault");
 
         Ok(Self {
             vault_path: path,
             master_key,
             key_ring: HashMap::new(),
         })
+    }
+
+    pub fn path(&self) -> &std::path::Path {
+        &self.vault_path
     }
 
     pub fn write_secret(&mut self, secret_name: &str, data: &[u8]) -> Result<()> {
@@ -291,6 +284,18 @@ impl EncryptedRamVault {
 
         info!("RAMFS Vault destroyed and memory zeroized");
         Ok(())
+    }
+}
+
+impl Drop for EncryptedRamVault {
+    fn drop(&mut self) {
+        self.master_key.zeroize();
+        self.key_ring.clear();
+        if let Err(error) = fs::remove_dir_all(&self.vault_path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                warn!("Vault cleanup failed: {error}");
+            }
+        }
     }
 }
 

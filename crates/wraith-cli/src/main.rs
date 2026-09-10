@@ -166,10 +166,11 @@ pub struct StartArgs {
     #[arg(long = "machine-id", visible_aliases = ["cloaking"], help_heading = "System Hardening")]
     pub machine_id_rotation: bool,
 
-    /// Engage ALL 16 defense layers: GPU/Font Shield, MAC, Machine-ID, TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault, Honeypot, Netem
+    /// Require strict Tor egress, kill switch, MAC, browser shield, namespace, seccomp and memory protection
     #[arg(
         short = 'F',
-        long = "full-security", 
+        long = "full-security",
+        conflicts_with = "no_ks",
         visible_aliases = ["full", "strict", "harden", "max-hardening", "full-defense", "strict-hardening", "fs"],
         help_heading = "System Hardening"
     )]
@@ -795,6 +796,12 @@ pub async fn main() -> Result<()> {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn full_security_rejects_disabled_watchdog() {
+        assert!(Cli::try_parse_from(["wraith", "-Fs", "--no-ks"]).is_err());
+        assert!(Cli::try_parse_from(["wraith", "start", "-F", "--no-ks"]).is_err());
+    }
 
     #[test]
     fn test_cli_parsing_flags() {

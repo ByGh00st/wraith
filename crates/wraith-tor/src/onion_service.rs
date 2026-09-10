@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 use tracing::info;
 use wraith_core::config::TORRC_PATH;
-use wraith_core::error::Result;
+use wraith_core::error::{Result, WraithError};
 
 pub const ONION_SERVICE_DIR: &str = "/var/lib/tor/wraith_hidden_service";
 
@@ -86,6 +86,16 @@ impl OnionServiceManager {
 
     /// Injects ephemeral Hidden Service configuration into torrc (Idempotent)
     pub fn arm_onion_service(config: &OnionServiceConfig) -> Result<()> {
+        if !config.client_auth_keys.is_empty() {
+            return Err(WraithError::Configuration("Onion client authorization is not implemented; refusing to publish an unauthenticated service".into()));
+        }
+        if config.name.contains(['\r', '\n']) || config.target_unix_socket.as_deref()
+            .map(|path| path.contains(['\r', '\n'])).unwrap_or(false) {
+            return Err(WraithError::Configuration("Onion configuration contains line breaks".into()));
+        }
+        if config.virtual_port == 0 || config.target_port == 0 {
+            return Err(WraithError::Configuration("Onion ports must be nonzero".into()));
+        }
         let torrc = Path::new(TORRC_PATH);
         if torrc.exists() {
             let mut content = fs::read_to_string(torrc)?;

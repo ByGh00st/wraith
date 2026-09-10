@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
 use owo_colors::OwoColorize;
 use wraith_core::config::{TOR_CONTROL_PORT, TOR_DNS_PORT, TOR_SOCKS_PORT, TOR_TRANS_PORT};
-use wraith_core::vault::VAULT_DIR;
+
 
 #[derive(Debug, Clone)]
 pub struct DiagnosticCheck {
@@ -200,11 +200,10 @@ impl DiagnosticsRunner {
     }
 
     fn check_ram_vault_status() -> DiagnosticCheck {
-        let p = Path::new(VAULT_DIR);
-        let (passed, detail) = if p.exists() {
-            (true, format!("Active encrypted tmpfs vault mounted at {VAULT_DIR}"))
-        } else {
-            (false, "Ephemeral RAMFS vault not initialized".into())
+        let state = wraith_core::StateManager::default().read();
+        let (passed, detail) = match state.vault_path {
+            Some(path) if Path::new(&path).is_dir() => (true, format!("Session vault directory exists at {path}")),
+            _ => (false, "No current session vault directory recorded".into()),
         };
 
         DiagnosticCheck {

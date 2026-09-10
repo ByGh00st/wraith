@@ -2,19 +2,19 @@
 //! Full RFC 1035 wire-format parser, QNAME minimization engine, RFC 7830 / RFC 8467 EDNS0 padding,
 //! DNSSEC metadata verification (DO/AD flags), and multi-vendor telemetry sinkholing.
 
-use rand::Rng;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::net::UdpSocket;
+use tokio::net::{UdpSocket, TcpListener};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use wraith_core::config::TOR_DNS_PORT;
 use wraith_core::error::{Result, WraithError};
 
-pub const DNS_LOCAL_PORT: u16 = 53;
+pub const DNS_LOCAL_PORT: u16 = wraith_core::config::WRAITH_DNS_PORT;
 pub const DNS_MAX_PACKET_SIZE: usize = 4096;
 pub const EDNS0_TARGET_PADDING_SIZE: usize = 468;
 
@@ -271,7 +271,7 @@ impl DnsPacket {
 
         for _ in 0..header.qdcount {
             if offset >= buf.len() {
-                break;
+                return Err(WraithError::Custom("Missing DNS question".into()));
             }
             let (name, new_offset) = Self::parse_qname(buf, offset)?;
             offset = new_offset;
@@ -335,6 +335,9 @@ impl DnsPacket {
                 continue;
             }
 
+            if len > 63 {
+                return Err(WraithError::Custom("Invalid DNS label length".into()));
+            }
             offset += 1;
             if len == 0 {
                 if !jumped {
@@ -382,9 +385,11 @@ impl DnsPacket {
 
         resp.extend_from_slice(&hdr.to_bytes());
 
-        // Echo question section back to client
-        if self.raw_payload.len() > 12 {
-            resp.extend_from_slice(&self.raw_payload[12..]);
+        // Only echo questions, not the original additional section.
+        for question in &self.questions {
+            Self::encode_qname(&question.name, &mut resp);
+            resp.extend_from_slice(&question.qtype.to_be_bytes());
+            resp.extend_from_slice(&question.qclass.to_be_bytes());
         }
 
         resp
@@ -396,10 +401,18 @@ impl DnsPacket {
             return payload;
         }
 
-        let pad_len = target_len - payload.len();
-        let mut rng = rand::thread_rng();
-        let padding: Vec<u8> = (0..pad_len).map(|_| rng.gen::<u8>()).collect();
-        payload.extend_from_slice(&padding);
+        let Some(header) = DnsHeader::from_bytes(&payload) else { return payload; };
+        // Preserve existing OPT records; never append unframed random garbage.
+        if header.arcount != 0 || target_len < payload.len() + 15 || target_len > 4096 {
+            return payload;
+        }
+        let padding_len = target_len - payload.len() - 15;
+        payload[10..12].copy_from_slice(&1u16.to_be_bytes());
+        payload.extend_from_slice(&[0, 0, 41, 16, 0, 0, 0, 0, 0]);
+        payload.extend_from_slice(&((padding_len + 4) as u16).to_be_bytes());
+        payload.extend_from_slice(&12u16.to_be_bytes());
+        payload.extend_from_slice(&(padding_len as u16).to_be_bytes());
+        payload.resize(target_len, 0);
         payload
     }
 }
@@ -632,7 +645,7 @@ impl SovereignDnsServer {
                     "Cannot bind DNS server to {}: {e} (Port 53 in use by systemd-resolved?)",
                     self.bind_addr
                 );
-                return Ok(());
+                return Err(e.into());
             }
         };
 
@@ -685,23 +698,22 @@ impl SovereignDnsServer {
         peer_addr: SocketAddr,
         upstream: String,
         transport: DnsTransport,
-        cache: DnsCache,
+        _cache: DnsCache,
     ) -> Result<()> {
         let parsed_pkt = match DnsPacket::parse(&query_bytes) {
             Ok(p) => p,
             Err(_) => return Ok(()),
         };
 
-        if parsed_pkt.questions.is_empty() {
+        if parsed_pkt.header.qr || parsed_pkt.questions.len() != 1 {
             return Ok(());
         }
 
         let qname = &parsed_pkt.questions[0].name;
-        let qtype = parsed_pkt.questions[0].qtype;
-        let cache_key = format!("{}:{}", qname.to_lowercase(), qtype);
+
 
         // 1. Check Spyware & Telemetry Sinkhole Matrix
-        let is_sinkhole = SINKHOLE_DOMAINS.iter().any(|sink| qname.ends_with(sink));
+        let is_sinkhole = SINKHOLE_DOMAINS.iter().any(|sink| { let name = qname.to_ascii_lowercase(); name == *sink || name.ends_with(&format!(".{sink}")) });
         if is_sinkhole {
             info!("🛡️ SINKHOLE INTERCEPTION: Blocked telemetry query '{qname}' from {peer_addr}");
             let nxdomain = parsed_pkt.build_nxdomain_response();
@@ -710,21 +722,8 @@ impl SovereignDnsServer {
             return Ok(());
         }
 
-        // 2. Check LRU Cache
-        {
-            let r_cache = cache.read().await;
-            if let Some(entry) = r_cache.get(&cache_key) {
-                if Instant::now() < entry.expires_at {
-                    debug!("DNS Cache Hit for {qname}");
-                    let mut cached_resp = entry.response.clone();
-                    if cached_resp.len() >= 2 {
-                        cached_resp[0..2].copy_from_slice(&parsed_pkt.header.id.to_be_bytes());
-                    }
-                    let _ = socket.send_to(&cached_resp, peer_addr).await;
-                    return Ok(());
-                }
-            }
-        }
+        // Forward each query until full RR TTL aging is implemented; a random
+        // cache lifetime can serve stale records and retain unbounded entries.
 
         // 3. Relay Query via DoH or Local Tor DNSPort (5353)
         let mut response_bytes: Option<Vec<u8>> = None;
@@ -754,27 +753,12 @@ impl SovereignDnsServer {
             }
         }
 
-        if let Some(mut final_resp) = response_bytes {
-            // Restore original client query ID to match response
-            if final_resp.len() >= 2 {
-                final_resp[0..2].copy_from_slice(&parsed_pkt.header.id.to_be_bytes());
+        if let Some(final_resp) = response_bytes {
+            let response = DnsPacket::parse(&final_resp)?;
+            if !response.header.qr || response.header.id != parsed_pkt.header.id
+                || response.questions != parsed_pkt.questions {
+                return Err(WraithError::Network("DNS upstream response does not match query".into()));
             }
-
-            let jitter_secs = {
-                let mut rng = rand::thread_rng();
-                rng.gen_range(30..120)
-            };
-            {
-                let mut w_cache = cache.write().await;
-                w_cache.insert(
-                    cache_key,
-                    CachedDnsResponse {
-                        response: final_resp.clone(),
-                        expires_at: Instant::now() + Duration::from_secs(jitter_secs),
-                    },
-                );
-            }
-
             let padded = DnsPacket::apply_edns0_padding(final_resp, EDNS0_TARGET_PADDING_SIZE);
             let _ = socket.send_to(&padded, peer_addr).await;
         }
@@ -795,7 +779,11 @@ impl SovereignDnsServer {
 
         let mut child = tokio::process::Command::new("curl")
             .args([
+                "-q",
                 "-s",
+                "--fail",
+                "--socks5-hostname", "127.0.0.1:9050",
+                "--noproxy", "",
                 "-X",
                 "POST",
                 "--connect-timeout",
@@ -835,43 +823,64 @@ impl SovereignDnsServer {
         }
     }
 
-    pub fn spawn_server(&self) -> tokio::task::JoinHandle<()> {
+    pub async fn spawn_server(&self) -> Result<tokio::task::JoinHandle<()>> {
         let cancel = self.cancel_token.clone();
         let bind_addr = self.bind_addr.clone();
         let upstream = self.upstream_addr.clone();
         let transport = self.transport.clone();
         let cache = self.cache.clone();
 
-        tokio::spawn(async move {
-            let socket = match UdpSocket::bind(&bind_addr).await {
-                Ok(s) => Arc::new(s),
-                Err(e) => {
-                    warn!("Cannot bind DNS server to {}: {e}", bind_addr);
-                    return;
-                }
-            };
-
+        // Bind both transports before DNS/firewall changes are reported active.
+        let socket = Arc::new(UdpSocket::bind(&bind_addr).await?);
+        let tcp_listener = TcpListener::bind(&bind_addr).await?;
+        let capacity = Arc::new(tokio::sync::Semaphore::new(128));
+        Ok(tokio::spawn(async move {
             let mut recv_buf = vec![0u8; DNS_MAX_PACKET_SIZE];
             loop {
                 tokio::select! {
                     _ = cancel.cancelled() => {
                         break;
                     }
+                    incoming = tcp_listener.accept() => {
+                        if let Ok((mut stream, _)) = incoming {
+                            let Ok(permit) = capacity.clone().try_acquire_owned() else { continue; };
+                            let local = bind_addr.clone();
+                            tokio::spawn(async move {
+                                let _permit = permit;
+                                let _ = tokio::time::timeout(Duration::from_secs(10), async {
+                                    let len = stream.read_u16().await? as usize;
+                                    if !(12..=DNS_MAX_PACKET_SIZE).contains(&len) { return Ok::<(), std::io::Error>(()); }
+                                    let mut query = vec![0; len];
+                                    stream.read_exact(&mut query).await?;
+                                    let relay = UdpSocket::bind("127.0.0.1:0").await?;
+                                    relay.connect(&local).await?;
+                                    relay.send(&query).await?;
+                                    let mut response = vec![0; DNS_MAX_PACKET_SIZE];
+                                    let n = relay.recv(&mut response).await?;
+                                    stream.write_u16(n as u16).await?;
+                                    stream.write_all(&response[..n]).await?;
+                                    Ok(())
+                                }).await;
+                            });
+                        }
+                    }
                     res = socket.recv_from(&mut recv_buf) => {
                         if let Ok((n, peer)) = res {
+                            let Ok(permit) = capacity.clone().try_acquire_owned() else { continue; };
                             let q_bytes = recv_buf[..n].to_vec();
                             let s_clone = socket.clone();
                             let u_clone = upstream.clone();
                             let t_clone = transport.clone();
                             let c_clone = cache.clone();
                             tokio::spawn(async move {
+                                let _permit = permit;
                                 let _ = Self::handle_dns_query(s_clone, q_bytes, peer, u_clone, t_clone, c_clone).await;
                             });
                         }
                     }
                 }
             }
-        })
+        }))
     }
 
     pub fn shutdown(&self) {
@@ -944,5 +953,78 @@ mod tests {
         assert!(SINKHOLE_DOMAINS.iter().any(|sink| "telemetry.microsoft.com".ends_with(sink)));
         assert!(SINKHOLE_DOMAINS.iter().any(|sink| "stats.g.doubleclick.net".ends_with(sink)));
         assert!(!SINKHOLE_DOMAINS.iter().any(|sink| "torproject.org".ends_with(sink)));
+    }
+}
+
+#[cfg(test)]
+mod protocol_regressions {
+    use super::*;
+
+    fn query() -> Vec<u8> {
+        let mut bytes = DnsHeader::new_query(123).to_bytes().to_vec();
+        DnsPacket::encode_qname("example.org", &mut bytes);
+        bytes.extend_from_slice(&[0, 1, 0, 1]);
+        bytes
+    }
+
+    #[test]
+    fn padding_is_framed_as_an_opt_record() {
+        let original = query();
+        let padded = DnsPacket::apply_edns0_padding(original.clone(), 468);
+        assert_eq!(padded.len(), 468);
+        assert_eq!(DnsHeader::from_bytes(&padded).unwrap().arcount, 1);
+        assert_eq!(&padded[original.len()..original.len() + 3], &[0, 0, 41]);
+        let end = original.len() + 11;
+        assert_eq!(&padded[end..end + 2], &[0, 12]);
+        assert_eq!(DnsPacket::apply_edns0_padding(padded.clone(), 512), padded);
+    }
+
+    #[test]
+    fn rejects_missing_questions_and_reserved_labels() {
+        assert!(DnsPacket::parse(&DnsHeader::new_query(1).to_bytes()).is_err());
+        assert!(DnsPacket::parse_qname(&[64, 0], 0).is_err());
+        assert!(DnsPacket::parse_qname(&[0xc0, 0], 0).is_err());
+    }
+
+    #[tokio::test]
+    async fn udp_and_tcp_queries_reach_the_configured_upstream() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let upstream = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+            let reservation = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = reservation.local_addr().unwrap().port();
+            drop(reservation);
+            let (server, cancel) = SovereignDnsServer::new(Some(port), Some(upstream.local_addr().unwrap().port()));
+            let handle = server.spawn_server().await.unwrap();
+            let responder = tokio::spawn(async move {
+                for _ in 0..2 {
+                    let mut bytes = [0u8; 4096];
+                    let (n, peer) = upstream.recv_from(&mut bytes).await.unwrap();
+                    bytes[2] |= 0x80;
+                    upstream.send_to(&bytes[..n], peer).await.unwrap();
+                }
+            });
+            let udp = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+            udp.connect((std::net::Ipv4Addr::LOCALHOST, port)).await.unwrap();
+            udp.send(&query()).await.unwrap();
+            let mut response = [0u8; 4096];
+            let n = udp.recv(&mut response).await.unwrap();
+            assert!(DnsPacket::parse(&response[..n]).unwrap().header.qr);
+            let mut tcp = tokio::net::TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).await.unwrap();
+            tcp.write_u16(query().len() as u16).await.unwrap();
+            tcp.write_all(&query()).await.unwrap();
+            let n = tcp.read_u16().await.unwrap() as usize;
+            tcp.read_exact(&mut response[..n]).await.unwrap();
+            assert!(DnsPacket::parse(&response[..n]).unwrap().header.qr);
+            responder.await.unwrap();
+            cancel.cancel();
+            handle.await.unwrap();
+        }).await.expect("DNS relay stalled");
+    }
+
+    #[tokio::test]
+    async fn reports_occupied_dns_port() {
+        let occupied = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let (server, _) = SovereignDnsServer::new(Some(occupied.local_addr().unwrap().port()), None);
+        assert!(server.spawn_server().await.is_err());
     }
 }

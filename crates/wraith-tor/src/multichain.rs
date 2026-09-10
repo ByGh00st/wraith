@@ -86,15 +86,14 @@ pub async fn apply_exit_profile(profile_key: &str) -> Result<CountryProfile> {
 
     // Signal Tor to reload and construct fresh circuit
     let mut client = TorControlClient::default();
-    if client.connect().await.is_ok() {
-        if let Err(e) = client.signal_hup().await {
-            tracing::warn!("Failed sending SIGNAL HUP to Tor: {e}");
-        }
-        if let Err(e) = client.signal_newnym().await {
-            tracing::warn!("Failed sending SIGNAL NEWNYM to Tor: {e}");
-        }
-    } else {
-        tracing::warn!("{}", rust_i18n::t!("log.msg_1"));
+    if let Err(error) = async {
+        client.connect().await?;
+        client.signal_hup().await?;
+        client.signal_newnym().await
+    }.await {
+        fs::write(path, content)?;
+        let _ = client.signal_hup().await;
+        return Err(error);
     }
 
     info!("Applied geographic exit profile: {}", profile.name);

@@ -9,7 +9,7 @@ use wraith_core::process_lockdown::enforce_process_lockdown;
 use wraith_core::state::{StateData, StateManager};
 use wraith_core::vault::EncryptedRamVault;
 use wraith_forensic::{
-    deploy_hardware_and_font_shield, enforce_font_jail, panic_emergency_purge,
+    deploy_hardware_and_font_shield, enforce_font_jail,
     remove_hardware_and_font_shield, restore_font_jail, restore_machine_id, rotate_machine_id,
     run_full_cleanup, VirtualDisplay,
 };
@@ -18,9 +18,9 @@ use wraith_guard::{
     verify_tor_connection, HoneyPortTrap, KillSwitch, TrafficJitterEngine,
 };
 use wraith_net::{
-    apply_ipv6_block, apply_tor_rules, backup_and_apply_tcp_mask, block_stun_ports, change_mac,
+    apply_ipv6_block, apply_tor_rules_for_mode, backup_and_apply_tcp_mask, block_stun_ports, change_mac,
     create_cgroup_jail, create_namespace, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
-    flush_rules, randomize_hostname, restore_default_tcp_stack, restore_mac, unblock_stun_ports,
+    flush_rules, randomize_hostname, restore_mac, unblock_stun_ports,
     EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
     TrafficShapingProfile,
 };
@@ -118,7 +118,8 @@ impl BackgroundServices {
 pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     // 0-CFG. Merge persistent configuration defaults if not explicitly provided
     let mut args = args;
-    if let Ok(cfg) = wraith_core::WraithConfig::load() {
+    {
+        let cfg = wraith_core::WraithConfig::load()?;
         if args.interface.is_none() && !args.select_interface {
             args.interface = cfg.network.default_interface.or(cfg.default_interface);
         }
@@ -155,6 +156,12 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     }
 
     let is_strict = args.strict_hardening;
+    if is_strict && args.no_ks {
+        return Err(WraithError::Configuration("Full security requires the kill switch; remove --no-ks".into()));
+    }
+    if args.rotate_interval == Some(0) {
+        return Err(WraithError::Configuration("Rotation interval must be greater than zero".into()));
+    }
 
     // WireGuard Multi-Hop early configuration validation
     if let Some(ref wg_conf) = args.wireguard {
@@ -175,10 +182,12 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     }
 
     let mut state_data = StateData {
-        active: true,
+        active: false,
+        state: Some(wraith_core::State::Arming),
+        physical_fastpath_disabled: true,
         ..Default::default()
     };
-    let _ = state_mgr.activate(state_data.clone());
+    state_mgr.claim(state_data.clone())?;
     let mut bg_services = BackgroundServices::default();
 
     // 0. Kernel Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)
@@ -195,6 +204,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 &format!("{}", t!("commands.cmd_step_kernel_lockdown_eval", lockdown = format!("{:?}", lockdown))),
                 "ok",
             ),
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_kernel_lockdown", e = e.to_string())), "warn"),
         }
     }
@@ -204,6 +214,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_68"), "info");
         match wraith_forensic::AntiDebugProbe::enforce_anti_debug_trap(is_strict) {
             Ok(()) => print_step(&t!("commands.cmd_step_0"), "ok"),
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_anti_debug", e = e.to_string())), "warn"),
         }
     }
@@ -213,6 +224,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_69"), "info");
         match wraith_forensic::cloaked_process_masquerade("[kworker/u16:0]") {
             Ok(()) => print_step(&t!("commands.cmd_step_70"), "ok"),
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_masquerade", e = e.to_string())), "warn"),
         }
     }
@@ -222,6 +234,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_71"), "warn");
         match wraith_forensic::scrub_system_logs() {
             Ok(count) => print_step(&format!("{}", t!("commands.cmd_step_scrubbed_logs", count = count)), "ok"),
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_log_scrub_err", e = e.to_string())), "warn"),
         }
         match wraith_forensic::wipe_all_user_histories() {
@@ -229,6 +242,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 &format!("{}", t!("commands.cmd_step_history_wiped", count = count)),
                 "ok",
             ),
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_history_wipe_err", e = e.to_string())), "warn"),
         }
     }
@@ -264,7 +278,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         }
     };
     state_data.target_interface = Some(target_interface.clone());
-    let _ = state_mgr.activate(state_data.clone());
+    state_mgr.activate(state_data.clone())?;
 
     // 0-DOH. DNS-over-HTTPS Resolver Resolution
     let selected_doh: Option<wraith_guard::DohProvider> = if args.select_doh {
@@ -280,7 +294,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     };
 
     // 1. MAC & Hostname Randomization
-    if args.mac {
+    if args.mac || is_strict {
         print_step(&t!("commands.cmd_step_1"), "info");
         match change_mac(Some(&target_interface), None) {
             Ok((iface, old_m, new_m)) => {
@@ -288,7 +302,9 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 state_data.mac_interface = Some(iface);
                 state_data.mac_old = Some(old_m);
                 state_data.mac_new = Some(new_m);
+                state_mgr.activate(state_data.clone())?;
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_mac_skip", e = e.to_string())), "warn"),
         }
 
@@ -297,9 +313,10 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 print_step(&format!("Hostname randomized: {old_h} ➔ {new_h}"), "ok");
                 state_data.hostname_old = Some(old_h);
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("Hostname randomization warning: {e}"), "warn"),
         }
-        let _ = state_mgr.activate(state_data.clone());
+        state_mgr.activate(state_data.clone())?;
     }
 
     // 2. Machine-ID & Hardware DMI Cloaking
@@ -310,9 +327,10 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 print_step(&format!("Machine-ID rotated: {old_mid} ➔ {new_mid}"), "ok");
                 state_data.machine_id_old = Some(old_mid);
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("Machine-ID rotation warning: {e}"), "warn"),
         }
-        let _ = state_mgr.activate(state_data.clone());
+        state_mgr.activate(state_data.clone())?;
     }
 
     // 3. TCP/IP Stack Normalization (p0f OS Fingerprint Evasion & Anti-Clock Skew)
@@ -322,10 +340,12 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         Ok(_backup_map) => {
             print_step(&t!("commands.cmd_step_75"), "ok");
             state_data.tcp_stack_masked = true;
+            state_data.tcp_stack_backup = _backup_map;
         }
+        Err(e) if is_strict => return Err(e),
         Err(e) => print_step(&format!("TCP/IP stack normalization warning: {e}"), "warn"),
     }
-    let _ = state_mgr.activate(state_data.clone());
+    state_mgr.activate(state_data.clone())?;
 
     // 4. JA3/JA4 TLS ClientHello Camouflage & In-Flight HTTP DPI Sanitizer Proxy
     {
@@ -402,7 +422,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 );
                 state_data.multihop_enabled = true;
                 state_data.wireguard_config = Some(wg_conf.clone());
-                let _ = state_mgr.activate(state_data.clone());
+                state_mgr.activate(state_data.clone())?;
                 wg_active_iface = Some(wg_iface);
             }
             Err(e) => {
@@ -416,18 +436,17 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     print_step(&t!("commands.cmd_step_5"), "info");
     if let Err(e) = start_tor_daemon().await {
         print_step(&format!("{}", t!("commands.cmd_err_tor_bootstrap", e = e.to_string())), "error");
-        let _ = restore_dns();
-        let _ = flush_rules();
-        let _ = flush_ipv6_block();
+        // DNS and firewall have not been changed yet. Do not flush the user's
+        // existing protection merely because Tor bootstrap failed.
         return Err(e);
     }
     print_step(&t!("commands.cmd_step_6"), "ok");
 
     // 7. DNS Configuration (Applied ONLY after Tor is ready)
     print_step(&t!("commands.cmd_step_7"), "info");
-    if let Err(e) = backup_resolv() {
-        tracing::warn!("Failed creating resolv.conf backup: {e}");
-    }
+    backup_resolv()?;
+    state_data.dns_configured = true;
+    state_mgr.activate(state_data.clone())?;
     if let Err(e) = configure_dns() {
         print_step(&format!("{}", t!("commands.cmd_err_dns_config", e = e.to_string())), "error");
         let _ = restore_dns();
@@ -444,7 +463,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     };
 
     let (dns_srv, dns_ct) = wraith_guard::SovereignDnsServer::new_with_transport(None, None, dns_transport);
-    let dns_handle = dns_srv.spawn_server();
+    let dns_handle = dns_srv.spawn_server().await?;
     bg_services.dns = Some((dns_ct, dns_handle));
     print_step(&t!("commands.cmd_step_76"), "ok");
 
@@ -465,6 +484,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 print_step(&format!("{}", t!("commands.cmd_step_exit_prof_active", name = &p.name, desc = &p.desc)), "ok");
                 state_data.exit_profile = Some(prof_name.clone());
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_exit_profile", e = e.to_string())), "warn"),
         }
     }
@@ -494,20 +514,27 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 );
                 state_data.onion_service_active = true;
                 state_data.onion_hostname = Some(hostname);
-                let _ = state_mgr.activate(state_data.clone());
+                state_mgr.activate(state_data.clone())?;
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_onion_provision", e = e.to_string())), "warn"),
         }
     }
 
     // 9. Firewall & IPv6 Drop
     print_step(&t!("commands.cmd_step_9"), "info");
-    let saved = apply_tor_rules()?;
+    let saved = apply_tor_rules_for_mode(is_strict)?;
     state_data.saved_rules = Some(saved);
-    let _ = state_mgr.activate(state_data.clone());
+    state_mgr.activate(state_data.clone())?;
     print_step(&t!("commands.cmd_step_10"), "ok");
 
     print_step(&t!("commands.cmd_step_11"), "info");
+    let ipv6_backup = Command::new("ip6tables-save").output()?;
+    if !ipv6_backup.status.success() {
+        return Err(WraithError::Firewall("Cannot back up IPv6 firewall".into()));
+    }
+    state_data.saved_ipv6_rules = Some(String::from_utf8_lossy(&ipv6_backup.stdout).into_owned());
+    state_mgr.activate(state_data.clone())?;
     apply_ipv6_block()?;
     print_step(&t!("commands.cmd_step_12"), "ok");
 
@@ -518,17 +545,13 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     // 9b. Multi-Hop Policy Routing Enforcement (Binding Tor Outbound Egress to WireGuard Hop 1)
     if let Some(ref wg_iface) = wg_active_iface {
         print_step(&format!("{}: {wg_iface}...", t!("commands.cmd_step_48")), "info");
-        let tor_uid = wraith_net::get_tor_uid().unwrap_or(0);
+        let tor_uid = wraith_net::get_tor_uid()?;
         match MultiHopTunnelEngine::bind_tor_to_wireguard(tor_uid, wg_iface) {
             Ok(true) => {
                 print_step(&t!("commands.cmd_step_49"), "ok");
             }
-            Ok(false) => {
-                print_step(&format!("{}", t!("commands.cmd_warn_wg_routing", iface = &wg_iface)), "warn");
-            }
-            Err(e) => {
-                print_step(&format!("{}", t!("commands.cmd_warn_tor_wg_bind", e = e.to_string())), "warn");
-            }
+            Ok(false) => return Err(WraithError::Network("WireGuard routing could not be verified; refusing unprotected fallback".into())),
+            Err(e) => return Err(e),
         }
     }
 
@@ -548,6 +571,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_80"), "info");
         match enforce_seccomp_socket_jail() {
             Ok(()) => print_step(&t!("commands.cmd_step_81"), "ok"),
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_seccomp", e = e.to_string())), "warn"),
         }
     }
@@ -559,8 +583,9 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             Ok(count) => {
                 print_step(&format!("{}", t!("commands.cmd_step_browser_injected", count = count)), "ok");
                 state_data.browser_hardened = count;
-                let _ = state_mgr.activate(state_data.clone());
+                state_mgr.activate(state_data.clone())?;
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_browser_shield", e = e.to_string())), "warn"),
         }
     }
@@ -570,6 +595,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_83"), "info");
         match enforce_font_jail() {
             Ok(()) => print_step(&t!("commands.cmd_step_16"), "ok"),
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_font_sandbox", e = e.to_string())), "warn"),
         }
     }
@@ -584,20 +610,19 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                     "ok",
                 );
                 state_data.display_jail_active = true;
-                let _ = state_mgr.activate(state_data.clone());
+                state_mgr.activate(state_data.clone())?;
                 bg_services.virtual_display = Some(vd);
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_virtual_display", e = e.to_string())), "warn"),
         }
     }
 
     // 15. cgroup2 Network Socket Jail
     if is_strict {
-        if let Err(e) = create_cgroup_jail() {
-            tracing::warn!("cgroup2 jail creation warning: {e}");
-        }
+        create_cgroup_jail()?;
         if let Err(e) = wraith_net::attach_pid_to_cgroup(std::process::id()) {
-            tracing::warn!("cgroup2 attach pid warning: {e}");
+            return Err(e);
         } else {
             print_step(&t!("commands.cmd_step_17"), "ok");
         }
@@ -610,8 +635,9 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             Ok(()) => {
                 print_step(&t!("commands.cmd_step_19"), "ok");
                 state_data.namespace_active = true;
-                let _ = state_mgr.activate(state_data.clone());
+                state_mgr.activate(state_data.clone())?;
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_net_ns", e = e.to_string())), "warn"),
         }
     }
@@ -646,10 +672,11 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 } else {
                     print_step(&t!("commands.cmd_step_55"), "ok");
                     state_data.traffic_shaper_active = true;
-                    let _ = state_mgr.activate(state_data.clone());
+                    state_mgr.activate(state_data.clone())?;
                     bg_services.traffic_shaper = Some(shaper);
                 }
             }
+            Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("Kernel Traffic Shaper init warning: {e}"), "warn"),
         }
     }
@@ -666,7 +693,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             print_step(&t!("commands.cmd_step_57"), "ok");
             state_data.honeypot_active = true;
             state_data.honeypot_lan_active = true;
-            let _ = state_mgr.activate(state_data.clone());
+            state_mgr.activate(state_data.clone())?;
             bg_services.honeypot = Some((ct, handle));
         } else {
             print_step(&t!("commands.cmd_step_58"), "info");
@@ -674,7 +701,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
             let (ct, handle) = trap.spawn_service();
             print_step(&t!("commands.cmd_step_59"), "ok");
             state_data.honeypot_active = true;
-            let _ = state_mgr.activate(state_data.clone());
+            state_mgr.activate(state_data.clone())?;
             bg_services.honeypot = Some((ct, handle));
         }
     }
@@ -684,6 +711,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_86"), "info");
         match EncryptedRamVault::init() {
             Ok(mut vault) => {
+                state_data.vault_path = Some(vault.path().to_string_lossy().into_owned());
                 match serde_json::to_vec(&state_data) {
                     Ok(secret_payload) => {
                         if let Err(e) = vault.write_secret("session.state.enc", &secret_payload) {
@@ -697,10 +725,7 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
                 print_step(&t!("commands.cmd_step_87"), "ok");
                 Some(vault)
             }
-            Err(e) => {
-                print_step(&format!("{}", t!("commands.cmd_warn_vault", e = e.to_string())), "warn");
-                None
-            }
+            Err(e) => return Err(e),
         }
     } else {
         None
@@ -742,13 +767,14 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
     }
 
     // 22. KillSwitch Daemon & State Activation
+    state_data.state = Some(wraith_core::State::Active);
     state_data.ip = Some(geo.ip.clone());
     state_data.kill_switch = !args.no_ks;
     state_mgr.activate(state_data)?;
 
     if !args.no_ks {
         print_step(&t!("commands.cmd_step_21"), "info");
-        let (ks, cancel_token) = KillSwitch::new();
+        let (ks, cancel_token) = KillSwitch::new_with_mode(is_strict);
         let ks_handle = ks.spawn_monitor();
         bg_services.killswitch = Some((cancel_token, ks_handle));
         print_step(&t!("commands.cmd_step_90"), "ok");
@@ -884,7 +910,29 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
     print_banner(false);
     let state_mgr = StateManager::default();
-    let state_info = state_mgr.read();
+    if !state_mgr.is_active() {
+        return Ok(());
+    }
+    let state_info = state_mgr.read_checked()?;
+    #[cfg(target_os = "linux")]
+    if let Some(pid) = state_info.pid.filter(|pid| *pid > 1 && *pid != std::process::id() && *pid <= i32::MAX as u32) {
+        let proc_path = format!("/proc/{pid}/exe");
+        if let Ok(executable) = fs::read_link(&proc_path) {
+            if executable != std::env::current_exe()? {
+                return Err(WraithError::Custom("Session PID belongs to another executable; refusing to signal it".into()));
+            }
+            // SAFETY: positive, bounded PID; executable identity was checked above.
+            if unsafe { libc::kill(pid as i32, libc::SIGTERM) } != 0 {
+                return Err(std::io::Error::last_os_error().into());
+            }
+            for _ in 0..100 {
+                if !state_mgr.is_active() { return Ok(()); }
+                sleep(Duration::from_millis(200)).await;
+            }
+            return Err(WraithError::Custom("Session is still stopping; refusing concurrent firewall teardown".into()));
+        }
+    }
+
 
     print_step(&t!("commands.cmd_step_22"), "info");
     let _ = std::process::Command::new("chattr")
@@ -892,7 +940,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
-    let _ = restore_dns();
+    if state_info.dns_configured || state_info.active {
+        restore_dns()?;
+    }
     let _ = std::process::Command::new("resolvectl")
         .arg("flush-caches")
         .stdout(std::process::Stdio::null())
@@ -901,11 +951,14 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     print_step(&t!("commands.cmd_step_23"), "ok");
 
     print_step(&t!("commands.cmd_step_24"), "info");
-    if let Err(e) = flush_rules() {
-        tracing::warn!("Flush rules warning: {e}");
+    if state_info.saved_rules.is_some() {
+        flush_rules()?;
     }
-    if let Err(e) = flush_ipv6_block() {
-        tracing::warn!("Flush IPv6 warning: {e}");
+    if let Some(ref rules) = state_info.saved_ipv6_rules {
+        wraith_net::restore_ipv6_rules(rules)?;
+    } else if state_info.active {
+        // Compatibility cleanup for sessions started by older releases.
+        flush_ipv6_block()?;
     }
     if let Err(e) = unblock_stun_ports() {
         tracing::warn!("Unblock STUN warning: {e}");
@@ -916,9 +969,11 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
     let stop_target_iface = state_info.target_interface.as_deref().or(state_info.mac_interface.as_deref());
 
-    if let Ok(mut fp) = EgressFastpath::new(stop_target_iface) {
-        if let Err(e) = fp.detach() {
-            tracing::warn!("Fastpath detach warning: {e}");
+    if !state_info.physical_fastpath_disabled {
+        // Remove hooks left by older releases only. This release does not own
+        // the adapter's clsact qdisc and must not remove another tool's hooks.
+        if let Ok(mut fp) = EgressFastpath::new(stop_target_iface) {
+            fp.detach()?;
         }
     }
     print_step(&t!("commands.cmd_step_25"), "ok");
@@ -982,7 +1037,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
     // Unconditionally restore default Linux TCP stack (TTL=64, TS=1, SACK, etc.)
     print_step(&t!("commands.cmd_step_33"), "info");
-    let _ = restore_default_tcp_stack();
+    if state_info.tcp_stack_masked {
+        wraith_net::restore_tcp_stack(&state_info.tcp_stack_backup)?;
+    }
     print_step(&t!("commands.cmd_step_34"), "ok");
 
     if state_info.namespace_active {
@@ -999,43 +1056,19 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let _ = restore_font_jail();
     print_step(&t!("commands.cmd_step_38"), "ok");
 
-    print_step(&t!("commands.cmd_step_91"), "info");
-    if let Err(e) = panic_emergency_purge(self_destruct) {
-        print_step(&format!("Emergency purge warning: {e}"), "warn");
+    // Normal teardown must not wipe unrelated logs/history or reformat swap.
+    if self_destruct {
+        let executable = std::env::current_exe()?;
+        wraith_forensic::secure_delete_file(&executable, 2)?;
     }
-    print_step(&t!("commands.cmd_step_92"), "ok");
 
-    // Final Network Carrier & Clearnet Guaranteed Reconnection
-    print_step(&t!("commands.cmd_step_39"), "info");
-    let target_iface = state_info
-        .mac_interface
-        .clone()
-        .or_else(|| wraith_net::get_default_interface().ok())
-        .unwrap_or_else(|| "eth0".to_string());
-
-    // 1. Kill stale dhclient (if any) and ensure interface is UP
-    let _ = Command::new("pkill").args(["-9", "dhclient"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("ip").args(["link", "set", &target_iface, "up"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-
-    // 2. Force public DNS immediately BEFORE any network requests (NM restart needs DNS)
-    let _ = Command::new("chattr").args(["-i", "/etc/resolv.conf"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = std::fs::write("/etc/resolv.conf", "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1\n");
-
-    // 3. Restart NetworkManager daemon to cleanly re-bind link state and DHCP in VMware/Linux
-    let _ = Command::new("systemctl").args(["restart", "NetworkManager"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("service").args(["NetworkManager", "restart"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-
-    // 4. Ensure device is managed and connected via NM (NM handles its own internal DHCP)
-    let _ = Command::new("nmcli").args(["networking", "on"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("nmcli").args(["device", "set", &target_iface, "managed", "yes"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("nmcli").args(["device", "connect", &target_iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-
-    // 5. Wait for NetworkManager to fully establish connection and obtain DHCP lease
-    sleep(Duration::from_secs(4)).await;
-
-    // 6. Final DNS assertion (NM may have overwritten resolv.conf during restart with local stub, ensure fallback)
-    let _ = Command::new("chattr").args(["-i", "/etc/resolv.conf"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = std::fs::write("/etc/resolv.conf", "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1\n");
+    // Preserve the original resolver, adapter configuration and unrelated DHCP
+    // clients. A global NetworkManager restart disrupts other active interfaces.
+    if let Some(ref saved) = state_info.saved_rules {
+        if !saved.is_empty() {
+            wraith_net::restore_rules(saved)?;
+        }
+    }
 
     if let Err(e) = state_mgr.deactivate() {
         tracing::warn!("State manager deactivation error: {e}");
@@ -1125,11 +1158,17 @@ fn determine_cargo_home() -> Option<String> {
     None
 }
 
-fn determine_build_dir() -> String {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
-    let build_dir = format!("{home}/.cache/wraith/build");
-    let _ = fs::create_dir_all(&build_dir);
-    build_dir
+fn determine_build_dir() -> Result<String> {
+    // Exclusive creation prevents pre-existing symlinks or user-owned cache
+    // contents from becoming a privileged build workspace.
+    let build_dir = format!("/var/tmp/wraith-build-{}", std::process::id());
+    fs::create_dir(&build_dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&build_dir, fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(build_dir)
 }
 
 pub async fn cmd_update() -> Result<()> {
@@ -1148,26 +1187,9 @@ pub async fn cmd_update() -> Result<()> {
 
     print_step(&t!("commands.cmd_step_40"), "info");
 
-    // 1. Ensure DNS is unchattered and functional for git pull / cargo dependencies
-    let _ = Command::new("chattr")
-        .args(["-i", "/etc/resolv.conf"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-    let state_mgr = StateManager::default();
-    if !state_mgr.is_active() {
-        let _ = restore_dns();
-    }
-    let _ = fs::write(
-        "/etc/resolv.conf",
-        "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 1.0.0.1\n",
-    );
-
+    // Updating must not mutate the running session's resolver or firewall.
     let cargo_bin = find_cargo_bin();
-    let temp_build_dir = determine_build_dir();
-
-    // 2. Clean previous build residue
-    let _ = fs::remove_dir_all(&temp_build_dir);
+    let temp_build_dir = determine_build_dir()?;
 
     // 3. Autonomous Git Clone from Upstream
     print_step(
@@ -1225,17 +1247,12 @@ pub async fn cmd_update() -> Result<()> {
         (false, false)
     };
 
-    let mut created_swap = false;
     if needs_swap {
-        print_step("Low RAM VM detected with zero swap; provisioning ephemeral build swap", "warn");
-        let swap_cmd = "fallocate -l 1536M /var/tmp/wraith_build_swap 2>/dev/null || dd if=/dev/zero of=/var/tmp/wraith_build_swap bs=1M count=1536 2>/dev/null; chmod 600 /var/tmp/wraith_build_swap && mkswap /var/tmp/wraith_build_swap 2>/dev/null && swapon /var/tmp/wraith_build_swap 2>/dev/null";
-        if let Ok(s) = Command::new("sh").args(["-c", swap_cmd]).status() {
-            created_swap = s.success();
-        }
+        print_step("Low memory: using a single build job; configure swap separately if needed", "warn");
     }
 
     let mut cmd = Command::new(&cargo_bin);
-    cmd.args(["build", "--release", "--bin", "wraith"])
+    cmd.args(["build", "--locked", "--release", "--bin", "wraith"])
         .current_dir(&temp_build_dir);
 
     if is_low_ram {
@@ -1255,12 +1272,6 @@ pub async fn cmd_update() -> Result<()> {
     }
 
     let build_status = cmd.status();
-
-    if created_swap {
-        let _ = Command::new("sh")
-            .args(["-c", "swapoff /var/tmp/wraith_build_swap 2>/dev/null; rm -f /var/tmp/wraith_build_swap 2>/dev/null"])
-            .status();
-    }
 
     match build_status {
         Ok(s) if s.success() => {

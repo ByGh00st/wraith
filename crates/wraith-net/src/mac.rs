@@ -114,40 +114,37 @@ pub fn change_mac(interface: Option<&str>, target_mac: Option<&str>) -> Result<(
     info!("Spoofing MAC on {iface}: {old_mac} -> {new_mac}");
 
     run_cmd("ip", &["link", "set", &iface, "down"])?;
-    run_cmd("ip", &["link", "set", &iface, "address", &new_mac])?;
-    run_cmd("ip", &["link", "set", &iface, "up"])?;
-
-    // Flush stale addresses and obtain fresh lease for spoofed MAC
-    let _ = Command::new("ip").args(["addr", "flush", "dev", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("pkill").args(["-9", "dhclient"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("nmcli").args(["device", "connect", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("nmcli").args(["device", "reapply", &iface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-
-    let verified_mac = get_current_mac(&iface)?;
-    if verified_mac.to_lowercase() != new_mac.to_lowercase() {
-        return Err(WraithError::Hardware(format!(
-            "MAC verification mismatch! Expected {new_mac}, got {verified_mac}"
-        )));
-    }
+    let changed = (|| {
+        run_cmd("ip", &["link", "set", &iface, "address", &new_mac])?;
+        run_cmd("ip", &["link", "set", &iface, "up"])?;
+        let verified = get_current_mac(&iface)?;
+        if !verified.eq_ignore_ascii_case(&new_mac) {
+            return Err(WraithError::Hardware("MAC verification failed".into()));
+        }
+        Ok(verified)
+    })();
+    let verified_mac = match changed {
+        Ok(mac) => mac,
+        Err(error) => {
+            let restored = restore_mac(&iface, &old_mac);
+            if let Err(rollback) = restored {
+                return Err(WraithError::Hardware(format!("{error}; MAC rollback failed: {rollback}")));
+            }
+            return Err(error);
+        }
+    };
+    // Do not flush static addresses or kill DHCP clients on unrelated adapters.
 
     Ok((iface, old_mac, verified_mac))
 }
 
 pub fn restore_mac(interface: &str, original_mac: &str) -> Result<()> {
     info!("Restoring hardware MAC on {interface} to {original_mac}");
-    let _ = run_cmd("ip", &["link", "set", interface, "down"]);
-    let _ = run_cmd("ip", &["link", "set", interface, "address", original_mac]);
-    let _ = run_cmd("ip", &["link", "set", interface, "up"]);
-
-    // Flush stale addresses and obtain fresh DHCP lease for restored MAC via NetworkManager
-    let _ = Command::new("ip").args(["addr", "flush", "dev", interface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("pkill").args(["-9", "dhclient"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("nmcli").args(["device", "connect", interface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("nmcli").args(["device", "reapply", interface]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-
-    // Wipe stale neighbor & routing cache (will be re-learned naturally via ARP)
-    let _ = Command::new("ip").args(["neigh", "flush", "all"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    let _ = Command::new("ip").args(["route", "flush", "cache"]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+    run_cmd("ip", &["link", "set", interface, "down"])?;
+    let address_result = run_cmd("ip", &["link", "set", interface, "address", original_mac]);
+    let up_result = run_cmd("ip", &["link", "set", interface, "up"]);
+    address_result?;
+    up_result?;
     Ok(())
 }
 
