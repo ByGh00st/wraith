@@ -48,7 +48,6 @@
   - [🎭 Diversified Multi-Browser User-Agent Pool](#diversified-ua-pool)
 - [🛡️ Tor Surveillance & Adversarial Node Resistance Matrix](#tor-defense)
 - [🔒 In-Memory Cryptographic Security Specifications](#memory-security)
-- [🛡️ Hardened Security Architecture & Remediation Matrix (v1.3.0)](#security-remediation)
 - [🛡️ Fail-Closed Crash Protection & Panic Sentry](#panic-sentry)
 - [⚖️ Legal & Operational Disclaimer](#legal-disclaimer)
 - [📜 License](#-license)
@@ -626,23 +625,6 @@ graph TD
 * **RFC 8439 ChaCha20-Poly1305 AEAD**: Hardware-accelerated authenticated symmetric encryption with 256-bit keys and 96-bit nonces.
 * **Kernel Memory Protection**: All secret payloads in RAM are pinned using `libc::mlockall(MCL_CURRENT | MCL_FUTURE)` to prevent paging to swap, and protected with `libc::prctl(PR_SET_DUMPABLE, 0)` against `/proc/$PID/mem` extraction.
 * **Zeroize-On-Drop**: All in-memory cryptographic keys implement the `Zeroize` and `ZeroizeOnDrop` traits, ensuring immediate volatile memory sanitization upon variable disposal.
-
----
-
-<a id="security-remediation"></a>
-## 🛡️ Hardened Security Architecture & Remediation Matrix (v1.3.0)
-
-During dual-engine security auditing (`/cybersec` + `/verify`), Wraith underwent an exhaustive vulnerability audit across kernel interfaces, filesystem operations, and network protocol handlers. All 7 identified vulnerabilities were systematically eradicated with zero-tolerance engineering precision:
-
-| Vulnerability ID | Target Module | Attack Vector & Root Cause | Architectural Hardening Applied | Remediation Status |
-| :--- | :--- | :--- | :--- | :---: |
-| **VULN-01** | [`crates/wraith-core/src/vault.rs`](file:///crates/wraith-core/src/vault.rs) | **RamFS Symlink Following & Path Traversal (CVSS 8.7)**<br>Symlink creation in `/dev/shm` or secret names containing `..`, `/`, `\`, or `\0` could allow arbitrary file disclosure or traversal outside the vault. | Directory creation locked to Unix mode `0o700` (`DirBuilderExt` and `set_permissions`). Secret names strictly sanitized against null bytes and path separators. File handles opened with `libc::O_NOFOLLOW` flag to guarantee symlinks are never traversed. | **RESOLVED (CVSS 0.0)** |
-| **VULN-02** | [`crates/wraith-forensic/src/anti_forensic_stealth.rs`](file:///crates/wraith-forensic/src/anti_forensic_stealth.rs)<br>[`crates/wraith-forensic/src/shred.rs`](file:///crates/wraith-forensic/src/shred.rs) | **Arbitrary File Overwrite via Shredder Symlinks (CVSS 8.5)**<br>`fs::metadata()` followed symlinks during cryptographic file shredding, potentially overwriting target critical host files pointed to by symlinks. | Switched to `fs::symlink_metadata()` to inspect raw directory entries. If a target is a symlink, the link itself is safely unlinked (`fs::remove_file`) without touching or destroying the target file. All write descriptors enforce `O_NOFOLLOW`. | **RESOLVED (CVSS 0.0)** |
-| **VULN-03** | [`crates/wraith-net/src/netlink.rs`](file:///crates/wraith-net/src/netlink.rs) | **Netlink `NlMsgErr` Struct Offset Type Confusion (CVSS 7.1)**<br>When receiving Netlink error responses (`NLMSG_ERROR`), `NlMsgErr` was read at offset 0 instead of immediately following the outer 16-byte `NlMsgHdr`, resulting in reading outer packet length as error code. | Recalibrated parse offset in `send_and_recv_ack()` and `send_dump_request()`: `NlMsgErr` is read from `size_of::<NlMsgHdr>()` (16 bytes) onward, protected by buffer bounds validation (`bytes_read >= size_of::<NlMsgHdr>() + size_of::<NlMsgErr>()`). | **RESOLVED (CVSS 0.0)** |
-| **VULN-04** | [`crates/wraith-guard/src/honey_ports.rs`](file:///crates/wraith-guard/src/honey_ports.rs) | **Ephemeral Port Collision Process Freeze DoS (CVSS 7.7)**<br>LAN-mode honeypot connections used the remote client's source port to inspect `/proc/net/tcp` on the local machine, causing innocent local services to be misidentified as intruders and frozen (`SIGSTOP`). | Restricted local PID resolution strictly to loopback IP addresses (`peer_addr.ip().is_loopback()`). Added immune guards in both `handle_intruder()` and `neutralize_rogue_process()` preventing PID 0, PID 1 (`init`/`systemd`), and the Wraith process itself from ever being signaled. | **RESOLVED (CVSS 0.0)** |
-| **VULN-05** | [`crates/wraith-core/src/state.rs`](file:///crates/wraith-core/src/state.rs) | **World-Readable State File with Secrets (CVSS 6.8)**<br>State files containing routing state and PID information were created with default process umask, permitting non-root local users to read state metadata. | Enforced strict `0o600` permissions on temporary state files (`.wraith.state.*.tmp`), post-rename final state files (`/var/run/wraith.state`), and custom path serializations. | **RESOLVED (CVSS 0.0)** |
-| **VULN-06** | [`crates/wraith-net/src/namespace.rs`](file:///crates/wraith-net/src/namespace.rs) | **NetNS TCP Traffic Blackhole (CVSS 6.0)**<br>Isolated network namespace configured DNS REDIRECT (5353) and NAT, but omitted TCP TransPort redirection, causing all TCP egress from the namespace to drop or leak. | Added `iptables -t nat -A PREROUTING -s 10.200.1.0/24 -p tcp --syn -j REDIRECT --to-ports 9040` and corresponding `FORWARD` chain acceptance rules in `create_namespace()`, with automatic teardown in `destroy_namespace()`. | **RESOLVED (CVSS 0.0)** |
-| **VULN-07** | [`crates/wraith-guard/src/dns_engine.rs`](file:///crates/wraith-guard/src/dns_engine.rs)<br>[`crates/wraith-tor/src/moat.rs`](file:///crates/wraith-tor/src/moat.rs) | **CLI Argument Injection in Wire Transports (CVSS 4.8)**<br>User-supplied URLs starting with `-` passed to `curl` could be interpreted as command-line flags. | Enforced strict HTTPS scheme validation and prepended the standard POSIX `"--"` argument delimiter before the URL parameter in both DoH and Moat transport spawners. | **RESOLVED (CVSS 0.0)** |
 
 ---
 
