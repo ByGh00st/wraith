@@ -34,7 +34,7 @@ wraith --help
 
 Keep the foreground process running. Ctrl+C requests shutdown. `-Fs` combines `-F` (full-security preset) with `-s` (start); it is not a certification or a promise of complete anonymity. Strict mode requires the kill switch and rejects `--no-killswitch`.
 
-Strict mode enables MAC/hostname changes, namespace routing and several host/browser hardening steps. Required setup errors stop activation. Startup errors now attempt saved-state cleanup and abort background tasks. Some host changes remain irreversible until reboot, and startup is not a single transaction. Test this preset in a disposable Linux VM with console access before using it on your primary connection.
+Strict mode enables MAC/hostname changes, namespace routing and several host/browser hardening steps. Required setup errors stop activation. Strict kernel setup requires confidentiality lockdown and verifies required sysctl values by reading them back. Startup errors now attempt saved-state cleanup and abort background tasks. Some host changes remain irreversible until reboot, and startup is not a single transaction. Test this preset in a disposable Linux VM with console access before using it on your primary connection.
 
 Useful options include:
 
@@ -74,7 +74,7 @@ Host root access, privileged raw-packet applications, a compromised kernel, brow
 
 ## Recovery and operational limits
 
-Run `sudo wraith -x` to request cleanup of a recorded session after a failed start. Retain console access: changes to firewall rules or MAC addresses can interrupt remote access. If cleanup reports errors, inspect the recorded state and host networking before restarting. Do not assume an error means original settings were restored. Kernel lockdown settings can require a reboot.
+Run `sudo wraith -x` to request cleanup of a recorded session after a failed start. Retain console access: changes to firewall rules or MAC addresses can interrupt remote access. If cleanup reports errors, the session record is retained for retry and success is not reported. Inspect the recorded state and host networking before restarting. Do not assume an error means original settings were restored. Kernel lockdown settings can require a reboot.
 
 A process panic preserves the network policy and state instead of opening direct egress. Normal stop does not perform global log/history destruction. Explicit forensic cleanup and self-destruct options are destructive and are not required for the strict network preset. Xvfb requires a private Xauthority cookie and disables TCP listening; applications must explicitly use its DISPLAY and XAUTHORITY. Optional Xvfb, onion-service, bridge and service-installer paths still need separate runtime validation. The service installer defaults to standard network-online ordering and does not start immediately; unsupported early boot mode is rejected. Uninstall retains configuration/logs and stops on session-cleanup errors.
 

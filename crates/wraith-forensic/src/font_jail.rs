@@ -101,33 +101,15 @@ pub fn restore_font_jail() -> Result<()> {
     let backup = Path::new(FONT_CONFIG_BACKUP);
 
     if backup.exists() {
-        if let Err(e) = fs::rename(backup, target) {
-            tracing::warn!("Failed restoring font config from backup: {e}");
-        } else {
-            info!("Restored original font configuration");
-        }
+        fs::rename(backup, target)?;
     } else if target.exists() {
-        match fs::read_to_string(target) {
-            Ok(content) => {
-                if content.contains("WRAITH SYSTEM-LEVEL FONT ENUMERATION SHIELD") {
-                    if let Err(e) = fs::remove_file(target) {
-                        tracing::warn!("Failed removing font jail configuration: {e}");
-                    } else {
-                        info!("Removed font jail configuration");
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::warn!("Failed reading font config at {FONT_CONFIG_PATH}: {e}");
-            }
-        }
+        let content = fs::read_to_string(target)?;
+        if content.contains("WRAITH SYSTEM-LEVEL FONT ENUMERATION SHIELD") { fs::remove_file(target)?; }
     }
-    
-    let _ = std::process::Command::new("fc-cache")
-        .arg("-f")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
+
+    let status = std::process::Command::new("fc-cache").arg("-f")
+        .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status()?;
+    if !status.success() { return Err(WraithError::Forensic("Font cache refresh failed".into())); }
 
     Ok(())
 }

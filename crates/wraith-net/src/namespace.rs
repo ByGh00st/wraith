@@ -105,9 +105,15 @@ pub fn destroy_namespace() -> Result<()> {
 
     let netns_dir = format!("/etc/netns/{NAMESPACE_NAME}");
     if Path::new(&netns_dir).exists() {
-        let _ = fs::remove_dir_all(&netns_dir);
+        fs::remove_dir_all(&netns_dir)?;
     }
 
+    let remaining = run_cmd("ip", &["netns", "list"])?;
+    let links = run_cmd("ip", &["-o", "link", "show"])?;
+    if remaining.lines().any(|line| line.split_whitespace().next() == Some(NAMESPACE_NAME))
+        || links.lines().any(|line| line.split_whitespace().nth(1).is_some_and(|name| name.trim_end_matches(':').split('@').next() == Some(VETH_HOST))) {
+        return Err(WraithError::Namespace("Namespace or veth still present after cleanup".into()));
+    }
     info!("Namespace purged");
     Ok(())
 }

@@ -18,50 +18,51 @@ pub fn generate_random_machine_id() -> String {
         .join("")
 }
 
-pub fn rotate_machine_id() -> Result<(String, String)> {
-    let old_id = fs::read_to_string(MACHINE_ID_PATH)
-        .unwrap_or_else(|_| "unknown".into())
-        .trim()
-        .to_string();
-
-    let new_id = format!("{}\n", generate_random_machine_id());
-
-    let machine_id_path = Path::new(MACHINE_ID_PATH);
-    if machine_id_path.exists() {
-        fs::write(machine_id_path, &new_id).map_err(|e| {
-            WraithError::Forensic(format!("Failed rotating {MACHINE_ID_PATH}: {e}"))
-        })?;
+pub fn backup_machine_ids() -> Result<std::collections::HashMap<String, String>> {
+    let mut backup = std::collections::HashMap::new();
+    backup.insert(MACHINE_ID_PATH.into(), fs::read_to_string(MACHINE_ID_PATH)?);
+    if Path::new(DBUS_MACHINE_ID_PATH).exists() {
+        backup.insert(DBUS_MACHINE_ID_PATH.into(), fs::read_to_string(DBUS_MACHINE_ID_PATH)?);
     }
+    Ok(backup)
+}
 
-    let dbus_path = Path::new(DBUS_MACHINE_ID_PATH);
-    if dbus_path.exists() {
-        if let Err(e) = fs::write(dbus_path, &new_id) {
-            tracing::warn!("Failed writing to {DBUS_MACHINE_ID_PATH}: {e}");
+pub fn restore_machine_ids(backup: &std::collections::HashMap<String, String>) -> Result<()> {
+    let mut errors = Vec::new();
+    for (path, content) in backup {
+        if path != MACHINE_ID_PATH && path != DBUS_MACHINE_ID_PATH {
+            errors.push(format!("Unknown machine-id backup: {path}"));
+        } else if let Err(e) = fs::write(path, content) { errors.push(format!("{path}: {e}")); }
+    }
+    if errors.is_empty() { Ok(()) } else { Err(WraithError::Forensic(errors.join("; "))) }
+}
+
+pub fn rotate_machine_id() -> Result<(String, String)> {
+    rotate_machine_id_with_journal(|_| Ok(()))
+}
+
+pub fn rotate_machine_id_with_journal(journal: impl FnOnce(&std::collections::HashMap<String, String>) -> Result<()>) -> Result<(String, String)> {
+    let backup = backup_machine_ids()?;
+    journal(&backup)?;
+    let new_id = generate_random_machine_id();
+    for path in backup.keys() {
+        if let Err(e) = fs::write(path, format!("{new_id}\n")) {
+            restore_machine_ids(&backup)?;
+            return Err(e.into());
         }
     }
-
-    info!("Rotated OS machine-id: {old_id} -> {}", new_id.trim());
-    Ok((old_id, new_id.trim().to_string()))
+    info!("Rotated OS machine-id");
+    Ok((backup[MACHINE_ID_PATH].trim().to_string(), new_id))
 }
 
 pub fn restore_machine_id(original_id: &str) -> Result<()> {
-    if !original_id.is_empty() && original_id != "unknown" {
-        let payload = format!("{original_id}\n");
-        let machine_id_path = Path::new(MACHINE_ID_PATH);
-        if machine_id_path.exists() {
-            if let Err(e) = fs::write(machine_id_path, &payload) {
-                tracing::warn!("Failed restoring {MACHINE_ID_PATH}: {e}");
-            }
-        }
-        let dbus_path = Path::new(DBUS_MACHINE_ID_PATH);
-        if dbus_path.exists() {
-            if let Err(e) = fs::write(dbus_path, &payload) {
-                tracing::warn!("Failed restoring {DBUS_MACHINE_ID_PATH}: {e}");
-            }
-        }
-        info!("Restored original OS machine-id");
+    if original_id.is_empty() || original_id == "unknown" {
+        return Err(WraithError::Forensic("Original machine-id is unavailable".into()));
     }
-    Ok(())
+    let mut backup = std::collections::HashMap::new();
+    backup.insert(MACHINE_ID_PATH.into(), format!("{original_id}\n"));
+    if Path::new(DBUS_MACHINE_ID_PATH).exists() { backup.insert(DBUS_MACHINE_ID_PATH.into(), format!("{original_id}\n")); }
+    restore_machine_ids(&backup)
 }
 
 #[cfg(test)]

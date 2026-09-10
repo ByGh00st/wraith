@@ -100,6 +100,10 @@ pub fn generate_random_mac(vendor_prefix: bool) -> String {
 }
 
 pub fn change_mac(interface: Option<&str>, target_mac: Option<&str>) -> Result<(String, String, String)> {
+    change_mac_with_journal(interface, target_mac, |_, _, _| Ok(()))
+}
+
+pub fn change_mac_with_journal(interface: Option<&str>, target_mac: Option<&str>, journal: impl FnOnce(&str, &str, &str) -> Result<()>) -> Result<(String, String, String)> {
     let iface = match interface {
         Some(i) => i.to_string(),
         None => get_default_interface()?,
@@ -111,6 +115,7 @@ pub fn change_mac(interface: Option<&str>, target_mac: Option<&str>) -> Result<(
         None => generate_random_mac(true),
     };
 
+    journal(&iface, &old_mac, &new_mac)?;
     info!("Spoofing MAC on {iface}: {old_mac} -> {new_mac}");
 
     run_cmd("ip", &["link", "set", &iface, "down"])?;
@@ -145,11 +150,19 @@ pub fn restore_mac(interface: &str, original_mac: &str) -> Result<()> {
     let up_result = run_cmd("ip", &["link", "set", interface, "up"]);
     address_result?;
     up_result?;
+    if !get_current_mac(interface)?.eq_ignore_ascii_case(original_mac) {
+        return Err(WraithError::Hardware("MAC restoration verification failed".into()));
+    }
     Ok(())
 }
 
 pub fn randomize_hostname() -> Result<(String, String)> {
-    let old_host = run_cmd("hostname", &[]).unwrap_or_else(|_| "localhost".into());
+    randomize_hostname_with_journal(|_| Ok(()))
+}
+
+pub fn randomize_hostname_with_journal(journal: impl FnOnce(&str) -> Result<()>) -> Result<(String, String)> {
+    let old_host = run_cmd("hostname", &[])?;
+    journal(&old_host)?;
 
     let adjectives = ["quiet", "swift", "dark", "silent", "deep", "cold", "thin", "pale", "shadow"];
     let nouns = ["node", "host", "desk", "core", "unit", "base", "link", "port", "gate"];

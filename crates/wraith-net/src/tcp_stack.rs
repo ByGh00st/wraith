@@ -69,7 +69,8 @@ pub fn read_sysctl(key: &str) -> Result<String> {
 pub fn write_sysctl(key: &str, val: &str) -> Result<()> {
     let proc_path = sysctl_key_to_proc_path(key);
     let path = Path::new(&proc_path);
-    if path.exists() {
+    if !path.exists() { return Err(WraithError::Firewall(format!("Missing sysctl: {key}"))); }
+    {
         fs::write(path, val).map_err(|e| {
             WraithError::Firewall(format!("Failed writing {val} to sysctl {key}: {e}"))
         })?;
@@ -77,7 +78,7 @@ pub fn write_sysctl(key: &str, val: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn backup_and_apply_tcp_mask() -> Result<HashMap<String, String>> {
+pub fn backup_tcp_stack() -> Result<HashMap<String, String>> {
     let mut backup = HashMap::new();
 
     info!("Applying TCP/IP Stack Normalizer (p0f/Nmap OS fingerprint mask & clock-skew evasion)");
@@ -89,14 +90,24 @@ pub fn backup_and_apply_tcp_mask() -> Result<HashMap<String, String>> {
         }
         backup.insert(key.to_string(), original);
     }
+    Ok(backup)
+}
+
+pub fn apply_tcp_mask(backup: &HashMap<String, String>) -> Result<()> {
     for (key, target_val) in TARGET_SYSCTL_SETTINGS {
         if let Err(error) = write_sysctl(key, target_val) {
-            restore_tcp_stack(&backup)?;
+            restore_tcp_stack(backup)?;
             return Err(error);
         }
     }
 
     info!("TCP/IP Stack parameters normalized to generic Windows/Standard L4 profile (TS=0, TTL=128)");
+    Ok(())
+}
+
+pub fn backup_and_apply_tcp_mask() -> Result<HashMap<String, String>> {
+    let backup = backup_tcp_stack()?;
+    apply_tcp_mask(&backup)?;
     Ok(backup)
 }
 

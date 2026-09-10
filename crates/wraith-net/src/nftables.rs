@@ -79,17 +79,31 @@ pub fn apply_tor_rules() -> Result<String> {
 }
 
 pub fn apply_tor_rules_for_mode(strict: bool) -> Result<String> {
+    apply_tor_rules_with_journal(strict, |_| Ok(()))
+}
+
+pub fn apply_tor_rules_with_journal(strict: bool, journal: impl FnOnce(&str) -> Result<()>) -> Result<String> {
     let saved = save_rules().ok_or_else(|| WraithError::Firewall(
         "Cannot back up firewall; refusing to replace its rules".into()
     ))?;
-    let result = install_tor_rules(strict);
-    if let Err(error) = result {
-        if let Err(rollback) = restore_rules(&saved) {
+    apply_firewall_transaction(&saved, journal, || install_tor_rules(strict), restore_rules)?;
+    Ok(saved)
+}
+
+fn apply_firewall_transaction(
+    saved: &str,
+    journal: impl FnOnce(&str) -> Result<()>,
+    install: impl FnOnce() -> Result<()>,
+    restore: impl FnOnce(&str) -> Result<()>,
+) -> Result<()> {
+    journal(saved)?;
+    if let Err(error) = install() {
+        if let Err(rollback) = restore(saved) {
             return Err(WraithError::Firewall(format!("{error}; rollback failed: {rollback}")));
         }
         return Err(error);
     }
-    Ok(saved)
+    Ok(())
 }
 
 fn install_tor_rules(strict: bool) -> Result<()> {
@@ -238,6 +252,21 @@ pub fn flush_rules() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn failed_journal_prevents_firewall_mutation() {
+        assert!(apply_firewall_transaction("original", |_| Err(WraithError::Custom("disk full".into())),
+            || panic!("must not install without durable backup"), |_| panic!("nothing changed")).is_err());
+    }
+
+    #[test]
+    fn failed_install_restores_exact_journaled_policy() {
+        let events = std::cell::RefCell::new(Vec::new());
+        assert!(apply_firewall_transaction("original", |saved| { events.borrow_mut().push(format!("saved:{saved}")); Ok(()) },
+            || { events.borrow_mut().push("install".into()); Err(WraithError::Custom("rule failure".into())) },
+            |saved| { events.borrow_mut().push(format!("restore:{saved}")); Ok(()) }).is_err());
+        assert_eq!(*events.borrow(), ["saved:original", "install", "restore:original"]);
+    }
 
     #[test]
     fn strict_policy_does_not_allow_existing_clearnet_or_lan() {

@@ -365,26 +365,27 @@ impl MultiHopTunnelEngine {
             .stderr(std::process::Stdio::null())
             .status();
 
-        // 4. Remove iptables escape rule
-        let _ = Command::new("iptables")
-            .args([
-                "-t", "nat", "-D", "OUTPUT",
-                "-p", "udp", "--dport", "51820",
-                "-j", "ACCEPT",
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-
-        let _ = Command::new("iptables")
-            .args([
-                "-D", "OUTPUT",
-                "-p", "udp", "--dport", "51820",
-                "-j", "ACCEPT",
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
+        // Netfilter restoration belongs to the saved session snapshot, not a
+        // broad UDP/51820 deletion that could remove another application's rule.
+        let inspect = |args: &[&str]| -> Result<String> {
+            let output = Command::new("ip").args(args).output()?;
+            if !output.status.success() { return Err(WraithError::Network("Cannot verify WireGuard cleanup".into())); }
+            Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        };
+        let links = inspect(&["-o", "link", "show"])?;
+        let rules = inspect(&["rule", "show"])?;
+        let routes = inspect(&["route", "show", "table", "all"])?;
+        let link_remains = links.lines().any(|line| line.split_whitespace().nth(1)
+            .is_some_and(|name| name.trim_end_matches(':').split('@').next() == Some(iface)));
+        let rule_remains = rules.lines().any(|line| {
+            let fields: Vec<_> = line.split_whitespace().collect();
+            fields.windows(2).any(|pair| pair == ["lookup", table_str.as_str()] || pair == ["table", table_str.as_str()])
+        });
+        let routes_remain = routes.lines().any(|line| line.split_whitespace().collect::<Vec<_>>().windows(2)
+            .any(|pair| pair == ["table", table_str.as_str()]));
+        if link_remains || rule_remains || routes_remain {
+            return Err(WraithError::Network("WireGuard link or routing policy remains after cleanup".into()));
+        }
 
         info!("Multi-Hop WireGuard interface and policy routing rules demolished");
         Ok(())

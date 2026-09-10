@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{info, warn};
+use tracing::info;
 use wraith_core::config::{
     RESOLV_BACKUP, RESOLV_CONTENT, RESOLV_PATH, TORRC_PATH, TORRC_TEMPLATE, TOR_CONTROL_PORT,
     TOR_DNS_PORT, TOR_TRANS_PORT, TOR_USER,
@@ -83,12 +83,20 @@ pub fn restore_dns() -> Result<()> {
     // Remove immutable lock before restoring
     let _ = Command::new("chattr").args(["-i", RESOLV_PATH]).stdout(Stdio::null()).stderr(Stdio::null()).output();
 
-    if backup.exists() {
-        fs::rename(backup, resolv)?;
-        info!("DNS configuration restored from backup");
-    } else {
-        fs::write(resolv, "nameserver 1.1.1.1\nnameserver 8.8.8.8\n")?;
-        warn!("No backup found; fallback upstream DNS applied");
+    if !backup.exists() {
+        return Err(WraithError::Configuration("Resolver backup missing; refusing to invent fallback DNS".into()));
+    }
+    // Retain backup for retries if another cleanup step subsequently fails.
+    fs::copy(backup, resolv)?;
+    info!("DNS configuration restored from backup");
+    Ok(())
+}
+
+pub fn restore_dns_snapshot(content: &str) -> Result<()> {
+    let _ = Command::new("chattr").args(["-i", RESOLV_PATH]).stdout(Stdio::null()).stderr(Stdio::null()).output();
+    fs::write(RESOLV_PATH, content)?;
+    if fs::read_to_string(RESOLV_PATH)? != content {
+        return Err(WraithError::Configuration("Resolver restoration verification failed".into()));
     }
     Ok(())
 }

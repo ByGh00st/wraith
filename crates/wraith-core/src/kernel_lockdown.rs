@@ -40,76 +40,77 @@ pub fn get_lockdown_status() -> LockdownState {
     }
 }
 
+pub const REQUIRED_CONTROLS: &[(&str, &str)] = &[
+    ("/proc/sys/kernel/sysrq", "0"),
+    ("/proc/sys/kernel/core_pattern", "|/bin/false"),
+    ("/proc/sys/kernel/kexec_load_disabled", "1"),
+    ("/proc/sys/kernel/yama/ptrace_scope", "3"),
+];
+
+pub fn backup_reversible_controls() -> Result<std::collections::HashMap<String, String>> {
+    REQUIRED_CONTROLS[..2].iter().map(|(path, _)| Ok((path.to_string(), fs::read_to_string(path)?))).collect()
+}
+
+pub fn restore_reversible_controls(backup: &std::collections::HashMap<String, String>) -> Result<()> {
+    let mut errors = Vec::new();
+    for (path, value) in backup {
+        if !REQUIRED_CONTROLS[..2].iter().any(|(allowed, _)| path == allowed) {
+            errors.push(format!("Unrecognized kernel backup path: {path}"));
+        } else if let Err(e) = fs::write(path, value) { errors.push(format!("{path}: {e}")); }
+    }
+    if errors.is_empty() { Ok(()) } else { Err(WraithError::Custom(errors.join("; "))) }
+}
+
+fn enforce_controls(
+    mut read: impl FnMut(&str) -> Result<String>,
+    mut write: impl FnMut(&str, &str) -> Result<()>,
+) -> Result<()> {
+    // Preflight every required control before making irreversible writes.
+    for (path, _) in REQUIRED_CONTROLS { read(path)?; }
+    for (path, value) in REQUIRED_CONTROLS {
+        if read(path)?.trim() != *value { write(path, value)?; }
+        if read(path)?.trim() != *value {
+            return Err(WraithError::Custom(format!("Kernel control did not take effect: {path}")));
+        }
+    }
+    Ok(())
+}
+
 pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
-    let state = get_lockdown_status();
-    info!("Current Linux Kernel Lockdown state: {:?}", state);
-
-    // 1. Elevate Lockdown Mode to Confidentiality (Blocks /dev/mem, /dev/kmem, unsigned modules & DMA hooks)
-    let path = Path::new(LOCKDOWN_PATH);
-    if path.exists() && (state == LockdownState::None || state == LockdownState::Integrity) {
-        if fs::write(path, "confidentiality").is_ok() {
-            info!("Linux Kernel Lockdown elevated to 'confidentiality'");
-        } else if fs::write(path, "integrity").is_ok() {
-            info!("Linux Kernel Lockdown elevated to 'integrity'");
-        }
+    if get_lockdown_status() == LockdownState::Unavailable {
+        return Err(WraithError::Custom("Required kernel lockdown interface is unavailable".into()));
     }
-
-    // 2. Disable SysRq Triggers (prevents hardware keyboard crash dumps)
-    let sysrq_path = Path::new("/proc/sys/kernel/sysrq");
-    if sysrq_path.exists() {
-        if let Err(e) = fs::write(sysrq_path, "0") {
-            warn!("Failed writing to /proc/sys/kernel/sysrq: {e}");
-        } else {
-            info!("Disabled Linux Magic SysRq triggers (/proc/sys/kernel/sysrq = 0)");
-        }
+    for (path, _) in REQUIRED_CONTROLS { fs::read_to_string(path)?; }
+    if get_lockdown_status() != LockdownState::Confidentiality {
+        fs::write(LOCKDOWN_PATH, "confidentiality")?;
     }
-
-    // 3. Disable Core Pattern Dumps (prevents RAM process memory writing to disk on crash)
-    let core_pattern = Path::new("/proc/sys/kernel/core_pattern");
-    if core_pattern.exists() {
-        if let Err(e) = fs::write(core_pattern, "|/bin/false\n") {
-            warn!("Failed writing to /proc/sys/kernel/core_pattern: {e}");
-        } else {
-            info!("Kernel core dump pattern locked (/proc/sys/kernel/core_pattern = |/bin/false)");
-        }
+    if get_lockdown_status() != LockdownState::Confidentiality {
+        return Err(WraithError::Custom("Required confidentiality lockdown did not take effect".into()));
     }
-
-    // 4. Disable KExec (prevents loading a rogue kernel in RAM to dump volatile memory)
-    let kexec_path = Path::new("/proc/sys/kernel/kexec_load_disabled");
-    if kexec_path.exists() {
-        if let Err(e) = fs::write(kexec_path, "1") {
-            warn!("Failed writing to /proc/sys/kernel/kexec_load_disabled: {e}");
-        } else {
-            info!("Kernel kexec load disabled (Anti-Cold Boot RAM acquisition)");
-        }
+    enforce_controls(|path| Ok(fs::read_to_string(path)?), |path, value| Ok(fs::write(path, value)?))?;
+    if fs::read_dir(IOMMU_PATH).map(|entries| entries.count()).unwrap_or(0) == 0 {
+        warn!("IOMMU groups were not observed; hardware DMA protection is not verified");
     }
+    info!("Required kernel controls were written and verified");
+    Ok(LockdownState::Confidentiality)
+}
 
-    // 5. Restrict Ptrace Scope System-Wide (Yama LSM Scope 3 = No ptrace allowed)
-    let ptrace_scope = Path::new("/proc/sys/kernel/yama/ptrace_scope");
-    if ptrace_scope.exists() {
-        if let Err(e) = fs::write(ptrace_scope, "3") {
-            warn!("Failed writing to /proc/sys/kernel/yama/ptrace_scope: {e}");
-        } else {
-            info!("Yama LSM ptrace scope set to 3 (System-wide anti-debugging lock)");
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn missing_control_prevents_all_writes() {
+        let mut writes = 0;
+        assert!(enforce_controls(|_| Err(WraithError::Custom("missing".into())), |_, _| { writes += 1; Ok(()) }).is_err());
+        assert_eq!(writes, 0);
     }
-
-    // 6. Verify IOMMU (VT-d / AMD-Vi) hardware DMA protection
-    let iommu_path = Path::new(IOMMU_PATH);
-    if iommu_path.exists() {
-        if let Ok(entries) = fs::read_dir(iommu_path) {
-            let count = entries.count();
-            if count > 0 {
-                info!("IOMMU (VT-d / AMD-Vi) hardware DMA memory protection active ({count} groups isolated)");
-            }
-        }
-    } else {
-        warn!("IOMMU not discovered in sysfs; ensure VT-d/IOMMU is active in BIOS for hardware DMA defense");
+    #[test]
+    fn rejected_and_ineffective_writes_cannot_pass() {
+        assert!(enforce_controls(|_| Ok("old".into()), |_, _| Err(WraithError::Custom("denied".into()))).is_err());
+        assert!(enforce_controls(|_| Ok("old".into()), |_, _| Ok(())).is_err());
     }
-
-    let final_state = get_lockdown_status();
-    if !matches!(final_state, LockdownState::Integrity | LockdownState::Confidentiality) {
-        return Err(WraithError::Custom("Kernel lockdown was not activated; strict mode cannot report this layer active".into()));
+    #[test]
+    fn already_enforced_controls_need_no_write() {
+        enforce_controls(|path| Ok(REQUIRED_CONTROLS.iter().find(|(key, _)| *key == path).unwrap().1.into()), |_, _| panic!("unnecessary write")).unwrap();
     }
-    Ok(final_state)
 }

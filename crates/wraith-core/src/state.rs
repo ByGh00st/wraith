@@ -24,6 +24,10 @@ pub struct StateData {
     #[serde(default)]
     pub dns_configured: bool,
     #[serde(default)]
+    pub tor_started: bool,
+    #[serde(default)]
+    pub saved_resolver: Option<String>,
+    #[serde(default)]
     pub physical_fastpath_disabled: bool,
     pub state: Option<State>,
     pub pid: Option<u32>,
@@ -39,6 +43,12 @@ pub struct StateData {
     pub exit_profile: Option<String>,
     pub namespace_active: bool,
     #[serde(default)]
+    pub kernel_sysctl_backup: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub browser_configured: bool,
+    #[serde(default)]
+    pub font_configured: bool,
+    #[serde(default)]
     pub original_cgroup: Option<String>,
     pub browser_hardened: usize,
     pub saved_rules: Option<String>,
@@ -47,6 +57,8 @@ pub struct StateData {
     #[serde(default)]
     pub tcp_stack_backup: std::collections::HashMap<String, String>,
     pub machine_id_old: Option<String>,
+    #[serde(default)]
+    pub machine_id_backup: std::collections::HashMap<String, String>,
     pub tcp_stack_masked: bool,
     pub multihop_enabled: bool,
     pub wireguard_config: Option<String>,
@@ -91,6 +103,7 @@ impl StateManager {
         temp.write_all(serde_json::to_string_pretty(&data)?.as_bytes())?;
         temp.as_file().sync_all()?;
         temp.persist_noclobber(&self.path).map_err(|e| e.error)?;
+        #[cfg(unix)] File::open(parent)?.sync_all()?;
         Ok(())
     }
 
@@ -112,12 +125,20 @@ impl StateManager {
         temp.write_all(serialized.as_bytes())?;
         temp.as_file().sync_all()?;
         temp.persist(&self.path).map_err(|e| e.error)?;
+        #[cfg(unix)] File::open(parent)?.sync_all()?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(0o600));
         }
         Ok(())
+    }
+
+    pub fn finish_cleanup(&self, errors: &[String]) -> Result<()> {
+        if !errors.is_empty() {
+            return Err(crate::error::WraithError::Custom(format!("Cleanup incomplete; session record retained: {}", errors.join("; "))));
+        }
+        self.deactivate()
     }
 
     pub fn deactivate(&self) -> Result<()> {
@@ -190,6 +211,18 @@ impl StateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn incomplete_cleanup_preserves_recovery_record() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = StateManager { path: dir.path().join("state") };
+        manager.claim(StateData::default()).unwrap();
+        let before = fs::read(&manager.path).unwrap();
+        assert!(manager.finish_cleanup(&["MAC restoration denied".into()]).is_err());
+        assert_eq!(fs::read(&manager.path).unwrap(), before);
+        manager.finish_cleanup(&[]).unwrap();
+        assert!(!manager.is_active());
+    }
+
     #[test]
     fn concurrent_session_claim_cannot_overwrite_owner() {
         let dir = tempfile::tempdir().unwrap();
