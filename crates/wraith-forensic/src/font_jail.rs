@@ -11,26 +11,60 @@ pub const FONT_CONFIG_BACKUP: &str = "/etc/fonts/local.conf.wraith.bak";
 
 pub const RESTRICTED_FONT_XML: &str = r#"<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<!-- WRAITH SYSTEM-LEVEL FONT ENUMERATION SHIELD (STRICT WHITELIST) -->
+<!-- WRAITH SYSTEM-LEVEL FONT ENUMERATION SHIELD (STRICT BASE ISOLATION) -->
 <fontconfig>
-  <description>Wraith Base System Font Mask</description>
+  <description>Wraith System-Level Font Normalization & Anti-Fingerprint Shield</description>
+
+  <!-- 1. Reject all custom, user-installed, Wine, Flatpak and third-party font paths -->
   <selectfont>
-    <!-- Block ALL font directories on Linux -->
     <rejectfont>
-      <glob>/usr/share/fonts/*</glob>
       <glob>/usr/local/share/fonts/*</glob>
       <glob>~/.fonts/*</glob>
       <glob>~/.local/share/fonts/*</glob>
+      <glob>/root/.fonts/*</glob>
+      <glob>/root/.local/share/fonts/*</glob>
+      <glob>/home/*/.fonts/*</glob>
+      <glob>/home/*/.local/share/fonts/*</glob>
+      <glob>/var/lib/flatpak/exports/share/fonts/*</glob>
+      <glob>/var/lib/snapd/desktop/fontconfig/*</glob>
     </rejectfont>
-    <!-- Only allow standard generic fallbacks to prevent broken rendering -->
-    <acceptfont>
-      <pattern><patelt name="family"><string>DejaVu Sans</string></patelt></pattern>
-      <pattern><patelt name="family"><string>DejaVu Serif</string></patelt></pattern>
-      <pattern><patelt name="family"><string>DejaVu Sans Mono</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Liberation Sans</string></patelt></pattern>
-      <pattern><patelt name="family"><string>Noto Color Emoji</string></patelt></pattern>
-    </acceptfont>
   </selectfont>
+
+  <!-- 2. Normalize and enforce default generic aliases to standard Kali/Linux fonts -->
+  <alias>
+    <family>monospace</family>
+    <prefer>
+      <family>Hack</family>
+      <family>DejaVu Sans Mono</family>
+      <family>Liberation Mono</family>
+      <family>Noto Sans Mono</family>
+      <family>Noto Sans CJK KR</family>
+      <family>Noto Sans Symbols</family>
+      <family>Noto Sans Symbols 2</family>
+      <family>Noto Color Emoji</family>
+    </prefer>
+  </alias>
+
+  <alias>
+    <family>sans-serif</family>
+    <prefer>
+      <family>Cantarell</family>
+      <family>DejaVu Sans</family>
+      <family>Liberation Sans</family>
+      <family>Noto Sans</family>
+      <family>Noto Sans CJK KR</family>
+      <family>Noto Color Emoji</family>
+    </prefer>
+  </alias>
+
+  <alias>
+    <family>serif</family>
+    <prefer>
+      <family>DejaVu Serif</family>
+      <family>Liberation Serif</family>
+      <family>Noto Serif</family>
+    </prefer>
+  </alias>
 </fontconfig>
 "#;
 
