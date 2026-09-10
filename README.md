@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/WRAITH--PRIME-v1.3.0_SOVEREIGN-8855ff?style=for-the-badge&logo=ghostery&logoColor=white" alt="Version">
+  <img src="https://img.shields.io/badge/WRAITH--PRIME-v1.3.0_RELEASE-8855ff?style=for-the-badge&logo=ghostery&logoColor=white" alt="Version">
   <img src="https://img.shields.io/badge/LANGUAGE-PURE_RUST_2021-00d4ff?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/TARGET-x86__64--unknown--linux--gnu-ff3366?style=for-the-badge&logo=linux&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/SECURITY-ENTERPRISE_PRIVACY_STANDARD-00ff88?style=for-the-badge&logo=matrix&logoColor=white" alt="Standard">
@@ -34,11 +34,11 @@
 - [🚀 Quickstart & Installation](#installation)
   - [1. Automated System Deployment (Recommended)](#1-clone--automated-system-deployment-recommended)
   - [2. Manual Cargo Compilation & Binary Setup](#2-manual-cargo-compilation--binary-setup)
-  - [3. Sovereign Systemd Daemon & Early-Boot Deployment](#3-sovereign-systemd-daemon--early-boot-deployment)
+  - [3. Systemd Daemon & Early-Boot Deployment](#3-systemd-daemon--early-boot-deployment)
 - [💻 Operational Command Reference](#cli-reference)
   - [📋 Primary Shortcuts & Subcommands](#-primary-shortcuts--subcommands)
   - [🖧 Hardware Interface Selector (`wraith interfaces`)](#hardware-interface-selector)
-  - [🔒 Sovereign DNS-over-HTTPS (`wraith doh`)](#sovereign-dns-over-https)
+  - [🔒 Encrypted DNS-over-HTTPS (`wraith doh`)](#dns-over-https)
   - [🌉 Tor Moat Protocol & Bridge Discovery (`wraith bridge`)](#tor-moat-protocol)
   - [🌐 75-Language Enterprise i18n Architecture](#enterprise-i18n)
   - [🛠️ Granular Control Flags Matrix](#granular-control-flags)
@@ -58,7 +58,7 @@
 <a id="system-overview"></a>
 ## 🌌 System Overview
 
-**Wraith-Prime** is a sovereign, kernel-level network privacy, protocol normalization, and anti-fingerprinting framework designed for authorized security assessments, professional penetration testing, compliance auditing, and defensive privacy engineering.
+**Wraith-Prime** is an advanced kernel-level network privacy, protocol normalization, and anti-fingerprinting framework designed for authorized security assessments, professional penetration testing, compliance auditing, and defensive privacy engineering.
 
 Built completely from scratch in pure Rust across **6 modular crates**, Wraith operates directly at the kernel and network boundary using **raw `AF_NETLINK` sockets, Seccomp-BPF syscall filters, `AF_PACKET` zero-copy dissectors, and wire-level protocol synthesizers**. It enforces zero-trust fail-closed network routing, active WebRTC STUN leak protection, in-flight auditing tool signature sanitization, anti-forensics self-destruction, and locked in-memory RAMFS vaults.
 
@@ -129,7 +129,7 @@ graph LR
 
 | Security Feature / Vector | Anonsurf (Bash) | TorGhost (Python) | Proxychains-NG (C) | Tails OS (Debian) | Wraith v1.3.0 (Rust) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Execution Architecture** | Unsafe Shell Scripts | GC Python Wrapper | `LD_PRELOAD` Hook | Full OS Environment | **Pure-Rust Sovereign Crates (Zero GC)** |
+| **Execution Architecture** | Unsafe Shell Scripts | GC Python Wrapper | `LD_PRELOAD` Hook | Full OS Environment | **Pure-Rust Modular Crates (Zero GC)** |
 | **Routing Mechanism** | Spawns `ip` / `route` CLI | Spawns `iptables` CLI | Hijacks `connect()` | Kernel Netfilter | **Direct `AF_NETLINK` FIB Socket API** |
 | **Fail-Closed KillSwitch** | ❌ Prone to Script Hang | ❌ Fragile Subprocess | ❌ Leaks on Non-TCP | ⚠️ Static Firewall | **✔ Fail-Closed Watchdog (<1ms Kernel Drop)** |
 | **Crash Protection & Sentry**| ❌ Locks System Network | ❌ Locks System Network | ❌ Process Abort | ⚠️ Reboot Required | **✔ Panic Sentry & Auto Kernel Net Recovery** |
@@ -162,12 +162,12 @@ Wraith is cleanly architected into 6 highly decoupled, zero-warning pure-Rust cr
 
 ```
 wraith/
-├── Cargo.toml                              # Sovereign Workspace Root Manifest (v1.3.0)
+├── Cargo.toml                              # Workspace Root Manifest (v1.3.0)
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
 ├── build.sh                                # Automated Linux Build, Shell Completion & Language Deployment
-├── install-daemon.sh                       # Sovereign Systemd Early-Boot Daemon & Service Deployment
-├── uninstall.sh                            # Sovereign Uninstaller & Forensic State Purge
+├── install-daemon.sh                       # Systemd Early-Boot Daemon & Service Deployment
+├── uninstall.sh                            # Complete Uninstaller & Forensic State Purge
 └── crates/
     ├── wraith-core/                        # [Core & Memory Security Layer]
     │   ├── locales/                        # Localized Core & Crypto Dictionaries
@@ -270,7 +270,8 @@ sudo chmod 755 /usr/local/bin/wraith
 sudo mkdir -p /etc/wraith /var/log/wraith /etc/tor
 ```
 
-### 3. Sovereign Systemd Daemon & Early-Boot Deployment
+<a id="3-systemd-daemon--early-boot-deployment"></a>
+### 3. Systemd Daemon & Early-Boot Deployment
 ```bash
 # Launch interactive daemon wizard (Configures profile, DoH, bridge, and early-boot hooks):
 chmod +x install-daemon.sh
@@ -315,7 +316,7 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | — | `sudo wraith pentest` | **Security Audit Guide**: Displays isolation guidelines for Nmap, Sqlmap, Ffuf, Metasploit. |
 | — | `sudo wraith shred <FILE>` | **Crypto File Shredder**: Overwrites target file with DoD 5220.22-M 7-pass cryptosequence. |
 | — | `sudo wraith interfaces` | **Hardware Interface Selector**: Inspects and binds to physical network interfaces. |
-| — | `sudo wraith doh` | **Sovereign DoH**: Selects or configures DNS-over-HTTPS providers (Cloudflare, Quad9, Google, AdGuard, Mullvad, Custom). |
+| — | `sudo wraith doh` | **Encrypted DoH**: Selects or configures DNS-over-HTTPS providers (Cloudflare, Quad9, Google, AdGuard, Mullvad, Custom). |
 | — | `sudo wraith bridge` | **Tor Moat & Bridge Discovery**: Fetches bridges via Moat API or sets up obfs4/snowflake/webtunnel. |
 | — | `sudo wraith --select-lang` | **75-Language Selector**: Launches interactive Unicode terminal UI to change system language. |
 | — | `sudo wraith --lang <CODE>` | **Runtime Language Override**: Dynamically executes any command in any of the 75 supported locales. |
@@ -344,8 +345,8 @@ sudo wraith start --interface eth1 -F
 
 ---
 
-<a id="sovereign-dns-over-https"></a>
-### 🔒 Sovereign DNS-over-HTTPS (`wraith doh`)
+<a id="dns-over-https"></a>
+### 🔒 Encrypted DNS-over-HTTPS (`wraith doh`)
 
 To eliminate DNS poisoning, ISP inspection, and unencrypted local resolver eavesdropping, Wraith provides native **RFC 8484 DNS-over-HTTPS (DoH)** with zero-trace TLS encryption and EDNS0 client subnet stripping:
 
