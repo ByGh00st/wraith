@@ -1151,7 +1151,8 @@ fn determine_build_dir() -> String {
     let pid = std::process::id();
     let candidates = [
         format!("/var/tmp/wraith_autoinstall_{pid}"),
-        format!("/tmp/wraith_autoinstall_{pid}"),
+        format!("/root/.cache/wraith_autoinstall_{pid}"),
+        format!("/opt/wraith_autoinstall_{pid}"),
     ];
     for dir in candidates {
         if let Some(parent) = Path::new(&dir).parent() {
