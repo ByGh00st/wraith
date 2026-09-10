@@ -18,7 +18,7 @@
 
 <h3 align="center">High-Assurance Kernel-Level Network Privacy & Anti-Fingerprinting Engine</h3>
 <p align="center">
-  <b>Engineered in Pure Rust (32,000+ Lines • 6 Modular Crates • 75 Native Locales) for Linux Systems & Security Engineering</b><br>
+  <b>Engineered in Pure Rust (52,000+ Lines • 6 Modular Crates • 75 Native Locales) for Linux Systems & Security Engineering</b><br>
   <i>Ring 0/3 Hardened • Netlink FIB Engine • Zero-Copy IDS • 1,338+ Tool DPI Sanitizer (Authorized Pentest & Security Auditing Matrix) • RFC 8484 DoH • Moat Bridge Protocol • Early-Boot Systemd Guard</i>
 </p>
 
@@ -71,24 +71,25 @@ Built completely from scratch in pure Rust across **6 modular crates**, Wraith o
 <summary><b>🔍 Click to Expand / Collapse Tokei Workspace Code Verification Table</b></summary>
 
 ```text
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Language              Files        Lines         Code     Comments       Blanks
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Shell                     2          273          204           31           38
- TOML                      7          195          183            0           12
- YAML                    400        18624        18624            0            0
-─────────────────────────────────────────────────────────────────────────────────
- Markdown                  1          466            0          365          101
- |- BASH                   1           33           17            9            7
- |- Rust                   1           10           10            0            0
- (Total)                              509           27          374          108
-─────────────────────────────────────────────────────────────────────────────────
- Rust                     55        11425         9578          442         1405
- |- Markdown              48          268            0          268            0
- (Total)                            11693         9578          710         1405
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                   465        31294        28616         1115         1563
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+===============================================================================
+ Language            Files        Lines         Code     Comments       Blanks
+===============================================================================
+ JSON                    1           36           36            0            0
+ Shell                   3          734          589           65           80
+ TOML                    7          199          187            0           12
+ YAML                  400        35422        35347            0           75
+-------------------------------------------------------------------------------
+ Markdown                1          602            0          472          130
+ |- BASH                 1           73           37           21           15
+ |- Rust                 1           10           10            0            0
+ (Total)                            685           47          493          145
+-------------------------------------------------------------------------------
+ Rust                   61        15853        13493          539         1821
+ |- Markdown            54          375            0          374            1
+ (Total)                          16228        13493          913         1822
+===============================================================================
+ Total                 473        52846        49652         1076         2118
+===============================================================================
 ```
 </details>
 
