@@ -161,16 +161,33 @@ pub fn render_box(title: &str, rows: &[String], corner: BoxCorner, max_box_width
 
 pub fn print_banner(is_strict: bool) {
     let target = detect_target_os();
+    let pkg_ver = env!("CARGO_PKG_VERSION");
     let (title, r1_val, r3_val) = if is_strict {
+        let raw_r1 = t!("banner.engine_val_strict");
+        let desc = if raw_r1.contains("v1.2.0") {
+            raw_r1.replace("v1.2.0", &format!("v{pkg_ver}"))
+        } else if !raw_r1.contains(&format!("v{pkg_ver}")) {
+            format!("WRAITH v{pkg_ver} ({raw_r1})")
+        } else {
+            raw_r1.to_string()
+        };
         (
             t!("banner.max_defense"),
-            t!("banner.engine_val_strict").bold().bright_red().to_string(),
+            desc.bold().bright_red().to_string(),
             t!("banner.gate_val_strict").bold().bright_red().to_string(),
         )
     } else {
+        let raw_r1 = t!("banner.engine_val_normal");
+        let desc = if raw_r1.contains("v1.2.0") {
+            raw_r1.replace("v1.2.0", &format!("v{pkg_ver}"))
+        } else if !raw_r1.contains(&format!("v{pkg_ver}")) {
+            format!("WRAITH v{pkg_ver} ({raw_r1})")
+        } else {
+            raw_r1.to_string()
+        };
         (
             t!("banner.telemetry"),
-            t!("banner.engine_val_normal").bold().bright_cyan().to_string(),
+            desc.bold().bright_cyan().to_string(),
             t!("banner.gate_val_normal").bold().bright_green().to_string(),
         )
     };

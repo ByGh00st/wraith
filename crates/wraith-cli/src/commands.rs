@@ -1271,7 +1271,10 @@ pub async fn cmd_update() -> Result<()> {
 
     if is_low_ram {
         cmd.args(["--jobs", "1"]);
-        cmd.env("RUSTFLAGS", "-C codegen-units=1 -C opt-level=2");
+        cmd.env(
+            "RUSTFLAGS",
+            "-C codegen-units=4 -C opt-level=2 -C link-arg=-Wl,--no-keep-memory -C link-arg=-Wl,--reduce-memory-overheads",
+        );
     }
 
     if let Some(cargo_home) = determine_cargo_home() {

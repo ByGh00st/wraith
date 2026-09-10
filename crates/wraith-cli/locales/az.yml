@@ -2,8 +2,8 @@ banner:
   max_defense: ╭── [ 🛡️ WRAITH-PRIME // MAXIMUM DEFENSE ARMED ] ───────────────────────╮
   telemetry: ╭── [ 🛡️ WRAITH-PRIME // KERNEL TELEMETRY & GATE ] ────────────────────────╮
   engine_spec: 'ENGINE SPEC :'
-  engine_val_strict: WRAITH v1.2.0 (CYBERPUNK STRICT MODE)
-  engine_val_normal: WRAITH v1.2.0 (Ring-0 Netfilter & Seccomp Gate)
+  engine_val_strict: WRAITH v1.3.0 (CYBERPUNK STRICT MODE)
+  engine_val_normal: WRAITH v1.3.0 (Ring-0 Netfilter & Seccomp Gate)
   target_host: 'TARGET HOST :'
   gate_status: 'GATE STATUS :'
   gate_val_strict: FAIL-CLOSED (All 16 Security Layers Active)
@@ -357,7 +357,7 @@ help:
   shortcuts_header: 'Hızlı Operasyonel Kısayollar:'
   cmd_cleanup_full: Kapsamlı temizlik (RAM, swap ve tüm sistem oturum logları)
   sec_general_header: 'Genel Seçenekler:'
-  opt_select_lang: 75 dilli interaktif terminal dil yapılandırma menüsünü açar
+  opt_select_lang: çok dilli interaktif terminal dil yapılandırma menüsünü açar
   opt_help: Bu yardım ekranını gösterir
   opt_version: Sürüm bilgisini gösterir
   examples_header: 'Operasyonel Kullanım Örnekleri:'

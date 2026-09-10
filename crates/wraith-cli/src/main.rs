@@ -329,7 +329,7 @@ struct Cli {
     #[arg(long, global = true)]
     lang: Option<String>,
 
-    /// Launch interactive 75-language configuration TUI
+    /// Launch interactive multi-language configuration TUI
     #[arg(long = "select-lang", visible_aliases = ["lang-menu"], hide = true)]
     select_lang: bool,
 
