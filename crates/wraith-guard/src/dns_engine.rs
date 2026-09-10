@@ -715,60 +715,17 @@ impl SovereignDnsServer {
 
     /// Queries upstream DoH endpoint using RFC 8484 application/dns-message POST wire format
     pub(crate) async fn query_doh(url: &str, query_bytes: &[u8]) -> Result<Vec<u8>> {
-        use std::process::Stdio;
-        use tokio::io::AsyncWriteExt;
-
-        if !url.starts_with("https://") {
-            return Err(WraithError::Custom(
-                "Invalid DoH provider URL: must be HTTPS".into(),
-            ));
+        static CLIENT: std::sync::OnceLock<wraith_tor::BrowserTlsClient> =
+            std::sync::OnceLock::new();
+        if CLIENT.get().is_none() {
+            let client = wraith_tor::BrowserTlsClient::new(wraith_tor::BrowserProfile::Chrome)?;
+            let _ = CLIENT.set(client);
         }
-
-        let mut child = tokio::process::Command::new("curl")
-            .args([
-                "-q",
-                "-s",
-                "--fail",
-                "--socks5-hostname", "127.0.0.1:9050",
-                "--noproxy", "",
-                "-X",
-                "POST",
-                "--connect-timeout",
-                "2",
-                "-m",
-                "4",
-                "-H",
-                "Content-Type: application/dns-message",
-                "-H",
-                "Accept: application/dns-message",
-                "--data-binary",
-                "@-",
-                "--",
-                url,
-            ])
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| WraithError::Network(format!("Failed to spawn DoH process: {e}")))?;
-
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(query_bytes).await?;
-        }
-
-        let mut bytes = Vec::new();
-        child.stdout.take().ok_or_else(|| WraithError::Network("DoH output missing".into()))?
-            .take(65536).read_to_end(&mut bytes).await?;
-        if bytes.len() >= 65536 { return Err(WraithError::Network("Oversized DNS response".into())); }
-        let status = child.wait().await?;
-        if status.success() && !bytes.is_empty() {
-            Ok(bytes)
-        } else {
-            Err(WraithError::Network(
-                "DoH upstream returned empty response or error".into(),
-            ))
-        }
+        CLIENT
+            .get()
+            .ok_or_else(|| WraithError::Network("TLS client initialization failed".into()))?
+            .post_dns(url, query_bytes)
+            .await
     }
 
     pub async fn spawn_server(&self) -> Result<tokio::task::JoinHandle<()>> {

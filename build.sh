@@ -37,148 +37,55 @@ echo -e "${CLR_AMBER}  ╭── [ ⚔ WRAITH-PRIME // SOVEREIGN FORGE & COMPILE
 echo -e "  │  ${CLR_SLATE}CORE ENGINE :${CLR_RESET} ${CLR_RED}${CLR_BOLD}WRAITH v1.3.0 // KERNEL ANONYMIZATION GATE${CLR_RESET}                  ${CLR_AMBER}│"
 echo -e "  │  ${CLR_SLATE}TARGET HOST :${CLR_RESET} ${CLR_EMERALD}${TARGET_OS} [${ARCH}]${CLR_RESET}                                      ${CLR_AMBER}│"
 echo -e "  │  ${CLR_SLATE}KERNEL SPEC :${CLR_RESET} ${CLR_WHITE}Linux ${KERNEL_REL}${CLR_RESET}                                             ${CLR_AMBER}│"
-echo -e "  │  ${CLR_SLATE}FORGE MODE  :${CLR_RESET} ${CLR_RED}${CLR_BOLD}LTO + SIMD OPTIMIZED RELEASE // MAXIMUM DEFENSE ARMED${CLR_RESET}        ${CLR_AMBER}│"
+echo -e "  │  ${CLR_SLATE}FORGE MODE  :${CLR_RESET} ${CLR_RED}${CLR_BOLD}LOCKED RELEASE BUILD // USER-PRIVILEGE COMPILATION${CLR_RESET}          ${CLR_AMBER}│"
 echo -e "  ╰──────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
 
-# 1. Root Clearance Check & Filesystem Remount
-if [ "$EUID" -ne 0 ]; then
-    echo -e "  ${CLR_RED}${CLR_BOLD}✖ [ACCESS DENIED]${CLR_RESET} Root clearance required for kernel subsystem setup."
-    echo -e "      ${CLR_SLATE}Execute with root privileges: ${CLR_WHITE}sudo ./build.sh${CLR_RESET}\n"
+# Build as the invoking user; root is used only for packages and deployment.
+[[ $(uname -s) == Linux ]] || { echo "This installer requires Linux." >&2; exit 1; }
+[[ $EUID -eq 0 && ${SUDO_UID:-0} -ne 0 ]] || {
+    echo "Install Rust as your normal user, then run: sudo ./build.sh" >&2; exit 1;
+}
+BUILD_USER=$(getent passwd "$SUDO_UID" | cut -d: -f1)
+BUILD_HOME=$(getent passwd "$SUDO_UID" | cut -d: -f6)
+[[ -n $BUILD_USER && -d $BUILD_HOME ]] || { echo "Cannot resolve invoking user." >&2; exit 1; }
+REPO_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+BUILD_PATH="$BUILD_HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+as_builder() {
+    sudo -H -u "$BUILD_USER" -- env -i HOME="$BUILD_HOME" USER="$BUILD_USER" \
+        PATH="$BUILD_PATH" CARGO_HOME="$BUILD_HOME/.cargo" "$@"
+}
+as_builder cargo --version
+as_builder rustc --version
+command -v apt-get >/dev/null || {
+    echo "Automatic dependency installation supports Debian/Ubuntu/Parrot/Kali. See README for manual builds." >&2
     exit 1
-fi
+}
+echo -e "${CLR_CYAN}[1/3] Installing build and runtime dependencies${CLR_RESET}"
+apt-get update
+apt-get install -y build-essential cmake perl libclang-dev pkg-config git tor iptables \
+    iproute2 obfs4proxy dnsutils libssl-dev psmisc procps e2fsprogs curl fontconfig
 
-# Remount root and /usr as read-write to prevent read-only filesystem locks on Live/restricted systems
-mount -o remount,rw / 2>/dev/null || true
-mount -o remount,rw /usr 2>/dev/null || true
-mount -o remount,rw /usr/local 2>/dev/null || true
+echo -e "${CLR_CYAN}[2/3] Building locked release as $BUILD_USER${CLR_RESET}"
+cd -- "$REPO_DIR"
+TARGET_TRIPLE=$(as_builder rustc -vV | sed -n 's/^host: //p')
+[[ $TARGET_TRIPLE == x86_64-unknown-linux-gnu ]] || {
+    echo "Supported installed target is x86_64-unknown-linux-gnu." >&2; exit 1;
+}
+BUILD_DIR=$(as_builder mktemp -d /var/tmp/wraith-build.XXXXXXXXXX)
+INSTALL_TMP=''
+cleanup() {
+    [[ -z $INSTALL_TMP ]] || rm -f -- "$INSTALL_TMP"
+    # mktemp creates this absolute, owned build directory; never delete a supplied path.
+    [[ $BUILD_DIR == /var/tmp/wraith-build.* ]] && as_builder rm -rf -- "$BUILD_DIR"
+}
+trap cleanup EXIT
+as_builder cargo build --release --workspace --locked --target "$TARGET_TRIPLE" --target-dir "$BUILD_DIR"
 
-# Self-healing DNS resolution for git/cargo network access
-chattr -i /etc/resolv.conf 2>/dev/null || true
-if ! ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then
-    iptables -F 2>/dev/null || true
-fi
-if ! host github.com >/dev/null 2>&1; then
-    (echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" > /etc/resolv.conf) 2>/dev/null || true
-fi
-
-# 2. Inspect & Provision Rust Compiler Toolchain
-echo -e "  ${CLR_CYAN}◈ [1/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Auditing Rust compiler toolchain...${CLR_RESET}"
-if ! command -v cargo &> /dev/null; then
-    echo -e "        ${CLR_PURPLE}❯${CLR_RESET} Cargo missing in PATH. Initializing automated rustup provisioner..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null 2>&1
-    export PATH="$HOME/.cargo/bin:/root/.cargo/bin:$PATH"
-fi
-if [ -z "${CARGO_HOME:-}" ]; then
-    if [ -d "/root/.cargo" ]; then
-        export CARGO_HOME="/root/.cargo"
-    elif [ -n "${SUDO_USER:-}" ] && [ -d "/home/$SUDO_USER/.cargo" ]; then
-        export CARGO_HOME="/home/$SUDO_USER/.cargo"
-    elif [ -d "$HOME/.cargo" ]; then
-        export CARGO_HOME="$HOME/.cargo"
-    else
-        export CARGO_HOME="/var/tmp/.cargo"
-    fi
-fi
-mkdir -p "$CARGO_HOME" 2>/dev/null || true
-RUST_VER=$(rustc --version 2>/dev/null || echo "Rust Toolchain 2021")
-echo -e "        ${CLR_EMERALD}✔ [ACTIVE]${CLR_RESET} Toolchain verified: ${CLR_SLATE}${RUST_VER}${CLR_RESET}"
-
-# 3. Provision Native Linux Dependencies
-echo -e "\n  ${CLR_CYAN}◈ [2/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Provisioning native Linux security & networking dependencies...${CLR_RESET}"
-apt-get update -qq > /dev/null 2>&1 || true
-apt-get install -y -qq build-essential tor iptables iproute2 obfs4proxy dnsutils libssl-dev pkg-config psmisc procps e2fsprogs curl > /dev/null 2>&1 || true
-echo -e "        ${CLR_EMERALD}✔ [ARMED]${CLR_RESET} Dependencies online: ${CLR_SLATE}(tor, iptables, iproute2, obfs4proxy, libssl, seccomp)${CLR_RESET}"
-
-# 4. Compile Release Workspace with LTO Optimizations
-echo -e "\n  ${CLR_CYAN}◈ [3/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Forging Sovereign Workspace in Release Mode (LTO & SIMD Opt)...${CLR_RESET}"
-cargo build --release --workspace
-
-# 5. Global Multi-Path Deployment
-echo -e "\n  ${CLR_CYAN}◈ [4/4]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Deploying binary to universal system execution PATHs...${CLR_RESET}"
-TARGET_BIN="target/release/wraith"
-if [ -f "$TARGET_BIN" ]; then
-    # Terminate any running instances holding the binary in RAM
-    killall -9 wraith 2>/dev/null || true
-    pkill -9 -f "wraith" 2>/dev/null || true
-
-    # Strip immutable bits on all target execution paths
-    chattr -R -i -a /usr/local/bin/wraith /usr/bin/wraith /bin/wraith 2>/dev/null || true
-    
-    # Primary deployment into /usr/local/bin (with atomic replacement)
-    install -m 755 -D "$TARGET_BIN" /usr/local/bin/wraith 2>/dev/null || cp --remove-destination -f "$TARGET_BIN" /usr/local/bin/wraith 2>/dev/null || cp -f "$TARGET_BIN" /usr/local/bin/wraith
-    chmod 755 /usr/local/bin/wraith 2>/dev/null || true
-
-    # Mirror deployment to /usr/bin and /bin for universal command access
-    install -m 755 "$TARGET_BIN" /usr/bin/wraith 2>/dev/null || cp -f "$TARGET_BIN" /usr/bin/wraith 2>/dev/null || true
-    install -m 755 "$TARGET_BIN" /bin/wraith 2>/dev/null || cp -f "$TARGET_BIN" /bin/wraith 2>/dev/null || true
-    
-    if [ -d "/root/.cargo/bin" ]; then
-        install -m 755 "$TARGET_BIN" /root/.cargo/bin/wraith 2>/dev/null || true
-    fi
-    
-    mkdir -p /etc/wraith /var/log/wraith /etc/tor 2>/dev/null || true
-    chmod 750 /etc/wraith /var/log/wraith 2>/dev/null || true
-    
-    # 5b. Generate & Install Native Shell Tab Auto-Completions (Bash & Zsh)
-    mkdir -p /etc/bash_completion.d /usr/share/bash-completion/completions /usr/share/zsh/vendor-completions /usr/share/zsh/site-functions 2>/dev/null || true
-    "$TARGET_BIN" --generate-completions bash > /etc/bash_completion.d/wraith 2>/dev/null || true
-    "$TARGET_BIN" --generate-completions bash > /usr/share/bash-completion/completions/wraith 2>/dev/null || true
-    "$TARGET_BIN" --generate-completions zsh > /usr/share/zsh/vendor-completions/_wraith 2>/dev/null || true
-    "$TARGET_BIN" --generate-completions zsh > /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
-    
-    hash -r 2>/dev/null || true
-    echo -e "        ${CLR_EMERALD}✔ [INJECTED]${CLR_RESET} Deployed directly to: ${CLR_WHITE}${CLR_BOLD}/usr/local/bin/wraith${CLR_RESET}"
-    echo -e "        ${CLR_EMERALD}✔ [AUTOCOMPLETE]${CLR_RESET} Shell tab-completion installed ${CLR_SLATE}(Bash & Zsh)${CLR_RESET}"
-else
-    echo -e "  ${CLR_RED}✖ [BUILD ERROR]${CLR_RESET} Compilation artifact missing at $TARGET_BIN"
-    exit 1
-fi
-
-# ─── [ SYSTEM LANGUAGE SELECTION TUI (75 LANGUAGES IN PURE RUST) ] ─────────────────
-SELECTED_LANG="en"
-if [ -t 0 ]; then
-    BIN_RUN="/usr/local/bin/wraith"
-    [ ! -x "$BIN_RUN" ] && BIN_RUN="$TARGET_BIN"
-
-    if [ -x "$BIN_RUN" ]; then
-        SELECTED_LANG=$("$BIN_RUN" --select-lang 2>/dev/null || echo "en")
-        [ -z "$SELECTED_LANG" ] && SELECTED_LANG="en"
-    fi
-fi
-
-# Persistent System-Wide and User-Level Language Configuration
-mkdir -p /etc/wraith 2>/dev/null || true
-echo "$SELECTED_LANG" > /etc/wraith/lang 2>/dev/null || true
-chmod 644 /etc/wraith/lang 2>/dev/null || true
-
-for user_home in /home/* /root; do
-    if [ -d "$user_home" ]; then
-        mkdir -p "$user_home/.config/wraith" 2>/dev/null || true
-        echo "$SELECTED_LANG" > "$user_home/.config/wraith/lang" 2>/dev/null || true
-        chmod 644 "$user_home/.config/wraith/lang" 2>/dev/null || true
-    fi
-done
-
-echo "export WRAITH_LANG=\"$SELECTED_LANG\"" > /etc/profile.d/wraith_lang.sh 2>/dev/null || true
-export WRAITH_LANG="$SELECTED_LANG"
-echo -e "\n        ${CLR_EMERALD}✔ [CONFIGURED]${CLR_RESET} Default System Language persistently bound to: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET} (/etc/wraith/lang)"
-
-# 6. Generate & Deploy 100% Localized Shell Auto-Completions (Bash & Zsh) for Selected Language
-mkdir -p /etc/bash_completion.d /usr/share/bash-completion/completions /usr/share/zsh/vendor-completions /usr/share/zsh/site-functions 2>/dev/null || true
-BIN_FOR_COMPLETION="${TARGET_BIN}"
-[ -x "/usr/local/bin/wraith" ] && BIN_FOR_COMPLETION="/usr/local/bin/wraith"
-
-"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions bash > /etc/bash_completion.d/wraith 2>/dev/null || true
-"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions bash > /usr/share/bash-completion/completions/wraith 2>/dev/null || true
-"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions zsh > /usr/share/zsh/vendor-completions/_wraith 2>/dev/null || true
-"$BIN_FOR_COMPLETION" --lang "$SELECTED_LANG" --generate-completions zsh > /usr/share/zsh/site-functions/_wraith 2>/dev/null || true
-echo -e "        ${CLR_EMERALD}✔ [AUTOCOMPLETE]${CLR_RESET} Shell completions regenerated with language: ${CLR_AMBER}${CLR_BOLD}${SELECTED_LANG}${CLR_RESET}"
-
-# Execute newly compiled wraith binary to display the 100% localized operational command directory for the chosen language (all 75 locales supported natively)
-echo ""
-if [ -x "/usr/local/bin/wraith" ]; then
-    /usr/local/bin/wraith --lang "$SELECTED_LANG" -h
-elif [ -x "$TARGET_BIN" ]; then
-    "$TARGET_BIN" --lang "$SELECTED_LANG" -h
-fi
-
+echo -e "${CLR_CYAN}[3/3] Installing /usr/local/bin/wraith${CLR_RESET}"
+install -d -m 755 /usr/local/bin
+INSTALL_TMP=$(mktemp /usr/local/bin/.wraith-install.XXXXXXXXXX)
+install -m 755 -- "$BUILD_DIR/$TARGET_TRIPLE/release/wraith" "$INSTALL_TMP"
+mv -fT -- "$INSTALL_TMP" /usr/local/bin/wraith
+INSTALL_TMP=''
+echo -e "${CLR_EMERALD}Installed. Existing sessions keep running their current executable.${CLR_RESET}"
+echo "Run wraith --help. Start a new session after stopping any existing session normally."

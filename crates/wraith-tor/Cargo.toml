@@ -21,4 +21,11 @@ sha2.workspace = true
 hex.workspace = true
 md-5.workspace = true
 rust-i18n = "4.2.1"
+url = "2.5"
+wreq = { version = "=6.0.0-rc.31", features = ["socks", "stream"] }
+wreq-util = "=3.0.0-rc.14"
+futures-util = "0.3"
 
+[dev-dependencies]
+rcgen = { version = "0.14", default-features = false, features = ["ring"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }

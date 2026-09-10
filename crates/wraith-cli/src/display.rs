@@ -272,9 +272,14 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
         Cell::new(mode_str).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
+    let state_data = wraith_core::state::StateManager::default().read();
     table.add_row(vec![
         Cell::new(t!("hud.killswitch")),
-        Cell::new(t!("hud.watchdog")).fg(Color::Green),
+        if state_data.kill_switch {
+            Cell::new(t!("hud.watchdog")).fg(Color::Green)
+        } else {
+            Cell::new("--no-ks").fg(Color::Yellow)
+        },
     ]);
 
     let rotate_str = if let Some(sec) = interval {
@@ -292,7 +297,6 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
         Cell::new(t!("hud.dpi_active")).fg(Color::Cyan),
     ]);
 
-    let state_data = wraith_core::state::StateManager::default().read();
     if state_data.multihop_enabled {
         table.add_row(vec![
             Cell::new("Multi-Hop Overlay").fg(Color::Cyan).add_attribute(Attribute::Bold),
@@ -545,6 +549,7 @@ pub fn print_localized_help() {
         ("mac", t!("help.cmd_mac")),
         ("profile <PROFILE>", t!("help.cmd_profile")),
         ("pentest", t!("help.cmd_pentest")),
+        ("fetch <URL> -o <FILE>", "HTTPS → Tor | --tls-profile chrome/firefox/safari".into()),
         ("update", t!("help.cmd_update")),
         ("shred <PATH>", t!("help.cmd_shred")),
         ("monitor", t!("help.cmd_monitor")),
@@ -569,6 +574,7 @@ pub fn print_localized_help() {
         ("-n, --namespace", t!("help.opt_namespace")),
         ("-p, --profile <PROFILE>", t!("help.opt_profile")),
         ("--jitter", t!("help.opt_jitter")),
+        ("--jitter-endpoint <URL>", t!("help.opt_jitter")),
         ("--rotate-interval <SEC>", t!("help.opt_rotate")),
         ("--no-killswitch", t!("help.opt_no_ks")),
         ("-W, --wireguard <CONF>", t!("help.opt_wg")),
@@ -732,4 +738,3 @@ pub fn print_demo_showcase() {
 
     print_success(&t!("commands.demo_success"));
 }
-

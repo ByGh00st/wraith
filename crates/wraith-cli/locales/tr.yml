@@ -6,8 +6,8 @@ banner:
   engine_val_normal: WRAITH v1.3.0 (Ring-0 Netfilter & Seccomp Geçidi)
   target_host: 'HEDEF SUNUCU  :'
   gate_status: 'GEÇİT DURUMU  :'
-  gate_val_strict: SIZINTI GEÇİRMEZ / KİLİTLİ (Tüm 16 Güvenlik Katmanı Aktif)
-  gate_val_normal: SIZINTI GEÇİRMEZ / KİLİTLİ (Fail-Closed Çekirdek Koruması)
+  gate_val_strict: "-Fs → Tor / Netfilter / DNSSEC / Seccomp"
+  gate_val_normal: "Tor / Netfilter"
 tui:
   header_strict: MAKSİMUM SAVUNMA TELEMETRİ EKRANI
   header_normal: GERÇEK ZAMANLI TELEMETRİ EKRANI
@@ -53,15 +53,15 @@ hud:
   op_status: OPERASYONEL DURUM VE METRİK
   tor_exit: 🌐 Aktif Tor Çıkış Düğümü
   sec_matrix: 🛡️ Güvenlik Matrisi
-  max_defense_val: ● MAKSİMUM SAVUNMA [16/16 DEVREDE] (eBPF + Seccomp + RAM Kasası)
+  max_defense_val: "● -Fs | Tor + Netfilter + DNSSEC + Seccomp"
   std_defense_val: ● STANDART SIZINTI GEÇİRMEZ [Tor Çıkışı Zorunlu]
   killswitch: ⚡ Tor KillSwitch Geçidi
-  watchdog: ● Sızıntı Geçirmez Asenkron Bekçi (<1ms Netfilter Düşürme)
+  watchdog: "Tor → Netfilter (fail-closed)"
   rotate_policy: 🔄 Devre Döndürme Kuralı
   auto_rotate: ● OTOMATİK-DÖNDÜRME (Her {}sn)
   manual_rotate: ○ İSTEĞE BAĞLI MANUEL [Devre için 'R'ye basın]
   dpi_sanitizer: 🔍 Canlı DPI Temizleyici
-  dpi_active: ● AKTİF (Güvenlik Denetim İmzaları Yeniden Yazılıyor)
+  dpi_active: "HTTP :9055 + CONNECT → Tor; TLS: fetch / DoH"
   keys: ┌── [ 🎮 İNTERAKTİF KLAVYE KONTROLLERİ ] ────────────────────────────────────────────────────────┐
   k_rotate: '[R] Devreyi Döndür'
   k_audit: '[T] Sızıntı Denetimi'
@@ -92,7 +92,7 @@ commands:
   cmd_step_14: STUN/TURN portları engellendi
   cmd_step_15: eBPF TC Egress Fastpath bağlandı
   cmd_step_16: Sistem seviyesi font koruması (sandbox) aktif
-  cmd_step_17: cgroup2 ağ soketi hapishanesi aktif
+  cmd_step_17: "cgroup2: PID → Netfilter"
   cmd_step_18: İzole edilmiş Linux Ağ Alanı (Network Namespace) oluşturuluyor...
   cmd_step_19: Süreç ağ alanı hapishanesi devrede (10.200.1.0/24)
   cmd_step_20: Çıkış kimliği ve coğrafi konum doğrulanıyor...
@@ -280,7 +280,7 @@ commands:
   demo_step_9_ok: 'WireGuard tüneli [ChaCha20-Poly1305] Tor 3-Atlamalı Devre üzerinde aktif'
   demo_step_10_info: 'Coğrafi Çıkış Düğümü Profili [stealth] Uygulanıyor...'
   demo_step_10_ok: 'Five Eyes İttifakı hariç tutuldu ({us},{gb},{au},{ca},{nz}) | Çıkış Düğümleri: {ch},{is},{ro},{md},{pa}'
-  demo_step_11_info: 'Fail-Closed Netfilter TransProxy & eBPF clsact Sürücüsü Uygulanıyor...'
+  demo_step_11_info: "Netfilter TransProxy"
   demo_step_11_ok: 'Netfilter TransProxy kuralları yüklendi (9040/5353 üzerinde Fail-Closed Düşürme)'
   demo_step_11_ipv6: 'IPv6 sızıntı önleme etkin (Çekirdek IPv6 yığını tamamen düşürüldü)'
   demo_step_12_info: 'Egemen DNS Motoru & EDNS0 468B Doldurma Yapılandırılıyor...'
@@ -330,8 +330,7 @@ help:
   opt_select_doh: DNS-over-HTTPS çözücüsünü seçmek için interaktif TUI menüsünü açar
   opt_namespace: İzole bir Linux Network Namespace (10.200.1.0/24) içine kilitler
   opt_profile: Coğrafi Tor çıkış profili zorlar (stealth, speed, research, darkweb)
-  opt_jitter: Trafik akış korelasyonuna karşı Poisson zamanlama gecikmesi ve sahte
-    paketler enjekte eder
+  opt_jitter: "HTTPS → Tor (15–45 s); --jitter-endpoint <URL>"
   opt_rotate: 'Tor çıkış kimliğini her N saniyede bir otomatik döndürür (örn: --rotate
     60)'
   opt_no_ks: Sızıntı geçirmez KillSwitch bekçisini devre dışı bırakır
@@ -345,7 +344,7 @@ help:
   opt_tcp_mask: TCP/IP L4 yığın parametrelerini (TTL=128, timestamps=0) Windows standardına
     normalleştirir
   opt_machine_id: OS /etc/machine-id ve donanım kimliklerini rastgeleleştirir
-  opt_full_security: TÜM 16 güvenlik katmanını kilitler (Maksimum Sıkılaştırma Modu)
+  opt_full_security: "-Fs → Tor / Netfilter / DNSSEC / Seccomp; README: #full-security"
   sec_forensic_header: 'Yüksek Riskli & Adli Bilişim Karşıtı Operasyonlar:'
   opt_wipe_logs: '⚠ GERİ ALINAMAZ: Sistem oturum loglarını, olay günlüklerini ve kabuk
     geçmişini siler'

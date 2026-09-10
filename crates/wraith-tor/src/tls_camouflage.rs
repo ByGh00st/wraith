@@ -1,7 +1,5 @@
-//! Wraith JA3/JA4 TLS ClientHello Camouflage & In-Flight HTTP DPI Sanitizer Proxy
-//! Spawns an async transparent proxy (127.0.0.1:9055) bridging into Tor.
-//! Intercepts outbound HTTP traffic in-flight, rewrites security audit and scanner signatures (sqlmap, nikto, curl, etc.)
-//! into genuine Google Chrome User-Agents on the wire, and tunnels cleanly over Tor SOCKS5.
+//! Local HTTP proxy: initial cleartext header normalization, CONNECT tunneling
+//! and transparent port-80 relay over Tor SOCKS. CONNECT preserves client TLS.
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -46,7 +44,7 @@ pub const AUDIT_TOOL_SIGNATURES: &[&str] = &[
 
 pub const OFFENSIVE_SIGNATURES: &[&str] = AUDIT_TOOL_SIGNATURES;
 
-/// Dynamically generates active RFC 8701 GREASE TLS 1.3 & JA3/JA4 fingerprint profile
+/// Legacy fingerprint metadata; actual handshakes use `BrowserTlsClient` profiles.
 pub fn get_active_tls_profile() -> DynamicTlsFingerprint {
     DynamicTlsFingerprint::generate(BrowserType::ChromeWin11)
 }
@@ -156,7 +154,12 @@ async fn handle_proxy_client(client: TcpStream) -> Result<()> {
 
 async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -> Result<()> {
     let mut peek_buf = vec![0u8; 8192];
-    let n = client.peek(&mut peek_buf).await.map_err(WraithError::Io)?;
+    let n = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        client.peek(&mut peek_buf),
+    )
+    .await
+    .map_err(|_| WraithError::Network("Proxy greeting timeout".into()))??;
     if n == 0 {
         return Ok(());
     }
@@ -175,16 +178,53 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
     )
     .await
     .map_err(|_| WraithError::Custom("HTTP header timeout".into()))??;
-    let (sanitized_req, target_host, _) = sanitize_http_request(&req_buf);
-    // Transparent port-80 traffic may carry an explicit :80 authority.
-    let host_only = target_host.strip_suffix(":80").unwrap_or(&target_host);
-    if host_only.is_empty() || host_only.len() > 255 || host_only.contains(':') {
-        return Err(WraithError::Custom(
-            "Invalid HTTP Host for port-80 proxy".into(),
-        ));
+    let request = match crate::proxy_request::parse(&req_buf) {
+        Ok(request) => request,
+        Err(error) => {
+            client
+                .write_all(
+                    b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+                )
+                .await?;
+            return Err(error);
+        }
+    };
+    let mut tor_stream = match tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        connect_socks(&request.host, request.port, socks_port),
+    )
+    .await
+    {
+        Ok(Ok(stream)) => stream,
+        _ => {
+            client
+                .write_all(
+                    b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+                )
+                .await?;
+            return Err(WraithError::Network(
+                "Tor SOCKS connection failed or timed out".into(),
+            ));
+        }
+    };
+    if request.tunnel {
+        client
+            .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            .await?;
+        // Headers and the first TLS record may arrive in the same read.
+        tor_stream.write_all(&request.payload).await?;
+    } else {
+        let (sanitized, _, _) = sanitize_http_request(&request.payload);
+        tor_stream.write_all(&sanitized).await?;
     }
+    tokio::io::copy_bidirectional(&mut client, &mut tor_stream).await?;
+    Ok(())
+}
 
-    // Connect to Tor SOCKS5
+pub(crate) async fn connect_socks(host: &str, port: u16, socks_port: u16) -> Result<TcpStream> {
+    if host.is_empty() || host.len() > 255 || port == 0 {
+        return Err(WraithError::Network("Invalid SOCKS destination".into()));
+    }
     let mut tor_stream = TcpStream::connect(format!("127.0.0.1:{socks_port}"))
         .await
         .map_err(|e| WraithError::Custom(format!("Cannot connect to Tor SOCKS5: {e}")))?;
@@ -204,10 +244,23 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
         return Err(WraithError::Custom("Tor SOCKS5 auth failed".into()));
     }
 
-    // SOCKS5 Connect to domain on port 80
-    let mut connect_cmd = vec![0x05, 0x01, 0x00, 0x03, host_only.len() as u8];
-    connect_cmd.extend_from_slice(host_only.as_bytes());
-    connect_cmd.extend_from_slice(&80u16.to_be_bytes());
+    // Domain names are resolved by Tor; IP literals use their matching ATYP.
+    let mut connect_cmd = vec![0x05, 0x01, 0x00];
+    match host.parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(ip)) => {
+            connect_cmd.push(1);
+            connect_cmd.extend_from_slice(&ip.octets());
+        }
+        Ok(std::net::IpAddr::V6(ip)) => {
+            connect_cmd.push(4);
+            connect_cmd.extend_from_slice(&ip.octets());
+        }
+        Err(_) => {
+            connect_cmd.extend_from_slice(&[3, host.len() as u8]);
+            connect_cmd.extend_from_slice(host.as_bytes());
+        }
+    }
+    connect_cmd.extend_from_slice(&port.to_be_bytes());
 
     tor_stream
         .write_all(&connect_cmd)
@@ -215,15 +268,7 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
         .map_err(WraithError::Io)?;
     read_socks_reply(&mut tor_stream).await?;
 
-    // Send rewritten and sanitized HTTP request over Tor
-    tor_stream
-        .write_all(&sanitized_req)
-        .await
-        .map_err(WraithError::Io)?;
-
-    // Drain the response even when the client half-closes its request stream.
-    tokio::io::copy_bidirectional(&mut client, &mut tor_stream).await?;
-    Ok(())
+    Ok(tor_stream)
 }
 
 async fn read_http_headers<R: tokio::io::AsyncRead + Unpin>(reader: &mut R) -> Result<Vec<u8>> {
@@ -378,6 +423,45 @@ mod tests {
         })
         .await
         .expect("proxy stalled after client half-close");
+    }
+
+    #[tokio::test]
+    async fn connect_preserves_coalesced_tls_and_custom_port() {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let socks = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = socks.local_addr().unwrap().port();
+            let upstream = tokio::spawn(async move {
+                let (mut stream, _) = socks.accept().await.unwrap();
+                let mut greeting = [0; 3];
+                stream.read_exact(&mut greeting).await.unwrap();
+                stream.write_all(&[5, 0]).await.unwrap();
+                let mut command = [0; 5];
+                stream.read_exact(&mut command).await.unwrap();
+                assert_eq!(&command[..4], &[5, 1, 0, 3]);
+                let mut host = vec![0; command[4] as usize];
+                stream.read_exact(&mut host).await.unwrap();
+                assert_eq!(host, b"example.org");
+                assert_eq!(stream.read_u16().await.unwrap(), 8443);
+                stream.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await.unwrap();
+                let mut tls = Vec::new();
+                stream.read_to_end(&mut tls).await.unwrap();
+                assert_eq!(tls, b"\x16\x03\x03\x00\x02\xff\x00");
+                stream.write_all(b"\x16\x03\x03\x00\x01\xfe").await.unwrap();
+                stream.shutdown().await.unwrap();
+            });
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let mut client = TcpStream::connect(listener.local_addr().unwrap()).await.unwrap();
+            let (socket, _) = listener.accept().await.unwrap();
+            let proxy = tokio::spawn(handle_proxy_client_with_port(socket, port));
+            client.write_all(b"CONNECT example.org:8443 HTTP/1.1\r\nHost: example.org:8443\r\n\r\n\x16\x03\x03\x00\x02\xff\x00").await.unwrap();
+            client.shutdown().await.unwrap();
+            let mut response = Vec::new();
+            client.read_to_end(&mut response).await.unwrap();
+            assert!(response.starts_with(b"HTTP/1.1 200 Connection Established\r\n\r\n"));
+            assert!(response.ends_with(b"\x16\x03\x03\x00\x01\xfe"));
+            upstream.await.unwrap();
+            proxy.await.unwrap().unwrap();
+        }).await.expect("CONNECT tunnel stalled");
     }
 
     #[tokio::test]

@@ -189,6 +189,11 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     if args.rotate_interval == Some(0) {
         return Err(WraithError::Configuration("Rotation interval must be greater than zero".into()));
     }
+    if args.jitter {
+        wraith_tor::validate_https_url(args.jitter_endpoint.as_deref().ok_or_else(|| {
+            WraithError::Configuration("--jitter requires --jitter-endpoint HTTPS_URL".into())
+        })?)?;
+    }
 
     // WireGuard Multi-Hop early configuration validation
     if let Some(ref wg_conf) = args.wireguard {
@@ -394,7 +399,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     {
         let (server, ct) = TlsCamouflageServer::new(None);
         let handle = server.spawn_server().await?;
-        print_step("HTTP header relay ready; HTTPS ClientHello replacement is not implemented", "ok");
+        print_step("HTTP/CONNECT relay ready; Wraith HTTPS clients use verified browser TLS profiles", "ok");
         bg_services.tls = Some((ct, handle));
     }
 
@@ -718,11 +723,17 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         print_step(&format!("{}", t!("commands.cmd_warn_tor_pending", ip = &geo.ip)), "warn");
     }
 
-    // Experimental local probes are opt-in, not a strict-mode protection layer.
+    // Cover requests require an explicit endpoint and are opt-in.
     if args.jitter {
-        print_step("Experimental local SOCKS probes; no end-to-end cover traffic", "warn");
-        let (je, ct) = TrafficJitterEngine::new();
+        let endpoint = args.jitter_endpoint.as_deref().ok_or_else(|| {
+            WraithError::Configuration("--jitter requires --jitter-endpoint HTTPS_URL".into())
+        })?;
+        let (je, ct) = TrafficJitterEngine::new(endpoint)?;
         let handle = je.spawn_obfuscator();
+        print_step(
+            "Tor HTTPS cover-request worker started (15–45 second intervals)",
+            "ok",
+        );
         bg_services.jitter = Some((ct, handle));
     }
 
@@ -1146,6 +1157,16 @@ async fn cmd_update_from_github() -> Result<()> {
             }); }
         };
         let result = (|| -> Result<()> {
+            for executable in ["/usr/bin/cmake", "/usr/bin/perl", "/usr/bin/c++"] {
+                let mut probe = Command::new(executable);
+                probe.arg("--version").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+                configure(&mut probe);
+                if !probe.status().is_ok_and(|status| status.success()) {
+                    return Err(WraithError::Configuration(format!(
+                        "Missing build tool {executable}. On Debian-family systems install build-essential cmake perl libclang-dev pkg-config before updating"
+                    )));
+                }
+            }
             let mut clone = Command::new("/usr/bin/git");
             clone.args(["-c", "http.sslVerify=true", "-c", "http.followRedirects=false", "-c", "protocol.file.allow=never", "clone", "--depth", "1", "--branch", "main", "--single-branch", "https://github.com/ByGh00st/wraith.git"]).arg(build_dir);
             configure(&mut clone);
@@ -1155,7 +1176,7 @@ async fn cmd_update_from_github() -> Result<()> {
             build.args(["build", "--release", "--locked", "--bin", "wraith", "--jobs", "1", "--target", "x86_64-unknown-linux-gnu", "--target-dir"])
                 .arg(build_dir.join("target")).current_dir(build_dir);
             configure(&mut build);
-            if !build.status()?.success() { return Err(WraithError::Command("Cargo build failed".into())); }
+            if !build.status()?.success() { return Err(WraithError::Command("Cargo build failed; check compiler output and native dependencies (C/C++, CMake, Perl, libclang). Installed binary was not replaced".into())); }
             let destination = Path::new("/usr/local/bin/wraith");
             // Only a root-owned, non-writable-by-others canonical install directory.
             let parent = destination.parent().unwrap();

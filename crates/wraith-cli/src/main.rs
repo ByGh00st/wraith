@@ -86,9 +86,21 @@ pub struct StartArgs {
     )]
     pub profile: Option<String>,
 
-    /// Run experimental local SOCKS timing probes (not end-to-end cover traffic)
-    #[arg(long = "jitter", help_heading = "Network Isolation")]
+    /// Send bounded, randomized HTTPS cover requests through Tor to your endpoint
+    #[arg(
+        long = "jitter",
+        requires = "jitter_endpoint",
+        help_heading = "Network Isolation"
+    )]
     pub jitter: bool,
+
+    /// HTTPS endpoint you control or have permission to use for cover traffic
+    #[arg(
+        long = "jitter-endpoint",
+        requires = "jitter",
+        help_heading = "Network Isolation"
+    )]
+    pub jitter_endpoint: Option<String>,
 
     /// Automatically rotate Tor exit node identity every N seconds (e.g. --rotate 60)
     #[arg(long = "rotate-interval", visible_aliases = ["interval", "rotate", "auto-rotate"], value_name = "SECONDS", help_heading = "Network Isolation")]
@@ -238,6 +250,7 @@ impl StartArgs {
             || self.onion_service.is_some()
             || self.traffic_shaper
             || self.jitter
+            || self.jitter_endpoint.is_some()
             || self.browser_shield
             || self.font_sandbox
             || self.display_sandbox
@@ -390,6 +403,15 @@ enum Commands {
     },
     /// Display authorized security auditing & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
     Pentest,
+    /// Fetch HTTPS over Tor with a real browser-profile TLS/HTTP2 handshake
+    Fetch {
+        url: String,
+        #[arg(long, default_value = "chrome", value_parser = ["chrome", "firefox", "safari"])]
+        tls_profile: String,
+        /// Save the response atomically; refuse an existing output file
+        #[arg(short, long)]
+        output: std::path::PathBuf,
+    },
     /// Update from official GitHub, or install an optional signed offline release
     Update {
         #[arg(long, requires_all = ["manifest", "signature"])]
@@ -550,7 +572,14 @@ pub async fn main() -> Result<()> {
     rust_i18n::set_locale(&initial_lang);
 
     // 2. Intercept -h / --help / help to show fully localized help screen
-    if raw_args.iter().any(|arg| arg == "-h" || arg == "--help" || arg == "help") {
+    let has_subcommand = <Cli as clap::CommandFactory>::command().get_subcommands().any(|command| {
+        raw_args.iter().skip(1).any(|arg| arg == command.get_name())
+    });
+    if !has_subcommand
+        && raw_args
+            .iter()
+            .any(|arg| arg == "-h" || arg == "--help" || arg == "help")
+    {
         display::print_localized_help();
         return Ok(());
     }
@@ -619,7 +648,7 @@ pub async fn main() -> Result<()> {
 
     // Check root privileges for system-modifying operations
     match &command {
-        Commands::Pentest | Commands::Interfaces { .. } | Commands::Config { .. } => {} // Read-only or self-managing operations do not require root
+        Commands::Pentest | Commands::Interfaces { .. } | Commands::Config { .. } | Commands::Fetch { .. } => {} // Read-only or self-managing operations do not require root
         _ => {
             if let Err(e) = check_root() {
                 display::print_error(&format!("{}", rust_i18n::t!("runtime.root_required", e = e.to_string())));
@@ -630,6 +659,37 @@ pub async fn main() -> Result<()> {
 
     // Single unified dispatch pipeline with fail-safe SIGINT guard
     match command {
+        Commands::Fetch {
+            url,
+            tls_profile,
+            output,
+        } => {
+            let client = wraith_tor::BrowserTlsClient::new(tls_profile.parse()?)?;
+            let response = client.get(&url, 8 * 1024 * 1024).await?;
+            if !(200..300).contains(&response.status) {
+                return Err(wraith_core::error::WraithError::Network(format!(
+                    "HTTPS request returned status {}; redirects are not followed",
+                    response.status
+                )));
+            }
+            let parent = output
+                .parent()
+                .filter(|path| !path.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."));
+            let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+            std::io::Write::write_all(&mut temporary, &response.body)?;
+            temporary.as_file().sync_all()?;
+            temporary
+                .persist_noclobber(&output)
+                .map_err(|error| error.error)?;
+            println!(
+                "Saved {} bytes ({}, {} profile) to {}",
+                response.body.len(),
+                response.protocol,
+                tls_profile,
+                output.display()
+            );
+        }
         Commands::Config { action } => {
             let mut cfg = wraith_core::WraithConfig::load().unwrap_or_default();
             match action.unwrap_or(ConfigAction::Show) {
@@ -783,6 +843,42 @@ mod tests {
         assert!(Cli::try_parse_from(["wraith", "update", "--artifact", "binary", "--manifest", "release.json", "--signature", "release.minisig"]).is_ok());
     }
     use clap::Parser;
+
+    #[test]
+    fn profiled_fetch_and_cover_traffic_require_explicit_arguments() {
+        assert!(Cli::try_parse_from([
+            "wraith",
+            "fetch",
+            "https://example.org",
+            "--output",
+            "page.html",
+            "--tls-profile",
+            "firefox"
+        ])
+        .is_ok());
+        assert!(Cli::try_parse_from(["wraith", "fetch", "https://example.org"]).is_err());
+        assert!(Cli::try_parse_from([
+            "wraith",
+            "fetch",
+            "https://example.org",
+            "--output",
+            "page.html",
+            "--tls-profile",
+            "unknown"
+        ])
+        .is_err());
+        assert!(Cli::try_parse_from(["wraith", "--jitter"]).is_err());
+        assert!(
+            Cli::try_parse_from(["wraith", "--jitter-endpoint", "https://example.org"]).is_err()
+        );
+        assert!(Cli::try_parse_from([
+            "wraith",
+            "--jitter",
+            "--jitter-endpoint",
+            "https://example.org"
+        ])
+        .is_ok());
+    }
 
     #[test]
     fn full_security_rejects_disabled_watchdog() {

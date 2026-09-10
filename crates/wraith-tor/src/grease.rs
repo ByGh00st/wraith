@@ -1,6 +1,6 @@
-//! Wraith Sovereign RFC 8701 GREASE & Multi-Browser JA3/JA4 TLS / HTTP-2 Engine
-//! Synthesizes exact TLS 1.3 ClientHello byte frames, dynamic RFC 8701 GREASE injection,
-//! JA3/JA4 fingerprint hash derivation, and HTTP/2 SETTINGS frame camouflage.
+//! Legacy TLS/HTTP2 metadata and serialization helpers.
+//! JA4 strings below are catalog labels, not measurements of live connections.
+//! Actual verified TLS handshakes are implemented by `browser_tls::BrowserTlsClient`.
 
 use rand::seq::SliceRandom;
 

@@ -6,8 +6,8 @@ banner:
   engine_val_normal: WRAITH v1.3.0 (Ring-0 Netfilter & Seccomp Gate)
   target_host: 'TARGET HOST :'
   gate_status: 'GATE STATUS :'
-  gate_val_strict: FAIL-CLOSED (All 16 Security Layers Active)
-  gate_val_normal: FAIL-CLOSED (Kernel-Level Egress Enforcement)
+  gate_val_strict: "-Fs → Tor / Netfilter / DNSSEC / Seccomp"
+  gate_val_normal: "Tor / Netfilter"
   title: WRAITH-PRIME // KERNEL-ANONYMISIERUNGS-ENGINE
 tui:
   header_strict: MAXIMUM DEFENSE TELEMETRY HUD
@@ -54,15 +54,15 @@ hud:
   op_status: OPERATIONAL STATUS & METRIC
   tor_exit: 🌐 Active Tor Exit Node
   sec_matrix: 🛡️ Security Matrix
-  max_defense_val: ● MAXIMUM DEFENSE [16/16 ARMED] (eBPF + Seccomp + RAM Vault)
+  max_defense_val: "● -Fs | Tor + Netfilter + DNSSEC + Seccomp"
   std_defense_val: ● STANDARD FAIL-CLOSED [Tor Egress Enforced]
   killswitch: ⚡ Tor KillSwitch Gate
-  watchdog: ● Fail-Closed Async Watchdog (<1ms Netfilter Drop)
+  watchdog: "Tor → Netfilter (fail-closed)"
   rotate_policy: 🔄 Circuit Rotation Policy
   auto_rotate: ● AUTO-ROTATING (Every {}s)
   manual_rotate: ○ MANUAL ON-DEMAND [Press 'R']
   dpi_sanitizer: 🔍 In-Flight DPI Sanitizer
-  dpi_active: ● ACTIVE (Rewriting Security Audit Signatures)
+  dpi_active: "HTTP :9055 + CONNECT → Tor; TLS: fetch / DoH"
   keys: ┌── [ 🎮 INTERACTIVE KEYBOARD CONTROLS ] ────────────────────────────────────────────────────────┐
   k_rotate: '[R] Rotate Circuit'
   k_audit: '[T] Leak Audit'
@@ -94,7 +94,7 @@ commands:
   cmd_step_14: STUN/TURN ports blocked
   cmd_step_15: eBPF TC Egress Fastpath attached
   cmd_step_16: System-level font sandbox active
-  cmd_step_17: cgroup2 network socket jail active
+  cmd_step_17: "cgroup2: PID → Netfilter"
   cmd_step_18: Creating isolated Linux Network Namespace...
   cmd_step_19: Process namespace jail armed (10.200.1.0/24)
   cmd_step_20: Verifying exit identity & geographic location...
@@ -281,7 +281,7 @@ commands:
   demo_step_9_ok: 'WireGuard tunnel [ChaCha20-Poly1305] active over Tor 3-Hop Circuit'
   demo_step_10_info: 'Applying Geographic Exit Node Profile [stealth]...'
   demo_step_10_ok: 'Five Eyes Alliance excluded ({us},{gb},{au},{ca},{nz}) | Exit Nodes: {ch},{is},{ro},{md},{pa}'
-  demo_step_11_info: 'Enforcing Fail-Closed Netfilter TransProxy & eBPF clsact Driver...'
+  demo_step_11_info: "Netfilter TransProxy"
   demo_step_11_ok: 'Netfilter TransProxy rules loaded (Fail-Closed Drop on 9040/5353)'
   demo_step_11_ipv6: 'IPv6 leak prevention active (Kernel IPv6 stack completely dropped)'
   demo_step_12_info: 'Configuring Sovereign DNS Engine & EDNS0 468B Padding...'
@@ -327,8 +327,7 @@ help:
   opt_namespace: Restrict routing to an isolated Linux Network Namespace (10.200.1.0/24)
   opt_profile: Enforce geographic Tor exit node profile (e.g. stealth, speed, research,
     darkweb)
-  opt_jitter: Inject synthetic traffic cells & Poisson timing jitter to resist traffic
-    flow correlation
+  opt_jitter: "HTTPS → Tor (15–45 s); --jitter-endpoint <URL>"
   opt_rotate: Automatically rotate Tor exit node identity every N seconds (e.g. --rotate
     60)
   opt_no_ks: Disable the Fail-Closed KillSwitch watchdog monitor
@@ -343,8 +342,7 @@ help:
   opt_tcp_mask: Normalize TCP/IP L4 stack parameters (TTL=128, timestamps=0) to resist
     OS fingerprinting
   opt_machine_id: Rotate unique OS /etc/machine-id and system hardware identifiers
-  opt_full_security: 'Engage ALL 16 defense layers: GPU/Font Shield, MAC, Machine-ID,
-    TCP-Mask, Jitter, Seccomp, eBPF, RAMFS Vault'
+  opt_full_security: "-Fs → Tor / Netfilter / DNSSEC / Seccomp; README: #full-security"
   sec_forensic_header: 'High-Risk & Forensic Operations:'
   opt_wipe_logs: '⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs,
     and user shell history files'

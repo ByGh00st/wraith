@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/TARGET-x86__64--unknown--linux--gnu-ff3366?style=for-the-badge&logo=linux&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/SECURITY-ACTIVE_HARDENING-00ff88?style=for-the-badge&logo=matrix&logoColor=white" alt="Standard">
   <img src="https://img.shields.io/badge/LOCALIZATION-17_NATIVE_LOCALES-ffaa00?style=for-the-badge&logo=google-translate&logoColor=white" alt="Locales">
-  <img src="https://img.shields.io/badge/TEST_SUITE-85%2F85_PORTABLE_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/TEST_SUITE-92%2F92_PORTABLE_PASS-3399ff?style=for-the-badge&logo=checkmarx&logoColor=white" alt="Tests">
 </p>
 
 ```ascii
@@ -20,7 +20,7 @@
 <h1 align="center">Wraith — Linux Tor Proxy & Network Privacy</h1>
 <p align="center">
   <b>6 Modular Rust Crates • 17 Native Locales • 1,338 Signature Entries • Linux Network Privacy</b><br>
-  <i>A Rust CLI for Tor routing, DNSSEC over DoH, firewall kill switches and recoverable Linux privacy sessions.</i>
+  <i>A Rust CLI for Tor routing, DNSSEC over DoH, browser TLS profiles, firewall kill switches and recoverable Linux privacy sessions.</i>
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@
 
 **Route supported TCP through Tor. Validate DNS locally. Keep control of your host settings.**
 
-Wraith combines a terminal interface with Linux netfilter, Tor SOCKS/transparent proxying, a DNSSEC-validating DNS-over-HTTPS relay and optional Tor-over-WireGuard. Start a session, select the controls you need, inspect circuit telemetry, then restore the recorded configuration.
+Wraith combines a terminal interface with Linux netfilter, Tor SOCKS/transparent proxying, a DNSSEC-validating DNS-over-HTTPS relay, browser-profile HTTPS requests and optional Tor-over-WireGuard. Start a session, select the controls you need, inspect circuit telemetry, then restore the recorded configuration.
 
 | 🌐 Route | 🔒 Resolve | 🛡️ Control | 💻 Operate |
 | :--- | :--- | :--- | :--- |
@@ -50,7 +50,7 @@ New installation? Start with [Linux requirements and installation](#installation
 ---
 
 <p align="center">
-  <a href="#installation">Install</a> · <a href="#cli-reference">Commands</a> · <a href="#full-security">Full Security</a> · <a href="#updates">Update</a> · <a href="#privacy-matrix">Compare</a> · <a href="#codebase-metrics">Tokei</a> · <a href="#validation">Development</a>
+  <a href="#installation">Install</a> · <a href="#cli-reference">Commands</a> · <a href="#full-security">Full Security</a> · <a href="#browser-tls">TLS Profiles</a> · <a href="#updates">Update</a> · <a href="#privacy-matrix">Compare</a> · <a href="#codebase-metrics">Tokei</a> · <a href="#validation">Development</a>
 </p>
 
 ## 📋 Table of Contents
@@ -73,6 +73,8 @@ New installation? Start with [Linux requirements and installation](#installation
   - [🛠️ Granular Control Flags Matrix](#granular-control-flags)
   - [🛡️ Operational Usage Examples](#operational-usage-examples)
 - [🛡️ HTTP Header Normalization & Signature Catalog](#dpi-sanitization)
+  - [🔐 Real ClientHello Profiles: JA3 / JA4 Scope](#browser-tls)
+  - [🌊 Encrypted Cover Requests](#cover-requests)
   - [🎯 Signature Catalog Categories (1,338 Entries)](#supported-tool-matrix)
   - [🎭 Diversified Multi-Browser User-Agent Pool](#diversified-ua-pool)
 - [🛡️ Tor Threats & Operational Boundaries](#tor-defense)
@@ -122,15 +124,15 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
- Shell                   3          644          519           57           68
- TOML                    8          221          204            0           17
- YAML                  342        10530        10513            0           17
+ Shell                   3          551          460           43           48
+ TOML                    8          228          211            0           17
+ YAML                  342        10504        10487            0           17
 -------------------------------------------------------------------------------
- Rust                   65        17128        14722          556         1850
- |- Markdown            59          379            0          378            1
- (Total)                          17507        14722          934         1851
+ Rust                   67        17802        15385          554         1863
+ |- Markdown            61          383            0          382            1
+ (Total)                          18185        15385          936         1864
 ===============================================================================
- Total                 418        28523        25958          613         1952
+ Total                 420        29085        26543          597         1945
 ===============================================================================
 ```
 
@@ -166,12 +168,26 @@ The watchdog preserves application egress restrictions when Tor becomes unhealth
 
 These projects work at different scopes. This compares architecture and workflow, without unmeasured performance or security rankings.
 
-| Project | Deployment scope | Approach | Operational fit |
-| :--- | :--- | :--- | :--- |
-| **[AnonSurf](https://github.com/ParrotSec/anonsurf)** | Existing Parrot/Linux system | Distribution-integrated anonymous-mode tooling | The Parrot ecosystem |
-| **[Proxychains-NG](https://github.com/rofl0r/proxychains-ng)** | Selected dynamically linked programs | Socket-call preloading with SOCKS/HTTP proxy chains | Explicit per-program proxying, subject to application compatibility |
-| **[Tails](https://tails.net/about/index.en.html)** | Bootable operating system | Integrated privacy-oriented desktop and Tor networking | A separate OS environment with its own persistence model |
-| **Wraith** | Existing x86_64 Linux system | Rust session manager, netfilter, Tor, DNSSEC relay and optional host controls | Configurable sessions with saved-state recovery |
+<div align="center">
+
+**🖥️ Host sessions · 🔗 Application proxying · 💿 Dedicated operating system**
+
+</div>
+
+| Architecture & workflow | 👻 **Wraith** | 🦜 **AnonSurf** | 👤 **TorGhost** | 🔗 **Proxychains-NG** | 💿 **Tails** |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Deployment | Existing x86_64 Linux host | Parrot anonymous mode | Existing Linux host | Selected compatible programs | Bootable operating system |
+| Network approach | Netfilter + Tor; optional namespace | Parrot-integrated Tor tooling | Tor redirection script | Preloaded socket hooks → configured proxies | Integrated Tor networking |
+| Operator interface | Rust CLI, selectors, granular flags | Distribution tooling | Command-line script | Prefix a program command | Desktop environment |
+| DNS approach | Local DNSSEC validation over Tor DoH | See project configuration | Documents DNS redirection through Tor | Proxy DNS options; compatibility matters | OS-integrated network policy |
+| Profiled HTTPS client | Chrome / Firefox / Safari TLS + HTTP2 for owned requests | No equivalent asserted here | No equivalent asserted here | Uses application TLS | Tor Browser integration |
+| Session model | Saved host settings and explicit restoration | Anonymous mode on the host | Start/stop host routing | Per-process proxy use | Separate live OS; optional persistence |
+| Strongest fit | Configurable Linux privacy sessions and integrations | Parrot users | Script-based Tor routing workflows | Selected dynamically linked TCP clients | A dedicated privacy desktop |
+| Essential limitation | Privileged runtime needs host validation | Depends on host and configuration | Does not turn arbitrary protocols into Tor TCP | Not a system-wide firewall; no arbitrary UDP | Requires its own boot environment |
+
+**Reading the matrix:** these are documented design choices, not a benchmark or a claim that one project defeats all threats. “No equivalent asserted” means this comparison does not establish that capability; it is not a security defect. Tails is an operating system, so its scope is broader than a host utility. No speed, anonymity score or leak ranking has been invented.
+
+Sources, reviewed **2026-09-11**: [AnonSurf upstream](https://github.com/ParrotSec/anonsurf), [TorGhost upstream](https://github.com/SusmithKrishnan/torghost), [Proxychains-NG README](https://github.com/rofl0r/proxychains-ng#readme), [How Tails works](https://tails.net/about/index.en.html). Wraith entries refer to the source in this repository.
 
 ### Wraith capability matrix
 
@@ -182,7 +198,9 @@ These projects work at different scopes. This compares architecture and workflow
 | DNSSEC | Local chain/proof validation over Tor DoH | Authenticated unsigned delegations remain unsigned |
 | DNS interception | UDP/TCP port 53 reaches the local relay | Application-selected encrypted DNS is a separate flow |
 | IPv6 control | Session firewall blocking | Live route and teardown validation remains required |
-| HTTP normalization | Initial cleartext headers through the relay | HTTPS payloads and ClientHello are not rewritten |
+| HTTP normalization | Cleartext headers, absolute URLs and CONNECT tunnels | CONNECT preserves the application TLS stream |
+| Browser TLS / HTTP2 | BoringSSL-backed Chrome, Firefox and Safari profiles | Wraith-owned requests and supported integrations only |
+| Cover traffic | Real HTTPS requests over Tor every 15–45 seconds | Explicit endpoint; no proven correlation resistance |
 | Browser hardening | Managed preferences preserving user.js | Verify the profile actually used |
 | Font controls | Fontconfig restrictions and saved-file restoration | No universal fixed font-count guarantee |
 | Memory controls | AEAD vault, zeroization and process locking | Does not isolate from a compromised kernel |
@@ -239,7 +257,7 @@ wraith/
     │   ├── src/dns_engine.rs               # UDP/TCP DNS Relay, DoH Transport & Sinkhole
     │   ├── src/dnssec.rs                   # Local DNSSEC Validator over Tor DoH
     │   ├── src/killswitch.rs               # Bounded Tor Health Checks & Policy Preservation
-    │   ├── src/traffic_jitter.rs           # Experimental Local SOCKS Timing Task
+    │   ├── src/traffic_jitter.rs           # Bounded HTTPS Cover Requests over Tor
     │   ├── src/bpf_filter_engine.rs        # Classic BPF / eBPF Raw Packet Assembly & Filtering
     │   ├── src/seccomp_jail.rs             # Ptrace-Deny Filter with Thread Synchronization
     │   ├── src/honey_ports.rs              # Deceptive Honey-Port Listeners & Inbound Scanner Trap
@@ -248,6 +266,8 @@ wraith/
     ├── wraith-tor/                         # [Tor Transport & HTTP Relay Layer]
     │   ├── locales/                        # Localized Tor Transport Dictionaries
     │   ├── src/grease.rs                   # TLS/HTTP2 Profile Metadata Helpers
+    │   ├── src/browser_tls.rs              # Verified Browser TLS/HTTP2 Client over Tor
+    │   ├── src/proxy_request.rs            # CONNECT / HTTP Authority & Framing Validation
     │   ├── src/tls_camouflage.rs           # HTTP Relay with Tor SOCKS Transport
     │   ├── src/multichain.rs               # Five-Eyes Exclusion Matrix & Strict Geographic Exit Profiler
     │   ├── src/circuit.rs                  # Multi-Hop Circuit Topology & Live Telemetry Inspector
@@ -296,11 +316,11 @@ chmod +x build.sh
 sudo ./build.sh
 ```
 
-The helper performs host installation and language setup. Inspect [build.sh](build.sh) for the package manager and system changes relevant to your distribution.
+Install Rust under your ordinary account first. The helper installs Debian-family dependencies, builds the locked workspace as the invoking user, and atomically installs one executable. Existing sessions keep running; firewall, resolver and filesystem mount settings are preserved. See [build.sh](build.sh).
 
 ### 2. Manual Cargo Compilation & Binary Setup
 
-Use current stable Rust (dependencies require at least Rust 1.88) and a C compiler. Build as your ordinary account, then install the executable:
+Use current stable Rust (dependencies require at least Rust 1.88) and C/C++ compilers, CMake, Perl and libclang for BoringSSL. Build as your ordinary account, then install the executable:
 
 ```bash
 cargo build --release --locked
@@ -315,7 +335,8 @@ wraith --help
 | Tor package runtime directory `/run/tor` | Daemon runtime files; ownership is not recursively rewritten |
 | iproute2 (`ip`, `tc`) | Interfaces, namespaces and optional shaping |
 | iptables/ip6tables plus save/restore tools | Session policy and recovery snapshots |
-| curl | Tor DoH and connectivity requests |
+| CMake, Perl, libclang, C/C++ compiler | Native browser TLS engine build, including source updates |
+| curl | Connectivity and bridge helper requests |
 | fontconfig / `fc-cache` | Font sandbox application and restoration |
 | WireGuard tools | Optional `-W` outer tunnel |
 | Xvfb and `xauth` | Optional private virtual display |
@@ -481,7 +502,8 @@ Network Isolation & Tunneling:
   -p, --profile <PROFILE>          Enforce geographic Tor exit node profile (stealth, speed, journalists, research, darkweb)
       --rotate-interval <SECS>     Automatically rotate Tor exit node identity every N seconds (e.g. --rotate 60)
                                    [aliases: --interval, --rotate, --auto-rotate]
-      --jitter                     Experimental local SOCKS timing task; not end-to-end cover traffic
+      --jitter                     Enable bounded HTTPS cover requests over Tor
+      --jitter-endpoint <HTTPS_URL> Required endpoint you control or are authorized to use
       --no-killswitch [--no-ks]    Disable the Fail-Closed KillSwitch watchdog monitor
   -W, --wireguard <CONF>           Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP bypass)
       --onion <VIRT:TARGET>        Provision an Ephemeral v3 Onion Hidden Service (e.g. --onion 80:8080)
@@ -568,6 +590,40 @@ HTTPS CONNECT → tunnel through Tor → original TLS stream
 Packet monitor → observations and counters
 ```
 
+<a id="browser-tls"></a>
+### 🔐 Real ClientHello profiles: JA3 / JA4 scope
+
+Wraith now owns a real TLS client backed by **BoringSSL through [wreq](https://github.com/0x676e67/wreq)** and its emulation profiles. TLS cipher suites, extensions, ALPN and HTTP/2 settings come from the selected profile. This changes the actual connection handshake, rather than only a User-Agent string or a displayed fingerprint value.
+
+| Profile | Pinned emulation | Used by |
+| :--- | :--- | :--- |
+| `chrome` | Chrome 131 | Default `fetch`, DNS-over-HTTPS and cover requests |
+| `firefox` | Firefox 133 | Explicit `fetch` or Rust client integration |
+| `safari` | Safari 18 | Explicit `fetch` or Rust client integration |
+
+These are specific supported profiles, not a promise to impersonate the latest browser release. JA3/JA4 are fingerprinting schemes, not encryption or anonymity shields. Matching a handshake profile does not reproduce JavaScript, cookies, browser behavior or every network fingerprint.
+
+```bash
+# Start a Wraith/Tor session first, then fetch without root privileges.
+wraith fetch https://example.org/ --tls-profile chrome --output page.html
+wraith fetch https://example.org/ --tls-profile firefox --output firefox-page.html
+wraith fetch --help
+```
+
+The client uses **SOCKS5 remote DNS**, certificate-chain and hostname verification, TLS 1.2 or newer, bounded timeouts, and an 8 MiB fetch limit. Redirects are not followed. Output is written atomically and existing files are not overwritten. A failed Tor connection does not fall back to a direct request.
+
+Supported integrations can invoke `wraith fetch` or use the public `wraith_tor::BrowserTlsClient` API for HTTPS GET requests. The DNS relay uses the same client for DNS-message POST requests. Other applications can use the HTTP relay's CONNECT support, but retain their own TLS fingerprint. Wraith does not install a root CA or decrypt their HTTPS sessions.
+
+<a id="cover-requests"></a>
+### 🌊 Optional encrypted cover requests
+
+```bash
+# Replace this with an HTTPS endpoint you control or have permission to use.
+sudo wraith -s --jitter --jitter-endpoint https://your-domain.example/cover
+```
+
+The worker performs a real HTTPS GET through Tor after each randomized **15–45 second** pause, caps each response at **16 KiB**, and cancels on session shutdown. It requires an explicit endpoint and is not automatically enabled by `-Fs`. This creates application traffic; it does not establish resistance to timing correlation.
+
 The encoded catalog is an implementation detail, not encryption or an antivirus exclusion mechanism. Normalization does not guarantee non-detection or exemption from Tor-exit blocklists.
 
 ---
@@ -634,8 +690,8 @@ pub const BROWSER_USER_AGENT_POOL: &[&str] = &[
 | Resolver tampering | Local DNSSEC | Unsigned delegations remain unsigned |
 | Geographic preference | Exit profiles | Geography does not establish relay trust |
 | Long-lived identity | NEWNYM for eligible new streams | Existing streams, logins and cookies persist |
-| Timing correlation | Optional netem | No established correlation defense |
-| TLS fingerprinting | Metadata helpers only | ClientHello replacement is not implemented |
+| Timing correlation | Optional netem and bounded HTTPS cover traffic | No established correlation defense |
+| TLS fingerprinting | Real browser-profile TLS/HTTP2 for Wraith clients | Other applications retain their own TLS fingerprints |
 | Tor blocking | Bridge support on the access path | Destinations can restrict exit addresses |
 
 ```mermaid
@@ -738,7 +794,7 @@ sudo wraith update
 
 Wraith fetches the official `ByGh00st/wraith` **main** branch over HTTPS, builds with `Cargo.lock` as the non-root sudo caller, and atomically installs `/usr/local/bin/wraith`. Git global/system configuration is suppressed and certificate verification stays enabled. Build failure preserves the installed executable. No manual key or manifest is needed.
 
-Run the updater through `sudo` from the account that owns your Rust toolchain. It uses a unique build workspace under `/var/tmp`, one Cargo build job, an explicit Linux target and a fixed output directory. A user-level Cargo target-directory setting cannot redirect the expected artifact. Git, a current Rust toolchain, a C compiler and sufficient disk space must be available; a direct root shell without a non-root sudo caller is rejected.
+Run the updater through `sudo` from the account that owns your Rust toolchain. It uses a unique build workspace under `/var/tmp`, one Cargo build job, an explicit Linux target and a fixed output directory. A user-level Cargo target-directory setting cannot redirect the expected artifact. Git, a current Rust toolchain, C/C++ compilers, CMake, Perl, libclang and sufficient disk space must be available. Missing compiler tools produce an actionable error before cloning; a direct root shell without a non-root sudo caller is rejected.
 
 <details>
 <summary><b>🔐 Optional signed offline release installation</b></summary>
@@ -767,7 +823,7 @@ Publishers sign exact manifest bytes with `minisign -Sm release.json -s /secure/
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Latest local checks: **85 portable tests passed** and Linux-target Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
+Latest local checks: **92 portable tests passed** and Linux-target Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
 
 ```bash
 cargo test --workspace --locked
@@ -776,7 +832,7 @@ cargo clippy --workspace --tests --target x86_64-unknown-linux-gnu --locked -- -
 cargo audit --deny warnings
 ```
 
-Cross-compilation needs the Rust Linux target and a compatible C cross-compiler for ring. Portable regressions cover framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. They do not execute Linux firewall/kernel-hardening commands.
+Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers, CMake, Perl and libclang for ring and BoringSSL. Portable regressions cover real browser-profile TLS handshakes against a local test server, certificate and hostname rejection, response limits, CONNECT framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. They do not execute Linux firewall/kernel-hardening commands.
 
 Report failures with the command, distribution, interface and sanitized logs; omit passwords, private keys and tokens. Include the expected behavior and the exact failing step so an issue can be reproduced.
 
@@ -787,7 +843,13 @@ Report failures with the command, distribution, interface and sanitized logs; om
 <a id="legal-disclaimer"></a>
 ## ⚖️ Legal & Operational Disclaimer
 
-Use Wraith only on systems and networks you are authorized to administer. Explicit cleanup/self-destruct options can destroy data and are not required for ordinary sessions. No anonymity, non-detection or destination-blocklist guarantee is provided.
+Wraith is intended for legitimate privacy, research and authorized security work. Operate it only on systems you own or are authorized to administer. Obtain permission before assessing third-party systems and stay within the agreed targets, methods and time window. Privacy tooling does not grant access rights.
+
+Do not use the project for unauthorized access, disruption, credential theft, unlawful surveillance or destruction of someone else's data. Respect applicable law, service terms and the rights of other users. Cover-traffic endpoints must be yours or explicitly authorized.
+
+**Operational responsibility.** Review destructive cleanup options before enabling them; they are not part of an ordinary privacy session. Maintain backups and a recovery path for systems you administer. No claim of guaranteed anonymity, non-detection, regulatory certification or immunity from destination blocklists is made.
+
+**License and warranty.** Distribution and modification rights are governed by [GNU GPL v3.0](LICENSE). Its warranty and liability provisions, including sections 15–17, apply as stated and to the extent permitted by applicable law. This responsible-use guidance does not add restrictions to the GPL license.
 
 ---
 
