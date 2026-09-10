@@ -1273,7 +1273,7 @@ pub async fn cmd_update() -> Result<()> {
         cmd.args(["--jobs", "1"]);
         cmd.env(
             "RUSTFLAGS",
-            "-C codegen-units=4 -C opt-level=2 -C link-arg=-Wl,--no-keep-memory -C link-arg=-Wl,--reduce-memory-overheads",
+            "-C codegen-units=4 -C opt-level=2 -C link-arg=-Wl,--no-keep-memory",
         );
     }
 
