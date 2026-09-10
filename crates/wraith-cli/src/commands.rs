@@ -1148,20 +1148,10 @@ fn determine_cargo_home() -> Option<String> {
 }
 
 fn determine_build_dir() -> String {
-    let pid = std::process::id();
-    let candidates = [
-        format!("/var/tmp/wraith_autoinstall_{pid}"),
-        format!("/root/.cache/wraith_autoinstall_{pid}"),
-        format!("/opt/wraith_autoinstall_{pid}"),
-    ];
-    for dir in candidates {
-        if let Some(parent) = Path::new(&dir).parent() {
-            if parent.exists() {
-                return dir;
-            }
-        }
-    }
-    format!("/var/tmp/wraith_autoinstall_{pid}")
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let build_dir = format!("{home}/.cache/wraith/build");
+    let _ = fs::create_dir_all(&build_dir);
+    build_dir
 }
 
 pub async fn cmd_update() -> Result<()> {
