@@ -812,7 +812,7 @@ Seccomp is not a general syscall allowlist. Abnormal termination can skip destru
 The panic handler restores terminal presentation while preserving restrictive policy and recovery state. It does not flush rules to ACCEPT or switch to public DNS.
 
 > [!TIP]
-> **Zero Kernel Panic Guarantee:** Wraith operates entirely in **User-Space**. While it orchestrates kernel-level Netfilter rules and network namespaces, it **does not** load experimental custom kernel modules (LKM) or unstable eBPF/XDP hooks for HTTP rewriting. A crash in Wraith's L7 Proxy will simply drop the connection; it is architecturally impossible for Wraith to trigger a Linux Kernel Panic or freeze the host OS.
+> **Kernel-Safety Boundary:** Wraith operates entirely in **user space** and does not load custom kernel modules (LKMs) or experimental eBPF/XDP hooks for HTTP rewriting. A failure in Wraith's L7 proxy is therefore contained to the user-space process and normally results in dropped connections rather than direct kernel execution failure. As with any privileged software interacting with kernel networking interfaces, Wraith does not claim that underlying kernel or driver defects can never cause host instability.
 
 1. Claim the session exclusively before setup.
 2. Journal settings and setup intent before mutation.
@@ -937,9 +937,8 @@ Wraith is a sovereign, dual-use network auditing and privacy enforcement kernel.
 
 ### 🛑 JURISDICTIONAL COMPLIANCE & PENAL CODES
 
-This software provides capabilities that can be abused. Unauthorized use of Wraith against systems, networks, or data without explicit, written, and legally binding consent constitutes a severe criminal offense globally. You must strictly adhere to:
-
-1. **Republic of Turkey (TCK):** Unauthorized access, interception, or disruption of information systems is a direct violation of the **Turkish Penal Code (TCK) Articles 243, 244, and 245**.
+Unauthorized use of Wraith against systems, networks, or data may constitute a criminal offense and/or give rise to civil liability under applicable law. Users are solely responsible for determining and complying with the laws, regulations, contractual obligations, and authorization requirements applicable to their activities.
+1. **Republic of Turkey:** Unauthorized access to or interference with information systems may fall within Articles 243 and 244 of the Turkish Penal Code (TCK), alongside other provisions depending on the conduct involved.
 2. **United States of America (USA):** Any deployment against non-consenting targets violates the **Computer Fraud and Abuse Act (CFAA, 18 U.S.C. § 1030)** and the **Electronic Communications Privacy Act (ECPA)**, punishable by severe federal penalties and imprisonment.
 3. **European Union (EU):** Malicious deployment breaches the **Directive on Attacks against Information Systems (Directive 2013/40/EU)** and the **General Data Protection Regulation (GDPR)** regarding unauthorized data processing.
 
