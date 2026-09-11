@@ -326,7 +326,7 @@ wraith/
     │   ├── locales/                        # Localized Network & DPI Dictionaries
     │   ├── src/netlink.rs                  # Direct AF_NETLINK Route, Link, Address & FIB Rule Engine
     │   ├── src/ids.rs                      # Packet Dissection & 1,338-Entry Signature Helpers
-    │   ├── src/tcp_stack.rs                # TCP/IP Stack Normalizer & p0f Evasion (TTL=128, TS=0)
+    │   ├── src/tcp_stack.rs                # Selected TCP/IP Stack Parameter Normalization (TTL=128, TS=0)
     │   ├── src/multihop.rs                 # Tor-over-WireGuard Outer Tunnel
     │   ├── src/ebpf_fastpath.rs            # Experimental Fastpath Helpers (Not Active Egress Policy)
     │   ├── src/ipv6.rs                     # IPv6 Dual-Stack Blackout & Leak Guard
@@ -606,7 +606,7 @@ System Hardening & Anti-Fingerprinting:
                                    [aliases: --shield, --canvas-shield]
       --font-sandbox               Restrict OS-level font discovery via Fontconfig sandbox
                                    [alias: --font-jail]
-      --tcp-mask                   Normalize TCP/IP L4 stack parameters (TTL=128, TS=0) for p0f evasion
+      --tcp-mask                   Normalize selected TCP/IP stack parameters (TTL=128, timestamps disabled) to reduce selected passive fingerprint signals
       --machine-id                 Rotate unique OS /etc/machine-id and system hardware identifiers
                                    [alias: --cloaking]
   -F, --full-security              Require strict session controls; reject missing prerequisites
@@ -717,7 +717,7 @@ The encoded catalog is an implementation detail, not encryption or an antivirus 
 ### 🎯 Signature Catalog Categories (1,338 Entries)
 
 <details open>
-<summary><b>🛡️ Click to Expand / Collapse 1,338+ Tool Signature Normalization Table</b></summary>
+<summary><b>🛡️ Expand / Collapse 1,338-Entry Signature Catalog</b></summary>
 
 | Operational Category | Examples in the Signature Catalog |
 | :--- | :--- |
@@ -812,7 +812,7 @@ Seccomp is not a general syscall allowlist. Abnormal termination can skip destru
 The panic handler restores terminal presentation while preserving restrictive policy and recovery state. It does not flush rules to ACCEPT or switch to public DNS.
 
 > [!TIP]
-> **Kernel-Safety Boundary:** Wraith operates entirely in **user space** and does not load custom kernel modules (LKMs) or experimental eBPF/XDP hooks for HTTP rewriting. A failure in Wraith's L7 proxy is therefore contained to the user-space process and normally results in dropped connections rather than direct kernel execution failure. As with any privileged software interacting with kernel networking interfaces, Wraith does not claim that underlying kernel or driver defects can never cause host instability.
+> **Kernel-Safety Boundary:** Wraith operates entirely in **user space** and does not load custom kernel modules (LKMs) or experimental eBPF/XDP hooks for HTTP rewriting. A failure in Wraith's L7 proxy is therefore contained to the user-space process and normally results in dropped connections rather than direct kernel execution failure. As with any privileged software interacting with kernel networking interfaces, Wraith does not claim that underlying kernel, driver, or platform defects can never cause host instability.
 
 1. Claim the session exclusively before setup.
 2. Journal settings and setup intent before mutation.
@@ -931,44 +931,39 @@ Report failures with the command, distribution, interface and sanitized logs; om
 ## ⚖️ STRICT LEGAL & AUTHORIZED-USE DISCLAIMER
 
 > [!CAUTION]
-> **READ CAREFULLY BEFORE USE. BY DOWNLOADING, COMPILING, OR EXECUTING THIS SOFTWARE, YOU EXPLICITLY AGREE TO ALL TERMS BELOW.**
+> **READ CAREFULLY BEFORE USE. BY DOWNLOADING, COMPILING, OR EXECUTING THIS SOFTWARE, YOU ACKNOWLEDGE THE NOTICE BELOW AND ACCEPT RESPONSIBILITY FOR COMPLYING WITH APPLICABLE LAW.**
 
-Wraith is a sovereign, dual-use network auditing and privacy enforcement kernel. It is engineered **strictly** for authorized Red/Blue team operations, academic research, and legally sanctioned cyber-defense activities. **You are solely responsible for your actions.**
+Wraith is a dual-use Linux network privacy, auditing, and security toolkit. It is intended for authorized Red/Blue Team operations, academic and defensive security research, privacy engineering, and other lawful activities. **You are solely responsible for how you configure and use the software.**
 
-### 🛑 JURISDICTIONAL COMPLIANCE & PENAL CODES
+### 🛑 JURISDICTIONAL COMPLIANCE & AUTHORIZATION
 
-Unauthorized use of Wraith against systems, networks, or data may constitute a criminal offense and/or give rise to civil liability under applicable law. Users are solely responsible for determining and complying with the laws, regulations, contractual obligations, and authorization requirements applicable to their activities.
-1. **Republic of Turkey:** Unauthorized access to or interference with information systems may fall within Articles 243 and 244 of the Turkish Penal Code (TCK), alongside other provisions depending on the conduct involved.
-2. **United States of America (USA):** Any deployment against non-consenting targets violates the **Computer Fraud and Abuse Act (CFAA, 18 U.S.C. § 1030)** and the **Electronic Communications Privacy Act (ECPA)**, punishable by severe federal penalties and imprisonment.
-3. **European Union (EU):** Malicious deployment breaches the **Directive on Attacks against Information Systems (Directive 2013/40/EU)** and the **General Data Protection Regulation (GDPR)** regarding unauthorized data processing.
+This software provides capabilities that can be abused. Unauthorized use against systems, networks, accounts, communications, or data may constitute a criminal offense and/or give rise to civil liability under applicable law. Users are responsible for determining and complying with all laws, regulations, contractual obligations, acceptable-use policies, and authorization requirements applicable to their activities.
 
-### 🚫 PROHIBITED USES
+1. **Republic of Turkey (TCK):** Unauthorized access to or interference with information systems may fall within Articles **243 and 244** of the Turkish Penal Code (TCK), alongside other provisions depending on the conduct involved.
+2. **United States of America (USA):** Unauthorized access or interception may implicate laws including the **Computer Fraud and Abuse Act (CFAA, 18 U.S.C. § 1030)** and, depending on the conduct, the **Electronic Communications Privacy Act (ECPA)**.
+3. **European Union (EU):** Unauthorized attacks against information systems may implicate **Directive 2013/40/EU** and relevant national implementing laws. Processing personal data may also be subject to the **General Data Protection Regulation (GDPR)** and other applicable privacy rules.
 
-You are **explicitly forbidden** from using Wraith for:
-- Unauthorized penetration testing, intrusion, or exploitation of third-party infrastructure.
-- Unlawful surveillance, data interception, or credential theft.
-- Botnet operations, DDoS, or malicious traffic obfuscation.
-- Bypassing lawful interception or actively aiding illicit activities.
+These references are illustrative and are **not legal advice or an exhaustive statement of applicable law**.
 
-**Operational Responsibility:** The developers, contributors, and the "ByGh00st" organization assume **ZERO LIABILITY** for any direct, indirect, incidental, or consequential damages, or legal repercussions resulting from the use or misuse of this software. No claim of guaranteed anonymity, non-detection, or regulatory immunity is made. **You operate this toolkit at your own absolute legal and technical risk.**
+### 🚫 PROHIBITED & UNAUTHORIZED USE
 
-**License and Warranty:** Distribution and modification rights are governed by [GNU GPL v3.0](LICENSE). The software is provided "AS IS", without warranty of any kind. This responsible-use guidance does not add restrictions to the GPL license itself, but serves as an unconditional legal disclaimer.
+Do not use Wraith to access, test, intercept, disrupt, monitor, alter, or obtain data from systems or networks unless you have the legal authority and any required permission to do so. Do not use it to facilitate credential theft, unlawful surveillance, malware operations, botnets, denial-of-service activity, or concealment of unlawful conduct.
+
+### ⚠️ OPERATIONAL RESPONSIBILITY & NO ANONYMITY GUARANTEE
+
+Wraith does not guarantee anonymity, non-detection, immunity from attribution, or protection from legal or regulatory consequences. Tor, traffic normalization, TLS profiles, DNS controls, host hardening, and other privacy mechanisms each have technical and operational limits documented in this repository.
+
+To the maximum extent permitted by applicable law, the developers and contributors disclaim liability for damages arising from the use or misuse of this software. Nothing in this notice excludes or limits liability where such exclusion or limitation is prohibited by applicable law.
+
+You use this software at your own technical and legal risk.
+
+### 📜 LICENSE & WARRANTY
+
+Distribution and modification rights are governed by the **GNU General Public License v3.0 (GPL-3.0)** in the repository's `LICENSE` file. The software is provided **WITHOUT ANY WARRANTY**, subject to the terms of that license and applicable law.
+
+This responsible-use notice is not intended to add restrictions to the rights granted by GPL-3.0. If any wording in this README conflicts with the license, the `LICENSE` file governs the licensing terms.
 
 ---
-
-<details>
-<summary><b>Wraith terminal wordmark</b></summary>
-
-```ascii
- ██╗    ██╗██████╗  █████╗ ██╗████████╗██╗  ██╗   ██████╗ ██████╗ ██╗███╗   ███╗███████╗
- ██║    ██║██╔══██╗██╔══██╗██║╚══██╔══╝██║  ██║   ██╔══██╗██╔══██╗██║████╗ ████║██╔════╝
- ██║ █╗ ██║██████╔╝███████║██║   ██║   ███████║   ██████╔╝██████╔╝██║██╔████╔██║█████╗
- ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║   ██╔═══╝ ██╔══██╗██║██║╚██╔╝██║██╔══╝
- ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║   ██║     ██║  ██║██║██║ ╚═╝ ██║███████╗
-  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝
-```
-
-</details>
 
 <a id="project-guides"></a>
 ## 🤝 Project guides
