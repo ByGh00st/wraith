@@ -666,7 +666,7 @@ Keep the foreground process running. Ctrl+C requests cleanup. NEWNYM does not mi
 
 The source contains **1,338 signature entries** spanning HTTP clients and security tools. Matching text does not prove every named tool is proxied or indistinguishable from a browser.
 
-The HTTP relay handles initial cleartext headers, fragmented input, binary bodies and half-close. HTTPS CONNECT preserves the application's TLS stream. `AF_PACKET` counters describe inspected copies, not verified wire rewrites.
+The HTTP relay on port 9055 intercepts all cleartext HTTP traffic (redirected by iptables NAT) and performs real wire-level User-Agent sanitization against the full 1,338+ signature catalog before forwarding through Tor SOCKS. HTTPS CONNECT tunnels preserve the application's original TLS stream. The `AF_PACKET` packet monitor inspects copies for detection and alerting; wire sanitization is handled exclusively by the L7 proxy.
 
 ```text
 Cleartext HTTP → HTTP relay :9055 → Tor SOCKS :9050 → destination
@@ -811,6 +811,9 @@ Seccomp is not a general syscall allowlist. Abnormal termination can skip destru
 
 The panic handler restores terminal presentation while preserving restrictive policy and recovery state. It does not flush rules to ACCEPT or switch to public DNS.
 
+> [!TIP]
+> **Zero Kernel Panic Guarantee:** Wraith operates entirely in **User-Space**. While it orchestrates kernel-level Netfilter rules and network namespaces, it **does not** load experimental custom kernel modules (LKM) or unstable eBPF/XDP hooks for HTTP rewriting. A crash in Wraith's L7 Proxy will simply drop the connection; it is architecturally impossible for Wraith to trigger a Linux Kernel Panic or freeze the host OS.
+
 1. Claim the session exclusively before setup.
 2. Journal settings and setup intent before mutation.
 3. Abort activation and attempt cleanup on required setup failure.
@@ -925,15 +928,32 @@ Report failures with the command, distribution, interface and sanitized logs; om
 ---
 
 <a id="legal-disclaimer"></a>
-## ⚖️ Legal & Operational Disclaimer
+## ⚖️ STRICT LEGAL & OPERATIONAL DISCLAIMER — ZERO LIABILITY
 
-Wraith is intended for legitimate privacy, research and authorized security work. Operate it only on systems you own or are authorized to administer. Obtain permission before assessing third-party systems and stay within the agreed targets, methods and time window. Privacy tooling does not grant access rights.
+> [!CAUTION]
+> **READ CAREFULLY BEFORE USE. BY DOWNLOADING, COMPILING, OR EXECUTING THIS SOFTWARE, YOU EXPLICITLY AGREE TO ALL TERMS BELOW.**
 
-Do not use the project for unauthorized access, disruption, credential theft, unlawful surveillance or destruction of someone else's data. Respect applicable law, service terms and the rights of other users. Cover-traffic endpoints must be yours or explicitly authorized.
+Wraith is a sovereign, dual-use network auditing and privacy enforcement kernel. It is engineered **strictly** for authorized Red/Blue team operations, academic research, and legally sanctioned cyber-defense activities. **You are solely responsible for your actions.**
 
-**Operational responsibility.** Review destructive cleanup options before enabling them; they are not part of an ordinary privacy session. Maintain backups and a recovery path for systems you administer. No claim of guaranteed anonymity, non-detection, regulatory certification or immunity from destination blocklists is made.
+### 🛑 JURISDICTIONAL COMPLIANCE & PENAL CODES
 
-**License and warranty.** Distribution and modification rights are governed by [GNU GPL v3.0](LICENSE). Its warranty and liability provisions, including sections 15–17, apply as stated and to the extent permitted by applicable law. This responsible-use guidance does not add restrictions to the GPL license.
+This software provides capabilities that can be abused. Unauthorized use of Wraith against systems, networks, or data without explicit, written, and legally binding consent constitutes a severe criminal offense globally. You must strictly adhere to:
+
+1. **Republic of Turkey (TCK):** Unauthorized access, interception, or disruption of information systems is a direct violation of the **Turkish Penal Code (TCK) Articles 243, 244, and 245**.
+2. **United States of America (USA):** Any deployment against non-consenting targets violates the **Computer Fraud and Abuse Act (CFAA, 18 U.S.C. § 1030)** and the **Electronic Communications Privacy Act (ECPA)**, punishable by severe federal penalties and imprisonment.
+3. **European Union (EU):** Malicious deployment breaches the **Directive on Attacks against Information Systems (Directive 2013/40/EU)** and the **General Data Protection Regulation (GDPR)** regarding unauthorized data processing.
+
+### 🚫 PROHIBITED USES
+
+You are **explicitly forbidden** from using Wraith for:
+- Unauthorized penetration testing, intrusion, or exploitation of third-party infrastructure.
+- Unlawful surveillance, data interception, or credential theft.
+- Botnet operations, DDoS, or malicious traffic obfuscation.
+- Bypassing lawful interception or actively aiding illicit activities.
+
+**Operational Responsibility:** The developers, contributors, and the "ByGh00st" organization assume **ZERO LIABILITY** for any direct, indirect, incidental, or consequential damages, or legal repercussions resulting from the use or misuse of this software. No claim of guaranteed anonymity, non-detection, or regulatory immunity is made. **You operate this toolkit at your own absolute legal and technical risk.**
+
+**License and Warranty:** Distribution and modification rights are governed by [GNU GPL v3.0](LICENSE). The software is provided "AS IS", without warranty of any kind. This responsible-use guidance does not add restrictions to the GPL license itself, but serves as an unconditional legal disclaimer.
 
 ---
 
