@@ -928,7 +928,7 @@ Report failures with the command, distribution, interface and sanitized logs; om
 ---
 
 <a id="legal-disclaimer"></a>
-## ⚖️ STRICT LEGAL & OPERATIONAL DISCLAIMER — ZERO LIABILITY
+## ⚖️ STRICT LEGAL & AUTHORIZED-USE DISCLAIMER
 
 > [!CAUTION]
 > **READ CAREFULLY BEFORE USE. BY DOWNLOADING, COMPILING, OR EXECUTING THIS SOFTWARE, YOU EXPLICITLY AGREE TO ALL TERMS BELOW.**
