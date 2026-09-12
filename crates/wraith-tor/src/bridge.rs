@@ -61,13 +61,17 @@ pub fn write_bridge_torrc(custom_bridges: Option<Vec<String>>) -> Result<usize> 
 
     let content = format!(
         "\
-VirtualAddrNetwork 10.192.0.0/10
+DataDirectory /var/lib/tor
+VirtualAddrNetworkIPv4 10.192.0.0/10
 AutomapHostsOnResolve 1
-TransPort {TOR_TRANS_PORT}
-DNSPort {TOR_DNS_PORT}
-ControlPort {TOR_CONTROL_PORT}
+TransPort 127.0.0.1:{TOR_TRANS_PORT}
+DNSPort 127.0.0.1:{TOR_DNS_PORT}
+SocksPort 127.0.0.1:9050
+ControlPort 127.0.0.1:{TOR_CONTROL_PORT}
 RunAsDaemon 1
 CookieAuthentication 1
+CookieAuthFile /run/tor/control.authcookie
+CookieAuthFileGroupReadable 1
 AvoidDiskWrites 1
 UseBridges 1
 ClientTransportPlugin obfs4 exec {obfs4_path}

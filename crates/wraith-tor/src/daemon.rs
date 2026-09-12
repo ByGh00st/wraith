@@ -89,6 +89,22 @@ pub fn restore_dns_snapshot(content: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn resolve_tor_user() -> &'static str {
+    for u in ["debian-tor", "tor", "toranon", "_tor"] {
+        if Command::new("id")
+            .args(["-u", u])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return u;
+        }
+    }
+    TOR_USER
+}
+
 pub fn stop_existing_tor() {
     // Target any Wraith-managed Tor processes matching our specific torrc configuration
     let _ = Command::new("pkill")
@@ -102,9 +118,41 @@ pub fn stop_existing_tor() {
 pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
     stop_existing_tor();
 
-    // Terminate any standard systemd Tor service that may hog ports 9050/9051
-    let _ = Command::new("systemctl").args(["stop", "tor"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-    let _ = Command::new("systemctl").args(["stop", "tor@default"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    // 1. Terminate standard systemd Tor service instances that may hog ports 9050/9051
+    let _ = Command::new("systemctl")
+        .args(["stop", "tor", "tor@default"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let _ = Command::new("pkill")
+        .args(["-f", "wraithrc"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    // 2. Actively probe and ensure ports 9050 (SOCKS) and 9051 (Control) are free
+    for _ in 0..15 {
+        let p9050_free = std::net::TcpListener::bind("127.0.0.1:9050").is_ok();
+        let p9051_free = std::net::TcpListener::bind("127.0.0.1:9051").is_ok();
+        if p9050_free && p9051_free {
+            break;
+        }
+        // Force-kill any lingering system tor instances holding ports 9050/9051
+        let _ = Command::new("killall")
+            .args(["-9", "tor"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    // 3. Clear stale file lock if previous instance died uncleanly
+    let lock_path = Path::new("/var/lib/tor/lock");
+    if lock_path.exists() {
+        let _ = fs::remove_file(lock_path);
+    }
+
+    let tor_user = resolve_tor_user();
 
     let tor_bin = if Path::new("/usr/bin/tor").exists() {
         "/usr/bin/tor"
@@ -114,7 +162,7 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
         "tor"
     };
 
-    info!("Spawning Tor daemon process...");
+    info!("Spawning Tor daemon process as user {tor_user}...");
 
     // Ensure Tor runtime and data directories exist with correct permissions and ownership
     for dir in ["/run/tor", "/var/lib/tor"] {
@@ -122,10 +170,22 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
         if !p.exists() {
             let _ = fs::create_dir_all(p);
         }
-        let _ = Command::new("chown").args(["-R", &format!("{TOR_USER}:{TOR_USER}"), dir]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-        let _ = Command::new("chmod").args(["700", dir]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        let _ = Command::new("chown")
+            .args(["-R", &format!("{tor_user}:{tor_user}"), dir])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        let _ = Command::new("chmod")
+            .args(["700", dir])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
     }
-    let _ = Command::new("chmod").args(["644", TORRC_PATH]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    let _ = Command::new("chmod")
+        .args(["644", TORRC_PATH])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
 
     // Detached background daemons cannot reliably use sudo without a controlling TTY.
     // Use runuser (standard on Debian/Kali for daemon privilege drop) with su as fallback.
@@ -142,25 +202,32 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
     };
 
     let has_runuser = Path::new(runuser_bin).exists()
-        || Command::new("which").arg("runuser").stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
+        || Command::new("which")
+            .arg("runuser")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
 
     let output = if has_runuser {
         Command::new(runuser_bin)
-            .args(["-u", TOR_USER, "--", tor_bin, "-f", TORRC_PATH])
+            .args(["-u", tor_user, "--", tor_bin, "-f", TORRC_PATH])
             .output()
     } else if Path::new("/bin/su").exists() || Path::new("/usr/bin/su").exists() {
         Command::new("su")
-            .args(["-s", "/bin/sh", TOR_USER, "-c", &format!("{tor_bin} -f {TORRC_PATH}")])
+            .args(["-s", "/bin/sh", tor_user, "-c", &format!("{tor_bin} -f {TORRC_PATH}")])
             .output()
     } else {
         Command::new("sudo")
-            .args(["-u", TOR_USER, tor_bin, "-f", TORRC_PATH])
+            .args(["-u", tor_user, tor_bin, "-f", TORRC_PATH])
             .output()
-    }.map_err(|e| WraithError::Tor(format!("Failed to spawn Tor daemon: {e}")))?;
+    }
+    .map_err(|e| WraithError::Tor(format!("Failed to spawn Tor daemon: {e}")))?;
 
     if !output.status.success() {
         let err_msg = String::from_utf8_lossy(&output.stderr);
-        return Err(WraithError::Tor(format!("Tor failed to start as {TOR_USER}: {err_msg}")));
+        return Err(WraithError::Tor(format!("Tor failed to start as {tor_user}: {err_msg}")));
     }
 
     // Wait for Tor bootstrap on ControlPort
@@ -173,7 +240,9 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
         }
     }
 
-    Err(WraithError::Tor(format!("Tor daemon started but failed to bootstrap within {timeout_secs}s")))
+    Err(WraithError::Tor(format!(
+        "Tor daemon started but failed to bootstrap within {timeout_secs}s"
+    )))
 }
 
 pub async fn start_tor_daemon() -> Result<()> {
@@ -182,5 +251,10 @@ pub async fn start_tor_daemon() -> Result<()> {
 
 pub fn stop_tor_daemon() {
     stop_existing_tor();
+    let _ = Command::new("pkill")
+        .args(["-9", "-f", "wraithrc"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
     info!("Tor daemon stopped");
 }
