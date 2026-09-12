@@ -1017,27 +1017,52 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
 pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
     print_banner(false);
+
+    #[cfg(target_os = "linux")]
+    {
+        let is_systemd_active = std::process::Command::new("systemctl")
+            .args(["is-active", "--quiet", "wraith.service"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if is_systemd_active {
+            print_step("Stopping active Wraith systemd daemon service...", "info");
+            let _ = std::process::Command::new("systemctl")
+                .args(["stop", "wraith.service"])
+                .status();
+        }
+    }
+
     let state_mgr = StateManager::default();
-    if !state_mgr.is_active() {
+    if !state_mgr.is_running() {
+        // Even if state file is missing, ensure Tor daemon and stray rules are stopped
+        wraith_tor::stop_tor_daemon();
+        wraith_tor::stop_existing_tor();
+        print_step("No active Wraith session found; ensuring network and gateway are restored.", "info");
         return Ok(());
     }
-    let state_info = state_mgr.read_checked()?;
+
+    let state_info = state_mgr.read();
+
     #[cfg(target_os = "linux")]
     if let Some(pid) = state_info.pid.filter(|pid| *pid > 1 && *pid != std::process::id() && *pid <= i32::MAX as u32) {
-        let proc_path = format!("/proc/{pid}/exe");
-        if let Ok(executable) = fs::read_link(&proc_path) {
-            if executable != std::env::current_exe()? {
-                return Err(WraithError::Custom("Session PID belongs to another executable; refusing to signal it".into()));
+        if unsafe { libc::kill(pid as i32, 0) == 0 } {
+            print_step(&format!("Terminating background session process (PID: {pid})..."), "info");
+            let _ = unsafe { libc::kill(pid as i32, libc::SIGTERM) };
+            
+            let mut exited = false;
+            for _ in 0..20 {
+                sleep(Duration::from_millis(100)).await;
+                if unsafe { libc::kill(pid as i32, 0) != 0 } {
+                    exited = true;
+                    break;
+                }
             }
-            // SAFETY: positive, bounded PID; executable identity was checked above.
-            if unsafe { libc::kill(pid as i32, libc::SIGTERM) } != 0 {
-                return Err(std::io::Error::last_os_error().into());
+
+            if !exited {
+                let _ = unsafe { libc::kill(pid as i32, libc::SIGKILL) };
+                sleep(Duration::from_millis(100)).await;
             }
-            for _ in 0..100 {
-                if !state_mgr.is_active() { return Ok(()); }
-                sleep(Duration::from_millis(200)).await;
-            }
-            return Err(WraithError::Custom("Session is still stopping; refusing concurrent firewall teardown".into()));
         }
     }
 
@@ -1158,24 +1183,68 @@ async fn cmd_update_from_github() -> Result<()> {
     {
         use std::process::Command;
         
-        let current_dir = std::env::current_dir()?;
+        let mut target_repo_dir: Option<std::path::PathBuf> = None;
         
-        if !current_dir.join(".git").exists() {
-            let err_rows = vec![
-                "No .git repository metadata discovered in the active directory.".to_string(),
-                "".to_string(),
-                "Navigate to your existing clone or clone freshly:".to_string(),
-                format!("  {}", "git clone https://github.com/ByGh00st/wraith.git".bold().bright_cyan()),
-                format!("  {}", "cd wraith && sudo ./build.sh".bold().bright_green()),
-            ];
-            let err_box = render_box("✖ GIT REPOSITORY NOT FOUND", &err_rows, BoxCorner::Rounded, 78);
-            println!("{}", err_box[0].bright_red());
-            for row in &err_box[1..err_box.len() - 1] {
-                println!("{row}");
+        // 1. Discover repo root if running from inside any repository directory or subdirectory
+        if let Ok(output) = Command::new("git").args(["rev-parse", "--show-toplevel"]).output() {
+            if output.status.success() {
+                let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path_str.is_empty() && Path::new(&path_str).join(".git").exists() {
+                    target_repo_dir = Some(std::path::PathBuf::from(path_str));
+                }
             }
-            println!("{}\n", err_box.last().unwrap().bright_red());
-            return Ok(());
         }
+
+        // 2. Discover standard repository paths if executed outside repository
+        if target_repo_dir.is_none() {
+            let candidates = [
+                "/home/ghost/wraith",
+                "/root/wraith",
+                "/opt/wraith",
+                "/usr/src/wraith",
+            ];
+            for c in candidates {
+                let p = Path::new(c);
+                if p.join(".git").exists() {
+                    target_repo_dir = Some(p.to_path_buf());
+                    break;
+                }
+            }
+        }
+
+        // 3. Fall back to binary location ancestor directories
+        if target_repo_dir.is_none() {
+            if let Ok(exe) = std::env::current_exe() {
+                let mut current = exe.parent();
+                while let Some(parent) = current {
+                    if parent.join(".git").exists() {
+                        target_repo_dir = Some(parent.to_path_buf());
+                        break;
+                    }
+                    current = parent.parent();
+                }
+            }
+        }
+
+        let current_dir = match target_repo_dir {
+            Some(d) => d,
+            None => {
+                let err_rows = vec![
+                    "No .git repository metadata discovered in active or standard directories.".to_string(),
+                    "".to_string(),
+                    "Navigate to your existing clone or clone freshly:".to_string(),
+                    format!("  {}", "git clone https://github.com/ByGh00st/wraith.git".bold().bright_cyan()),
+                    format!("  {}", "cd wraith && sudo ./build.sh".bold().bright_green()),
+                ];
+                let err_box = render_box("✖ GIT REPOSITORY NOT FOUND", &err_rows, BoxCorner::Rounded, 78);
+                println!("{}", err_box[0].bright_red());
+                for row in &err_box[1..err_box.len() - 1] {
+                    println!("{row}");
+                }
+                println!("{}\n", err_box.last().unwrap().bright_red());
+                return Ok(());
+            }
+        };
 
         let sync_rows = vec![
             format!("{:<16} : {}", "OPERATION".bold().bright_cyan(), "KERNEL REPOSITORY SYNCHRONIZATION".bold().bright_white()),
@@ -1197,18 +1266,11 @@ async fn cmd_update_from_github() -> Result<()> {
             return Err(WraithError::Command("Git fetch failed; check network connectivity or GitHub access".into()));
         }
 
-        print_step("Resetting local branch to origin/main...", "info");
+        print_step("Force-aligning local working tree with origin/main...", "info");
         let mut reset = Command::new("/usr/bin/git");
         reset.current_dir(&current_dir).args(["reset", "--hard", "origin/main"]);
         if !reset.output()?.status.success() {
             return Err(WraithError::Command("Git reset failed".into()));
-        }
-
-        print_step("Fast-forwarding working tree with origin/main...", "info");
-        let mut pull = Command::new("/usr/bin/git");
-        pull.current_dir(&current_dir).args(["pull", "origin", "main"]);
-        if !pull.output()?.status.success() { 
-            return Err(WraithError::Command("Git pull failed".into())); 
         }
 
         print_step("All source files aligned with latest master commit.", "ok");
