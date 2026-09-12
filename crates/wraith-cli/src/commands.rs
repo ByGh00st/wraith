@@ -183,7 +183,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         if current_state.active {
             print_error(&t!("runtime.already_running"));
         } else {
-            print_error("Wraith is currently arming or running; use 'wraith -x' to reset state.");
+            print_error(&t!("daemon_cli.arming_or_running_reset"));
         }
         return Ok(());
     }
@@ -1193,7 +1193,8 @@ pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
 
     wraith_forensic::dod_7pass_shred(path)?;
     print_success(&format!(
-        "Target permanently obliterated from disk: {target}"
+        "{}",
+        t!("daemon_cli.shred_success", target = target)
     ));
     Ok(())
 }
@@ -1378,11 +1379,12 @@ pub async fn cmd_cleanup(full: bool) -> Result<()> {
     } else {
         "Quick (Logs + Caches)"
     };
-    print_step(&format!("Executing {mode} anti-forensic purge..."), "info");
+    print_step(&format!("{}", t!("daemon_cli.executing_purge", mode = mode)), "info");
 
     let count = run_full_cleanup(full, false)?;
     print_success(&format!(
-        "Anti-forensic purge complete ({count} operations executed)"
+        "{}",
+        t!("daemon_cli.purge_complete", count = count)
     ));
     Ok(())
 }
@@ -1719,7 +1721,8 @@ pub async fn cmd_bridge(action: Option<crate::BridgeAction>) -> Result<()> {
                         }
                     }
                     Err(e) => {
-                        print_step(&format!("Moat challenge unreachable: {e}. Falling back to resilient pools."), "warn");
+                        let err_str = e.to_string();
+                        print_step(&format!("{}", t!("daemon_cli.moat_unreachable_fallback", err = err_str)), "warn");
                         moat.auto_discover_or_fallback(&transport).await
                     }
                 }
@@ -1728,7 +1731,8 @@ pub async fn cmd_bridge(action: Option<crate::BridgeAction>) -> Result<()> {
             let pt_type = wraith_tor::PluggableTransportType::from_str(&transport)
                 .unwrap_or(wraith_tor::PluggableTransportType::Obfs4);
             let count = wraith_tor::write_pluggable_transport_torrc(pt_type, Some(bridges.clone()))?;
-            print_success(&format!("Successfully configured {count} {pt_type} bridges in /etc/tor/wraithrc"));
+            let pt_str = pt_type.to_string();
+            print_success(&format!("{}", t!("daemon_cli.bridges_configured", count = count, pt = pt_str)));
             for b in &bridges {
                 println!("    Bridge {b}");
             }
@@ -1742,7 +1746,7 @@ pub fn cmd_doh(select: bool) -> Result<()> {
     if select {
         let provider = crate::doh_tui::select_doh_tui()?;
         print_banner(false);
-        print_success(&format!("Selected DoH Provider: {} [{}]", provider.name(), provider.url()));
+        print_success(&format!("{}", t!("daemon_cli.doh_selected", name = provider.name(), url = provider.url())));
 
         let mut cfg = wraith_core::WraithConfig::load().unwrap_or_default();
         cfg.dns.transport = Some("doh".to_string());
@@ -1750,7 +1754,8 @@ pub fn cmd_doh(select: bool) -> Result<()> {
         cfg.dns.upstream = Some(provider.url().to_string());
         cfg.doh_upstream = Some(provider.url().to_string());
         let path = cfg.save()?;
-        print_step(&format!("Saved active DoH provider to {path:?}"), "ok");
+        let path_str = format!("{path:?}");
+        print_step(&format!("{}", t!("daemon_cli.doh_saved", path = path_str)), "ok");
     } else {
         print_banner(false);
         crate::doh_tui::print_doh_table();
