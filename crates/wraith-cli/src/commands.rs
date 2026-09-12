@@ -874,12 +874,16 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
             let _ = spawn_monitor_terminal();
         }
 
-        let _ = crossterm::terminal::enable_raw_mode();
+        if !args.daemon_worker {
+            let _ = crossterm::terminal::enable_raw_mode();
+        }
 
         loop {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
-                    let _ = crossterm::terminal::disable_raw_mode();
+                    if !args.daemon_worker {
+                        let _ = crossterm::terminal::disable_raw_mode();
+                    }
                     println!("\r\n  {}\r\n", t!("commands.cmd_signal_sigint"));
                     break;
                 }
@@ -893,7 +897,9 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                     #[cfg(not(unix))]
                     std::future::pending::<()>().await;
                 } => {
-                    let _ = crossterm::terminal::disable_raw_mode();
+                    if !args.daemon_worker {
+                        let _ = crossterm::terminal::disable_raw_mode();
+                    }
                     println!("\r\n  {}\r\n", t!("commands.cmd_signal_sigterm"));
                     break;
                 }
@@ -907,11 +913,18 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                     #[cfg(not(unix))]
                     std::future::pending::<()>().await;
                 } => {
-                    let _ = crossterm::terminal::disable_raw_mode();
+                    if !args.daemon_worker {
+                        let _ = crossterm::terminal::disable_raw_mode();
+                    }
                     println!("\r\n  {}\r\n", t!("commands.cmd_signal_sighup"));
                     break;
                 }
-                key_res = tokio::task::spawn_blocking(|| {
+                key_res = tokio::task::spawn_blocking(move || {
+                    if args.daemon_worker {
+                        // In daemon mode, we don't have a terminal, so we sleep forever
+                        std::thread::park();
+                        return None;
+                    }
                     if crossterm::event::poll(Duration::from_millis(200)).unwrap_or(false) {
                         if let Ok(crossterm::event::Event::Key(k)) = crossterm::event::read() {
                             return Some(k);
@@ -927,7 +940,9 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                             || k.code == crossterm::event::KeyCode::Char('Q')
                             || k.code == crossterm::event::KeyCode::Esc
                         {
-                            let _ = crossterm::terminal::disable_raw_mode();
+                            if !args.daemon_worker {
+                                let _ = crossterm::terminal::disable_raw_mode();
+                            }
                             println!("\r\n  {}\r\n", t!("commands.cmd_signal_clean_disconnect"));
                             break;
                         }
@@ -947,12 +962,16 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                                     }
                                 }
                                 crossterm::event::KeyCode::Char('t') | crossterm::event::KeyCode::Char('T') => {
-                                    let _ = crossterm::terminal::disable_raw_mode();
+                                    if !args.daemon_worker {
+                                        let _ = crossterm::terminal::disable_raw_mode();
+                                    }
                                     println!("\n  {}", t!("commands.cmd_hotkey_leak_audit"));
                                     let report = run_full_leak_test().await;
                                     show_leak_report(&report);
                                     println!();
-                                    let _ = crossterm::terminal::enable_raw_mode();
+                                    if !args.daemon_worker {
+                                        let _ = crossterm::terminal::enable_raw_mode();
+                                    }
                                 }
                                 crossterm::event::KeyCode::Char('m') | crossterm::event::KeyCode::Char('M') => {
                                     if spawn_monitor_terminal() {
@@ -974,7 +993,9 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
             }
         }
 
-        let _ = crossterm::terminal::disable_raw_mode();
+        if !args.daemon_worker {
+            let _ = crossterm::terminal::disable_raw_mode();
+        }
 
         // Gracefully cancel and wait on all background task join handles
         bg_services.shutdown_and_join().await;
@@ -1127,73 +1148,41 @@ async fn cmd_update_from_github() -> Result<()> {
     { Err(WraithError::UnsupportedPlatform) }
     #[cfg(target_os = "linux")]
     {
-        use nix::unistd::{Uid, User};
-        use std::os::unix::{fs::MetadataExt, process::CommandExt};
-        let uid = std::env::var("SUDO_UID").ok().and_then(|value| value.parse::<u32>().ok())
-            .filter(|uid| *uid > 0).ok_or_else(|| WraithError::Configuration(
-                "Run update through sudo from a non-root build account; root Cargo builds are refused".into()))?;
-        let user = User::from_uid(Uid::from_raw(uid)).map_err(|e| WraithError::Custom(e.to_string()))?
-            .ok_or_else(|| WraithError::Configuration("Build account does not exist".into()))?;
-        let workspace = tempfile::Builder::new().prefix("wraith-build-").tempdir_in("/var/tmp")?;
-        let build_dir = workspace.path();
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(build_dir, fs::Permissions::from_mode(0o700))?;
-        nix::unistd::chown(build_dir, Some(user.uid), Some(user.gid))
-            .map_err(|e| WraithError::Custom(e.to_string()))?;
-        let configure = |command: &mut Command| {
-            command.env_clear().env("HOME", &user.dir)
-                .env("PATH", format!("{}:/usr/bin:/bin", user.dir.join(".cargo/bin").display()))
-                .env("CARGO_HOME", user.dir.join(".cargo"))
-                .env("GIT_CONFIG_NOSYSTEM", "1").env("GIT_CONFIG_GLOBAL", "/dev/null")
-                .env("GIT_TERMINAL_PROMPT", "0");
-            let uid = user.uid.as_raw();
-            let gid = user.gid.as_raw();
-            // SAFETY: setgroups is async-signal-safe here; no allocation or locks
-            // are used between fork and exec. Drop supplementary root groups.
-            unsafe { command.pre_exec(move || {
-                if libc::setgroups(0, std::ptr::null()) != 0 { return Err(std::io::Error::last_os_error()); }
-                if libc::setgid(gid) != 0 || libc::setuid(uid) != 0 { return Err(std::io::Error::last_os_error()); }
-                Ok(())
-            }); }
-        };
-        let result = (|| -> Result<()> {
-            for executable in ["/usr/bin/cmake", "/usr/bin/perl", "/usr/bin/c++"] {
-                let mut probe = Command::new(executable);
-                probe.arg("--version").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-                configure(&mut probe);
-                if !probe.status().is_ok_and(|status| status.success()) {
-                    return Err(WraithError::Configuration(format!(
-                        "Missing build tool {executable}. On Debian-family systems install build-essential cmake perl libclang-dev pkg-config before updating"
-                    )));
-                }
-            }
-            let mut clone = Command::new("/usr/bin/git");
-            clone.args(["-c", "http.sslVerify=true", "-c", "http.followRedirects=false", "-c", "protocol.file.allow=never", "clone", "--depth", "1", "--branch", "main", "--single-branch", "https://github.com/ByGh00st/wraith.git"]).arg(build_dir);
-            configure(&mut clone);
-            if !clone.status()?.success() { return Err(WraithError::Command("Git clone failed".into())); }
-            let cargo = user.dir.join(".cargo/bin/cargo");
-            let mut build = Command::new(if cargo.exists() { cargo } else { "/usr/bin/cargo".into() });
-            build.args(["build", "--release", "--locked", "--bin", "wraith", "--jobs", "1", "--target", "x86_64-unknown-linux-gnu", "--target-dir"])
-                .arg(build_dir.join("target")).current_dir(build_dir);
-            configure(&mut build);
-            if !build.status()?.success() { return Err(WraithError::Command("Cargo build failed; check compiler output and native dependencies (C/C++, CMake, Perl, libclang). Installed binary was not replaced".into())); }
-            let destination = Path::new("/usr/local/bin/wraith");
-            // Only a root-owned, non-writable-by-others canonical install directory.
-            let parent = destination.parent().unwrap();
-            let meta = fs::symlink_metadata(parent)?;
-            if !meta.is_dir() || meta.uid() != 0 || meta.mode() & 0o022 != 0 {
-                return Err(WraithError::Configuration("Unsafe binary installation directory".into()));
-            }
-            let bytes = read_update_file(&build_dir.join("target/x86_64-unknown-linux-gnu/release/wraith"), 128 * 1024 * 1024)?;
-            if !bytes.starts_with(b"\x7fELF") { return Err(WraithError::Configuration("Build artifact is not ELF".into())); }
-            wraith_core::deployment::install_binary(&bytes, destination)?;
-            print_success("Updated /usr/local/bin/wraith from the official GitHub repository.");
-            Ok(())
-        })();
-        // Remove only the fixed, exclusively created workspace. Never use a shell
-        // or follow paths supplied by build output for privileged cleanup.
-        if let Err(e) = workspace.close() { tracing::warn!("Build directory cleanup failed: {e}"); }
-        result
+        use std::process::Command;
+        
+        let current_dir = std::env::current_dir()?;
+        
+        if !current_dir.join(".git").exists() {
+            print_error("You are not inside a git repository.");
+            print_step("Please navigate to your Wraith source code directory and run this command again.", "warn");
+            return Ok(());
+        }
+
+        print_step(&format!("Updating source code in {}...", current_dir.display()), "info");
+        
+        let mut fetch = Command::new("/usr/bin/git");
+        fetch.current_dir(&current_dir).args(["fetch", "--all"]);
+        if !fetch.status()?.success() {
+            return Err(WraithError::Command("Git fetch failed".into()));
+        }
+
+        let mut reset = Command::new("/usr/bin/git");
+        reset.current_dir(&current_dir).args(["reset", "--hard", "origin/main"]);
+        if !reset.status()?.success() {
+            return Err(WraithError::Command("Git reset failed".into()));
+        }
+
+        let mut pull = Command::new("/usr/bin/git");
+        pull.current_dir(&current_dir).args(["pull", "origin", "main"]);
+        if !pull.status()?.success() { 
+            return Err(WraithError::Command("Git pull failed".into())); 
+        }
+        
+        print_success(&format!("Source code updated successfully in {}", current_dir.display()));
+        print_step("To prevent OOM (101) errors during cargo build, compilation is not done automatically.", "warn");
+        print_step("Please run the build script manually: sudo ./build.sh", "info");
+        
+        Ok(())
     }
 }
 
@@ -1513,9 +1502,9 @@ pub async fn cmd_monitor() -> Result<()> {
                         .sanitized_replacement
                         .unwrap_or_else(|| "Genuine Browser".to_string());
 
-                    println!("\r  ┌── [ 🎯 DPI IN-FLIGHT TRAP & REWRITE // {} ] ─────────────────────────", time_str.bold().cyan());
+                    println!("\r  ┌── [ 🔍 DPI SIGNATURE DETECTED (L7 Proxy Active) // {} ] ────────", time_str.bold().cyan());
                     println!("\r  │  ⚠️ Intercepted Signature : {}", orig.bold().yellow());
-                    println!("\r  │  🛡️ Wire Sanitized Value  : {}", repl.bold().green());
+                    println!("\r  │  🛡️ L7 Proxy Replacement  : {}", repl.bold().green());
                     println!(
                         "\r  │  📊 Streamed Packets      : {} | Total Traps: {}",
                         packets_count.to_string().bold().cyan(),

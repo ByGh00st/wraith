@@ -232,6 +232,10 @@ pub struct StartArgs {
         help_heading = "High-Risk & Forensic Operations"
     )]
     pub aggressive_anti_debug: bool,
+
+    /// ⚠ INTERNAL: Run as a background daemon worker
+    #[arg(long = "daemon-worker", hide = true)]
+    pub daemon_worker: bool,
 }
 
 impl StartArgs {
@@ -264,6 +268,7 @@ impl StartArgs {
             || self.forensic_self_destruct
             || self.aggressive_masquerade
             || self.aggressive_anti_debug
+            || self.daemon_worker
     }
 }
 
@@ -758,6 +763,30 @@ pub async fn main() -> Result<()> {
             interface_tui::print_interfaces_table(&ifaces);
         }
         Commands::Start(args) => {
+            // Check if we need to daemonize (-s without -F/strict_hardening and not already daemon_worker)
+            if !args.strict_hardening && !args.daemon_worker {
+                println!("\n  🚀 \x1b[1;36mWRAITH\x1b[0m is starting in the background (Daemon Mode)...");
+                println!("  To view status telemetry, use: \x1b[1;33mwraith -i\x1b[0m");
+                
+                let mut cmd = std::process::Command::new(std::env::current_exe()?);
+                // Forward all original arguments and append --daemon-worker
+                cmd.args(std::env::args().skip(1));
+                cmd.arg("--daemon-worker");
+                
+                // Detach from current terminal
+                cmd.stdin(std::process::Stdio::null());
+                cmd.stdout(std::process::Stdio::null());
+                cmd.stderr(std::process::Stdio::null());
+                
+                match cmd.spawn() {
+                    Ok(_) => return Ok(()),
+                    Err(e) => {
+                        display::print_error(&format!("Failed to spawn daemon: {}", e));
+                        return Err(wraith_core::error::WraithError::Custom(format!("Daemon spawn failed: {}", e)));
+                    }
+                }
+            }
+
             tokio::select! {
                 res = commands::cmd_start(args) => {
                     if let Err(e) = res {
