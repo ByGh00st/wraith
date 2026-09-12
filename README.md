@@ -67,7 +67,7 @@ sudo wraith -x     # Stop and restore recorded settings
 ```
 
 <p align="center">
-  <a href="#installation"><b>Installation</b></a> · <a href="https://github.com/ByGh00st/wraith/wiki"><b>Wiki guides</b></a> · <a href="#browser-tls">TLS profiles</a> · <a href="#privacy-matrix">Comparison</a> · <a href="#updates">Updates</a> · <a href="#codebase-metrics">Source metrics</a> · <a href="#validation">Validation</a>
+  <a href="#installation"><b>Installation</b></a> · <a href="docs/wiki/Home.md"><b>Wiki Guides</b></a> · <a href="#browser-tls">TLS Profiles</a> · <a href="#privacy-matrix">Comparison</a> · <a href="#updates">Updates</a> · <a href="#codebase-metrics">Source Metrics</a> · <a href="#validation">Validation</a>
 </p>
 
 <details>
@@ -455,19 +455,20 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | `-s` | `sudo wraith -s [OPTIONS]` / `wraith start` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
 | `-x` | `sudo wraith -x [-d]` / `wraith stop` | **Stop Wraith**: Restores normal network, netfilter rules, and DNS. (`-d` self-destructs binary). |
 | `-r` | `sudo wraith -r` / `wraith switch` | **Circuit Rotation**: Issues `SIGNAL NEWNYM` to request a fresh Tor exit node identity. |
-| `-t` | `sudo wraith -t` / `wraith test` | **Connectivity Checks**: Reports bounded probes and unverified DNS/WebRTC coverage. |
+| `-t` | `sudo wraith -t` / `wraith test` | **Multi-Vector Leak Audit**: Evaluates IPv4/IPv6, DNS integrity, and RFC 5389 Dual-Stack (UDP + TCP) WebRTC STUN coverage. |
 | `-i` | `sudo wraith -i` / `wraith info` | **Status Telemetry**: Displays live connection status, active exit IP, and circuit topology. |
 | `-p` | `sudo wraith -p <NAME>` / `wraith profile` | **Geographic Exit Profiler**: Enforces Tor exit nodes (`stealth`, `speed`, `journalists`, `research`, `darkweb`). |
 | `-F` | `sudo wraith -F` / `wraith -s -F` | **Strict Preset**: Requires core setup and the kill switch; see prerequisites below. |
+| `-K` | `sudo wraith -s -K` / `--kworker` | **Process Masquerade**: Cloaks process name in Linux kernel scheduler as `[kworker/u16:0]`. |
 | `-u` | `sudo wraith -u` / `wraith update` | **Official GitHub Update**: Fetches source, builds without root, then atomically installs. |
-| `-c` | `sudo wraith -c` / `wraith cleanup`| **Anti-Forensic Purge**: Clears volatile RAM caches, temporary state, and session traces. |
+| `-c` | `sudo wraith -c` / `wraith cleanup`| **Anti-Forensic Purge**: Clears volatile RAM caches, DNS cache, and ephemeral session traces. |
 | — | `sudo wraith --cleanup-full` | **Deep Anti-Forensic Purge**: Wipes RAM, swap partitions, and all system authentication logs. |
-| `-M` | `sudo wraith -M` / `wraith monitor` | **Real-Time DPI & IDS Monitor**: Displays inspected packet copies and signature observations. |
+| `-M` | `sudo wraith -M` / `wraith monitor` | **Real-Time DPI & IDS Monitor**: Streams in-flight HTTP port 9055 packet inspections and signatures. |
 | — | `sudo wraith doctor` | **Kernel Integrity Auditor**: Deeply audits IPv4/IPv6 sysctls, Tor daemon state, Netlink, and Seccomp. |
 | — | `sudo wraith benchmark` | **Cryptographic Benchmark**: Evaluates ChaCha20-Poly1305, SHA-256, HMAC, and Netlink throughput. |
 | — | `sudo wraith mac` | **Hardware Randomizer**: Randomizes L2 MAC address and system hostname immediately. |
 | — | `sudo wraith pentest` | **Security Audit Guide**: Displays isolation guidelines for Nmap, Sqlmap, Ffuf, Metasploit. |
-| — | `sudo wraith shred <FILE>` | **File Overwrite**: Requests overwrite passes; SSD/snapshot erasure is not guaranteed. |
+| — | `sudo wraith shred <FILE>` | **DoD 7-Pass Shredder**: Overwrites and zeroizes files using DoD 5220.22-M specification. |
 | — | `sudo wraith interfaces` | **Hardware Interface Selector**: Inspects and binds to physical network interfaces. |
 | — | `sudo wraith doh` | **Encrypted DoH**: Selects or configures DNS-over-HTTPS providers (Cloudflare, Quad9, Google, AdGuard, Mullvad, Custom). |
 | — | `sudo wraith bridge` | **Tor Moat & Bridge Discovery**: Fetches bridges via Moat API or sets up obfs4/snowflake/webtunnel. |
@@ -968,9 +969,9 @@ This responsible-use notice is not intended to add restrictions to the rights gr
 <a id="project-guides"></a>
 ## 🤝 Project guides
 
-| Report securely | Contribute | Get support | Understand scope |
-| :--- | :--- | :--- | :--- |
-| [Security policy](SECURITY.md) | [Contribution guide](CONTRIBUTING.md) | [Support guide](SUPPORT.md) | [Threat model](docs/THREAT_MODEL.md) |
+| Report securely | Contribute | Get support | Understand scope | Deep Technical Wiki |
+| :--- | :--- | :--- | :--- | :--- |
+| [Security policy](SECURITY.md) | [Contribution guide](CONTRIBUTING.md) | [Support guide](SUPPORT.md) | [Threat model](docs/THREAT_MODEL.md) | [Wiki Documentation](docs/wiki/Home.md) |
 
 Bug and feature forms are available in [Issues](https://github.com/ByGh00st/wraith/issues/new/choose). Sensitive vulnerabilities use the private channel described in the security policy. Collaboration follows the [community code of conduct](CODE_OF_CONDUCT.md).
 
