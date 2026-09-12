@@ -1155,41 +1155,78 @@ async fn cmd_update_from_github() -> Result<()> {
         let current_dir = std::env::current_dir()?;
         
         if !current_dir.join(".git").exists() {
-            print_error("You are not inside a git repository.");
-            print_step("Please navigate to your Wraith source code directory and run this command again.", "warn");
+            let err_rows = vec![
+                "No .git repository metadata discovered in the active directory.".to_string(),
+                "".to_string(),
+                "Navigate to your existing clone or clone freshly:".to_string(),
+                format!("  {}", "git clone https://github.com/ByGh00st/wraith.git".bold().bright_cyan()),
+                format!("  {}", "cd wraith && sudo ./build.sh".bold().bright_green()),
+            ];
+            let err_box = render_box("✖ GIT REPOSITORY NOT FOUND", &err_rows, BoxCorner::Rounded, 78);
+            println!("{}", err_box[0].bright_red());
+            for row in &err_box[1..err_box.len() - 1] {
+                println!("{row}");
+            }
+            println!("{}\n", err_box.last().unwrap().bright_red());
             return Ok(());
         }
 
-        print_step(&format!("Synchronizing source code in {}...", current_dir.display()), "info");
-        
+        let sync_rows = vec![
+            format!("{:<16} : {}", "OPERATION".bold().bright_cyan(), "KERNEL REPOSITORY SYNCHRONIZATION".bold().bright_white()),
+            format!("{:<16} : {}", "TARGET DIRECTORY".bold().bright_cyan(), current_dir.display().to_string().bold().bright_yellow()),
+            format!("{:<16} : {}", "BRANCH & ORIGIN".bold().bright_cyan(), "main ➔ origin/main (HEAD Force Sync)".bold().bright_magenta()),
+            format!("{:<16} : {}", "BUILD ENGINE".bold().bright_cyan(), "OOM PREVENTION (External Isolated Build)".bold().bright_green()),
+        ];
+        let sync_box = render_box("⚔ WRAITH-PRIME // SOURCE SYNCHRONIZATION GATE", &sync_rows, BoxCorner::Rounded, 78);
+        println!("{}", sync_box[0].bright_cyan());
+        for row in &sync_box[1..sync_box.len() - 1] {
+            println!("{row}");
+        }
+        println!("{}\n", sync_box.last().unwrap().bright_cyan());
+
+        print_step("Fetching latest upstream commits from origin...", "info");
         let mut fetch = Command::new("/usr/bin/git");
         fetch.current_dir(&current_dir).args(["fetch", "--all"]);
         if !fetch.output()?.status.success() {
-            return Err(WraithError::Command("Git fetch failed".into()));
+            return Err(WraithError::Command("Git fetch failed; check network connectivity or GitHub access".into()));
         }
 
+        print_step("Resetting local branch to origin/main...", "info");
         let mut reset = Command::new("/usr/bin/git");
         reset.current_dir(&current_dir).args(["reset", "--hard", "origin/main"]);
         if !reset.output()?.status.success() {
             return Err(WraithError::Command("Git reset failed".into()));
         }
 
+        print_step("Fast-forwarding working tree with origin/main...", "info");
         let mut pull = Command::new("/usr/bin/git");
         pull.current_dir(&current_dir).args(["pull", "origin", "main"]);
         if !pull.output()?.status.success() { 
             return Err(WraithError::Command("Git pull failed".into())); 
         }
-        
-        print_success(&format!("Kernel source arrays successfully aligned in {}", current_dir.display()));
-        print_step("ACTION REQUIRED (OOM PREVENTION):", "warn");
-        print_step("To compile safely and avoid Error 101, manually execute:", "warn");
-        print_step("sudo ./build.sh", "info");
+
+        print_step("All source files aligned with latest master commit.", "ok");
+
+        let act_rows = vec![
+            format!("{:<18} : {}", "SYNC STATUS".bold().bright_cyan(), "✔ SUCCESSFUL / WORKING TREE ALIGNED".bold().bright_green()),
+            format!("{:<18} : {}", "SAFETY PROTOCOL".bold().bright_cyan(), "OOM-Killer Bypass (Cargo compilation deferred)".bold().bright_yellow()),
+            "".to_string(),
+            "To compile and install the updated binary into /usr/local/bin/wraith:".to_string(),
+            format!("  {}", "sudo ./build.sh".bold().bright_green()),
+        ];
+        let act_box = render_box("⚡ ACTION REQUIRED // REBUILD BINARY", &act_rows, BoxCorner::Rounded, 78);
+        println!("\n{}", act_box[0].bright_green());
+        for row in &act_box[1..act_box.len() - 1] {
+            println!("{row}");
+        }
+        println!("{}\n", act_box.last().unwrap().bright_green());
         
         Ok(())
     }
 }
 
 pub async fn cmd_update(artifact: Option<std::path::PathBuf>, manifest: Option<std::path::PathBuf>, signature: Option<std::path::PathBuf>) -> Result<()> {
+    print_banner(false);
     if artifact.is_none() && manifest.is_none() && signature.is_none() { return cmd_update_from_github().await; }
     let (Some(artifact), Some(manifest), Some(signature)) = (artifact, manifest, signature) else {
         return Err(WraithError::Configuration("Use update --artifact FILE --manifest FILE --signature FILE; pin the publisher's trusted key at /etc/wraith/update.pub first".into()));
