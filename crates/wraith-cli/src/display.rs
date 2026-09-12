@@ -232,7 +232,7 @@ pub fn print_step(msg: &str, status: &str) {
 
 pub fn country_flag(code: &str) -> String {
     let code = code.trim().to_uppercase();
-    if code.len() == 2 {
+    if code.len() == 2 && code != "??" {
         let mut chars = code.chars();
         if let (Some(c1), Some(c2)) = (chars.next(), chars.next()) {
             if c1.is_ascii_alphabetic() && c2.is_ascii_alphabetic() {
@@ -245,18 +245,29 @@ pub fn country_flag(code: &str) -> String {
             }
         }
     }
-    "🌐".to_string()
+    String::new()
 }
 
 pub fn format_geo_location(geo: &IpGeoInfo) -> String {
-    let cc = geo.country_code.as_deref().unwrap_or("??");
+    let cc = match geo.country_code.as_deref() {
+        Some(c) if !c.trim().is_empty() && c.trim() != "??" => c.trim(),
+        _ => return "Bilinmiyor".to_string(),
+    };
     let flag = country_flag(cc);
-    let country = geo.country_name.as_deref().unwrap_or("Unknown");
+    let country = match geo.country_name.as_deref() {
+        Some(c) if !c.trim().is_empty() && c.trim() != "Unknown" && c.trim() != "??" => c.trim(),
+        _ => {
+            let lookup = wraith_guard::iso_country_name(cc);
+            if lookup != "Unknown" { lookup } else { return "Bilinmiyor".to_string(); }
+        }
+    };
+    let flag_prefix = if !flag.is_empty() { format!("{flag} ") } else { String::new() };
     if let Some(city) = &geo.city {
-        format!("{flag} {country} [{cc}], {city}")
-    } else {
-        format!("{flag} {country} [{cc}]")
+        if !city.trim().is_empty() && city.trim() != "Unknown" && city.trim() != "??" {
+            return format!("{flag_prefix}{country} [{cc}], {city}");
+        }
     }
+    format!("{flag_prefix}{country} [{cc}]")
 }
 
 pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interval: Option<u64>) {
@@ -279,7 +290,11 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
     }
 
     let loc_str = format_geo_location(geo);
-    let loc_details = format!("{} ➔ {loc_str}", geo.ip);
+    let loc_details = if loc_str != "Bilinmiyor" {
+        format!("{} ➔ {loc_str}", geo.ip)
+    } else {
+        format!("{} [Lokasyon Bilinmiyor]", geo.ip)
+    };
 
     table.add_row(vec![
         Cell::new(t!("hud.tor_exit")).fg(Color::Yellow).add_attribute(Attribute::Bold),
@@ -453,9 +468,14 @@ pub fn print_background_hud(state: &StateData, geo: &IpGeoInfo) {
         state.ip.as_deref().unwrap_or("Verified Tor Node")
     };
     let loc_str = format_geo_location(geo);
+    let exit_display = if loc_str != "Bilinmiyor" {
+        format!("{ip_display} ➔ {loc_str}")
+    } else {
+        format!("{ip_display} [Lokasyon Bilinmiyor]")
+    };
     table.add_row(vec![
         Cell::new("Tor Public Exit IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
-        Cell::new(format!("{ip_display} ➔ {loc_str}")).fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(exit_display).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
