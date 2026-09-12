@@ -58,15 +58,26 @@ pub fn iso_country_name(code: &str) -> &'static str {
 
 impl std::fmt::Display for IpGeoInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let cc = self.country_code.as_deref().unwrap_or("??");
-        let country = self.country_name.as_deref().unwrap_or_else(|| {
-            let lookup = iso_country_name(cc);
-            if lookup != "Unknown" { lookup } else { "Unknown" }
-        });
-        if let Some(city) = &self.city {
-            write!(f, "{} [📍 {}] {}, {}", self.ip, cc, country, city)
-        } else {
-            write!(f, "{} [📍 {}] {}", self.ip, cc, country)
+        match (self.country_code.as_deref(), self.country_name.as_deref()) {
+            (Some(cc), Some(country)) if !cc.trim().is_empty() && cc != "??" && country != "Unknown" && country != "??" => {
+                if let Some(city) = &self.city {
+                    if !city.trim().is_empty() && city != "Unknown" && city != "??" {
+                        return write!(f, "{} [📍 {}] {}, {}", self.ip, cc, country, city);
+                    }
+                }
+                write!(f, "{} [📍 {}] {}", self.ip, cc, country)
+            }
+            (Some(cc), None) if !cc.trim().is_empty() && cc != "??" => {
+                let lookup = iso_country_name(cc);
+                if lookup != "Unknown" {
+                    write!(f, "{} [📍 {}] {}", self.ip, cc, lookup)
+                } else {
+                    write!(f, "{} [📍 {}]", self.ip, cc)
+                }
+            }
+            _ => {
+                write!(f, "{} [Bilinmiyor]", self.ip)
+            }
         }
     }
 }
