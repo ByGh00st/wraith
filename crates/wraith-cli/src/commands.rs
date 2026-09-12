@@ -1225,50 +1225,9 @@ async fn cmd_update_from_github() -> Result<()> {
     }
 }
 
-pub async fn cmd_update(artifact: Option<std::path::PathBuf>, manifest: Option<std::path::PathBuf>, signature: Option<std::path::PathBuf>) -> Result<()> {
+pub async fn cmd_update(_artifact: Option<std::path::PathBuf>, _manifest: Option<std::path::PathBuf>, _signature: Option<std::path::PathBuf>) -> Result<()> {
     print_banner(false);
-    if artifact.is_none() && manifest.is_none() && signature.is_none() { return cmd_update_from_github().await; }
-    let (Some(artifact), Some(manifest), Some(signature)) = (artifact, manifest, signature) else {
-        return Err(WraithError::Configuration("Use update --artifact FILE --manifest FILE --signature FILE; pin the publisher's trusted key at /etc/wraith/update.pub first".into()));
-    };
-    #[cfg(not(target_os = "linux"))]
-    { let _ = (artifact, manifest, signature); Err(WraithError::UnsupportedPlatform) }
-    #[cfg(target_os = "linux")]
-    {
-        use std::os::unix::fs::MetadataExt;
-        for directory in ["/etc", "/etc/wraith", "/usr", "/usr/local", "/usr/local/bin"] {
-            let metadata = fs::symlink_metadata(directory)?;
-            if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
-                return Err(WraithError::Configuration(format!("Unsafe update directory: {directory}")));
-            }
-        }
-        let key_path = Path::new("/etc/wraith/update.pub");
-        let metadata = fs::symlink_metadata(key_path)?;
-        if !metadata.is_file() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
-            return Err(WraithError::Configuration("Update key must be root-owned and not writable by other users".into()));
-        }
-        let key = String::from_utf8(read_update_file(key_path, 4096)?).map_err(|e| WraithError::Configuration(e.to_string()))?;
-        let manifest = read_update_file(&manifest, 16384)?;
-        let signature = String::from_utf8(read_update_file(&signature, 8192)?).map_err(|e| WraithError::Configuration(e.to_string()))?;
-        let binary = read_update_file(&artifact, 128 * 1024 * 1024)?;
-        let release = wraith_core::signed_update::verify_release(&key, &manifest, &signature, &binary, env!("CARGO_PKG_VERSION"))?;
-        // Install exactly the bytes whose hash was authenticated, not a reopened path.
-        wraith_core::deployment::install_binary(&binary, Path::new("/usr/local/bin/wraith"))?;
-        print_success(&format!("Verified and installed signed Wraith {}", release.version));
-        Ok(())
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn read_update_file(path: &Path, limit: u64) -> Result<Vec<u8>> {
-    use std::io::Read;
-    use std::os::unix::fs::OpenOptionsExt;
-    let file = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
-    if !file.metadata()?.is_file() { return Err(WraithError::Configuration("Update input is not a regular file".into())); }
-    let mut bytes = Vec::new();
-    file.take(limit + 1).read_to_end(&mut bytes)?;
-    if bytes.len() as u64 > limit { return Err(WraithError::Configuration("Update input exceeds size limit".into())); }
-    Ok(bytes)
+    cmd_update_from_github().await
 }
 
 pub async fn cmd_switch() -> Result<()> {
