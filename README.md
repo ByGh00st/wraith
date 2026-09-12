@@ -136,9 +136,9 @@ Start a foreground session, inspect its status, and stop it to restore recorded 
 ## 📊 Codebase Metrics & Language Breakdown
 
 <details open>
-<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-11</b></summary>
+<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-12</b></summary>
 
-Measured **2026-09-11** with Tokei 12.1.2. Scope: source crates, manifests, Cargo configuration and the three shell scripts; documentation and build output are excluded.
+Measured **2026-09-12** with Tokei 12.1.2. Scope: source crates, manifests, Cargo configuration and the three shell scripts; documentation and build output are excluded.
 
 ```sh
 tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
@@ -148,15 +148,15 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
- Shell                   3          551          460           43           48
+ Shell                   3          967          758          100          109
  TOML                    8          228          211            0           17
- YAML                  342        10504        10487            0           17
+ YAML                  342        12239        12236            0            3
 -------------------------------------------------------------------------------
- Rust                   67        17802        15385          554         1863
- |- Markdown            61          383            0          382            1
- (Total)                          18185        15385          936         1864
+ Rust                   68        19006        16442          590         1974
+ |- Markdown            61          387            0          386            1
+ (Total)                          19393        16442          976         1975
 ===============================================================================
- Total                 420        29085        26543          597         1945
+ Total                 421        32440        29647          690         2103
 ===============================================================================
 ```
 
