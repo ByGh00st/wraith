@@ -1,80 +1,112 @@
-# ⚡ DAILY OPERATIONAL WORKFLOW
+# DAILY WORKFLOW // OPERATIONAL PROTOCOLS & INTEGRATION
 
-This document outlines everyday usage patterns, command options, interactive monitors, identity rotation, and authorized security auditing procedures.
+Operational reference for everyday session management, telemetry monitoring, circuit rotation, forensic data sanitization, and security auditing workflows.
 
 ---
 
-## 📋 Core Command Matrix
+## 1. Primary Command Reference
 
-| Shortcut | Long Form | Operational Action |
+| Flag / Shortcut | Command Syntax | Operational Function |
 | :---: | :--- | :--- |
-| **`-s`** | `wraith start` | **Arm Gateway**: Starts fail-closed transparent proxy and local DoH engine. |
-| **`-x`** | `wraith stop` | **Disarm Gateway**: Restores original clearnet routing and nameservers. |
-| **`-r`** | `wraith switch` | **Rotate Identity**: Requests a new Tor cryptographic circuit (`SIGNAL NEWNYM`). |
-| **`-c`** | `wraith cleanup` | **Anti-Forensic Purge**: Clears volatile RAM buffers, DNS cache, and temp state. |
-| **`-t`** | `wraith test` | **Leak Audit**: Executes automated IPv4, IPv6, DNS, and RFC 5389 UDP STUN tests. |
-| **`-i`** | `wraith info` | **HUD Matrix**: Renders real-time telemetry dashboard, circuits, and posture. |
-| **`-m`** | `wraith tui` | **Live TUI Monitor**: Launches full-screen terminal monitor with live packet stats. |
-| **`-M`** | `wraith monitor`| **In-Flight IDS Monitor**: Streams real-time DPI packet inspections and signatures. |
-| **`-K`** | `wraith --kworker`| **Process Masquerade**: Cloaks Wraith in kernel scheduler as `[kworker/u16:0]`. |
-| **`-F`** | `wraith -s -F` | **Strict Hardening**: Enforces Seccomp, Kernel Lockdown, and RAMFS crypto vault. |
-| **`-u`** | `wraith update`| **In-Place Update**: Clones, compiles as ordinary user, and hot-swaps binary. |
+| **`-s`** | `sudo wraith -s [OPTIONS]` | **Initialize Session:** Activates fail-closed transparent proxying and local DoH relay. |
+| **`-x`** | `sudo wraith -x [-d]` | **Terminate Session:** Restores pre-session netfilter rules, routing tables, and nameservers. |
+| **`-r`** | `sudo wraith -r` | **Circuit Rotation:** Issues `SIGNAL NEWNYM` to Tor ControlPort to acquire a new exit identity. |
+| **`-c`** | `sudo wraith -c` | **Volatile State Purge:** Clears kernel page caches, ARP cache, and ephemeral session buffers. |
+| — | `sudo wraith --cleanup-full` | **Deep Storage Purge:** Deactivates swap, overwrites swap space, and scrubs session authentication records. |
+| **`-t`** | `sudo wraith -t` | **Multi-Vector Leak Audit:** Performs RFC 5389 UDP STUN tests, DNS validation, and IPv4/IPv6 egress verification. |
+| **`-i`** | `sudo wraith -i` | **Telemetry Dashboard:** Queries active connection metrics, public exit node IP, and circuit relay nodes. |
+| **`-M`** | `sudo wraith -M` | **Real-Time DPI Monitor:** Streams packet inspections and signature classifications from port 9055. |
+| **`-K`** | `sudo wraith -s -K` | **Process Masquerade:** Replaces scheduler process name (`PR_SET_NAME`) with `[kworker/u16:0]`. |
+| **`-F`** | `sudo wraith -Fs` | **Strict Preset:** Demands kernel lockdown, `kexec_load_disabled`, and memory vault locks. |
+| **`-u`** | `sudo wraith -u` | **Official In-Place Update:** Fetches source from GitHub, builds non-root, and atomically replaces binary. |
 
 ---
 
-## 🔄 Identity Rotation & Circuit Management
+## 2. Circuit Rotation & Identity Lifecycle
 
-When operating through Tor, websites or rate-limiters may temporarily restrict your exit node. To obtain a completely fresh circuit without interrupting your session:
+When operating across rate-limited or congested endpoints, operators can cycle Tor exit nodes without terminating the active session:
 
 ```bash
 sudo wraith -r
 ```
 
-Wraith sends `SIGNAL NEWNYM` to Tor ControlPort (`127.0.0.1:9051`), flushes local DNS caches, and re-queries public IP endpoints. The newly acquired IP, ISO country code, and verification tag are immediately displayed in a dedicated HUD box.
+### Operational Mechanics:
+1. Wraith connects to Tor ControlPort (`127.0.0.1:9051`) using cookie or password authentication.
+2. Sends the `SIGNAL NEWNYM` directive.
+3. Tor marks current circuits as dirty, ensuring subsequent TCP connection requests negotiate a new three-hop path (Guard -> Middle -> Exit).
+4. Clears local DNS cache entries.
+5. Re-queries public verification endpoints to confirm the new exit IP address and jurisdiction.
+
+> [!IMPORTANT]
+> **Stream Boundary Notice:** In accordance with Tor specification, `SIGNAL NEWNYM` does not migrate or terminate currently established, active TCP streams. New circuits apply exclusively to subsequent connections opened after the signal.
 
 ---
 
-## 🧹 Anti-Forensic Purging & Residue Scrubbing
+## 3. Data Sanitization & Memory Protocols
 
-### 1. Quick Residue Flush (`wraith -c`)
-Flushes system disk caches, syncs filesystems, and purges Tor ephemeral circuit traces:
+### 3.1 Ephemeral State Cleansing (`wraith -c`)
+Flushes volatile kernel memory caches and file buffers to ensure clean baseline states:
 ```bash
 sudo wraith -c
 ```
+- Executes `sync` to flush unwritten filesystem buffers to storage.
+- Writes to `/proc/sys/vm/drop_caches` to free clean pagecache, dentries, and inodes.
+- Flushes ARP neighbor tables.
 
-### 2. Deep Memory & Swap Shredding (`wraith --cleanup-full`)
-Thoroughly unmounts and wipes swap space, scrubs systemd journal buffers, and shreds all user shell history (`.bash_history`, `.zsh_history`, etc.):
+### 3.2 Deep Swap & Session Cleansing (`wraith --cleanup-full`)
+Recommended prior to host decommissioning or after intensive auditing sessions:
 ```bash
 sudo wraith --cleanup-full
 ```
+- Disables active swap partitions (`swapoff -a`).
+- Performs overwrite patterns across raw swap devices to sanitize unencrypted memory dumps.
+- Truncates transient session logs in `/var/log/` and shell history files.
 
-### 3. DoD 5220.22-M Cryptographic File Shredder
-To permanently destroy sensitive artifacts using a 7-pass random-pattern overwrite:
+### 3.3 DoD 5220.22-M Cryptographic File Sanitization
+To sanitize target files with multi-pass random data overwrites:
 ```bash
-sudo wraith shred /path/to/sensitive-target.dump
+sudo wraith shred /path/to/target.dump
 ```
+- Executes 7 sequential overwrite passes following Department of Defense 5220.22-M specifications.
+- Issues `fsync` after each pass to force physical write execution.
+- Truncates file length to zero before unlinking from directory structure.
+
+> [!NOTE]
+> **Solid-State Drive (SSD) Caveat:** Flash translation layers (FTL), wear-leveling algorithms, and over-provisioned blocks on modern NVMe/SATA SSDs can prevent in-place overwriting of physical flash cells. Complete sanitization on flash media requires full-disk encryption (FDE) or hardware cryptographic erase.
 
 ---
 
-## 🛡️ Authorized Pentest & Security Auditing Guide
+## 4. Authorized Network Auditing Protocols
 
-Wraith includes built-in guides and proxy configurations for popular offensive security tools to prevent accidental clearnet leaks:
+For authorized security evaluations, penetration testing, and vulnerability research, client tools should be configured to use local SOCKS5 or HTTP proxies to ensure complete network isolation:
 
 ```bash
+# Built-in configuration guide:
 sudo wraith pentest
 ```
 
-### Recommended Tool Tunneling Configurations:
+### Recommended Proxy Client Configurations:
+
+#### 1. Network Discovery (Nmap)
+Tor carries TCP exclusively. Scans must utilize TCP connect (`-sT`) without ICMP ping discovery (`-Pn`):
 ```bash
-# Nmap TCP Connect scan through Tor SOCKS5
-nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>
+nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_host>
+```
 
-# Curl via In-Flight DPI Sanitizer (Port 9055)
-curl -x http://127.0.0.1:9055 https://target.com/login
+#### 2. HTTP Inspection (Curl via Port 9055 Relay)
+Routing cleartext HTTP requests through the in-flight DPI sanitizer automatically removes identifying tool signatures:
+```bash
+curl -x http://127.0.0.1:9055 http://example.org/api
+```
 
-# Sqlmap vulnerability auditing over SOCKS5
-sqlmap -u "http://<target>/id=1" --proxy="socks5://127.0.0.1:9050" --random-agent
+#### 3. Web Application Auditing (Sqlmap)
+Enforces SOCKS5 routing and randomized User-Agent headers:
+```bash
+sqlmap -u "http://target.example/query?id=1" --proxy="socks5://127.0.0.1:9050" --random-agent
+```
 
-# Metasploit Framework SOCKS5 proxy setup
+#### 4. Post-Exploitation Frameworks (Metasploit)
+Configures global proxy settings to avoid accidental egress over raw interfaces:
+```bash
 msfconsole -x "setg Proxies socks5:127.0.0.1:9050; setg HTTP_USER_AGENT Mozilla/5.0"
 ```
