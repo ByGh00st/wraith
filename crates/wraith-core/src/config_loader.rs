@@ -38,6 +38,30 @@ pub struct HardeningSection {
     pub tcp_mask: Option<bool>,
     pub browser_shield: Option<bool>,
     pub honey_ports: Option<bool>,
+    pub font_sandbox: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct FontsSection {
+    /// Whether font sandboxing is enabled by default
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+
+    /// Whitelisted font family names permitted to be visible / resolved by applications
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowed_fonts: Option<Vec<String>>,
+
+    /// Blacklisted font family names explicitly rejected from discovery / resolution
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked_fonts: Option<Vec<String>>,
+
+    /// Additional font directories or globs to reject in fontconfig
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked_paths: Option<Vec<String>>,
+
+    /// Custom generic monospace font alias preferences order
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preferred_monospace: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -57,6 +81,8 @@ pub struct WraithConfig {
     pub tor: TorSection,
     #[serde(default)]
     pub hardening: HardeningSection,
+    #[serde(default)]
+    pub fonts: FontsSection,
 
     // Backward-compatibility flat accessors for legacy code paths
     pub default_interface: Option<String>,
@@ -254,6 +280,45 @@ impl WraithConfig {
                 self.general.lang = Some(value.to_string());
                 self.lang = Some(value.to_string());
             }
+            "fonts.enabled" | "fonts" | "font_sandbox" | "hardening.font_sandbox" => {
+                let b = value.parse::<bool>().map_err(|_| {
+                    WraithError::Configuration("Font sandbox setting must be true or false".into())
+                })?;
+                self.fonts.enabled = Some(b);
+                self.hardening.font_sandbox = Some(b);
+            }
+            "fonts.allowed" | "fonts.allowed_fonts" | "allowed_fonts" => {
+                let items: Vec<String> = value
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                self.fonts.allowed_fonts = if items.is_empty() { None } else { Some(items) };
+            }
+            "fonts.blocked" | "fonts.blocked_fonts" | "blocked_fonts" => {
+                let items: Vec<String> = value
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                self.fonts.blocked_fonts = if items.is_empty() { None } else { Some(items) };
+            }
+            "fonts.blocked_paths" | "blocked_paths" => {
+                let items: Vec<String> = value
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                self.fonts.blocked_paths = if items.is_empty() { None } else { Some(items) };
+            }
+            "fonts.monospace" | "fonts.preferred_monospace" | "preferred_monospace" => {
+                let items: Vec<String> = value
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                self.fonts.preferred_monospace = if items.is_empty() { None } else { Some(items) };
+            }
             _ => {
                 return Err(WraithError::Configuration(format!(
                     "Unknown configuration key '{key}'"
@@ -305,5 +370,39 @@ mod tests {
         assert_eq!(read_back.network.default_interface.as_deref(), Some("eth0"));
         assert_eq!(read_back.tor.default_profile.as_deref(), Some("stealth"));
         assert_eq!(read_back.hardening.strict, Some(true));
+    }
+
+    #[test]
+    fn test_fonts_config_set_and_serialize() {
+        let mut cfg = WraithConfig::default();
+        cfg.set_key("fonts.allowed", "Hack, JetBrains Mono").unwrap();
+        cfg.set_key("fonts.blocked", "Comic Sans, MesloLGS NF").unwrap();
+        cfg.set_key("fonts.blocked_paths", "/opt/custom_fonts/*, /usr/share/fonts/extra/*").unwrap();
+        cfg.set_key("fonts.monospace", "Hack, DejaVu Sans Mono").unwrap();
+
+        assert_eq!(
+            cfg.fonts.allowed_fonts,
+            Some(vec!["Hack".to_string(), "JetBrains Mono".to_string()])
+        );
+        assert_eq!(
+            cfg.fonts.blocked_fonts,
+            Some(vec!["Comic Sans".to_string(), "MesloLGS NF".to_string()])
+        );
+        assert_eq!(
+            cfg.fonts.blocked_paths,
+            Some(vec!["/opt/custom_fonts/*".to_string(), "/usr/share/fonts/extra/*".to_string()])
+        );
+        assert_eq!(
+            cfg.fonts.preferred_monospace,
+            Some(vec!["Hack".to_string(), "DejaVu Sans Mono".to_string()])
+        );
+
+        let toml_str = toml::to_string_pretty(&cfg).unwrap();
+        assert!(toml_str.contains("[fonts]"));
+        assert!(toml_str.contains("allowed_fonts"));
+        assert!(toml_str.contains("blocked_fonts"));
+
+        let read_back: WraithConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(read_back.fonts, cfg.fonts);
     }
 }
