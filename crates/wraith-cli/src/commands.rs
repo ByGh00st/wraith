@@ -32,7 +32,7 @@ use wraith_tor::{
 };
 
 use crate::display::{
-    print_banner, print_error, print_step, print_success, print_system_restored,
+    print_banner, print_error, print_identity_rotated, print_step, print_success, print_system_restored,
     show_circuit_telemetry, show_leak_report, show_status_dashboard, render_box, render_box_top,
     render_box_bottom, render_box_row, BoxCorner,
 };
@@ -1336,7 +1336,7 @@ pub async fn cmd_switch() -> Result<()> {
     sleep(Duration::from_secs(3)).await;
 
     let geo = get_current_ip_geo().await;
-    print_success(&format!("New identity established ➔ {geo}"));
+    print_identity_rotated(&geo);
     Ok(())
 }
 

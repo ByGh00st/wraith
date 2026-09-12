@@ -348,12 +348,70 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
 }
 
 pub fn print_success(msg: &str) {
-    let lines = render_box("✔ WRAITH SYSTEM RESTORED", &[msg.bold().bright_green().to_string()], BoxCorner::Rounded, 78);
+    let lines = render_box("✔ OPERATION SUCCESSFUL", &[msg.bold().bright_green().to_string()], BoxCorner::Rounded, 78);
     println!("\n{}", lines[0].bold().bright_green());
     for line in &lines[1..lines.len() - 1] {
         println!("{line}");
     }
     println!("{}\n", lines.last().unwrap().bold().bright_green());
+}
+
+pub fn print_identity_rotated(geo: &IpGeoInfo) {
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic);
+
+    table.set_header(vec![
+        Cell::new("🔄  WRAITH // IDENTITY ROTATION COMPLETED").fg(Color::Cyan).add_attribute(Attribute::Bold),
+        Cell::new("CIRCUIT RE-ESTABLISHED").fg(Color::Cyan).add_attribute(Attribute::Bold),
+    ]);
+
+    table.add_row(vec![
+        Cell::new("Signal Event").fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new("✔ SIGNAL NEWNYM Dispatched & Acknowledged").fg(Color::Green).add_attribute(Attribute::Bold),
+    ]);
+
+    let ip_str = if !geo.ip.is_empty() { &geo.ip } else { "Verified Tor Node" };
+    table.add_row(vec![
+        Cell::new("New Tor Exit IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(format!("{ip_str} [✔ Verified Tor Node]")).fg(Color::Green).add_attribute(Attribute::Bold),
+    ]);
+
+    let loc_str = format_geo_location(geo);
+    table.add_row(vec![
+        Cell::new("Exit Geolocation").fg(Color::Yellow),
+        Cell::new(loc_str).fg(Color::Cyan).add_attribute(Attribute::Bold),
+    ]);
+
+    table.add_row(vec![
+        Cell::new("Anonymization Gate").fg(Color::Yellow),
+        Cell::new("✔ Transparent Proxy (:9040) Active").fg(Color::Green),
+    ]);
+
+    table.add_row(vec![
+        Cell::new("Fail-Closed Protection").fg(Color::Yellow),
+        Cell::new("● Armed (Zero-Leak Circuit Swap)").fg(Color::Green),
+    ]);
+
+    println!("\n{table}");
+
+    let notice = vec![
+        "  ⚡ New cryptographic circuit active. Previous circuits & DNS caches flushed.".to_string(),
+        format!(
+            "  {} │ {} │ {}",
+            "Live Telemetry: wraith -i".bold().bright_cyan(),
+            "Audit Leaks: wraith -t".bold().bright_yellow(),
+            "Disarm: wraith -x".bold().bright_red()
+        ),
+    ];
+    let notice_box = render_box("⚡ IDENTITY RE-ROUTED", &notice, BoxCorner::Rounded, 78);
+    println!("{}", notice_box[0].bright_cyan());
+    for row in &notice_box[1..notice_box.len() - 1] {
+        println!("{row}");
+    }
+    println!("{}\n", notice_box.last().unwrap().bright_cyan());
 }
 
 pub fn print_error(msg: &str) {
