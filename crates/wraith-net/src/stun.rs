@@ -24,14 +24,15 @@ pub fn block_stun_ports() -> Result<()> {
             .status();
     }
 
-    // Block mDNS local candidate gathering (UDP 5353 / 224.0.0.251)
+    // Block mDNS local candidate gathering (UDP 5353 to multicast / external networks, NEVER loopback)
+    // CRITICAL: NEVER drop UDP 5353 on loopback (-o lo) because Tor DNSPort listens on 127.0.0.1:5353!
     let _ = Command::new("iptables")
-        .args(["-A", "OUTPUT", "-p", "udp", "--dport", "5353", "-j", "DROP"])
+        .args(["-A", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
     let _ = Command::new("iptables")
-        .args(["-A", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
+        .args(["-A", "OUTPUT", "!", "-o", "lo", "-p", "udp", "--dport", "5353", "-j", "DROP"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
@@ -55,12 +56,12 @@ pub fn unblock_stun_ports() -> Result<()> {
             .status();
     }
     let _ = Command::new("iptables")
-        .args(["-D", "OUTPUT", "-p", "udp", "--dport", "5353", "-j", "DROP"])
+        .args(["-D", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
     let _ = Command::new("iptables")
-        .args(["-D", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
+        .args(["-D", "OUTPUT", "!", "-o", "lo", "-p", "udp", "--dport", "5353", "-j", "DROP"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();

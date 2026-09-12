@@ -612,7 +612,7 @@ pub async fn main() -> Result<()> {
     let filter = if cli.verbose {
         EnvFilter::new("debug")
     } else {
-        EnvFilter::new("warn")
+        EnvFilter::new("warn,hickory_net=error,hickory_proto=error,wreq=error,btls=error")
     };
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
