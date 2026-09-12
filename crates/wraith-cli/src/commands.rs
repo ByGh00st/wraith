@@ -1158,29 +1158,30 @@ async fn cmd_update_from_github() -> Result<()> {
             return Ok(());
         }
 
-        print_step(&format!("Updating source code in {}...", current_dir.display()), "info");
+        print_step(&format!("Synchronizing source code in {}...", current_dir.display()), "info");
         
         let mut fetch = Command::new("/usr/bin/git");
         fetch.current_dir(&current_dir).args(["fetch", "--all"]);
-        if !fetch.status()?.success() {
+        if !fetch.output()?.status.success() {
             return Err(WraithError::Command("Git fetch failed".into()));
         }
 
         let mut reset = Command::new("/usr/bin/git");
         reset.current_dir(&current_dir).args(["reset", "--hard", "origin/main"]);
-        if !reset.status()?.success() {
+        if !reset.output()?.status.success() {
             return Err(WraithError::Command("Git reset failed".into()));
         }
 
         let mut pull = Command::new("/usr/bin/git");
         pull.current_dir(&current_dir).args(["pull", "origin", "main"]);
-        if !pull.status()?.success() { 
+        if !pull.output()?.status.success() { 
             return Err(WraithError::Command("Git pull failed".into())); 
         }
         
-        print_success(&format!("Source code updated successfully in {}", current_dir.display()));
-        print_step("To prevent OOM (101) errors during cargo build, compilation is not done automatically.", "warn");
-        print_step("Please run the build script manually: sudo ./build.sh", "info");
+        print_success(&format!("Kernel source arrays successfully aligned in {}", current_dir.display()));
+        print_step("ACTION REQUIRED (OOM PREVENTION):", "warn");
+        print_step("To compile safely and avoid Error 101, manually execute:", "warn");
+        print_step("sudo ./build.sh", "info");
         
         Ok(())
     }
