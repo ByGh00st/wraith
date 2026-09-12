@@ -156,8 +156,13 @@ pub async fn check_ipv6_leak() -> bool {
 
 pub async fn check_dns_leak() -> bool {
     // 1. Verify that the local Sovereign DNS engine (5354) is alive
-    let dns_listener_alive = tokio::net::TcpStream::connect("127.0.0.1:5354").await.is_ok()
-        || tokio::net::UdpSocket::bind("127.0.0.1:0").await.map(|s| s.connect("127.0.0.1:5354").is_ok()).unwrap_or(false);
+    let dns_listener_alive = tokio::time::timeout(
+        Duration::from_millis(500),
+        tokio::net::TcpStream::connect("127.0.0.1:5354"),
+    )
+    .await
+    .map(|r| r.is_ok())
+    .unwrap_or(false);
 
     if !dns_listener_alive {
         warn!("Local Sovereign DNS relay (127.0.0.1:5354) is unreachable — DNS protection degraded!");
