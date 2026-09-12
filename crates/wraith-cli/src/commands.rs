@@ -1034,7 +1034,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     }
 
     let state_mgr = StateManager::default();
-    if !state_mgr.path.exists() {
+    if !state_mgr.exists() {
         // Even if state file is missing, ensure Tor daemon, stray iptables rules, and DNS are restored
         wraith_tor::stop_tor_daemon();
         wraith_tor::stop_existing_tor();
@@ -1154,8 +1154,8 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
     // Always unconditionally deactivate and remove state file
     let _ = state_mgr.deactivate();
-    if state_mgr.path.exists() {
-        let _ = std::fs::remove_file(&state_mgr.path);
+    if state_mgr.exists() {
+        let _ = std::fs::remove_file(state_mgr.path());
     }
 
     if !errors.is_empty() {

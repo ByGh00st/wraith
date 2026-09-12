@@ -75,7 +75,7 @@ pub struct StateData {
 }
 
 pub struct StateManager {
-    path: PathBuf,
+    pub path: PathBuf,
 }
 
 impl Default for StateManager {
@@ -89,6 +89,14 @@ impl StateManager {
         Self {
             path: PathBuf::from(STATE_FILE),
         }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn exists(&self) -> bool {
+        self.path.exists()
     }
 
     pub fn is_running(&self) -> bool {
