@@ -766,9 +766,12 @@ pub async fn main() -> Result<()> {
             // Check if we need to daemonize (-s without -F/strict_hardening and not already daemon_worker)
             if !args.strict_hardening && !args.daemon_worker {
                 let state_mgr = wraith_core::state::StateManager::default();
-                if state_mgr.is_active() {
-                    display::print_error("Wraith is already running! Use 'wraith -i' to view status, or 'wraith -x' to stop.");
-                    return Ok(());
+                if state_mgr.is_running() {
+                    let st = state_mgr.read();
+                    if st.active {
+                        display::print_error("Wraith is already running! Use 'wraith -i' to view status, or 'wraith -x' to stop.");
+                        return Ok(());
+                    }
                 }
 
                 println!("\n  🚀 \x1b[1;36mWRAITH\x1b[0m is starting in the background (Daemon Mode)...");
@@ -817,13 +820,13 @@ pub async fn main() -> Result<()> {
                     }
                 };
 
-                // Wait briefly for daemon to initialize Tor and activate routing
+                // Wait for daemon to initialize Tor and activate routing
                 print!("  [~] Initializing Tor network gateway in background");
                 use std::io::Write;
                 let _ = std::io::stdout().flush();
 
                 let mut activated = false;
-                for _ in 0..25 {
+                for _ in 0..60 {
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     print!(".");
                     let _ = std::io::stdout().flush();
@@ -831,7 +834,7 @@ pub async fn main() -> Result<()> {
                     if let Ok(Some(status)) = child.try_wait() {
                         println!();
                         let log_content = std::fs::read_to_string("/var/log/wraith/daemon.log").unwrap_or_default();
-                        let err_detail = log_content.lines().last().unwrap_or("Unknown exit reason");
+                        let err_detail = log_content.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("Unknown exit reason");
                         display::print_error(&format!("Daemon exited unexpectedly ({status}): {err_detail}"));
                         return Err(wraith_core::error::WraithError::Custom("Daemon startup failed".into()));
                     }

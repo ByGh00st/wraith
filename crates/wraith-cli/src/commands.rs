@@ -177,14 +177,22 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     print_banner(args.strict_hardening);
     let state_mgr = StateManager::default();
 
-    if state_mgr.is_active() {
-        print_error(&t!("runtime.already_running"));
+    if state_mgr.is_running() {
+        let current_state = state_mgr.read();
+        if current_state.active {
+            print_error(&t!("runtime.already_running"));
+        } else {
+            print_error("Wraith is currently arming or running; use 'wraith -x' to reset state.");
+        }
         return Ok(());
     }
 
     let is_strict = args.strict_hardening;
     if is_strict && args.no_ks {
         return Err(WraithError::Configuration("Full security requires the kill switch; remove --no-ks".into()));
+    }
+    if args.no_ks {
+        print_step("Fail-Closed KillSwitch is strictly enforced in all operational modes to prevent clearnet leaks; ignoring --no-ks", "warn");
     }
     if args.rotate_interval == Some(0) {
         return Err(WraithError::Configuration("Rotation interval must be greater than zero".into()));
@@ -847,19 +855,17 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         bg_services.rotator = Some((ct, handle));
     }
 
-    // 22. KillSwitch Daemon & State Activation
+    // 22. KillSwitch Daemon & State Activation (Strictly enforced in ALL modes)
     state_data.state = Some(wraith_core::State::Active);
     state_data.ip = Some(geo.ip.clone());
-    state_data.kill_switch = !args.no_ks;
+    state_data.kill_switch = true;
     state_mgr.activate(state_data)?;
 
-    if !args.no_ks {
-        print_step(&t!("commands.cmd_step_21"), "info");
-        let (ks, cancel_token) = KillSwitch::new_with_mode(is_strict);
-        let ks_handle = ks.spawn_monitor();
-        bg_services.killswitch = Some((cancel_token, ks_handle));
-        print_step(&t!("commands.cmd_step_90"), "ok");
-    }
+    print_step(&t!("commands.cmd_step_21"), "info");
+    let (ks, cancel_token) = KillSwitch::new_with_mode(is_strict);
+    let ks_handle = ks.spawn_monitor();
+    bg_services.killswitch = Some((cancel_token, ks_handle));
+    print_step(&t!("commands.cmd_step_90"), "ok");
 
     crate::display::print_session_hud(&geo, is_strict, args.rotate_interval);
 

@@ -363,10 +363,10 @@ pub fn show_status_dashboard(state: &StateData, is_tor: bool, ip: &str, circuits
     };
     rows.push(format!("{:<22} : {}", "TRAFFIC ROUTING".bold().bright_cyan(), route_str));
 
-    let ks_str = if state.kill_switch {
+    let ks_str = if state.kill_switch || state.active {
         "● Armed (Fail-Closed Sub-Millisecond Drop)".bright_green().to_string()
     } else {
-        "○ Disabled (--no-ks)".bright_yellow().to_string()
+        "● Armed by Default (Engages on start)".bright_cyan().to_string()
     };
     rows.push(format!("{:<22} : {}", "KILL-SWITCH".bold().bright_cyan(), ks_str));
 
