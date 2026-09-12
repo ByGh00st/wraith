@@ -1,28 +1,28 @@
-# 🚀 GETTING STARTED WITH WRAITH
+# GETTING STARTED // DEPLOYMENT & INITIALIZATION
 
-This guide details host prerequisites, compilation workflows, automated deployment, and initializing your first privileged privacy session.
+Operational deployment guide, compiler dependencies, runtime prerequisites, and session initialization protocols for Wraith.
 
 ---
 
-## 💻 System Prerequisites
+## 1. System Requirements & Prerequisites
 
-Wraith targets **Linux x86_64** systems (Debian, Kali Linux, Ubuntu, Arch Linux, Fedora).
+Wraith is designed and verified for **Linux x86_64** platforms (Debian GNU/Linux, Kali Linux, Ubuntu LTS, Arch Linux, Fedora).
 
 | Component | Minimum Version | Purpose |
 | :--- | :--- | :--- |
-| **Linux Kernel** | 5.4+ | Netfilter hooks, Seccomp-BPF, network namespaces |
-| **Rust Toolchain**| 1.75+ (Stable) | Compiling the workspace and cryptographic modules |
-| **Tor** | 0.4.7+ | Transparent proxying, DNSPort, ControlPort |
-| **iptables & iproute2** | Standard | Netfilter packet redirection and fail-closed killswitch |
-| **Build Tools** | CMake, Perl, Clang, GCC | Required for compiling BoringSSL and TLS camouflage |
+| **Linux Kernel** | 5.4+ (LTS) | Netfilter packet redirection, Seccomp-BPF filtering, network namespaces (`CLONE_NEWNET`) |
+| **Rust Toolchain** | 1.88+ (Stable) | Workspace compilation, type verification, dependency lockfile resolution |
+| **Tor Daemon** | 0.4.7+ | Local transparent proxy transport (`TransPort 9040`), `DNSPort`, `ControlPort 9051` |
+| **Networking Utilities** | iproute2, iptables | Packet filtering, policy routing, interface manipulation, journaled rule restoration |
+| **C/C++ Toolchain** | Clang/GCC, CMake, Perl | Compilation of native cryptographic libraries (BoringSSL via `btls-sys`) |
 
 ---
 
-## 📦 Installation Methods
+## 2. Installation Procedures
 
-### Method 1: Automated System Deployment (Recommended)
+### Method 1: Automated Deployment (`build.sh`)
 
-The automated installer compiles the workspace without elevated root permissions, installs dependencies, places the binary in `/usr/local/bin/wraith`, and initializes system directories:
+The provided deployment script compiles the workspace with user-level privileges, installs distribution dependencies, deploys the binary to `/usr/local/bin/wraith`, and verifies file permissions:
 
 ```bash
 git clone https://github.com/ByGh00st/wraith.git
@@ -31,55 +31,66 @@ chmod +x build.sh
 sudo ./build.sh
 ```
 
-### Method 2: Manual Cargo Compilation
+### Method 2: Manual Source Compilation
 
-If you prefer building from source manually:
+For production environments requiring manual provenance and build verification:
 
 ```bash
-# 1. Install build dependencies on Debian/Ubuntu/Kali:
+# 1. Install distribution dependencies (Debian/Kali/Ubuntu):
 sudo apt update && sudo apt install -y tor iptables iproute2 build-essential cmake perl libclang-dev pkg-config
 
-# 2. Compile optimized release binary:
+# 2. Compile release binary against locked dependencies:
 cargo build --release --locked
 
-# 3. Install binary to system PATH:
+# 3. Deploy binary to system path with standard root execution privileges:
 sudo install -m 0755 target/release/wraith /usr/local/bin/wraith
 
-# 4. Verify installation:
+# 4. Verify installation and compiler metadata:
 wraith --version
 wraith --help
 ```
 
 ### Method 3: Systemd Daemon Deployment
 
-For permanent gateway operation that boots automatically:
+To run Wraith as an unmanaged system service bound to network availability:
 
 ```bash
-# Interactive setup wizard
+# Interactive configuration wizard:
 sudo ./install-daemon.sh
 
-# Or non-interactive installation
+# Non-interactive automated deployment:
 sudo ./install-daemon.sh --non-interactive --boot-mode standard --profile stealth --doh quad9
 ```
 
+> [!NOTE]
+> Daemon deployment configures `wraith.service` with dependency on `network-online.target`. It does not claim or provide early-boot network isolation prior to network interface initialization.
+
 ---
 
-## 🛡️ Your First Session in 3 Steps
+## 3. Session Lifecycle Management
 
-### Step 1: Arm the Gateway
+### Phase 1: Initialize Session
 ```bash
 sudo wraith -s
 ```
-*Wraith spins up an isolated Tor instance, redirects all TCP egress to port 9040, sets up local DNSSEC validation on port 5354, applies fail-closed netfilter DROP policies, and masks cleartext HTTP on port 9055.*
+*Executes the following operations sequentially:*
+1. Spawns an isolated Tor instance or attaches to an authenticated local control port.
+2. Configures netfilter rules: redirects outbound TCP to `127.0.0.1:9040` (Tor TransPort) and DNS to `127.0.0.1:5354` (Hickory DoH/DNSSEC relay).
+3. Binds in-flight HTTP header relay to `127.0.0.1:9055` for port 80 sanitization.
+4. Enforces default `DROP` policies on `OUTPUT`, `FORWARD`, and IPv6 chains.
 
-### Step 2: Inspect Active Telemetry
+### Phase 2: Inspect Telemetry & Route
 ```bash
 sudo wraith -i
 ```
-*Displays your new public exit IP, geolocation, active Tor circuits, lock state, and network adapter.*
+*Queries the local Tor ControlPort (`127.0.0.1:9051`) and verification endpoints to report current exit node IP, geographical jurisdiction, circuit relay hops, and lockfile state.*
 
-### Step 3: Clean Teardown
+### Phase 3: Terminate Session & Restore Host
 ```bash
 sudo wraith -x
 ```
-*Gracefully terminates Tor, flushes netfilter tables, restores `/etc/resolv.conf`, and wipes temporary state.*
+*Restores pre-session state deterministically:*
+1. Flushes session netfilter chains and restores original iptables/ip6tables rules from saved journals.
+2. Restores `/etc/resolv.conf` to original configuration or symlink target.
+3. Re-enables standard IPv6 egress policies if previously active.
+4. Removes ephemeral lockfiles, in-memory vault allocations, and process state.
