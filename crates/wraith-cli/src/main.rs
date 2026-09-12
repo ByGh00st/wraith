@@ -796,8 +796,8 @@ pub async fn main() -> Result<()> {
                         .map(|s| s.success())
                         .unwrap_or(false);
                     if is_systemd_active {
-                        display::print_error("Wraith is already running as a systemd service (installed via install-daemon.sh)!");
-                        println!("  \x1b[2mTo manage:\x1b[0m \x1b[1;33msudo systemctl stop wraith\x1b[0m or stop with \x1b[1;31mwraith -x\x1b[0m\n");
+                        display::print_error(&t!("daemon_cli.systemd_running_err"));
+                        println!("{}", t!("daemon_cli.systemd_manage_hint"));
                         return Ok(());
                     }
                 }
@@ -807,7 +807,7 @@ pub async fn main() -> Result<()> {
                     let st = state_mgr.read();
                     if st.active {
                         display::print_banner(false);
-                        display::print_step("WRAITH gateway is already armed & running in background!", "warn");
+                        display::print_step(&t!("daemon_cli.already_armed_bg"), "warn");
                         let geo = wraith_guard::get_current_ip_geo().await;
                         display::print_background_hud(&st, &geo);
                         return Ok(());
@@ -816,11 +816,11 @@ pub async fn main() -> Result<()> {
 
                 display::print_banner(false);
                 let init_rows = vec![
-                    "Initiating detached background session (daemon mode)...".bright_white().to_string(),
-                    "Transparent Tor gateway, fail-closed killswitch, and DNS routing are arming.".dimmed().to_string(),
+                    t!("daemon_cli.init_row1").bright_white().to_string(),
+                    t!("daemon_cli.init_row2").dimmed().to_string(),
                 ];
                 let init_box = display::render_box(
-                    "🚀 WRAITH // DAEMON INITIALIZATION",
+                    &t!("daemon_cli.init_title"),
                     &init_rows,
                     display::BoxCorner::Rounded,
                     78,
@@ -870,8 +870,9 @@ pub async fn main() -> Result<()> {
                 let mut child = match cmd.spawn() {
                     Ok(c) => c,
                     Err(e) => {
-                        display::print_error(&format!("Failed to spawn daemon: {}", e));
-                        return Err(wraith_core::error::WraithError::Custom(format!("Daemon spawn failed: {}", e)));
+                        let spawn_err = t!("daemon_cli.spawn_failed", err = e.to_string());
+                        display::print_error(&spawn_err);
+                        return Err(wraith_core::error::WraithError::Custom(spawn_err));
                     }
                 };
 
@@ -881,7 +882,9 @@ pub async fn main() -> Result<()> {
                 let mut activated = false;
                 for i in 0..60 {
                     let frame = spinner_frames[i % spinner_frames.len()];
-                    print!("\r  \x1b[1;36m{frame}\x1b[0m \x1b[1;37mEstablishing Tor circuit gateway & fail-closed firewall...\x1b[0m \x1b[2m({}s)\x1b[0m", (i / 2) + 1);
+                    let secs_val = (i / 2) + 1;
+                    let spin_text = t!("daemon_cli.establishing_spinner", secs = secs_val);
+                    print!("\r  \x1b[1;36m{frame}\x1b[0m \x1b[1;37m{spin_text}\x1b[0m");
                     let _ = std::io::stdout().flush();
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     
@@ -890,7 +893,8 @@ pub async fn main() -> Result<()> {
                         let _ = std::io::stdout().flush();
                         let log_content = std::fs::read_to_string("/var/log/wraith/daemon.log").unwrap_or_default();
                         let err_detail = log_content.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("Unknown exit reason");
-                        display::print_error(&format!("Daemon exited unexpectedly ({status}): {err_detail}"));
+                        let exit_msg = t!("daemon_cli.unexpected_exit", status = status.to_string(), detail = err_detail);
+                        display::print_error(&exit_msg);
                         return Err(wraith_core::error::WraithError::Custom("Daemon startup failed".into()));
                     }
 
@@ -907,8 +911,8 @@ pub async fn main() -> Result<()> {
                     let geo = wraith_guard::get_current_ip_geo().await;
                     display::print_background_hud(&state, &geo);
                 } else {
-                    display::print_step("Daemon process active, awaiting full circuit bootstrap.", "warn");
-                    display::print_step("Run 'wraith -i' shortly to verify live gateway metrics.", "info");
+                    display::print_step(&t!("daemon_cli.awaiting_bootstrap"), "warn");
+                    display::print_step(&t!("daemon_cli.run_info_shortly"), "info");
                 }
                 return Ok(());
             }
