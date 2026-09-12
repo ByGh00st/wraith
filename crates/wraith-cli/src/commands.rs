@@ -173,6 +173,11 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         if args.rotate_interval.is_none() {
             args.rotate_interval = cfg.tor.rotate_interval.or(cfg.rotate_interval);
         }
+        if !args.font_sandbox {
+            if let Some(fs) = cfg.fonts.enabled.or(cfg.hardening.font_sandbox) {
+                args.font_sandbox = fs;
+            }
+        }
     }
 
     print_banner(args.strict_hardening);
