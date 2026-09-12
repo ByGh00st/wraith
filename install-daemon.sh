@@ -96,6 +96,10 @@ print_usage() {
 # Uninstall check
 if [[ "${1:-}" == "--uninstall" ]] || [[ "${1:-}" == "uninstall" ]]; then
     BANNER
+    SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+    if [[ -x "${SCRIPT_DIR}/uninstall.sh" ]] && [[ "${2:-}" == "--purge" || "${2:-}" == "--all" || "${2:-}" == "-y" ]]; then
+        exec "${SCRIPT_DIR}/uninstall.sh"
+    fi
     echo -e "  ${CLR_CYAN}◈ [DAEMON PURGE]${CLR_RESET} ${CLR_WHITE}Stopping and disabling Wraith systemd daemon...${CLR_RESET}"
     systemctl stop wraith.service 2>/dev/null || true
     systemctl disable wraith.service 2>/dev/null || true
@@ -103,7 +107,12 @@ if [[ "${1:-}" == "--uninstall" ]] || [[ "${1:-}" == "uninstall" ]]; then
     rm -f /etc/systemd/system/wraith-early.service
     rm -f /etc/wraith/daemon.conf
     systemctl daemon-reload 2>/dev/null || true
-    echo -e "        ${CLR_EMERALD}✔ [REMOVED]${CLR_RESET} Wraith daemon service uninstalled cleanly.\n"
+    # Restore host system Tor service
+    systemctl unmask tor.service 2>/dev/null || true
+    systemctl unmask tor@default.service 2>/dev/null || true
+    systemctl enable tor.service 2>/dev/null || true
+    echo -e "        ${CLR_EMERALD}✔ [REMOVED]${CLR_RESET} Wraith daemon service uninstalled cleanly."
+    echo -e "        ${CLR_WHITE}ℹ [BİLGİ]${CLR_RESET} ${CLR_SLATE}Tüm kısayollar, tab tamamlamaları ve binary dosyalarını tamamen silmek için:${CLR_RESET} ${CLR_CYAN}sudo ./uninstall.sh${CLR_RESET}\n"
     exit 0
 fi
 
