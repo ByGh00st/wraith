@@ -113,12 +113,19 @@ impl StateManager {
                 if unsafe { libc::kill(_pid as i32, 0) != 0 } {
                     return false;
                 }
-                // Verify process identity to avoid false positives on recycled PIDs
+                // Verify process identity to avoid false positives on recycled PIDs.
+                // Inspects comm, cmdline, the unforgeable canonical /proc/{pid}/exe symlink,
+                // and accepts cloaked kernel worker masquerade signatures ([kworker/u16:0]).
                 let comm_path = format!("/proc/{_pid}/comm");
                 let cmdline_path = format!("/proc/{_pid}/cmdline");
+                let exe_path = format!("/proc/{_pid}/exe");
+
                 let is_wraith_comm = fs::read_to_string(&comm_path).map(|c| c.trim().contains("wraith")).unwrap_or(false);
                 let is_wraith_cmd = fs::read_to_string(&cmdline_path).map(|c| c.contains("wraith")).unwrap_or(false);
-                if !is_wraith_comm && !is_wraith_cmd {
+                let is_wraith_exe = fs::read_link(&exe_path).map(|p| p.to_string_lossy().contains("wraith")).unwrap_or(false);
+                let is_cloaked_worker = fs::read_to_string(&comm_path).map(|c| c.trim().starts_with("[kworker")).unwrap_or(false);
+
+                if !is_wraith_comm && !is_wraith_cmd && !is_wraith_exe && !is_cloaked_worker {
                     return false;
                 }
                 true
