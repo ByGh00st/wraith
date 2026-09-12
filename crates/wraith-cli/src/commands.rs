@@ -309,7 +309,9 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     } else {
         match wraith_net::get_best_active_interface() {
             Ok(iface) => {
-                print_step(&format!("{}", t!("commands.cmd_step_default_iface", iface = &iface)), "ok");
+                let raw_msg = t!("commands.cmd_step_default_iface", iface = &iface);
+                let msg = raw_msg.replace("{}", &iface);
+                print_step(&msg, "ok");
                 iface
             }
             Err(_) => {
@@ -346,7 +348,12 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
             state_mgr.activate(state_data.clone())
         }) {
             Ok((iface, old_m, new_m)) => {
-                print_step(&format!("{}", t!("commands.cmd_step_mac_altered", old_m = &old_m, new_m = &new_m, iface = &iface)), "ok");
+                let raw_msg = t!("commands.cmd_step_mac_altered", old_m = &old_m, new_m = &new_m, iface = &iface);
+                let msg = raw_msg
+                    .replacen("{}", &old_m, 1)
+                    .replacen("{}", &new_m, 1)
+                    .replacen("{}", &iface, 1);
+                print_step(&msg, "ok");
                 state_data.mac_interface = Some(iface);
                 state_data.mac_old = Some(old_m);
                 state_data.mac_new = Some(new_m);
@@ -653,7 +660,9 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         state_mgr.activate(state_data.clone())?;
         match deploy_hardware_and_font_shield() {
             Ok(count) => {
-                print_step(&format!("{}", t!("commands.cmd_step_browser_injected", count = count)), "ok");
+                let raw_msg = t!("commands.cmd_step_browser_injected", count = count);
+                let msg = raw_msg.replace("{}", &count.to_string());
+                print_step(&msg, "ok");
                 state_data.browser_hardened = count;
                 state_mgr.activate(state_data.clone())?;
             }

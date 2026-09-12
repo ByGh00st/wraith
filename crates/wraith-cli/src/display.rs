@@ -283,7 +283,7 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
     ]);
 
     let rotate_str = if let Some(sec) = interval {
-        t!("hud.auto_rotate").replace("{}", &sec.to_string())
+        t!("hud.auto_rotate", interval = sec).replace("%{interval}", &sec.to_string()).replace("{}", &sec.to_string())
     } else {
         t!("hud.manual_rotate").into_owned()
     };
