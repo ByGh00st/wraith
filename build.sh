@@ -33,20 +33,41 @@ echo "   ██║ █╗ ██║██████╔╝███████
 echo "   ██║███╗██║██╔══██╗██╔══██║██║   ██║   ██╔══██║"
 echo "   ╚███╔███╔╝██║  ██║██║  ██║██║   ██║   ██║  ██║"
 echo "    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝   ╚═╝  ╚═╝"
-echo -e "${CLR_AMBER}  ╭── [ ⚔ WRAITH-PRIME // SOVEREIGN FORGE & COMPILER ] ──────────────────────────╮"
-echo -e "  │  ${CLR_SLATE}CORE ENGINE :${CLR_RESET} ${CLR_RED}${CLR_BOLD}WRAITH v1.3.0 // KERNEL ANONYMIZATION GATE${CLR_RESET}                  ${CLR_AMBER}│"
-echo -e "  │  ${CLR_SLATE}TARGET HOST :${CLR_RESET} ${CLR_EMERALD}${TARGET_OS} [${ARCH}]${CLR_RESET}                                      ${CLR_AMBER}│"
-echo -e "  │  ${CLR_SLATE}KERNEL SPEC :${CLR_RESET} ${CLR_WHITE}Linux ${KERNEL_REL}${CLR_RESET}                                             ${CLR_AMBER}│"
-echo -e "  │  ${CLR_SLATE}FORGE MODE  :${CLR_RESET} ${CLR_RED}${CLR_BOLD}LOCKED RELEASE BUILD // USER-PRIVILEGE COMPILATION${CLR_RESET}          ${CLR_AMBER}│"
-echo -e "  ╰──────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
+echo -e "${CLR_AMBER}  ╭── [ ⚔ WRAITH-PRIME // SOVEREIGN FORGE & COMPILER ] ──────────────────────────╮${CLR_RESET}"
+
+print_box_line() {
+    local prefix="$1"
+    local value="$2"
+    local color="$3"
+    local val_len=${#value}
+    local pad_len=$(( 60 - val_len ))
+    local pad=""
+    if [ $pad_len -gt 0 ]; then
+        pad=$(printf '%*s' $pad_len "")
+    fi
+    echo -e "  ${CLR_AMBER}│${CLR_RESET}  ${CLR_SLATE}${prefix}${CLR_RESET} ${color}${value}${CLR_RESET}${pad} ${CLR_AMBER}│${CLR_RESET}"
+}
+
+print_box_line "CORE ENGINE :" "WRAITH v1.3.0 // KERNEL ANONYMIZATION GATE" "${CLR_RED}${CLR_BOLD}"
+print_box_line "TARGET HOST :" "${TARGET_OS} [${ARCH}]" "${CLR_EMERALD}"
+print_box_line "KERNEL SPEC :" "Linux ${KERNEL_REL}" "${CLR_WHITE}"
+print_box_line "FORGE MODE  :" "LOCKED RELEASE BUILD // SYSTEM COMPILATION" "${CLR_RED}${CLR_BOLD}"
+
+echo -e "${CLR_AMBER}  ╰──────────────────────────────────────────────────────────────────────────────╯${CLR_RESET}\n"
 
 # Build as the invoking user; root is used only for packages and deployment.
 [[ $(uname -s) == Linux ]] || { echo "This installer requires Linux." >&2; exit 1; }
-[[ $EUID -eq 0 && ${SUDO_UID:-0} -ne 0 ]] || {
-    echo "Install Rust as your normal user, then run: sudo ./build.sh" >&2; exit 1;
-}
-BUILD_USER=$(getent passwd "$SUDO_UID" | cut -d: -f1)
-BUILD_HOME=$(getent passwd "$SUDO_UID" | cut -d: -f6)
+
+if [[ $EUID -eq 0 && ${SUDO_UID:-0} -ne 0 ]]; then
+    BUILD_USER=$(getent passwd "$SUDO_UID" | cut -d: -f1)
+    BUILD_HOME=$(getent passwd "$SUDO_UID" | cut -d: -f6)
+elif [[ $EUID -eq 0 && ${SUDO_UID:-0} -eq 0 ]]; then
+    BUILD_USER="root"
+    BUILD_HOME="/root"
+else
+    echo "Please run: sudo ./build.sh" >&2; exit 1;
+fi
+
 [[ -n $BUILD_USER && -d $BUILD_HOME ]] || { echo "Cannot resolve invoking user." >&2; exit 1; }
 REPO_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 BUILD_PATH="$BUILD_HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
