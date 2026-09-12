@@ -765,6 +765,20 @@ pub async fn main() -> Result<()> {
         Commands::Start(args) => {
             // Check if we need to daemonize (-s without -F/strict_hardening and not already daemon_worker)
             if !args.strict_hardening && !args.daemon_worker {
+                #[cfg(target_os = "linux")]
+                {
+                    let is_systemd_active = std::process::Command::new("systemctl")
+                        .args(["is-active", "--quiet", "wraith.service"])
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false);
+                    if is_systemd_active {
+                        display::print_error("Wraith is already running as a systemd service (installed via install-daemon.sh)!");
+                        println!("  \x1b[2mTo manage:\x1b[0m \x1b[1;33msudo systemctl stop wraith\x1b[0m or stop with \x1b[1;31mwraith -x\x1b[0m\n");
+                        return Ok(());
+                    }
+                }
+
                 let state_mgr = wraith_core::state::StateManager::default();
                 if state_mgr.is_running() {
                     let st = state_mgr.read();
@@ -774,7 +788,7 @@ pub async fn main() -> Result<()> {
                     }
                 }
 
-                println!("\n  🚀 \x1b[1;36mWRAITH\x1b[0m is starting in the background (Daemon Mode)...");
+                println!("\n  🚀 \x1b[1;36mWRAITH\x1b[0m is starting in the background (Temporary Session)...");
                 
                 let mut cmd = std::process::Command::new(std::env::current_exe()?);
                 // Forward all original arguments and append --daemon-worker
@@ -849,11 +863,11 @@ pub async fn main() -> Result<()> {
                 if activated {
                     let state = state_mgr.read();
                     let ip_str = state.ip.as_deref().unwrap_or("Verified Tor Node");
-                    println!("  \x1b[1;32m✔\x1b[0m WRAITH Daemon Armed & Active!");
+                    println!("  \x1b[1;32m✔\x1b[0m WRAITH Background Session Armed & Active!");
                     println!("  \x1b[1;36mExit IP:\x1b[0m \x1b[1;37m{ip_str}\x1b[0m");
                     println!("  \x1b[2mTo monitor:\x1b[0m \x1b[1;33mwraith -i\x1b[0m   \x1b[2mTo stop:\x1b[0m \x1b[1;31mwraith -x\x1b[0m\n");
                 } else {
-                    println!("  \x1b[1;33m▲\x1b[0m Daemon process is running, waiting for full Tor circuit bootstrap.");
+                    println!("  \x1b[1;33m▲\x1b[0m Background session process is running, waiting for full Tor circuit bootstrap.");
                     println!("  Check status shortly using: \x1b[1;33mwraith -i\x1b[0m\n");
                 }
                 return Ok(());
