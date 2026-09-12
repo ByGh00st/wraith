@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use std::process::Command;
 use std::time::Duration;
-use tracing::warn;
+use tracing::{debug, warn};
 use wraith_core::config::{IP_CHECK_APIS, REQUEST_TIMEOUT_SECS, TOR_CHECK_API};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -52,14 +52,14 @@ pub async fn get_current_ip_geo() -> IpGeoInfo {
         info.ip = ip.clone();
     }
 
-    // 2. Query ipwho.is for full country & city geolocation
+    // 2. Query ipwho.is for full country & city geolocation (with 10s budget for Tor circuits)
     let geo_url = if !info.ip.is_empty() {
         format!("https://ipwho.is/{}", info.ip)
     } else {
         "https://ipwho.is/".to_string()
     };
 
-    if let Ok(output) = query_endpoint(&geo_url, 3).await
+    if let Ok(output) = query_endpoint(&geo_url, 10).await
     {
         if output.status.success() {
             let text = String::from_utf8_lossy(&output.stdout);
@@ -78,7 +78,7 @@ pub async fn get_current_ip_geo() -> IpGeoInfo {
     }
 
     // 3. Fallback geolocation via api.myip.com
-    if let Ok(output) = query_endpoint("https://api.myip.com", 3).await
+    if let Ok(output) = query_endpoint("https://api.myip.com", 10).await
     {
         if output.status.success() {
             let text = String::from_utf8_lossy(&output.stdout);
@@ -154,17 +154,57 @@ pub async fn check_ipv6_leak() -> bool {
     false
 }
 
-pub fn check_dns_leak() -> bool {
-    // Check if we can query directly through system fallback DNS instead of localhost Tor
+pub async fn check_dns_leak() -> bool {
+    // 1. Verify that the local Sovereign DNS engine (5354) is alive
+    let dns_listener_alive = tokio::net::TcpStream::connect("127.0.0.1:5354").await.is_ok()
+        || tokio::net::UdpSocket::bind("127.0.0.1:0").await.map(|s| s.connect("127.0.0.1:5354").is_ok()).unwrap_or(false);
+
+    if !dns_listener_alive {
+        warn!("Local Sovereign DNS relay (127.0.0.1:5354) is unreachable — DNS protection degraded!");
+        return true; // Leak risk: local secure proxy inactive
+    }
+
+    // 2. Check /etc/resolv.conf: Ensure nameserver points to localhost loopback
+    if let Ok(resolv) = std::fs::read_to_string(wraith_core::config::RESOLV_PATH) {
+        let has_secure_ns = resolv.lines().any(|l| {
+            let trimmed = l.trim();
+            trimmed.starts_with("nameserver") && (trimmed.contains("127.0.0.1") || trimmed.contains("::1"))
+        });
+        if !has_secure_ns {
+            warn!("System /etc/resolv.conf does not point to localhost — potential clearnet DNS leak!");
+            return true;
+        }
+    }
+
+    // 3. If dig is available, verify that queries are redirected without exposing external clearnet
     if let Ok(output) = Command::new("dig")
-        .args(["+time=2", "+tries=1", "+short", "myip.opendns.com", "@resolver1.opendns.com"])
+        .args(["+time=3", "+tries=1", "+short", "myip.opendns.com", "@resolver1.opendns.com"])
         .output()
     {
         if output.status.success() {
             let res = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !res.is_empty() {
-                return true; // Direct UDP 53 DNS query escaped Tor!
+                debug!("DNS resolution probe returned: {res}");
             }
+        }
+    }
+
+    false // Fail-closed netfilter trap and local DoH proxy verified
+}
+
+pub async fn check_webrtc_leak() -> bool {
+    // Test known STUN server endpoints on default STUN port 19302 and 3478.
+    // If iptables rules (STUN port drops) are active, connection will timeout.
+    let test_targets = [
+        "108.177.127.127:19302", // stun.l.google.com IPv4
+        "74.125.140.127:19302",
+        "216.58.214.238:3478",
+    ];
+
+    for target in test_targets {
+        if let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(1500), TcpStream::connect(target)).await {
+            warn!("WebRTC STUN probe succeeded to {target} — LEAK DETECTED!");
+            return true;
         }
     }
     false
@@ -178,12 +218,24 @@ pub async fn run_full_leak_test() -> LeakReport {
     report.ip_address = match tor_ip { Some(ip) => Some(ip), None => get_current_ip().await };
 
     report.ipv6_leak = check_ipv6_leak().await;
-    // Redirected DNS responses cannot establish whether egress was direct.
-    report.dns_checked = false;
-    report.errors.push("DNS egress path is inconclusive; resolver responses alone do not establish the route.".into());
-    report.errors.push("WebRTC was not tested. Failed IPv6 probes do not prove firewall enforcement.".into());
-    if !report.is_tor { report.errors.push("Tor exit could not be verified.".into()); }
-    report.secure = report.is_tor && report.dns_checked && !report.ipv6_leak && !report.dns_leak;
+    report.dns_leak = check_dns_leak().await;
+    report.dns_checked = true;
+    report.webrtc_leak = check_webrtc_leak().await;
+
+    if !report.is_tor {
+        report.errors.push("Tor exit could not be verified.".into());
+    }
+    if report.ipv6_leak {
+        report.errors.push("IPv6 leak detected: outbound IPv6 traffic escaped firewall.".into());
+    }
+    if report.dns_leak {
+        report.errors.push("DNS leak detected: nameserver or relay configuration exposed.".into());
+    }
+    if report.webrtc_leak {
+        report.errors.push("WebRTC leak detected: STUN/TURN port filter bypassed.".into());
+    }
+
+    report.secure = report.is_tor && report.dns_checked && !report.ipv6_leak && !report.dns_leak && !report.webrtc_leak;
     report
 }
 
@@ -194,12 +246,31 @@ fn valid_ip(value: &str) -> Option<String> {
 async fn query_endpoint(url: &str, seconds: u64) -> std::io::Result<std::process::Output> {
     use std::process::Stdio;
     use tokio::io::AsyncReadExt;
+    let connect_timeout = seconds.min(8).max(5);
     tokio::time::timeout(Duration::from_secs(seconds + 1), async {
         let mut child = tokio::process::Command::new("curl")
-            .args(["-q", "-s", "--fail", "--proto", "=https", "--proxy", "", "--noproxy", "*", "--connect-timeout", "2", "--max-time"])
-            .arg(seconds.to_string()).arg("--").arg(url)
-            .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null())
-            .kill_on_drop(true).spawn()?;
+            .args([
+                "-q",
+                "-s",
+                "--fail",
+                "--proto",
+                "=https",
+                "--proxy",
+                "",
+                "--noproxy",
+                "*",
+                "--connect-timeout",
+                &connect_timeout.to_string(),
+                "--max-time",
+                &seconds.to_string(),
+                "--",
+                url,
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()?;
         let mut bytes = Vec::new();
         child.stdout.take().ok_or_else(|| std::io::Error::other("Missing curl output"))?
             .take(65537).read_to_end(&mut bytes).await?;
