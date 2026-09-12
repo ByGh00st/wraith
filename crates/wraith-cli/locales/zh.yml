@@ -509,3 +509,25 @@ geo:
     US: "United States"
     VN: "Vietnam"
     ZA: "South Africa"
+
+daemon_cli:
+  systemd_running_err: 'Wraith is already running as a systemd service (installed via install-daemon.sh)!'
+  systemd_manage_hint: '  To manage: sudo systemctl stop wraith or stop with wraith -x
+'
+  already_armed_bg: 'WRAITH gateway is already armed & running in background!'
+  init_title: '🚀 WRAITH // DAEMON INITIALIZATION'
+  init_row1: 'Initiating detached background session (daemon mode)...'
+  init_row2: 'Transparent Tor gateway, fail-closed killswitch, and DNS routing are arming.'
+  spawn_failed: 'Failed to spawn daemon: %{err}'
+  establishing_spinner: 'Establishing Tor circuit gateway & fail-closed firewall... (%{secs}s)'
+  unexpected_exit: 'Daemon exited unexpectedly (%{status}): %{detail}'
+  awaiting_bootstrap: 'Daemon process active, awaiting full circuit bootstrap.'
+  run_info_shortly: 'Run ''wraith -i'' shortly to verify live gateway metrics.'
+  arming_or_running_reset: 'Wraith is currently arming or running; use ''wraith -x'' to reset state.'
+  shred_success: 'Target permanently obliterated from disk: %{target}'
+  executing_purge: 'Executing %{mode} anti-forensic purge...'
+  purge_complete: 'Anti-forensic purge complete (%{count} operations executed)'
+  moat_unreachable_fallback: 'Moat challenge unreachable: %{err}. Falling back to resilient pools.'
+  bridges_configured: 'Successfully configured %{count} %{pt} bridges in /etc/tor/wraithrc'
+  doh_selected: 'Selected DoH Provider: %{name} [%{url}]'
+  doh_saved: 'Saved active DoH provider to %{path}'
