@@ -1034,11 +1034,14 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     }
 
     let state_mgr = StateManager::default();
-    if !state_mgr.is_running() {
-        // Even if state file is missing, ensure Tor daemon and stray rules are stopped
+    if !state_mgr.path.exists() {
+        // Even if state file is missing, ensure Tor daemon, stray iptables rules, and DNS are restored
         wraith_tor::stop_tor_daemon();
         wraith_tor::stop_existing_tor();
-        print_step("No active Wraith session found; ensuring network and gateway are restored.", "info");
+        let _ = wraith_net::flush_rules();
+        let _ = flush_ipv6_block();
+        let _ = restore_dns();
+        print_step("No active Wraith session found; ensuring network, DNS, and gateway are cleared.", "info");
         return Ok(());
     }
 
@@ -1047,21 +1050,29 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     #[cfg(target_os = "linux")]
     if let Some(pid) = state_info.pid.filter(|pid| *pid > 1 && *pid != std::process::id() && *pid <= i32::MAX as u32) {
         if unsafe { libc::kill(pid as i32, 0) == 0 } {
-            print_step(&format!("Terminating background session process (PID: {pid})..."), "info");
-            let _ = unsafe { libc::kill(pid as i32, libc::SIGTERM) };
-            
-            let mut exited = false;
-            for _ in 0..20 {
-                sleep(Duration::from_millis(100)).await;
-                if unsafe { libc::kill(pid as i32, 0) != 0 } {
-                    exited = true;
-                    break;
+            let comm_path = format!("/proc/{pid}/comm");
+            let cmdline_path = format!("/proc/{pid}/cmdline");
+            let is_wraith = fs::read_to_string(&comm_path).map(|c| c.trim().contains("wraith")).unwrap_or(false)
+                || fs::read_to_string(&cmdline_path).map(|c| c.contains("wraith")).unwrap_or(false);
+            if is_wraith {
+                print_step(&format!("Terminating background session process (PID: {pid})..."), "info");
+                let _ = unsafe { libc::kill(pid as i32, libc::SIGTERM) };
+                
+                let mut exited = false;
+                for _ in 0..20 {
+                    sleep(Duration::from_millis(100)).await;
+                    if unsafe { libc::kill(pid as i32, 0) != 0 } {
+                        exited = true;
+                        break;
+                    }
                 }
-            }
 
-            if !exited {
-                let _ = unsafe { libc::kill(pid as i32, libc::SIGKILL) };
-                sleep(Duration::from_millis(100)).await;
+                if !exited {
+                    let _ = unsafe { libc::kill(pid as i32, libc::SIGKILL) };
+                    sleep(Duration::from_millis(100)).await;
+                }
+            } else {
+                print_step(&format!("Session PID {pid} is no longer a Wraith process; proceeding with teardown."), "warn");
             }
         }
     }
@@ -1126,21 +1137,31 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     if state_info.saved_files.contains_key(wraith_forensic::FONT_CONFIG_PATH) {
         record_cleanup("font cache", wraith_forensic::font_jail::refresh_font_cache(), &mut errors);
     }
-    // Retain both the recovery record and restrictive policy on incomplete cleanup.
-    if !errors.is_empty() { return state_mgr.finish_cleanup(&errors); }
     if let Some(saved) = &state_info.saved_rules {
         record_cleanup("IPv4 firewall", wraith_net::restore_rules(saved), &mut errors);
+    } else {
+        record_cleanup("IPv4 firewall flush", wraith_net::flush_rules(), &mut errors);
     }
     if let Some(saved) = &state_info.saved_ipv6_rules {
         record_cleanup("IPv6 firewall", wraith_net::restore_ipv6_rules(saved), &mut errors);
-    } else if state_info.active {
+    } else {
         record_cleanup("legacy IPv6 firewall", flush_ipv6_block(), &mut errors);
     }
     if errors.is_empty() && self_destruct {
         record_cleanup("self destruct", std::env::current_exe().map_err(WraithError::from)
             .and_then(|path| wraith_forensic::secure_delete_file(&path, 2)), &mut errors);
     }
-    state_mgr.finish_cleanup(&errors)?;
+
+    // Always unconditionally deactivate and remove state file
+    let _ = state_mgr.deactivate();
+    if state_mgr.path.exists() {
+        let _ = std::fs::remove_file(&state_mgr.path);
+    }
+
+    if !errors.is_empty() {
+        print_step(&format!("Teardown completed with warnings: {}", errors.join("; ")), "warn");
+    }
+
     sleep(Duration::from_secs(2)).await;
     let real_ip = get_current_ip().await;
 
