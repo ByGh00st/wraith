@@ -115,7 +115,7 @@ sudo wraith -x     # Stop and restore recorded settings
 <a id="system-overview"></a>
 ## 🌌 System Overview
 
-**Wraith-Prime** brings Tor routing, DNS policy, host settings and a localized terminal interface into one Linux session manager. Its six-crate Rust workspace combines netfilter rules, network namespaces, a local HTTP relay and optional browser controls.
+**Wraith** brings Tor routing, DNS policy, host settings and a localized terminal interface into one Linux session manager. Its six-crate Rust workspace combines netfilter rules, network namespaces, a local HTTP relay and optional browser controls.
 
 Start a foreground session, inspect its status, and stop it to restore recorded settings. Advanced presets and their host prerequisites are covered in [setup and recovery](#full-security).
 
@@ -459,12 +459,12 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | `-i` | `sudo wraith -i` / `wraith info` | **Status Telemetry**: Displays live connection status, active exit IP, and circuit topology. |
 | `-p` | `sudo wraith -p <NAME>` / `wraith profile` | **Geographic Exit Profiler**: Enforces Tor exit nodes (`stealth`, `speed`, `journalists`, `research`, `darkweb`). |
 | `-F` | `sudo wraith -F` / `wraith -s -F` | **Strict Preset**: Requires core setup and the kill switch; see prerequisites below. |
-| `-K` | `sudo wraith -s -K` / `--kworker` | **Process Masquerade**: Cloaks process name in Linux kernel scheduler as `[kworker/u16:0]`. |
+| `-K` | `sudo wraith -s -K` / `--kworker` | **Process Masquerade**: Sets process name in Linux kernel scheduler as `[kworker/u16:0]` via prctl. |
 | `-u` | `sudo wraith -u` / `wraith update` | **Official GitHub Update**: Fetches source, builds without root, then atomically installs. |
-| `-c` | `sudo wraith -c` / `wraith cleanup`| **Anti-Forensic Purge**: Clears volatile RAM caches, DNS cache, and ephemeral session traces. |
-| — | `sudo wraith --cleanup-full` | **Deep Anti-Forensic Purge**: Wipes RAM, swap partitions, and all system authentication logs. |
-| `-M` | `sudo wraith -M` / `wraith monitor` | **Real-Time DPI & IDS Monitor**: Streams in-flight HTTP port 9055 packet inspections and signatures. |
-| — | `sudo wraith doctor` | **Kernel Integrity Auditor**: Deeply audits IPv4/IPv6 sysctls, Tor daemon state, Netlink, and Seccomp. |
+| `-c` | `sudo wraith -c` / `wraith cleanup`| **Volatile State Purge**: Clears volatile RAM caches, DNS cache, and ephemeral session traces. |
+| — | `sudo wraith --cleanup-full` | **Deep Storage Purge**: Sanitizes RAM, swap partitions, and transient system authentication logs. |
+| `-M` | `sudo wraith -M` / `wraith monitor` | **Real-Time DPI Monitor**: Streams in-flight HTTP port 9055 packet inspections and signatures. |
+| — | `sudo wraith doctor` | **Kernel Diagnostics Auditor**: Audits IPv4/IPv6 sysctl parameters, Tor daemon state, Netlink sockets, and Seccomp filters. |
 | — | `sudo wraith benchmark` | **Cryptographic Benchmark**: Evaluates ChaCha20-Poly1305, SHA-256, HMAC, and Netlink throughput. |
 | — | `sudo wraith mac` | **Hardware Randomizer**: Randomizes L2 MAC address and system hostname immediately. |
 | — | `sudo wraith pentest` | **Security Audit Guide**: Displays isolation guidelines for Nmap, Sqlmap, Ffuf, Metasploit. |
@@ -613,11 +613,11 @@ System Hardening & Anti-Fingerprinting:
   -F, --full-security              Require strict session controls; reject missing prerequisites
                                    [-Fs combines -F and -s; aliases: --full, --strict, --harden, --full-defense, --strict-hardening, --max-hardening]
 High-Risk & Forensic Operations (Explicit Opt-In Only):
-  -L, --forensic-wipe-logs         ⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs, and shell history
+  -L, --forensic-wipe-logs         ⚠ IRREVERSIBLE: Purge system authentication logs, event logs, and shell history
                                    [aliases: --destructive-cleanup, --wipe-logs]
   -d, --forensic-self-destruct     ⚠ IRREVERSIBLE: Cryptographically shred binary from disk and wipe memory on exit
                                    [alias: --self-destruct]
-  -K, --aggressive-masquerade      ⚠ EVASIVE: Spoof process name in scheduler as kernel worker ([kworker/u16:0])
+  -K, --aggressive-masquerade      ⚠ MASQUERADE: Set process name in scheduler as kernel worker ([kworker/u16:0])
                                    [aliases: --process-masquerade, --cloaked-process]
   -A, --aggressive-anti-debug      ⚠ EMERGENCY ABORT: Immediately triggers SIGKILL if attached to a debugger
                                    [aliases: --anti-debug, --anti-ptrace]
