@@ -23,3 +23,6 @@ pub mod deployment;
 pub mod signed_update;
 
 pub mod file_snapshot;
+
+pub mod signatures;
+pub use signatures::*;
