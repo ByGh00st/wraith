@@ -2,7 +2,7 @@
 //! Verifies IP routing, Tor identity status, IPv6 blocking, and DNS proxying.
 
 use serde::{Deserialize, Serialize};
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, UdpSocket};
 use std::process::Command;
 use std::time::Duration;
 use tracing::{debug, warn};
@@ -337,17 +337,46 @@ pub async fn check_dns_leak() -> bool {
 }
 
 pub async fn check_webrtc_leak() -> bool {
-    // Test known STUN server endpoints on default STUN port 19302 and 3478.
-    // If iptables rules (STUN port drops) are active, connection will timeout.
+    // Test known STUN server endpoints on default STUN ports 19302 and 3478.
+    // If netfilter rules (STUN port drops) are active, UDP datagrams and TCP SYNs will timeout.
     let test_targets = [
         "108.177.127.127:19302", // stun.l.google.com IPv4
         "74.125.140.127:19302",
         "216.58.214.238:3478",
     ];
 
+    // 1. Dual-Stack UDP STUN Binding Request (RFC 5389 / RFC 8489)
+    // Real browser WebRTC subsystems gather reflexive candidates over UDP.
+    for target in test_targets {
+        // Construct 20-byte STUN Binding Request header
+        let mut stun_req = [0u8; 20];
+        stun_req[0] = 0x00;
+        stun_req[1] = 0x01; // Message Type: Binding Request
+        stun_req[2] = 0x00;
+        stun_req[3] = 0x00; // Message Length: 0
+        stun_req[4..8].copy_from_slice(&0x2112A442u32.to_be_bytes()); // Magic Cookie: 0x2112A442
+        // Transaction ID: 12 pseudorandom bytes
+        for (i, b) in stun_req[8..20].iter_mut().enumerate() {
+            *b = (0xAA ^ (i as u8 * 0x1F)).wrapping_add(0x3B);
+        }
+
+        if let Ok(socket) = UdpSocket::bind("0.0.0.0:0").await {
+            if socket.send_to(&stun_req, target).await.is_ok() {
+                let mut buf = [0u8; 512];
+                if let Ok(Ok((n, _))) = tokio::time::timeout(Duration::from_millis(1500), socket.recv_from(&mut buf)).await {
+                    if n >= 20 && buf[4..8] == 0x2112A442u32.to_be_bytes() {
+                        warn!("WebRTC STUN UDP probe succeeded to {target} — LEAK DETECTED!");
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. TCP STUN probe fallback for ICE-over-TCP candidates
     for target in test_targets {
         if let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(1500), TcpStream::connect(target)).await {
-            warn!("WebRTC STUN probe succeeded to {target} — LEAK DETECTED!");
+            warn!("WebRTC STUN TCP probe succeeded to {target} — LEAK DETECTED!");
             return true;
         }
     }
