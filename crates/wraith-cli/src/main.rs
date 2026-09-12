@@ -765,6 +765,18 @@ pub async fn main() -> Result<()> {
                         "lang" | "general.lang" => {
                             cfg.general.lang.or(cfg.lang).unwrap_or_else(|| "unset".to_string())
                         }
+                        "fonts.allowed" | "fonts.allowed_fonts" => {
+                            cfg.fonts.allowed_fonts.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "fonts.blocked" | "fonts.blocked_fonts" => {
+                            cfg.fonts.blocked_fonts.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "fonts.blocked_paths" => {
+                            cfg.fonts.blocked_paths.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
+                        }
+                        "fonts.monospace" | "fonts.preferred_monospace" => {
+                            cfg.fonts.preferred_monospace.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
+                        }
                         _ => rust_i18n::t!("config_cmd.key_unknown").to_string(),
                     };
                     println!("{val}");
