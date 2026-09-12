@@ -876,7 +876,15 @@ pub async fn main() -> Result<()> {
             tokio::select! {
                 res = commands::cmd_start(args) => {
                     if let Err(e) = res {
-                        display::print_error(&format!("{}", rust_i18n::t!("runtime.startup_aborted", e = e.to_string())));
+                        let prefix = rust_i18n::t!("runtime.startup_aborted");
+                        let err_msg = if prefix.contains("{}") {
+                            prefix.replace("{}", &e.to_string())
+                        } else if prefix.contains("%{e}") {
+                            prefix.replace("%{e}", &e.to_string())
+                        } else {
+                            format!("{prefix}: {e}")
+                        };
+                        display::print_error(&err_msg);
                         let _ = commands::cmd_stop(false).await;
                         return Err(e);
                     }

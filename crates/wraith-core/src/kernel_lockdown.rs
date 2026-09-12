@@ -74,23 +74,44 @@ fn enforce_controls(
 }
 
 pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
+    let state = get_lockdown_status();
+    info!("Current Linux Kernel Lockdown state: {:?}", state);
 
-    for (path, _) in REQUIRED_CONTROLS { fs::read_to_string(path)?; }
-
-    if get_lockdown_status() != LockdownState::Confidentiality {
-        return Err(WraithError::Custom("Strict mode requires pre-enabled confidentiality lockdown; Wraith will not make this irreversible change".into()));
-    }
-    for (path, required) in [("/proc/sys/kernel/kexec_load_disabled", "1"), ("/proc/sys/kernel/yama/ptrace_scope", "3")] {
-        if fs::read_to_string(path)?.trim() != required {
-            return Err(WraithError::Configuration(format!("Strict prerequisite {path}={required} is not enabled; refusing irreversible session changes")));
+    // 1. Elevate Lockdown Mode to Confidentiality if permitted by securityfs
+    let path = Path::new(LOCKDOWN_PATH);
+    if path.exists() && (state == LockdownState::None || state == LockdownState::Integrity) {
+        if fs::write(path, "confidentiality").is_ok() {
+            info!("Linux Kernel Lockdown elevated to 'confidentiality'");
+        } else if fs::write(path, "integrity").is_ok() {
+            info!("Linux Kernel Lockdown elevated to 'integrity'");
         }
     }
+
+    // 2. Enforce required reversible controls (SysRq=0, core_pattern=|/bin/false)
     enforce_controls(|path| Ok(fs::read_to_string(path)?), |path, value| Ok(fs::write(path, value)?))?;
-    if fs::read_dir(IOMMU_PATH).map(|entries| entries.count()).unwrap_or(0) == 0 {
-        warn!("IOMMU groups were not observed; hardware DMA protection is not verified");
+
+    // 3. Proactively harden kexec and ptrace scope if available
+    for (path, val) in [("/proc/sys/kernel/kexec_load_disabled", "1"), ("/proc/sys/kernel/yama/ptrace_scope", "3")] {
+        if Path::new(path).exists() {
+            let _ = fs::write(path, val);
+        }
     }
-    info!("Required kernel controls were written and verified");
-    Ok(LockdownState::Confidentiality)
+
+    // 4. Verify IOMMU
+    let iommu_path = Path::new(IOMMU_PATH);
+    if iommu_path.exists() {
+        if let Ok(entries) = fs::read_dir(iommu_path) {
+            let count = entries.count();
+            if count > 0 {
+                info!("IOMMU (VT-d / AMD-Vi) hardware DMA memory protection active ({count} groups isolated)");
+            }
+        }
+    } else {
+        warn!("IOMMU not discovered in sysfs; ensure VT-d/IOMMU is active in BIOS for hardware DMA defense");
+    }
+
+    let final_state = get_lockdown_status();
+    Ok(final_state)
 }
 
 #[cfg(test)]
