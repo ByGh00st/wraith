@@ -510,3 +510,25 @@ geo:
     US: "Amerika Birleşik Devletleri"
     VN: "Vietnam"
     ZA: "Güney Afrika"
+
+daemon_cli:
+  systemd_running_err: 'Wraith zaten bir systemd servisi olarak çalışıyor (install-daemon.sh ile kuruldu)!'
+  systemd_manage_hint: '  Yönetmek için: sudo systemctl stop wraith veya wraith -x ile durdurun
+'
+  already_armed_bg: 'WRAITH ağ geçidi zaten devrede ve arka planda çalışıyor!'
+  init_title: '🚀 WRAITH // DAEMON BAŞLATMA'
+  init_row1: 'Bağımsız arka plan oturumu başlatılıyor (daemon modu)...'
+  init_row2: 'Şeffaf Tor ağ geçidi, sızıntı geçirmez killswitch ve DNS yönlendirmesi devreye alınıyor.'
+  spawn_failed: 'Daemon başlatılamadı: %{err}'
+  establishing_spinner: 'Tor devresi ağ geçidi ve sızıntı geçirmez güvenlik duvarı kuruluyor... (%{secs}s)'
+  unexpected_exit: 'Daemon beklenmedik şekilde sonlandı (%{status}): %{detail}'
+  awaiting_bootstrap: 'Daemon süreci aktif, devrenin tamamen kurulması bekleniyor.'
+  run_info_shortly: 'Canlı ağ geçidi metriklerini doğrulamak için kısa süre sonra ''wraith -i'' çalıştırın.'
+  arming_or_running_reset: 'Wraith şu anda başlatılıyor veya çalışıyor; durumu sıfırlamak için ''wraith -x'' kullanın.'
+  shred_success: 'Hedef diskten kalıcı olarak imha edildi: %{target}'
+  executing_purge: '%{mode} adli bilişim karşıtı temizlik yürütülüyor...'
+  purge_complete: 'Adli bilişim karşıtı temizlik tamamlandı (%{count} işlem yürütüldü)'
+  moat_unreachable_fallback: 'Moat sorgusuna ulaşılamadı: %{err}. Yedek havuzlara geçiliyor.'
+  bridges_configured: '/etc/tor/wraithrc içine %{count} adet %{pt} köprüsü başarıyla yapılandırıldı'
+  doh_selected: 'Seçilen DoH Sağlayıcısı: %{name} [%{url}]'
+  doh_saved: 'Aktif DoH sağlayıcısı %{path} yoluna kaydedildi'
