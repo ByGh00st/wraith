@@ -393,41 +393,41 @@ pub fn print_identity_rotated(geo: &IpGeoInfo) {
         .set_content_arrangement(ContentArrangement::Dynamic);
 
     table.set_header(vec![
-        Cell::new("🔄  WRAITH // IDENTITY ROTATION COMPLETED").fg(Color::Cyan).add_attribute(Attribute::Bold),
-        Cell::new("CIRCUIT RE-ESTABLISHED").fg(Color::Cyan).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.rotated_title")).fg(Color::Cyan).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.circuit_reestablished")).fg(Color::Cyan).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new("Signal Event").fg(Color::Yellow).add_attribute(Attribute::Bold),
-        Cell::new("✔ SIGNAL NEWNYM Dispatched & Acknowledged").fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.signal_event")).fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.signal_event_val")).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     let ip_str = if !geo.ip.is_empty() { &geo.ip } else { "Verified Tor Node" };
     table.add_row(vec![
-        Cell::new("New Tor Exit IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.new_exit_ip")).fg(Color::Yellow).add_attribute(Attribute::Bold),
         Cell::new(format!("{ip_str} [✔ Verified Tor Node]")).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     let loc_str = format_geo_location(geo);
     table.add_row(vec![
-        Cell::new("Exit Geolocation").fg(Color::Yellow),
+        Cell::new(t!("dashboard.exit_geo")).fg(Color::Yellow),
         Cell::new(loc_str).fg(Color::Cyan).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new("Anonymization Gate").fg(Color::Yellow),
-        Cell::new("✔ Transparent Proxy (:9040) Active").fg(Color::Green),
+        Cell::new(t!("dashboard.anon_gate")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.anon_gate_val")).fg(Color::Green),
     ]);
 
     table.add_row(vec![
-        Cell::new("Fail-Closed Protection").fg(Color::Yellow),
-        Cell::new("● Armed (Zero-Leak Circuit Swap)").fg(Color::Green),
+        Cell::new(t!("dashboard.fail_closed_prot")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.fail_closed_prot_val")).fg(Color::Green),
     ]);
 
     println!("\n{table}");
 
     let notice = vec![
-        "  ⚡ New cryptographic circuit active. Previous circuits & DNS caches flushed.".to_string(),
+        t!("dashboard.circuit_notice").to_string(),
         format!(
             "  {} │ {} │ {}",
             "Live Telemetry: wraith -i".bold().bright_cyan(),
@@ -435,7 +435,7 @@ pub fn print_identity_rotated(geo: &IpGeoInfo) {
             "Disarm: wraith -x".bold().bright_red()
         ),
     ];
-    let notice_box = render_box("⚡ IDENTITY RE-ROUTED", &notice, BoxCorner::Rounded, 78);
+    let notice_box = render_box(&t!("dashboard.identity_rerouted"), &notice, BoxCorner::Rounded, 78);
     println!("{}", notice_box[0].bright_cyan());
     for row in &notice_box[1..notice_box.len() - 1] {
         println!("{row}");
@@ -460,19 +460,19 @@ pub fn print_background_hud(state: &StateData, geo: &IpGeoInfo) {
         .set_content_arrangement(ContentArrangement::Dynamic);
 
     table.set_header(vec![
-        Cell::new("⚔️  WRAITH // DAEMON SUBSYSTEM ARMED").fg(Color::Cyan).add_attribute(Attribute::Bold),
-        Cell::new("OPERATIONAL POSTURE & TELEMETRY").fg(Color::Cyan).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.daemon_armed_title")).fg(Color::Cyan).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.daemon_posture")).fg(Color::Cyan).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new("Operational State").fg(Color::Yellow).add_attribute(Attribute::Bold),
-        Cell::new("● ACTIVE [Detached Background Session]").fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.op_state")).fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.state_active_detached")).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     if let Some(pid) = state.pid {
         table.add_row(vec![
-            Cell::new("Daemon PID").fg(Color::Yellow),
-            Cell::new(format!("✔ PID {pid} (Isolated Process Tree)")).fg(Color::Cyan),
+            Cell::new(t!("dashboard.daemon_pid")).fg(Color::Yellow),
+            Cell::new(format!("{}", t!("dashboard.daemon_pid_val", pid = pid))).fg(Color::Cyan),
         ]);
     }
 
@@ -490,45 +490,45 @@ pub fn print_background_hud(state: &StateData, geo: &IpGeoInfo) {
         format!("{ip_display} [{loc_unk}]")
     };
     table.add_row(vec![
-        Cell::new("Tor Public Exit IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.tor_public_exit")).fg(Color::Yellow).add_attribute(Attribute::Bold),
         Cell::new(exit_display).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new("Traffic Redirection").fg(Color::Yellow),
-        Cell::new("✔ Enforced via Tor Transparent Proxy (:9040)").fg(Color::Green),
+        Cell::new(t!("dashboard.traffic_redir")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.traffic_redir_val")).fg(Color::Green),
     ]);
 
     table.add_row(vec![
-        Cell::new("Fail-Closed Gate").fg(Color::Yellow),
-        Cell::new("● Armed (Sub-Millisecond Packet Drop)").fg(Color::Green),
+        Cell::new(t!("dashboard.fail_closed_gate")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.fail_closed_subms")).fg(Color::Green),
     ]);
 
     if let Some(iface) = &state.target_interface {
         table.add_row(vec![
-            Cell::new("Locked Interface").fg(Color::Yellow),
+            Cell::new(t!("dashboard.locked_iface")).fg(Color::Yellow),
             Cell::new(format!("✔ {iface}")).fg(Color::Green),
         ]);
     }
 
     if let Some(mac) = &state.mac_new {
         table.add_row(vec![
-            Cell::new("MAC Address").fg(Color::Yellow),
-            Cell::new(format!("✔ Spoofed: {mac}")).fg(Color::Magenta),
+            Cell::new(t!("dashboard.mac_addr")).fg(Color::Yellow),
+            Cell::new(format!("{}", t!("dashboard.mac_spoofed", mac = mac))).fg(Color::Magenta),
         ]);
     }
 
     if let Some(prof) = &state.exit_profile {
         table.add_row(vec![
-            Cell::new("Exit Profile").fg(Color::Yellow),
+            Cell::new(t!("dashboard.exit_profile")).fg(Color::Yellow),
             Cell::new(format!("✔ {prof}")).fg(Color::Blue),
         ]);
     }
 
     if state.multihop_enabled {
         table.add_row(vec![
-            Cell::new("Multi-Hop Overlay").fg(Color::Yellow),
-            Cell::new("✔ WireGuard ➔ Tor [3 Hops] ➔ Exit Node").fg(Color::Green).add_attribute(Attribute::Bold),
+            Cell::new(t!("dashboard.multihop_overlay")).fg(Color::Yellow),
+            Cell::new(t!("dashboard.multihop_val")).fg(Color::Green).add_attribute(Attribute::Bold),
         ]);
     }
 
@@ -560,20 +560,20 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         .set_content_arrangement(ContentArrangement::Dynamic);
 
     let (title, title_color) = if state.active {
-        ("🛡️  WRAITH // SYSTEM TELEMETRY MATRIX", Color::Cyan)
+        (t!("dashboard.telemetry_matrix_active"), Color::Cyan)
     } else {
-        ("⚠️  WRAITH // GATE OFFLINE", Color::Yellow)
+        (t!("dashboard.telemetry_matrix_offline"), Color::Yellow)
     };
 
     table.set_header(vec![
         Cell::new(title).fg(title_color).add_attribute(Attribute::Bold),
-        Cell::new("GATE METRICS & HARDENING POSTURE").fg(Color::Cyan).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.metrics_hardening_posture")).fg(Color::Cyan).add_attribute(Attribute::Bold),
     ]);
 
     let (status_label, status_val) = if state.active {
-        ("Operational State", Cell::new("● ACTIVE [Fail-Closed Gateway Armed]").fg(Color::Green).add_attribute(Attribute::Bold))
+        (t!("dashboard.op_state"), Cell::new(t!("dashboard.state_active_fail_closed")).fg(Color::Green).add_attribute(Attribute::Bold))
     } else {
-        ("Operational State", Cell::new("○ INACTIVE [Clearnet Direct Route]").fg(Color::Red).add_attribute(Attribute::Bold))
+        (t!("dashboard.op_state"), Cell::new(t!("dashboard.state_inactive_clearnet")).fg(Color::Red).add_attribute(Attribute::Bold))
     };
     table.add_row(vec![
         Cell::new(status_label).fg(Color::Yellow).add_attribute(Attribute::Bold),
@@ -592,72 +592,73 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
     let ip_cell = if geo.is_tor || state.active {
         Cell::new(format!("{ip_val} [✔ Verified Tor Node]")).fg(Color::Green).add_attribute(Attribute::Bold)
     } else {
-        Cell::new(format!("{ip_val} [✖ DIRECT CLEARNET WARNING]")).fg(Color::Red).add_attribute(Attribute::Bold)
+        let warn_str = t!("dashboard.clearnet_warn");
+        Cell::new(format!("{ip_val} [{warn_str}]")).fg(Color::Red).add_attribute(Attribute::Bold)
     };
     table.add_row(vec![
-        Cell::new("Public Exit IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.public_exit_ip")).fg(Color::Yellow).add_attribute(Attribute::Bold),
         ip_cell,
     ]);
 
     if geo.is_tor || state.active || geo.country_code.is_some() {
         let loc_str = format_geo_location(geo);
         table.add_row(vec![
-            Cell::new("Exit Geolocation").fg(Color::Yellow),
+            Cell::new(t!("dashboard.exit_geo")).fg(Color::Yellow),
             Cell::new(loc_str).fg(Color::Cyan),
         ]);
     }
 
     let route_cell = if geo.is_tor || state.active {
-        Cell::new("✔ Enforced via Tor Transparent Proxy (:9040)").fg(Color::Green)
+        Cell::new(t!("dashboard.traffic_redir_val")).fg(Color::Green)
     } else {
-        Cell::new("✖ Direct Clearnet (Bypass Active)").fg(Color::Red)
+        Cell::new(t!("dashboard.traffic_clearnet_warn")).fg(Color::Red)
     };
     table.add_row(vec![
-        Cell::new("Traffic Redirection").fg(Color::Yellow),
+        Cell::new(t!("dashboard.traffic_redir")).fg(Color::Yellow),
         route_cell,
     ]);
 
     let ks_cell = if state.kill_switch || state.active {
-        Cell::new("● Armed (Fail-Closed Sub-Millisecond Drop)").fg(Color::Green)
+        Cell::new(t!("dashboard.fail_closed_ks")).fg(Color::Green)
     } else {
-        Cell::new("○ Inactive (Engages on gateway start)").fg(Color::DarkGrey)
+        Cell::new(t!("dashboard.fail_closed_inactive")).fg(Color::DarkGrey)
     };
     table.add_row(vec![
-        Cell::new("Kill-Switch Protection").fg(Color::Yellow),
+        Cell::new(t!("dashboard.killswitch_prot")).fg(Color::Yellow),
         ks_cell,
     ]);
 
     if state.active {
         table.add_row(vec![
-            Cell::new("Active Circuits").fg(Color::Yellow),
-            Cell::new(format!("{circuits} Multi-Hop Circuit(s) Established")).fg(Color::Cyan),
+            Cell::new(t!("dashboard.active_circuits")).fg(Color::Yellow),
+            Cell::new(format!("{}", t!("dashboard.active_circuits_val", circuits = circuits))).fg(Color::Cyan),
         ]);
 
         if let Some(iface) = &state.target_interface {
             table.add_row(vec![
-                Cell::new("Locked Interface").fg(Color::Yellow),
+                Cell::new(t!("dashboard.locked_iface")).fg(Color::Yellow),
                 Cell::new(format!("✔ {iface}")).fg(Color::Green),
             ]);
         }
 
         if let Some(mac) = &state.mac_new {
             table.add_row(vec![
-                Cell::new("MAC Address").fg(Color::Yellow),
-                Cell::new(format!("✔ Spoofed: {mac}")).fg(Color::Magenta),
+                Cell::new(t!("dashboard.mac_addr")).fg(Color::Yellow),
+                Cell::new(format!("{}", t!("dashboard.mac_spoofed", mac = mac))).fg(Color::Magenta),
             ]);
         }
 
         if let Some(prof) = &state.exit_profile {
             table.add_row(vec![
-                Cell::new("Exit Node Profile").fg(Color::Yellow),
+                Cell::new(t!("dashboard.exit_profile")).fg(Color::Yellow),
                 Cell::new(format!("✔ {prof}")).fg(Color::Blue),
             ]);
         }
 
         if state.multihop_enabled {
             table.add_row(vec![
-                Cell::new("Multi-Hop Overlay").fg(Color::Yellow),
-                Cell::new("✔ WireGuard ➔ Tor ➔ Exit").fg(Color::Green).add_attribute(Attribute::Bold),
+                Cell::new(t!("dashboard.multihop_overlay")).fg(Color::Yellow),
+                Cell::new(t!("dashboard.multihop_val")).fg(Color::Green).add_attribute(Attribute::Bold),
             ]);
         }
 
@@ -687,17 +688,18 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
 
     let r1 = format!(
         "{} │ {} │ {}",
-        "wraith -s  (Arm)".bold().bright_green(),
-        "wraith -x  (Disarm)".bold().bright_red(),
-        "wraith -c  (Rotate IP)".bold().bright_cyan()
+        t!("dashboard.quick_arm").bold().bright_green(),
+        t!("dashboard.quick_disarm").bold().bright_red(),
+        t!("dashboard.quick_rotate").bold().bright_cyan()
     );
     let r2 = format!(
-        "{} │ {}",
-        "wraith -t  (Audit Leaks)".bold().bright_yellow(),
-        "wraith -m  (Live TUI Monitor)".bold().bright_purple()
+        "{} │ {} │ {}",
+        t!("dashboard.quick_audit").bold().bright_yellow(),
+        t!("dashboard.quick_monitor").bold().bright_purple(),
+        t!("dashboard.quick_purge").bold().bright_blue()
     );
     let info_box = render_box(
-        "⚡ QUICK COMMANDS",
+        &t!("dashboard.quick_commands"),
         &[r1, r2],
         BoxCorner::Rounded,
         78,
@@ -717,50 +719,50 @@ pub fn print_system_restored(geo: Option<&IpGeoInfo>) {
         .set_content_arrangement(ContentArrangement::Dynamic);
 
     table.set_header(vec![
-        Cell::new("✔  WRAITH // SYSTEM DISARMED & RESTORED").fg(Color::Green).add_attribute(Attribute::Bold),
-        Cell::new("SECURITY AUDIT & TEARDOWN VERIFICATION").fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.system_restored_title")).fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.teardown_verification")).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new("Operational State").fg(Color::Yellow).add_attribute(Attribute::Bold),
-        Cell::new("○ DEACTIVATED (Full Clearnet Restored)").fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.op_state")).fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.state_deactivated_clearnet")).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     if let Some(g) = geo {
         let unk = t!("geo.unknown");
         let ip_str = if !g.ip.is_empty() { g.ip.as_str() } else { unk.as_ref() };
         table.add_row(vec![
-            Cell::new("Clearnet Public IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
+            Cell::new(t!("dashboard.clearnet_public_ip")).fg(Color::Yellow).add_attribute(Attribute::Bold),
             Cell::new(ip_str).fg(Color::Green).add_attribute(Attribute::Bold),
         ]);
 
         if g.country_code.is_some() || g.country_name.is_some() {
             let loc = format_geo_location(g);
             table.add_row(vec![
-                Cell::new("Origin Geolocation").fg(Color::Yellow),
+                Cell::new(t!("dashboard.origin_geo")).fg(Color::Yellow),
                 Cell::new(loc).fg(Color::Cyan),
             ]);
         }
     }
 
     table.add_row(vec![
-        Cell::new("Firewall Posture").fg(Color::Yellow),
-        Cell::new("✔ Netfilter / iptables Rules Flushed & Cleared").fg(Color::Green),
+        Cell::new(t!("dashboard.firewall_posture")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.firewall_posture_val")).fg(Color::Green),
     ]);
 
     table.add_row(vec![
-        Cell::new("DNS Resolution").fg(Color::Yellow),
-        Cell::new("✔ System Nameservers Restored (/etc/resolv.conf)").fg(Color::Green),
+        Cell::new(t!("dashboard.dns_res")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.dns_res_val")).fg(Color::Green),
     ]);
 
     table.add_row(vec![
-        Cell::new("Gateway Processes").fg(Color::Yellow),
-        Cell::new("✔ Tor Daemon & Child Threads Terminated").fg(Color::Green),
+        Cell::new(t!("dashboard.gw_processes")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.gw_processes_val")).fg(Color::Green),
     ]);
 
     table.add_row(vec![
-        Cell::new("Anti-Forensics").fg(Color::Yellow),
-        Cell::new("✔ Runtime State & Ephemeral IPC Wiped (Zero-Residue)").fg(Color::Green),
+        Cell::new(t!("dashboard.anti_forensics")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.anti_forensics_val")).fg(Color::Green),
     ]);
 
     println!("\n{table}");
