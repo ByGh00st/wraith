@@ -249,18 +249,30 @@ pub fn country_flag(code: &str) -> String {
 }
 
 pub fn format_geo_location(geo: &IpGeoInfo) -> String {
+    let unk = t!("geo.unknown").into_owned();
     let cc = match geo.country_code.as_deref() {
-        Some(c) if !c.trim().is_empty() && c.trim() != "??" => c.trim(),
-        _ => return "Bilinmiyor".to_string(),
+        Some(c) if !c.trim().is_empty() && c.trim() != "??" && c.trim() != "Unknown" => c.trim().to_uppercase(),
+        _ => return unk,
     };
-    let flag = country_flag(cc);
-    let country = match geo.country_name.as_deref() {
-        Some(c) if !c.trim().is_empty() && c.trim() != "Unknown" && c.trim() != "??" => c.trim(),
-        _ => {
-            let lookup = wraith_guard::iso_country_name(cc);
-            if lookup != "Unknown" { lookup } else { return "Bilinmiyor".to_string(); }
+    let flag = country_flag(&cc);
+    let country = {
+        let key = format!("geo.countries.{}", cc);
+        let tr = t!(&key);
+        if tr != key {
+            tr.into_owned()
+        } else if let Some(c) = geo.country_name.as_deref() {
+            if !c.trim().is_empty() && c.trim() != "Unknown" && c.trim() != "??" {
+                c.trim().to_string()
+            } else {
+                wraith_guard::iso_country_name(&cc).to_string()
+            }
+        } else {
+            wraith_guard::iso_country_name(&cc).to_string()
         }
     };
+    if country == "Unknown" || country.is_empty() {
+        return unk;
+    }
     let flag_prefix = if !flag.is_empty() { format!("{flag} ") } else { String::new() };
     if let Some(city) = &geo.city {
         if !city.trim().is_empty() && city.trim() != "Unknown" && city.trim() != "??" {
@@ -290,10 +302,12 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
     }
 
     let loc_str = format_geo_location(geo);
-    let loc_details = if loc_str != "Bilinmiyor" {
+    let unk = t!("geo.unknown");
+    let loc_details = if !loc_str.is_empty() && loc_str != unk.as_ref() {
         format!("{} ➔ {loc_str}", geo.ip)
     } else {
-        format!("{} [Lokasyon Bilinmiyor]", geo.ip)
+        let loc_unk = t!("geo.location_unknown");
+        format!("{} [{loc_unk}]", geo.ip)
     };
 
     table.add_row(vec![
@@ -468,10 +482,12 @@ pub fn print_background_hud(state: &StateData, geo: &IpGeoInfo) {
         state.ip.as_deref().unwrap_or("Verified Tor Node")
     };
     let loc_str = format_geo_location(geo);
-    let exit_display = if loc_str != "Bilinmiyor" {
+    let unk = t!("geo.unknown");
+    let exit_display = if !loc_str.is_empty() && loc_str != unk.as_ref() {
         format!("{ip_display} ➔ {loc_str}")
     } else {
-        format!("{ip_display} [Lokasyon Bilinmiyor]")
+        let loc_unk = t!("geo.location_unknown");
+        format!("{ip_display} [{loc_unk}]")
     };
     table.add_row(vec![
         Cell::new("Tor Public Exit IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
@@ -564,12 +580,13 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         status_val,
     ]);
 
+    let unk = t!("geo.unknown");
     let ip_val = if !geo.ip.is_empty() {
-        &geo.ip
+        geo.ip.as_str()
     } else if let Some(ref ip) = state.ip {
-        ip
+        ip.as_str()
     } else {
-        "Unknown"
+        unk.as_ref()
     };
 
     let ip_cell = if geo.is_tor || state.active {
@@ -710,7 +727,8 @@ pub fn print_system_restored(geo: Option<&IpGeoInfo>) {
     ]);
 
     if let Some(g) = geo {
-        let ip_str = if !g.ip.is_empty() { &g.ip } else { "Unavailable" };
+        let unk = t!("geo.unknown");
+        let ip_str = if !g.ip.is_empty() { g.ip.as_str() } else { unk.as_ref() };
         table.add_row(vec![
             Cell::new("Clearnet Public IP").fg(Color::Yellow).add_attribute(Attribute::Bold),
             Cell::new(ip_str).fg(Color::Green).add_attribute(Attribute::Bold),
@@ -772,7 +790,8 @@ pub fn show_leak_report(report: &LeakReport) {
         Cell::new("Inspection Details").add_attribute(Attribute::Bold).fg(Color::Cyan),
     ]);
 
-    let ip_val = report.ip_address.as_deref().unwrap_or("Unknown");
+    let unk = t!("geo.unknown");
+    let ip_val = report.ip_address.as_deref().unwrap_or(unk.as_ref());
     let tor_status = if report.is_tor {
         Cell::new("✔ PASS").fg(Color::Green).add_attribute(Attribute::Bold)
     } else {

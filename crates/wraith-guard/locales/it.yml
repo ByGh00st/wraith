@@ -7,3 +7,6 @@ guard:
   jitter_engine_started: Padding di traffico sintetico attivo (jitter di Poisson)
   leak_test_passed: Test di leak multi-vettore superato con 0 perdite rilevate
   leak_test_failed: Rilevata una perdita di rete critica durante l'ispezione
+geo:
+  unknown: "Sconosciuto"
+  location_unknown: "Posizione Sconosciuta"

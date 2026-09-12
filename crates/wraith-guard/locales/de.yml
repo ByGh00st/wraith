@@ -6,3 +6,6 @@ guard:
   jitter_engine_started: Synthetisches Traffic-Padding (Poisson-Jitter) aktiv
   leak_test_passed: Multi-Vektor-Leak-Test mit 0 Lecks bestanden
   leak_test_failed: Kritisches Netzwerk-Leak bei Prüfung entdeckt
+geo:
+  unknown: "Unbekannt"
+  location_unknown: "Standort Unbekannt"
