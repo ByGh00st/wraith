@@ -90,9 +90,9 @@ pub fn restore_dns_snapshot(content: &str) -> Result<()> {
 }
 
 pub fn stop_existing_tor() {
-    // Target only Wraith-managed Tor processes matching our specific torrc configuration
+    // Target any Wraith-managed Tor processes matching our specific torrc configuration
     let _ = Command::new("pkill")
-        .args(["-f", &format!("tor.*-f.*{TORRC_PATH}")])
+        .args(["-f", "wraithrc"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
@@ -125,11 +125,38 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
         let _ = Command::new("chown").args(["-R", &format!("{TOR_USER}:{TOR_USER}"), dir]).stdout(Stdio::null()).stderr(Stdio::null()).status();
         let _ = Command::new("chmod").args(["700", dir]).stdout(Stdio::null()).stderr(Stdio::null()).status();
     }
+    let _ = Command::new("chmod").args(["644", TORRC_PATH]).stdout(Stdio::null()).stderr(Stdio::null()).status();
 
-    let output = Command::new("sudo")
-        .args(["-u", TOR_USER, tor_bin, "-f", TORRC_PATH])
-        .output()
-        .map_err(|e| WraithError::Tor(format!("Failed to spawn Tor daemon: {e}")))?;
+    // Detached background daemons cannot reliably use sudo without a controlling TTY.
+    // Use runuser (standard on Debian/Kali for daemon privilege drop) with su as fallback.
+    let runuser_bin = if Path::new("/sbin/runuser").exists() {
+        "/sbin/runuser"
+    } else if Path::new("/usr/sbin/runuser").exists() {
+        "/usr/sbin/runuser"
+    } else if Path::new("/bin/runuser").exists() {
+        "/bin/runuser"
+    } else if Path::new("/usr/bin/runuser").exists() {
+        "/usr/bin/runuser"
+    } else {
+        "runuser"
+    };
+
+    let has_runuser = Path::new(runuser_bin).exists()
+        || Command::new("which").arg("runuser").stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
+
+    let output = if has_runuser {
+        Command::new(runuser_bin)
+            .args(["-u", TOR_USER, "--", tor_bin, "-f", TORRC_PATH])
+            .output()
+    } else if Path::new("/bin/su").exists() || Path::new("/usr/bin/su").exists() {
+        Command::new("su")
+            .args(["-s", "/bin/sh", TOR_USER, "-c", &format!("{tor_bin} -f {TORRC_PATH}")])
+            .output()
+    } else {
+        Command::new("sudo")
+            .args(["-u", TOR_USER, tor_bin, "-f", TORRC_PATH])
+            .output()
+    }.map_err(|e| WraithError::Tor(format!("Failed to spawn Tor daemon: {e}")))?;
 
     if !output.status.success() {
         let err_msg = String::from_utf8_lossy(&output.stderr);
