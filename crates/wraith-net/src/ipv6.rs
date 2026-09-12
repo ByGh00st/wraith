@@ -27,15 +27,17 @@ pub const IPV6_RESTORE_SYSCTLS: &[(&str, &str)] = &[
 
 pub fn apply_ipv6_block() -> Result<()> {
     // Netfilter blocks IPv6 without changing persistent interface sysctls.
-    // 2. Netfilter Level: Apply fail-closed DROP policies FIRST before flushing
+    // 2. Best-effort flush of IPv6 NAT table (non-fatal if kernel lacks ip6table_nat module)
+    let _ = Command::new("ip6tables").args(["-t", "nat", "-F"]).output();
+    let _ = Command::new("ip6tables").args(["-t", "nat", "-X"]).output();
+
+    // 3. Netfilter Level: Apply fail-closed DROP policies FIRST before flushing filter
     let commands: Vec<Vec<&str>> = vec![
         vec!["ip6tables", "-P", "INPUT", "DROP"],
         vec!["ip6tables", "-P", "FORWARD", "DROP"],
         vec!["ip6tables", "-P", "OUTPUT", "DROP"],
         vec!["ip6tables", "-F"],
         vec!["ip6tables", "-X"],
-        vec!["ip6tables", "-t", "nat", "-F"],
-        vec!["ip6tables", "-t", "nat", "-X"],
         vec!["ip6tables", "-A", "INPUT", "-i", "lo", "-j", "ACCEPT"],
         vec!["ip6tables", "-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT"],
     ];
