@@ -32,8 +32,9 @@ use wraith_tor::{
 };
 
 use crate::display::{
-    print_banner, print_error, print_step, print_success, show_circuit_telemetry, show_leak_report,
-    show_status_dashboard, render_box, render_box_top, render_box_bottom, render_box_row, BoxCorner,
+    print_banner, print_error, print_step, print_success, print_system_restored,
+    show_circuit_telemetry, show_leak_report, show_status_dashboard, render_box, render_box_top,
+    render_box_bottom, render_box_row, BoxCorner,
 };
 use owo_colors::OwoColorize;
 use tokio_util::sync::CancellationToken;
@@ -1172,16 +1173,8 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     }
 
     sleep(Duration::from_secs(2)).await;
-    let real_ip = get_current_ip().await;
-
-    if let Some(ip) = real_ip {
-        print_success(&format!(
-            "{}: {ip}",
-            t!("runtime.stopped_success")
-        ));
-    } else {
-        print_success(&t!("runtime.stopped_success"));
-    }
+    let real_geo = get_current_ip_geo().await;
+    print_system_restored(Some(&real_geo));
     Ok(())
 }
 
@@ -1360,10 +1353,7 @@ pub async fn cmd_info() -> Result<()> {
     let state_mgr = StateManager::default();
     let state = state_mgr.read();
 
-    let (is_tor, tor_ip) = verify_tor_connection().await;
-    let ip = tor_ip
-        .or(get_current_ip().await)
-        .unwrap_or_else(|| "Unknown".into());
+    let geo = get_current_ip_geo().await;
 
     let telemetry = match get_circuit_telemetry().await {
         Ok(t) => t,
@@ -1372,7 +1362,7 @@ pub async fn cmd_info() -> Result<()> {
             wraith_tor::TorTelemetry::default()
         }
     };
-    show_status_dashboard(&state, is_tor, &ip, telemetry.circuits.len());
+    show_status_dashboard(&state, &geo, telemetry.circuits.len());
 
     if state.active {
         show_circuit_telemetry(&telemetry);

@@ -10,6 +10,7 @@ pub mod interface_tui;
 pub mod tui;
 
 use clap::{Args, Parser, Subcommand};
+use owo_colors::OwoColorize;
 use tracing_subscriber::EnvFilter;
 use wraith_core::error::Result;
 
@@ -805,12 +806,30 @@ pub async fn main() -> Result<()> {
                 if state_mgr.is_running() {
                     let st = state_mgr.read();
                     if st.active {
-                        display::print_error("Wraith is already running! Use 'wraith -i' to view status, or 'wraith -x' to stop.");
+                        display::print_banner(false);
+                        display::print_step("WRAITH gateway is already armed & running in background!", "warn");
+                        let geo = wraith_guard::get_current_ip_geo().await;
+                        display::print_background_hud(&st, &geo);
                         return Ok(());
                     }
                 }
 
-                println!("\n  🚀 \x1b[1;36mWRAITH\x1b[0m is starting in the background (Temporary Session)...");
+                display::print_banner(false);
+                let init_rows = vec![
+                    "Initiating detached background session (daemon mode)...".bright_white().to_string(),
+                    "Transparent Tor gateway, fail-closed killswitch, and DNS routing are arming.".dimmed().to_string(),
+                ];
+                let init_box = display::render_box(
+                    "🚀 WRAITH // DAEMON INITIALIZATION",
+                    &init_rows,
+                    display::BoxCorner::Rounded,
+                    78,
+                );
+                println!("{}", init_box[0].bright_cyan());
+                for row in &init_box[1..init_box.len() - 1] {
+                    println!("{row}");
+                }
+                println!("{}", init_box.last().unwrap().bright_cyan());
                 
                 let mut cmd = std::process::Command::new(std::env::current_exe()?);
                 // Forward all original arguments and append --daemon-worker
@@ -857,18 +876,18 @@ pub async fn main() -> Result<()> {
                 };
 
                 // Wait for daemon to initialize Tor and activate routing
-                print!("  [~] Initializing Tor network gateway in background");
                 use std::io::Write;
-                let _ = std::io::stdout().flush();
-
+                let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
                 let mut activated = false;
-                for _ in 0..60 {
-                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                    print!(".");
+                for i in 0..60 {
+                    let frame = spinner_frames[i % spinner_frames.len()];
+                    print!("\r  \x1b[1;36m{frame}\x1b[0m \x1b[1;37mEstablishing Tor circuit gateway & fail-closed firewall...\x1b[0m \x1b[2m({}s)\x1b[0m", (i / 2) + 1);
                     let _ = std::io::stdout().flush();
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     
                     if let Ok(Some(status)) = child.try_wait() {
-                        println!();
+                        print!("\r\x1b[2K");
+                        let _ = std::io::stdout().flush();
                         let log_content = std::fs::read_to_string("/var/log/wraith/daemon.log").unwrap_or_default();
                         let err_detail = log_content.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("Unknown exit reason");
                         display::print_error(&format!("Daemon exited unexpectedly ({status}): {err_detail}"));
@@ -880,17 +899,16 @@ pub async fn main() -> Result<()> {
                         break;
                     }
                 }
-                println!();
+                print!("\r\x1b[2K");
+                let _ = std::io::stdout().flush();
 
                 if activated {
                     let state = state_mgr.read();
-                    let ip_str = state.ip.as_deref().unwrap_or("Verified Tor Node");
-                    println!("  \x1b[1;32m✔\x1b[0m WRAITH Background Session Armed & Active!");
-                    println!("  \x1b[1;36mExit IP:\x1b[0m \x1b[1;37m{ip_str}\x1b[0m");
-                    println!("  \x1b[2mTo monitor:\x1b[0m \x1b[1;33mwraith -i\x1b[0m   \x1b[2mTo stop:\x1b[0m \x1b[1;31mwraith -x\x1b[0m\n");
+                    let geo = wraith_guard::get_current_ip_geo().await;
+                    display::print_background_hud(&state, &geo);
                 } else {
-                    println!("  \x1b[1;33m▲\x1b[0m Background session process is running, waiting for full Tor circuit bootstrap.");
-                    println!("  Check status shortly using: \x1b[1;33mwraith -i\x1b[0m\n");
+                    display::print_step("Daemon process active, awaiting full circuit bootstrap.", "warn");
+                    display::print_step("Run 'wraith -i' shortly to verify live gateway metrics.", "info");
                 }
                 return Ok(());
             }
