@@ -30,10 +30,39 @@ pub struct IpGeoInfo {
     pub is_tor: bool,
 }
 
+pub fn iso_country_name(code: &str) -> &'static str {
+    match code.trim().to_uppercase().as_str() {
+        "AF" => "Afghanistan", "AL" => "Albania", "DZ" => "Algeria", "AR" => "Argentina",
+        "AM" => "Armenia", "AU" => "Australia", "AT" => "Austria", "AZ" => "Azerbaijan",
+        "BY" => "Belarus", "BE" => "Belgium", "BA" => "Bosnia and Herzegovina", "BR" => "Brazil",
+        "BG" => "Bulgaria", "CA" => "Canada", "CL" => "Chile", "CN" => "China",
+        "CO" => "Colombia", "HR" => "Croatia", "CY" => "Cyprus", "CZ" => "Czech Republic",
+        "DK" => "Denmark", "EG" => "Egypt", "EE" => "Estonia", "FI" => "Finland",
+        "FR" => "France", "GE" => "Georgia", "DE" => "Germany", "GR" => "Greece",
+        "HK" => "Hong Kong", "HU" => "Hungary", "IS" => "Iceland", "IN" => "India",
+        "ID" => "Indonesia", "IR" => "Iran", "IQ" => "Iraq", "IE" => "Ireland",
+        "IL" => "Israel", "IT" => "Italy", "JP" => "Japan", "JO" => "Jordan",
+        "KZ" => "Kazakhstan", "KR" => "South Korea", "LV" => "Latvia", "LB" => "Lebanon",
+        "LT" => "Lithuania", "LU" => "Luxembourg", "MY" => "Malaysia", "MX" => "Mexico",
+        "MD" => "Moldova", "NL" => "Netherlands", "NZ" => "New Zealand", "NO" => "Norway",
+        "PK" => "Pakistan", "PS" => "Palestine", "PA" => "Panama", "PE" => "Peru",
+        "PH" => "Philippines", "PL" => "Poland", "PT" => "Portugal", "RO" => "Romania",
+        "RU" => "Russia", "SA" => "Saudi Arabia", "RS" => "Serbia", "SG" => "Singapore",
+        "SK" => "Slovakia", "SI" => "Slovenia", "ZA" => "South Africa", "ES" => "Spain",
+        "SE" => "Sweden", "CH" => "Switzerland", "TW" => "Taiwan", "TH" => "Thailand",
+        "TR" => "Turkey", "UA" => "Ukraine", "AE" => "United Arab Emirates",
+        "GB" | "UK" => "United Kingdom", "US" => "United States", "VN" => "Vietnam",
+        _ => "Unknown",
+    }
+}
+
 impl std::fmt::Display for IpGeoInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cc = self.country_code.as_deref().unwrap_or("??");
-        let country = self.country_name.as_deref().unwrap_or("Unknown");
+        let country = self.country_name.as_deref().unwrap_or_else(|| {
+            let lookup = iso_country_name(cc);
+            if lookup != "Unknown" { lookup } else { "Unknown" }
+        });
         if let Some(city) = &self.city {
             write!(f, "{} [📍 {}] {}, {}", self.ip, cc, country, city)
         } else {
@@ -52,43 +81,102 @@ pub async fn get_current_ip_geo() -> IpGeoInfo {
         info.ip = ip.clone();
     }
 
-    // 2. Query ipwho.is for full country & city geolocation (with 10s budget for Tor circuits)
-    let geo_url = if !info.ip.is_empty() {
-        format!("https://ipwho.is/{}", info.ip)
+    let target_ip = info.ip.clone();
+
+    // 2. Query ipwho.is for full country & city geolocation (with 8s budget for Tor circuits)
+    let ipwho_url = if !target_ip.is_empty() {
+        format!("https://ipwho.is/{target_ip}")
     } else {
         "https://ipwho.is/".to_string()
     };
 
-    if let Ok(output) = query_endpoint(&geo_url, 10).await
-    {
+    if let Ok(output) = query_endpoint(&ipwho_url, 8).await {
         if output.status.success() {
             let text = String::from_utf8_lossy(&output.stdout);
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                if let Some(ip) = json.get("ip").and_then(|v| v.as_str()).and_then(valid_ip) {
-                    if info.ip.is_empty() {
-                        info.ip = ip.to_string();
+                if json.get("success").and_then(|v| v.as_bool()).unwrap_or(true) {
+                    if let Some(ip) = json.get("ip").and_then(|v| v.as_str()).and_then(valid_ip) {
+                        if info.ip.is_empty() {
+                            info.ip = ip;
+                        }
                     }
                     info.country_code = json.get("country_code").and_then(|v| v.as_str()).map(|s| s.to_string());
                     info.country_name = json.get("country").and_then(|v| v.as_str()).map(|s| s.to_string());
                     info.city = json.get("city").and_then(|v| v.as_str()).map(|s| s.to_string());
+                    if info.country_code.is_some() {
+                        return info;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Query freeipapi.com as reliable fallback for Tor circuits
+    let freeip_url = if !target_ip.is_empty() {
+        format!("https://freeipapi.com/api/json/{target_ip}")
+    } else {
+        "https://freeipapi.com/api/json".to_string()
+    };
+
+    if let Ok(output) = query_endpoint(&freeip_url, 8).await {
+        if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(ip) = json.get("ipAddress").and_then(|v| v.as_str()).and_then(valid_ip) {
+                    if info.ip.is_empty() {
+                        info.ip = ip;
+                    }
+                }
+                info.country_code = json.get("countryCode").and_then(|v| v.as_str()).map(|s| s.to_string());
+                info.country_name = json.get("countryName").and_then(|v| v.as_str()).map(|s| s.to_string());
+                info.city = json.get("cityName").and_then(|v| v.as_str()).map(|s| s.to_string());
+                if info.country_code.is_some() {
                     return info;
                 }
             }
         }
     }
 
-    // 3. Fallback geolocation via api.myip.com
-    if let Ok(output) = query_endpoint("https://api.myip.com", 10).await
-    {
+    // 4. Query api.country.is as ultra-fast, zero-ratelimit country fallback
+    let country_url = if !target_ip.is_empty() {
+        format!("https://api.country.is/{target_ip}")
+    } else {
+        "https://api.country.is/".to_string()
+    };
+
+    if let Ok(output) = query_endpoint(&country_url, 6).await {
         if output.status.success() {
             let text = String::from_utf8_lossy(&output.stdout);
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                 if let Some(ip) = json.get("ip").and_then(|v| v.as_str()).and_then(valid_ip) {
                     if info.ip.is_empty() {
-                        info.ip = ip.to_string();
+                        info.ip = ip;
                     }
-                    info.country_code = json.get("cc").and_then(|v| v.as_str()).map(|s| s.to_string());
-                    info.country_name = json.get("country").and_then(|v| v.as_str()).map(|s| s.to_string());
+                }
+                if let Some(cc) = json.get("country").and_then(|v| v.as_str()) {
+                    let code = cc.to_string();
+                    let cname = iso_country_name(&code).to_string();
+                    info.country_code = Some(code);
+                    info.country_name = Some(cname);
+                    return info;
+                }
+            }
+        }
+    }
+
+    // 5. Fallback geolocation via api.myip.com
+    if let Ok(output) = query_endpoint("https://api.myip.com", 6).await {
+        if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(ip) = json.get("ip").and_then(|v| v.as_str()).and_then(valid_ip) {
+                    if info.ip.is_empty() {
+                        info.ip = ip;
+                    }
+                }
+                info.country_code = json.get("cc").and_then(|v| v.as_str()).map(|s| s.to_string());
+                info.country_name = json.get("country").and_then(|v| v.as_str()).map(|s| s.to_string());
+                if info.country_code.is_some() {
                     return info;
                 }
             }
@@ -257,6 +345,7 @@ async fn query_endpoint(url: &str, seconds: u64) -> std::io::Result<std::process
             .args([
                 "-q",
                 "-s",
+                "-L",
                 "--fail",
                 "--proto",
                 "=https",
@@ -264,6 +353,10 @@ async fn query_endpoint(url: &str, seconds: u64) -> std::io::Result<std::process
                 "",
                 "--noproxy",
                 "*",
+                "-A",
+                "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0",
+                "-H",
+                "Accept: application/json",
                 "--connect-timeout",
                 &connect_timeout.to_string(),
                 "--max-time",
