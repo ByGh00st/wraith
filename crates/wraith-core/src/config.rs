@@ -16,6 +16,8 @@ pub const TOR_DNS_PORT: u16 = 5353;
 pub const WRAITH_DNS_PORT: u16 = 5354;
 pub const TOR_CONTROL_PORT: u16 = 9051;
 pub const TOR_SOCKS_PORT: u16 = 9050;
+pub const DPI_HTTP_PORT: u16 = 9055;
+pub const DPI_PROXY_ADDR: &str = "127.0.0.1:9055";
 pub const TOR_USER: &str = "debian-tor";
 
 // Local Subnets for Exemption
