@@ -15,7 +15,7 @@ use wraith_core::error::Result;
 
 rust_i18n::i18n!("locales");
 
-#[derive(Args, Clone, Debug, Default)]
+#[derive(Args, Clone, Debug, Default, PartialEq, Eq)]
 #[command(args_override_self = true)]
 pub struct StartArgs {
     // ─── [1. NETWORK & ROUTING ISOLATION] ──────────────────────────────────────────
@@ -289,11 +289,11 @@ struct Cli {
     start_opts: StartArgs,
 
     /// Quick start shortcut with options from StartArgs
-    #[arg(short = 's', long)]
+    #[arg(short = 's', long, conflicts_with = "stop")]
     start: bool,
 
     /// Quick stop shortcut
-    #[arg(short = 'x', long)]
+    #[arg(short = 'x', long, conflicts_with = "start")]
     stop: bool,
 
     /// Launch real-time dedicated DPI & IDS live interceptor monitor
@@ -365,7 +365,7 @@ struct Cli {
     interfaces: bool,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone, Debug, PartialEq, Eq)]
 #[command(args_override_self = true)]
 enum Commands {
     /// Start Wraith network anonymization
@@ -458,7 +458,7 @@ enum Commands {
     },
 }
 
-#[derive(Subcommand, Clone, Debug)]
+#[derive(Subcommand, Clone, Debug, PartialEq, Eq)]
 pub enum BridgeAction {
     /// Query Tor BridgeDB via Moat Protocol (JSON-API)
     Moat {
@@ -476,7 +476,7 @@ pub enum BridgeAction {
     List,
 }
 
-#[derive(Subcommand, Clone, Debug)]
+#[derive(Subcommand, Clone, Debug, PartialEq, Eq)]
 pub enum ConfigAction {
     /// Show current persistent configuration settings
     Show,
@@ -567,6 +567,53 @@ fn detect_system_language(raw_args: &[String]) -> String {
     "en".to_string()
 }
 
+pub(crate) fn resolve_command(cli: &Cli) -> Option<Commands> {
+    if let Some(ref cmd) = cli.command {
+        Some(cmd.clone())
+    } else if cli.stop {
+        Some(Commands::Stop {
+            self_destruct: cli.start_opts.forensic_self_destruct,
+        })
+    } else if cli.start {
+        Some(Commands::Start(cli.start_opts.clone()))
+    } else if cli.switch {
+        Some(Commands::Switch)
+    } else if cli.test {
+        Some(Commands::Test)
+    } else if cli.info {
+        Some(Commands::Info)
+    } else if cli.doctor {
+        Some(Commands::Doctor)
+    } else if cli.bench {
+        Some(Commands::Benchmark)
+    } else if cli.cleanup || cli.cleanup_full {
+        Some(Commands::Cleanup {
+            full: cli.cleanup_full,
+        })
+    } else if cli.pentest {
+        Some(Commands::Pentest)
+    } else if cli.update {
+        Some(Commands::Update {
+            artifact: None,
+            manifest: None,
+            signature: None,
+        })
+    } else if let Some(ref target) = cli.shred {
+        Some(Commands::Shred {
+            target: target.clone(),
+            passes: 7,
+        })
+    } else if cli.monitor {
+        Some(Commands::Monitor)
+    } else if cli.interfaces {
+        Some(Commands::Interfaces { all: false })
+    } else if cli.start_opts.has_active_flags() {
+        Some(Commands::Start(cli.start_opts.clone()))
+    } else {
+        None
+    }
+}
+
 #[tokio::main]
 pub async fn main() -> Result<()> {
     install_emergency_panic_sentry();
@@ -617,38 +664,13 @@ pub async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     // Unified command mapping from top-level shortcuts and subcommands
-    let command = if let Some(cmd) = cli.command {
-        cmd
-    } else if cli.start || cli.start_opts.has_active_flags() {
-        Commands::Start(cli.start_opts)
-    } else if cli.stop {
-        Commands::Stop { self_destruct: cli.start_opts.forensic_self_destruct }
-    } else if cli.switch {
-        Commands::Switch
-    } else if cli.test {
-        Commands::Test
-    } else if cli.info {
-        Commands::Info
-    } else if cli.doctor {
-        Commands::Doctor
-    } else if cli.bench {
-        Commands::Benchmark
-    } else if cli.cleanup || cli.cleanup_full {
-        Commands::Cleanup { full: cli.cleanup_full }
-    } else if cli.pentest {
-        Commands::Pentest
-    } else if cli.update {
-        Commands::Update { artifact: None, manifest: None, signature: None }
-    } else if let Some(ref target) = cli.shred {
-        Commands::Shred { target: target.clone(), passes: 7 }
-    } else if cli.monitor {
-        Commands::Monitor
-    } else if cli.interfaces {
-        Commands::Interfaces { all: false }
-    } else {
-        display::print_banner(false);
-        println!("  {}\n", rust_i18n::t!("runtime.help_hint"));
-        return Ok(());
+    let command = match resolve_command(&cli) {
+        Some(cmd) => cmd,
+        None => {
+            display::print_banner(false);
+            println!("  {}\n", rust_i18n::t!("runtime.help_hint"));
+            return Ok(());
+        }
     };
 
     // Check root privileges for system-modifying operations
@@ -1092,6 +1114,128 @@ mod tests {
         } else {
             panic!("Expected Commands::Doh");
         }
+    }
+
+    #[test]
+    fn test_resolve_command_all_shortcuts_and_subcommands() {
+        // Stop shortcuts
+        let cli_stop = Cli::try_parse_from(["wraith", "-x"]).unwrap();
+        assert_eq!(resolve_command(&cli_stop), Some(Commands::Stop { self_destruct: false }));
+
+        let cli_stop_destruct = Cli::try_parse_from(["wraith", "-x", "-d"]).unwrap();
+        assert_eq!(resolve_command(&cli_stop_destruct), Some(Commands::Stop { self_destruct: true }));
+
+        let cli_stop_sub = Cli::try_parse_from(["wraith", "stop"]).unwrap();
+        assert_eq!(resolve_command(&cli_stop_sub), Some(Commands::Stop { self_destruct: false }));
+
+        let cli_stop_sub_d = Cli::try_parse_from(["wraith", "stop", "-d"]).unwrap();
+        assert_eq!(resolve_command(&cli_stop_sub_d), Some(Commands::Stop { self_destruct: true }));
+
+        // Start & strict hardening shortcuts
+        let cli_start = Cli::try_parse_from(["wraith", "-s"]).unwrap();
+        assert_eq!(resolve_command(&cli_start), Some(Commands::Start(StartArgs::default())));
+
+        let cli_fs = Cli::try_parse_from(["wraith", "-Fs"]).unwrap();
+        assert!(matches!(resolve_command(&cli_fs), Some(Commands::Start(args)) if args.strict_hardening));
+
+        let cli_f = Cli::try_parse_from(["wraith", "-F"]).unwrap();
+        assert!(matches!(resolve_command(&cli_f), Some(Commands::Start(args)) if args.strict_hardening));
+
+        // Start modifier flags without -s (implicit start via has_active_flags)
+        let cli_iface = Cli::try_parse_from(["wraith", "-I", "eth0"]).unwrap();
+        assert!(matches!(resolve_command(&cli_iface), Some(Commands::Start(args)) if args.interface.as_deref() == Some("eth0")));
+
+        let cli_mac = Cli::try_parse_from(["wraith", "-m"]).unwrap();
+        assert!(matches!(resolve_command(&cli_mac), Some(Commands::Start(args)) if args.mac));
+
+        let cli_bridge = Cli::try_parse_from(["wraith", "-b", "--bridge-type", "obfs4"]).unwrap();
+        assert!(matches!(resolve_command(&cli_bridge), Some(Commands::Start(args)) if args.bridge && args.bridge_type.as_deref() == Some("obfs4")));
+
+        let cli_doh = Cli::try_parse_from(["wraith", "-D", "quad9"]).unwrap();
+        assert!(matches!(resolve_command(&cli_doh), Some(Commands::Start(args)) if args.doh.as_deref() == Some("quad9")));
+
+        let cli_ns = Cli::try_parse_from(["wraith", "-n"]).unwrap();
+        assert!(matches!(resolve_command(&cli_ns), Some(Commands::Start(args)) if args.namespace));
+
+        let cli_prof = Cli::try_parse_from(["wraith", "-p", "stealth"]).unwrap();
+        assert!(matches!(resolve_command(&cli_prof), Some(Commands::Start(args)) if args.profile.as_deref() == Some("stealth")));
+
+        let cli_shaper = Cli::try_parse_from(["wraith", "--shaper"]).unwrap();
+        assert!(matches!(resolve_command(&cli_shaper), Some(Commands::Start(args)) if args.traffic_shaper));
+
+        let cli_onion = Cli::try_parse_from(["wraith", "--onion", "80:8080"]).unwrap();
+        assert!(matches!(resolve_command(&cli_onion), Some(Commands::Start(args)) if args.onion_service.as_deref() == Some("80:8080")));
+
+        let cli_honey = Cli::try_parse_from(["wraith", "--honey-ports", "--honey-lan"]).unwrap();
+        assert!(matches!(resolve_command(&cli_honey), Some(Commands::Start(args)) if args.honey_ports && args.honey_lan));
+
+        let cli_tcpm = Cli::try_parse_from(["wraith", "--tcp-mask"]).unwrap();
+        assert!(matches!(resolve_command(&cli_tcpm), Some(Commands::Start(args)) if args.tcp_mask));
+
+        let cli_mid = Cli::try_parse_from(["wraith", "--machine-id"]).unwrap();
+        assert!(matches!(resolve_command(&cli_mid), Some(Commands::Start(args)) if args.machine_id_rotation));
+
+        let cli_bshield = Cli::try_parse_from(["wraith", "--browser-shield"]).unwrap();
+        assert!(matches!(resolve_command(&cli_bshield), Some(Commands::Start(args)) if args.browser_shield));
+
+        let cli_fsandbox = Cli::try_parse_from(["wraith", "--font-sandbox"]).unwrap();
+        assert!(matches!(resolve_command(&cli_fsandbox), Some(Commands::Start(args)) if args.font_sandbox));
+
+        let cli_dsandbox = Cli::try_parse_from(["wraith", "--display-sandbox"]).unwrap();
+        assert!(matches!(resolve_command(&cli_dsandbox), Some(Commands::Start(args)) if args.display_sandbox));
+
+        let cli_smon = Cli::try_parse_from(["wraith", "--spawn-monitor"]).unwrap();
+        assert!(matches!(resolve_command(&cli_smon), Some(Commands::Start(args)) if args.monitor_window));
+
+        let cli_wipe = Cli::try_parse_from(["wraith", "-L"]).unwrap();
+        assert!(matches!(resolve_command(&cli_wipe), Some(Commands::Start(args)) if args.forensic_wipe_logs));
+
+        let cli_masq = Cli::try_parse_from(["wraith", "-K"]).unwrap();
+        assert!(matches!(resolve_command(&cli_masq), Some(Commands::Start(args)) if args.aggressive_masquerade));
+
+        let cli_antid = Cli::try_parse_from(["wraith", "-A"]).unwrap();
+        assert!(matches!(resolve_command(&cli_antid), Some(Commands::Start(args)) if args.aggressive_anti_debug));
+
+        // Core operational shortcuts
+        let cli_switch = Cli::try_parse_from(["wraith", "-r"]).unwrap();
+        assert_eq!(resolve_command(&cli_switch), Some(Commands::Switch));
+
+        let cli_test = Cli::try_parse_from(["wraith", "-t"]).unwrap();
+        assert_eq!(resolve_command(&cli_test), Some(Commands::Test));
+
+        let cli_info = Cli::try_parse_from(["wraith", "-i"]).unwrap();
+        assert_eq!(resolve_command(&cli_info), Some(Commands::Info));
+
+        let cli_doctor = Cli::try_parse_from(["wraith", "--doctor"]).unwrap();
+        assert_eq!(resolve_command(&cli_doctor), Some(Commands::Doctor));
+
+        let cli_bench = Cli::try_parse_from(["wraith", "--bench"]).unwrap();
+        assert_eq!(resolve_command(&cli_bench), Some(Commands::Benchmark));
+
+        let cli_pentest = Cli::try_parse_from(["wraith", "--pentest"]).unwrap();
+        assert_eq!(resolve_command(&cli_pentest), Some(Commands::Pentest));
+
+        let cli_update = Cli::try_parse_from(["wraith", "-u"]).unwrap();
+        assert_eq!(resolve_command(&cli_update), Some(Commands::Update { artifact: None, manifest: None, signature: None }));
+
+        let cli_cleanup = Cli::try_parse_from(["wraith", "-c"]).unwrap();
+        assert_eq!(resolve_command(&cli_cleanup), Some(Commands::Cleanup { full: false }));
+
+        let cli_cleanup_full = Cli::try_parse_from(["wraith", "--cleanup-full"]).unwrap();
+        assert_eq!(resolve_command(&cli_cleanup_full), Some(Commands::Cleanup { full: true }));
+
+        let cli_shred = Cli::try_parse_from(["wraith", "--shred", "/tmp/victim.log"]).unwrap();
+        assert_eq!(resolve_command(&cli_shred), Some(Commands::Shred { target: "/tmp/victim.log".to_string(), passes: 7 }));
+
+        let cli_monitor = Cli::try_parse_from(["wraith", "-M"]).unwrap();
+        assert_eq!(resolve_command(&cli_monitor), Some(Commands::Monitor));
+
+        let cli_ifaces = Cli::try_parse_from(["wraith", "--interfaces"]).unwrap();
+        assert_eq!(resolve_command(&cli_ifaces), Some(Commands::Interfaces { all: false }));
+
+        // Conflicting start & stop
+        assert!(Cli::try_parse_from(["wraith", "-s", "-x"]).is_err());
+        assert!(Cli::try_parse_from(["wraith", "--start", "--stop"]).is_err());
     }
 }
 
