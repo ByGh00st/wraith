@@ -91,42 +91,45 @@ impl StateManager {
         }
     }
 
-    pub fn is_active(&self) -> bool {
-        let data = self.read();
-        if !data.active {
-            return false;
-        }
-        if let Some(_pid) = data.pid {
-            #[cfg(unix)]
-            {
-                unsafe { libc::kill(_pid as i32, 0) == 0 }
-            }
-            #[cfg(not(unix))]
-            {
-                true
-            }
-        } else {
-            true
-        }
-    }
-
     pub fn is_running(&self) -> bool {
         if !self.path.exists() {
             return false;
         }
         let data = self.read();
         if let Some(_pid) = data.pid {
+            if _pid <= 1 {
+                return false;
+            }
             #[cfg(unix)]
             {
-                unsafe { libc::kill(_pid as i32, 0) == 0 }
+                if unsafe { libc::kill(_pid as i32, 0) != 0 } {
+                    return false;
+                }
+                // Verify process identity to avoid false positives on recycled PIDs
+                let comm_path = format!("/proc/{_pid}/comm");
+                let cmdline_path = format!("/proc/{_pid}/cmdline");
+                let is_wraith_comm = fs::read_to_string(&comm_path).map(|c| c.trim().contains("wraith")).unwrap_or(false);
+                let is_wraith_cmd = fs::read_to_string(&cmdline_path).map(|c| c.contains("wraith")).unwrap_or(false);
+                if !is_wraith_comm && !is_wraith_cmd {
+                    return false;
+                }
+                true
             }
             #[cfg(not(unix))]
             {
                 true
             }
         } else {
-            self.path.exists()
+            false
         }
+    }
+
+    pub fn is_active(&self) -> bool {
+        let data = self.read();
+        if !data.active {
+            return false;
+        }
+        self.is_running()
     }
 
     pub fn claim(&self, mut data: StateData) -> Result<()> {
