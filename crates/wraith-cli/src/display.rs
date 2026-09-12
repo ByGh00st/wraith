@@ -306,14 +306,16 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
 
     println!("\n{table}");
 
-    let keys_content = format!("{} │ {} │ {} │ {} │ {}", 
+    let row1 = format!("{} │ {} │ {}", 
         t!("hud.k_rotate").bold().bright_cyan(),
         t!("hud.k_audit").bold().bright_green(),
         t!("hud.k_monitor").bold().bright_purple(),
-        t!("hud.k_purge").bold().bright_yellow(),
-        t!("hud.k_quit").bold().bright_red()
     );
-    let hud_box = render_box(&t!("hud.keys"), &[keys_content], BoxCorner::Square, 80);
+    let row2 = format!("{} │ {}", 
+        t!("hud.k_purge").bold().bright_yellow(),
+        t!("hud.k_quit").bold().bright_red(),
+    );
+    let hud_box = render_box(&t!("hud.keys"), &[row1, row2], BoxCorner::Square, 80);
     println!("{}", hud_box[0].bright_cyan());
     for row in &hud_box[1..hud_box.len() - 1] {
         println!("{row}");
@@ -458,6 +460,12 @@ pub fn show_leak_report(report: &LeakReport) {
         Cell::new("✖ LEAK DETECTED").fg(Color::Red).add_attribute(Attribute::Bold)
     };
 
+    let webrtc_status = if !report.webrtc_leak {
+        Cell::new("✔ BLOCKED (STUN/TURN)").fg(Color::Green).add_attribute(Attribute::Bold)
+    } else {
+        Cell::new("✖ LEAK DETECTED").fg(Color::Red).add_attribute(Attribute::Bold)
+    };
+
     let overall = if report.secure {
         Cell::new("✔ NO LEAKS DETECTED (this test)").fg(Color::Green).add_attribute(Attribute::Bold)
     } else {
@@ -468,6 +476,7 @@ pub fn show_leak_report(report: &LeakReport) {
     table.add_row(vec![Cell::new("Tor Transparent Proxy"), tor_status, Cell::new("Tor exit API result for this request")]);
     table.add_row(vec![Cell::new("DNS Leak Protection"), dns_status, Cell::new("DNS relay: 5354; Tor upstream: 5353")]);
     table.add_row(vec![Cell::new("IPv6 Dual-Stack Leak"), ipv6_status, Cell::new("TCP probes to two IPv6 resolvers")]);
+    table.add_row(vec![Cell::new("WebRTC STUN/TURN Leak"), webrtc_status, Cell::new("STUN port probes (Google STUN: 19302)")]);
     table.add_row(vec![Cell::new("Overall Defense Grade"), overall, Cell::new("Operational Security & Forensic Assessment")]);
 
     println!("{table}\n");
