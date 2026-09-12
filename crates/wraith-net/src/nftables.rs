@@ -4,7 +4,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 use tracing::{debug, error, info};
-use wraith_core::config::{LOCAL_NETWORKS, LOOPBACK_NETWORKS, WRAITH_DNS_PORT, TOR_TRANS_PORT, TOR_USER};
+use wraith_core::config::{DPI_HTTP_PORT, LOCAL_NETWORKS, LOOPBACK_NETWORKS, WRAITH_DNS_PORT, TOR_TRANS_PORT, TOR_USER};
 use wraith_core::error::{Result, WraithError};
 
 fn execute_command(cmd: &str, args: &[&str]) -> Result<String> {
@@ -133,6 +133,7 @@ fn install_tor_rules_with(
 
     let dns_port_str = WRAITH_DNS_PORT.to_string();
     let trans_port_str = TOR_TRANS_PORT.to_string();
+    let dpi_port_str = DPI_HTTP_PORT.to_string();
 
     // Hold fail-closed policies throughout incremental replacement.
     execute_command("iptables", &["-P", "OUTPUT", "DROP"])?;
@@ -162,9 +163,9 @@ fn install_tor_rules_with(
         execute_command("iptables", &["-t", "nat", "-A", "OUTPUT", "-d", net, "-j", "RETURN"])?;
     }
 
-    // 4. Redirect cleartext HTTP (port 80) to In-Flight DPI Sanitizer Proxy (9055)
+    // 4. Redirect cleartext HTTP (port 80) to In-Flight DPI Sanitizer Proxy (DPI_HTTP_PORT)
     execute_command("iptables", &[
-        "-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--dport", "80", "--syn", "-j", "REDIRECT", "--to-ports", "9055"
+        "-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--dport", "80", "--syn", "-j", "REDIRECT", "--to-ports", &dpi_port_str
     ])?;
 
     // 5. Redirect all remaining SYN TCP traffic to Tor TransPort (9040)
