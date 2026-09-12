@@ -26,6 +26,15 @@ fn execute_command(cmd: &str, args: &[&str]) -> Result<String> {
 
 pub fn get_tor_uid() -> Result<u32> {
     // Match the account actually used by daemon.rs; never exempt all root traffic.
+    for candidate in &["debian-tor", "tor", "toranon", "_tor"] {
+        if let Ok(output) = execute_command("id", &["-u", candidate]) {
+            if let Ok(uid) = output.trim().parse::<u32>() {
+                if uid != 0 {
+                    return Ok(uid);
+                }
+            }
+        }
+    }
     let uid = execute_command("id", &["-u", TOR_USER])?
         .parse::<u32>().map_err(|_| WraithError::Firewall("Invalid Tor UID".into()))?;
     if uid == 0 {

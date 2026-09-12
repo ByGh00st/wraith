@@ -375,6 +375,7 @@ Description=Wraith Sovereign Kernel Defense & Anonymization Engine (Daemon)
 Documentation=https://github.com/ByGh00st/wraith
 After=network.target network-online.target
 Wants=network-online.target
+Conflicts=tor.service tor@default.service
 
 [Service]
 Type=simple
@@ -402,6 +403,9 @@ systemctl daemon-reload
 echo -e "        ${CLR_EMERALD}✔ [GENERATED]${CLR_RESET} Systemd unit compiled for ${CLR_BOLD}${OPT_BOOT_MODE^^}${CLR_RESET} mode."
 
 # ─── [ ACTIVATION & REGISTRATION ] ─────────────────────────────────────────────
+# Deconflict with system Tor so ports 9050/9051 and /var/lib/tor lock belong solely to Wraith
+systemctl disable --now tor.service tor@default.service > /dev/null 2>&1 || true
+
 if [ "$OPT_BOOT_MODE" = "early" ] || [ "$OPT_BOOT_MODE" = "standard" ]; then
     systemctl enable wraith.service > /dev/null 2>&1
     echo -e "        ${CLR_EMERALD}✔ [ENABLED]${CLR_RESET} Service armed for automatic boot activation."
