@@ -59,7 +59,7 @@ hud:
   killswitch: ⚡ Tor KillSwitch Gate
   watchdog: "Tor → Netfilter (fail-closed)"
   rotate_policy: 🔄 Circuit Rotation Policy
-  auto_rotate: ● AUTO-ROTATING (Every {}s)
+  auto_rotate: ● AUTO-ROTATING (Every %{interval}s)
   manual_rotate: ○ MANUAL ON-DEMAND [Press 'R']
   dpi_sanitizer: 🔍 In-Flight DPI Sanitizer
   dpi_active: "HTTP :9055 + CONNECT → Tor; TLS: fetch / DoH"
@@ -124,13 +124,12 @@ commands:
   cmd_step_44: Requesting new Tor exit circuit (SIGNAL NEWNYM)...
   cmd_step_45: Running multi-vector leak verification suite...
   cmd_step_46: 'Initializing Multi-Hop Hybrid Overlay (WireGuard -> Tor)...'
-  cmd_step_47: 'Multi-Hop Hop 1 link armed on {} (Peer: {}, AllowedIPs: {})'
-  cmd_step_48: 'Enforcing Multi-Hop Policy Routing: Locking Tor traffic to {}...'
+  cmd_step_47: 'Multi-Hop Hop 1 link armed on %{iface}'
+  cmd_step_48: 'Enforcing Multi-Hop Policy Routing: Locking Tor traffic to %{iface}...'
   cmd_step_49: 'Multi-Hop policy routing active (Tor egress forced to WireGuard Hop 1)'
-  cmd_step_50: 'Configuring Ephemeral v3 Onion Hidden Service for [{}]...'
-  cmd_step_51: 'Ephemeral v3 Onion Service armed: :{} -> :{} ({})'
-  cmd_step_52: 'Spawning Isolated Virtual Display Sandbox (Xvfb 1920x1080@24bit)...'
-  cmd_step_53: 'Virtual Display active on {} (Physical EDID masked)'
+  cmd_step_50: 'Configuring Ephemeral v3 Onion Hidden Service for ...'
+  cmd_step_51:'Ephemeral v3 Onion Service armed  cmd_step_52: 'Spawning Isolated Virtual Display Sandbox (Xvfb 1920x1080@24bit)...'
+  cmd_step_53: 'Virtual Display active (Physical EDID masked)'
   cmd_step_54: 'Injecting Linux Kernel TC Netem Traffic Shaper (Normal Distribution Jitter)...'
   cmd_step_55: 'Kernel Netem Traffic Shaper armed (Delay: 35ms, Jitter: 12ms)'
   cmd_step_56: 'Arming Active LAN Deception Sensor on 0.0.0.0 (:2222, :3306, :5432, :6379, :8080, :27017)...'
@@ -145,64 +144,64 @@ commands:
   cmd_err_wg_conf: WireGuard multi-hop requires a valid config file. Use --wireguard <path/to/wg.conf>
   cmd_step_65: Enforcing Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)...
   cmd_step_66: Process memory secured against dumpers (PR_SET_DUMPABLE=0, mlockall)
-  cmd_warn_mem_lockdown: 'Process memory lockdown warning: {}'
+  cmd_warn_mem_lockdown: 'Process memory lockdown warning: %{e}'
   cmd_step_67: Enforcing Linux Kernel Lockdown & DMA Hardware Defense...
-  cmd_warn_kernel_lockdown: 'Kernel Lockdown warning: {}'
+  cmd_warn_kernel_lockdown: 'Kernel Lockdown warning: %{e}'
   cmd_step_68: Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...
-  cmd_warn_anti_debug: 'Anti-debug probe warning: {}'
+  cmd_warn_anti_debug: 'Anti-debug probe warning: %{e}'
   cmd_step_69: 'Masking process name in kernel scheduler ([kworker/u16:0])...'
   cmd_step_70: 'Process identity cloaked as kernel worker [ARMED]'
-  cmd_warn_masquerade: 'Process masquerade warning: {}'
+  cmd_warn_masquerade: 'Process masquerade warning: %{e}'
   cmd_step_71: Executing destructive system event log and history wipe...
-  cmd_step_scrubbed_logs: 'Scrubbed {} system log file(s)'
+  cmd_step_scrubbed_logs: 'Scrubbed %{count} system log file(s)'
   cmd_step_72: No physical network adapters discovered; listing all system interfaces...
-  cmd_step_default_iface: 'Default network adapter locked: {}'
-  cmd_step_mac_altered: 'MAC altered: {} ➔ {} on {}'
-  cmd_warn_mac_skip: 'MAC randomization skipped: {}'
-  cmd_step_hostname_altered: 'Hostname altered: {} ➔ {}'
-  cmd_warn_hostname_fail: 'Hostname change failed: {}'
+  cmd_step_default_iface: 'Default network adapter locked: %{iface}'
+  cmd_step_mac_altered: 'MAC altered: %{old_m} ➔ %{new_m} on %{iface}'
+  cmd_warn_mac_skip: 'MAC randomization skipped: %{e}'
+  cmd_step_hostname_altered: 'Hostname altered: %{old_h} ➔ %{new_h}'
+  cmd_warn_hostname_fail: 'Hostname change failed: %{e}'
   cmd_step_73: Rotating OS /etc/machine-id unique hardware identifier...
-  cmd_step_machine_id_altered: 'Machine-ID altered: {} ➔ {}'
-  cmd_warn_machine_id_skip: 'Machine-ID rotation skipped: {}'
+  cmd_step_machine_id_altered: 'Machine-ID altered: %{old_mid} ➔ %{new_mid}'
+  cmd_warn_machine_id_skip: 'Machine-ID rotation skipped: %{e}'
   cmd_step_74: Normalizing TCP/IP L4 Stack (p0f/TTL/Window Evasion)...
   cmd_step_75: 'TCP/IP stack forged: TTL=128 (Windows Profile), timestamps=0'
-  cmd_warn_tcp_mask: 'TCP/IP normalization warning: {}'
-  cmd_err_multihop_wg: 'Multi-Hop WireGuard setup failed: {}'
-  cmd_err_tor_bootstrap: 'Tor bootstrap failed: {}'
-  cmd_err_dns_config: 'DNS configuration failed: {}'
+  cmd_warn_tcp_mask: 'TCP/IP normalization warning: %{e}'
+  cmd_err_multihop_wg: 'Multi-Hop WireGuard setup failed: %{e}'
+  cmd_err_tor_bootstrap: 'Tor bootstrap failed: %{e}'
+  cmd_err_dns_config: 'DNS configuration failed: %{e}'
   cmd_step_76: 'Sovereign RFC 1035 DNS Engine armed on 127.0.0.1:53 (EDNS0 + Telemetry Sinkhole)'
-  cmd_step_profile_active: 'Profile ''{}'' active ({})'
-  cmd_warn_exit_profile: 'Exit profile error: {}'
-  cmd_warn_onion_provision: 'Onion Service provisioning warning: {}'
-  cmd_warn_wg_routing: 'WireGuard interface {} up, but Tor routing not confirmed'
-  cmd_warn_tor_wg_bind: 'Failed binding Tor to WireGuard: {}'
+  cmd_step_profile_active: 'Profile ''%{name}'' active (%{desc})'
+  cmd_warn_exit_profile: 'Exit profile error: %{e}'
+  cmd_warn_onion_provision: 'Onion Service provisioning warning: %{e}'
+  cmd_warn_wg_routing: 'WireGuard interface %{iface} up, but Tor routing not confirmed'
+  cmd_warn_tor_wg_bind: 'Failed binding Tor to WireGuard: %{e}'
   cmd_step_77: Injecting Linux Traffic Control (TC) / eBPF Egress Fastpath...
-  cmd_warn_ebpf_attach: 'eBPF Fastpath attach warning: {}'
-  cmd_warn_ebpf_init: 'eBPF Fastpath init error: {}'
+  cmd_warn_ebpf_attach: 'eBPF Fastpath attach warning: %{e}'
+  cmd_warn_ebpf_init: 'eBPF Fastpath init error: %{e}'
   cmd_step_78: Arming Zero-Copy IDS Raw Packet Sniffer & DPI Engine (AF_PACKET)...
   cmd_step_79: Zero-Copy IDS Watchdog & DPI Engine active (Real-time leak & signature traps armed)
   cmd_step_80: Arming Seccomp-BPF Syscall Filter (SOCK_RAW / AF_PACKET hook trap)...
   cmd_step_81: 'Syscall filter active: Rogue raw sockets will trigger immediate SIGSYS'
-  cmd_warn_seccomp: 'Seccomp-BPF jail warning: {}'
+  cmd_warn_seccomp: 'Seccomp-BPF jail warning: %{e}'
   cmd_step_82: Deploying GPU, WebGL, Font & Resolution Anti-Fingerprint Shield...
-  cmd_step_browser_injected: 'Injected anti-fingerprint shield into {} browser profile(s)'
-  cmd_warn_browser_shield: 'Browser shield warning: {}'
+  cmd_step_browser_injected: 'Injected anti-fingerprint shield into %{count} browser profile(s)'
+  cmd_warn_browser_shield: 'Browser shield warning: %{e}'
   cmd_step_83: Restricting OS-level font discovery (fontconfig sandbox)...
-  cmd_warn_font_sandbox: 'Font sandbox warning: {}'
-  cmd_warn_virtual_display: 'Virtual Display sandbox warning: {}'
-  cmd_warn_net_ns: 'Network namespace warning: {}'
-  cmd_step_tor_connected: 'Connected through Tor ➔ {}'
-  cmd_warn_tor_pending: 'Current IP: {} (Tor verification pending)'
+  cmd_warn_font_sandbox: 'Font sandbox warning: %{e}'
+  cmd_warn_virtual_display: 'Virtual Display sandbox warning: %{e}'
+  cmd_warn_net_ns: 'Network namespace warning: %{e}'
+  cmd_step_tor_connected: 'Connected through Tor ➔ %{geo}'
+  cmd_warn_tor_pending: 'Current IP: %{ip} (Tor verification pending)'
   cmd_step_84: Spawning Traffic Padding & Anti-Correlation Jitter engine...
   cmd_step_85: Synthetic traffic padding active (200-1400ms Poisson jitter)
-  cmd_warn_shaper_apply: 'Kernel Traffic Shaper apply warning: {}'
-  cmd_warn_shaper_init: 'Kernel Traffic Shaper init error: {}'
+  cmd_warn_shaper_apply: 'Kernel Traffic Shaper apply warning: %{e}'
+  cmd_warn_shaper_init: 'Kernel Traffic Shaper init error: %{e}'
   cmd_step_86: Constructing In-Memory ChaCha20-Poly1305 Encrypted Vault (/dev/shm)...
   cmd_step_87: Encrypted RAMFS Vault active (MADV_DONTDUMP memory locked)
-  cmd_warn_vault: 'Encrypted Vault memory lockdown warning: {}'
+  cmd_warn_vault: 'Encrypted Vault memory lockdown warning: %{e}'
   cmd_step_88: Spawning RFC 1035 DNS Proxy Engine with EDNS0 Padding...
   cmd_step_89: 'DNS Engine active on 127.0.0.1:53 (EDNS0 468B Padded + Telemetry Sinkhole)'
-  cmd_warn_dns_proxy: 'Internal DNS Proxy spawn failed: {}'
+  cmd_warn_dns_proxy: 'Internal DNS Proxy spawn failed: %{e}'
   cmd_step_90: Fail-Closed Watchdog armed & monitoring kernel egress
   cmd_step_91: Executing anti-forensic memory & volatile state purge...
   cmd_step_92: RAM caches, ARP tables, logs, and volatile state eradicated
@@ -280,7 +279,7 @@ commands:
   demo_step_9_info: 'Establishing Multi-Hop WireGuard Cryptographic Encapsulation...'
   demo_step_9_ok: 'WireGuard tunnel [ChaCha20-Poly1305] active over Tor 3-Hop Circuit'
   demo_step_10_info: 'Applying Geographic Exit Node Profile [stealth]...'
-  demo_step_10_ok: 'Five Eyes Alliance excluded ({us},{gb},{au},{ca},{nz}) | Exit Nodes: {ch},{is},{ro},{md},{pa}'
+  demo_step_10_ok: 'Five Eyes Alliance excluded (%{us},%{gb},%{au},%{ca},%{nz}) | Exit Nodes: %{ch},%{is},%{ro},%{md},%{pa}'
   demo_step_11_info: "Netfilter TransProxy"
   demo_step_11_ok: 'Netfilter TransProxy rules loaded (Fail-Closed Drop on 9040/5353)'
   demo_step_11_ipv6: 'IPv6 leak prevention active (Kernel IPv6 stack completely dropped)'
@@ -389,13 +388,13 @@ interface_tui:
   locked_msg: 'Target network adapter locked:'
 bridge_tui:
   moat_engaging: Engaging Tor Moat Circumvention Engine (BridgeDB JSON-API)...
-  moat_active: 'Moat circumvention active with {} verified obfs4 bridges'
-  bridge_configuring: 'Configuring {} censorship-resistant pluggable transport...'
-  bridge_enabled: 'Bridge mode enabled with {} {} bridges'
-  bridge_fallback: 'Bridge error: {}, falling back to direct Tor'
+  moat_active: 'Moat circumvention active with %{count} verified obfs4 bridges'
+  bridge_configuring: 'Configuring %{pt} censorship-resistant pluggable transport...'
+  bridge_enabled: 'Bridge mode enabled with %{count} %{pt} bridges'
+  bridge_fallback: 'Bridge error: %{error}, falling back to direct Tor'
 config_cmd:
   show_title: 'Active Configuration (/etc/wraith/config.toml):'
-  set_success: "Configuration key '{key}' set to '{value}' [{path}]"
+  set_success: "Configuration key '%{key}' set to '%{value}' [%{path}]"
   key_unknown: unknown_key
   key_unset: unset
 runtime:
@@ -404,18 +403,18 @@ runtime:
   emergency_abort_desc: │  Запуск прерван. Восстановление сетевой конфигурации и безопасности...
     │
   emergency_abort_foot: └────────────────────────────────────────────────────────────────────────┘
-  startup_aborted: 'Запуск Wraith прерван: {}'
+  startup_aborted: 'Запуск Wraith прерван: %{e}'
   help_hint: Используйте 'wraith --help' или 'wraith -h' для справки по командам.
-  root_required: '{} (Пожалуйста, запустите от имени root: sudo wraith ...)'
+  root_required: '%{e} (Пожалуйста, запустите от имени root: sudo wraith ...)'
   mac_randomized: MAC-адрес оборудования и имя хоста рандомизированы
-  profile_applied: 'Применен профиль выхода: {}'
+  profile_applied: 'Применен профиль выхода: %{name}'
   already_running: 'Wraith уже запущен! Сначала остановите: sudo wraith stop'
   not_running: 'Wraith не запущен. Сначала запустите: sudo wraith start'
   stopped_success: Wraith остановлен — Изоляция завершена, обычная сеть восстановлена
   updated_success: Wraith успешно обновлен и развернут на месте!
-  doh_locked: 'Locked DoH Resolver: {} [{}]'
-  doh_locked_cli: 'Locked DoH Resolver from CLI: {} [{}]'
-  interface_locked: 'Target network adapter locked: {}'
-  interface_locked_cli: 'Target network adapter locked from CLI: {}'
-  interface_fallback: 'Fallback network adapter selected: {}'
-  doh_engine_armed: 'Arming RFC 8484 Encrypted DoH Engine -> {}'
+  doh_locked: 'Locked DoH Resolver: %{name} [%{url}]'
+  doh_locked_cli: 'Locked DoH Resolver from CLI: %{name} [%{url}]'
+  interface_locked: 'Target network adapter locked: %{selected}'
+  interface_locked_cli: 'Target network adapter locked from CLI: %{iface}'
+  interface_fallback: 'Fallback network adapter selected: %{iface}'
+  doh_engine_armed: 'Arming RFC 8484 Encrypted DoH Engine -> %{url}'

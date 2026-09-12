@@ -58,7 +58,7 @@ hud:
   killswitch: ⚡ Tor KillSwitch Geçidi
   watchdog: "Tor → Netfilter (fail-closed)"
   rotate_policy: 🔄 Devre Döndürme Kuralı
-  auto_rotate: ● OTOMATİK-DÖNDÜRME (Her {}sn)
+  auto_rotate: ● OTOMATİK-DÖNDÜRME (Her %{interval}sn)
   manual_rotate: ○ İSTEĞE BAĞLI MANUEL [Devre için 'R'ye basın]
   dpi_sanitizer: 🔍 Canlı DPI Temizleyici
   dpi_active: "HTTP :9055 + CONNECT → Tor; TLS: fetch / DoH"
@@ -123,13 +123,12 @@ commands:
   cmd_step_44: Yeni Tor çıkış devresi isteniyor (SIGNAL NEWNYM)...
   cmd_step_45: Çoklu vektör sızıntı doğrulama testi başlatılıyor...
   cmd_step_46: 'Çoklu Atlama Hibrit Tüneli (WireGuard -> Tor) başlatılıyor...'
-  cmd_step_47: 'Çoklu Atlama 1. Atlama bağlantısı {} üzerinde kuruldu (Peer: {}, AllowedIPs: {})'
-  cmd_step_48: 'Çoklu Atlama İlke Yönlendirmesi uygulanıyor: Tor trafiği {} arayüzüne kilitleniyor...'
+  cmd_step_47: 'Çoklu Atlama 1. Atlama bağlantısı %{iface} üzerinde kuruldu'
+  cmd_step_48: 'Çoklu Atlama İlke Yönlendirmesi uygulanıyor: Tor trafiği %{iface} arayüzüne kilitleniyor...'
   cmd_step_49: 'Çoklu Atlama ilke yönlendirmesi aktif (Tor çıkış trafiği WireGuard 1. Atlama arayüzüne kilitlendi)'
-  cmd_step_50: 'Geçici v3 Onion Gizli Servisi [{}] için yapılandırılıyor...'
-  cmd_step_51: 'Geçici v3 Onion Gizli Servisi devrede: :{} -> :{} ({})'
-  cmd_step_52: 'İzole Edilmiş Sanal Ekran Sandbox''ı (Xvfb 1920x1080@24bit) başlatılıyor...'
-  cmd_step_53: 'Sanal Ekran {} üzerinde aktif (Fiziksel Monitör EDID kimliği gizlendi)'
+  cmd_step_50: 'Geçici v3 Onion Gizli Servisi için yapılandırılıyor...'
+  cmd_step_51:'Geçici v3 Onion Gizli Servisi devrede  cmd_step_52: 'İzole Edilmiş Sanal Ekran Sandbox''ı (Xvfb 1920x1080@24bit) başlatılıyor...'
+  cmd_step_53: 'Sanal Ekran aktif (Fiziksel Monitör EDID kimliği gizlendi)'
   cmd_step_54: 'Linux Çekirdeği TC Netem Trafik Şekillendirici enjekte ediliyor (Normal Dağılımlı Gecikme)...'
   cmd_step_55: 'Çekirdek Netem Trafik Şekillendirici devrede (Gecikme: 35ms, Dalgalanma: 12ms)'
   cmd_step_56: 'Aktif Yerel Ağ (LAN) Aldatma Sensörü 0.0.0.0 üzerinde kuruluyor (:2222, :3306, :5432, :6379, :8080, :27017)...'
@@ -144,64 +143,64 @@ commands:
   cmd_err_wg_conf: 'WireGuard çoklu sekme geçerli bir yapılandırma dosyası gerektirir. Kullanım: --wireguard <yol/wg.conf>'
   cmd_step_65: Süreç Bellek Kilidi Zorlanıyor (PR_SET_DUMPABLE=0, mlockall)...
   cmd_step_66: Süreç belleği dökümcülere karşı güvenceye alındı (PR_SET_DUMPABLE=0, mlockall)
-  cmd_warn_mem_lockdown: 'Süreç bellek kilitleme uyarısı: {}'
+  cmd_warn_mem_lockdown: 'Süreç bellek kilitleme uyarısı: %{e}'
   cmd_step_67: Linux Çekirdek Kilidi & DMA Donanım Savunması Devreye Alınıyor...
-  cmd_warn_kernel_lockdown: 'Çekirdek kilitleme uyarısı: {}'
+  cmd_warn_kernel_lockdown: 'Çekirdek kilitleme uyarısı: %{e}'
   cmd_step_68: Agresif Hata Ayıklama Tuzağı Silahlanıyor (TracerPid / ptrace üzerinde SIGKILL)...
-  cmd_warn_anti_debug: 'Hata ayıklama tuzağı uyarısı: {}'
+  cmd_warn_anti_debug: 'Hata ayıklama tuzağı uyarısı: %{e}'
   cmd_step_69: 'Süreç adı çekirdek zamanlayıcısında maskeleniyor ([kworker/u16:0])...'
   cmd_step_70: 'Süreç kimliği çekirdek çalışanı olarak gizlendi [SİLAHLANDI]'
-  cmd_warn_masquerade: 'Süreç maskeleme uyarısı: {}'
+  cmd_warn_masquerade: 'Süreç maskeleme uyarısı: %{e}'
   cmd_step_71: Yıkıcı sistem olay günlüğü ve geçmiş temizliği yürütülüyor...
-  cmd_step_scrubbed_logs: '{} sistem günlüğü dosyası temizlendi'
+  cmd_step_scrubbed_logs: '%{count} sistem günlüğü dosyası temizlendi'
   cmd_step_72: Fiziksel ağ adaptörü bulunamadı; tüm sistem arayüzleri listeleniyor...
-  cmd_step_default_iface: 'Varsayılan ağ adaptörü kilitlendi: {}'
-  cmd_step_mac_altered: 'MAC adresi değiştirildi: {} ➔ {} (arayüz: {})'
-  cmd_warn_mac_skip: 'MAC rastgeleleştirme atlandı: {}'
-  cmd_step_hostname_altered: 'Cihaz adı değiştirildi: {} ➔ {}'
-  cmd_warn_hostname_fail: 'Cihaz adı değiştirme başarısız: {}'
+  cmd_step_default_iface: 'Varsayılan ağ adaptörü kilitlendi: %{iface}'
+  cmd_step_mac_altered: 'MAC adresi değiştirildi: %{old_m} ➔ %{new_m} (arayüz: %{iface})'
+  cmd_warn_mac_skip: 'MAC rastgeleleştirme atlandı: %{e}'
+  cmd_step_hostname_altered: 'Cihaz adı değiştirildi: %{old_h} ➔ %{new_h}'
+  cmd_warn_hostname_fail: 'Cihaz adı değiştirme başarısız: %{e}'
   cmd_step_73: İşletim sistemi benzersiz /etc/machine-id donanım kimliği döndürülüyor...
-  cmd_step_machine_id_altered: 'Machine-ID değiştirildi: {} ➔ {}'
-  cmd_warn_machine_id_skip: 'Machine-ID döndürme atlandı: {}'
+  cmd_step_machine_id_altered: 'Machine-ID değiştirildi: %{old_mid} ➔ %{new_mid}'
+  cmd_warn_machine_id_skip: 'Machine-ID döndürme atlandı: %{e}'
   cmd_step_74: TCP/IP L4 Yığını Normalize Ediliyor (p0f/TTL/Window Atlatma)...
   cmd_step_75: 'TCP/IP yığını taklit edildi: TTL=128 (Windows Profili), timestamps=0'
-  cmd_warn_tcp_mask: 'TCP/IP normalizasyon uyarısı: {}'
-  cmd_err_multihop_wg: 'Multi-Hop WireGuard kurulumu başarısız: {}'
-  cmd_err_tor_bootstrap: 'Tor başlatma başarısız: {}'
-  cmd_err_dns_config: 'DNS yapılandırması başarısız: {}'
+  cmd_warn_tcp_mask: 'TCP/IP normalizasyon uyarısı: %{e}'
+  cmd_err_multihop_wg: 'Multi-Hop WireGuard kurulumu başarısız: %{e}'
+  cmd_err_tor_bootstrap: 'Tor başlatma başarısız: %{e}'
+  cmd_err_dns_config: 'DNS yapılandırması başarısız: %{e}'
   cmd_step_76: 'Sovereign RFC 1035 DNS Motoru 127.0.0.1:53 üzerinde devrede (EDNS0 + Telemetri Sinkhole)'
-  cmd_step_profile_active: 'Profil ''{}'' devrede ({})'
-  cmd_warn_exit_profile: 'Çıkış profili hatası: {}'
-  cmd_warn_onion_provision: 'Onion Hizmeti yapılandırma uyarısı: {}'
-  cmd_warn_wg_routing: 'WireGuard arayüzü {} aktif, ancak Tor yönlendirmesi onaylanmadı'
-  cmd_warn_tor_wg_bind: 'Tor trafiğini WireGuard''a bağlama başarısız: {}'
+  cmd_step_profile_active: 'Profil ''%{name}'' devrede (%{desc})'
+  cmd_warn_exit_profile: 'Çıkış profili hatası: %{e}'
+  cmd_warn_onion_provision: 'Onion Hizmeti yapılandırma uyarısı: %{e}'
+  cmd_warn_wg_routing: 'WireGuard arayüzü %{iface} aktif, ancak Tor yönlendirmesi onaylanmadı'
+  cmd_warn_tor_wg_bind: 'Tor trafiğini WireGuard''a bağlama başarısız: %{e}'
   cmd_step_77: Linux Trafik Kontrolü (TC) / eBPF Çıkış Hızlı Yolu Enjekte Ediliyor...
-  cmd_warn_ebpf_attach: 'eBPF Hızlı Yol bağlama uyarısı: {}'
-  cmd_warn_ebpf_init: 'eBPF Hızlı Yol başlatma hatası: {}'
+  cmd_warn_ebpf_attach: 'eBPF Hızlı Yol bağlama uyarısı: %{e}'
+  cmd_warn_ebpf_init: 'eBPF Hızlı Yol başlatma hatası: %{e}'
   cmd_step_78: Sıfır-Kopya IDS Ham Paket Dinleyici & DPI Motoru Silahlanıyor (AF_PACKET)...
   cmd_step_79: Sıfır-Kopya IDS Bekçisi & DPI Motoru aktif (Gerçek zamanlı sızıntı & imza tuzakları devrede)
   cmd_step_80: Seccomp-BPF Sistem Çağrısı Filtresi Silahlanıyor (SOCK_RAW / AF_PACKET kanca tuzağı)...
   cmd_step_81: 'Sistem çağrısı filtresi aktif: Yetkisiz ham soketler anında SIGSYS tetikler'
-  cmd_warn_seccomp: 'Seccomp-BPF kum havuzu uyarısı: {}'
+  cmd_warn_seccomp: 'Seccomp-BPF kum havuzu uyarısı: %{e}'
   cmd_step_82: GPU, WebGL, Yazı Tipi & Çözünürlük Parmak İzi Savunması Devreye Alınıyor...
-  cmd_step_browser_injected: '{} tarayıcı profiline parmak izi koruma kalkanı enjekte edildi'
-  cmd_warn_browser_shield: 'Tarayıcı kalkanı uyarısı: {}'
+  cmd_step_browser_injected: '%{count} tarayıcı profiline parmak izi koruma kalkanı enjekte edildi'
+  cmd_warn_browser_shield: 'Tarayıcı kalkanı uyarısı: %{e}'
   cmd_step_83: İşletim sistemi yazı tipi keşfi kısıtlanıyor (fontconfig kum havuzu)...
-  cmd_warn_font_sandbox: 'Yazı tipi kum havuzu uyarısı: {}'
-  cmd_warn_virtual_display: 'Sanal Ekran kum havuzu uyarısı: {}'
-  cmd_warn_net_ns: 'Ağ isim alanı (namespace) uyarısı: {}'
+  cmd_warn_font_sandbox: 'Yazı tipi kum havuzu uyarısı: %{e}'
+  cmd_warn_virtual_display: 'Sanal Ekran kum havuzu uyarısı: %{e}'
+  cmd_warn_net_ns: 'Ağ isim alanı (namespace) uyarısı: %{e}'
   cmd_step_tor_connected: 'Tor üzerinden bağlanıldı ➔ %{geo}'
   cmd_warn_tor_pending: 'Mevcut IP: %{ip} (Tor doğrulaması bekleniyor)'
   cmd_step_84: Trafik Dolgusu & Anti-Korelasyon Dalgalanma motoru başlatılıyor...
   cmd_step_85: Sentetik trafik dolgusu aktif (200-1400ms Poisson dalgalanması)
-  cmd_warn_shaper_apply: 'Çekirdek Trafik Şekillendirici uygulama uyarısı: {}'
-  cmd_warn_shaper_init: 'Çekirdek Trafik Şekillendirici başlatma hatası: {}'
+  cmd_warn_shaper_apply: 'Çekirdek Trafik Şekillendirici uygulama uyarısı: %{e}'
+  cmd_warn_shaper_init: 'Çekirdek Trafik Şekillendirici başlatma hatası: %{e}'
   cmd_step_86: Bellek İçi ChaCha20-Poly1305 Şifreli Kasa İnşa Ediliyor (/dev/shm)...
   cmd_step_87: Şifreli RAMFS Kasası aktif (MADV_DONTDUMP bellek kilitlendi)
-  cmd_warn_vault: 'Şifreli Kasa bellek kilitleme uyarısı: {}'
+  cmd_warn_vault: 'Şifreli Kasa bellek kilitleme uyarısı: %{e}'
   cmd_step_88: EDNS0 Dolgulu RFC 1035 DNS Proxy Motoru Başlatılıyor...
   cmd_step_89: 'DNS Motoru 127.0.0.1:53 üzerinde aktif (EDNS0 468B Dolgulu + Telemetri Sinkhole)'
-  cmd_warn_dns_proxy: 'Dahili DNS Proxy başlatma başarısız: {}'
+  cmd_warn_dns_proxy: 'Dahili DNS Proxy başlatma başarısız: %{e}'
   cmd_step_90: Fail-Closed Bekçi devrede & çekirdek çıkış trafiğini izliyor
   cmd_step_91: Adli bilişim karşıtı bellek & geçici durum temizliği yürütülüyor...
   cmd_step_92: RAM önbellekleri, ARP tabloları, günlükler ve geçici durumlar yok edildi
@@ -279,7 +278,7 @@ commands:
   demo_step_9_info: 'Çok-Atlamalı WireGuard Kriptografik Kapsülleme Kuruluyor...'
   demo_step_9_ok: 'WireGuard tüneli [ChaCha20-Poly1305] Tor 3-Atlamalı Devre üzerinde aktif'
   demo_step_10_info: 'Coğrafi Çıkış Düğümü Profili [stealth] Uygulanıyor...'
-  demo_step_10_ok: 'Five Eyes İttifakı hariç tutuldu ({us},{gb},{au},{ca},{nz}) | Çıkış Düğümleri: {ch},{is},{ro},{md},{pa}'
+  demo_step_10_ok: 'Five Eyes İttifakı hariç tutuldu (%{us},%{gb},%{au},%{ca},%{nz}) | Çıkış Düğümleri: %{ch},%{is},%{ro},%{md},%{pa}'
   demo_step_11_info: "Netfilter TransProxy"
   demo_step_11_ok: 'Netfilter TransProxy kuralları yüklendi (9040/5353 üzerinde Fail-Closed Düşürme)'
   demo_step_11_ipv6: 'IPv6 sızıntı önleme etkin (Çekirdek IPv6 yığını tamamen düşürüldü)'
@@ -399,33 +398,33 @@ interface_tui:
   locked_msg: 'Hedef ağ adaptörü kilitlendi:'
 bridge_tui:
   moat_engaging: Tor Moat Sansür Atlatma Motoru başlatılıyor (BridgeDB JSON-API)...
-  moat_active: 'Moat sansür atlatma {} doğrulanmış obfs4 köprü ile aktif'
-  bridge_configuring: '{} sansüre dayanıklı takılabilir aktarım yapılandırılıyor...'
-  bridge_enabled: '{} {} köprü ile köprü modu etkinleştirildi'
-  bridge_fallback: 'Köprü hatası: {}, doğrudan Tor''a geçiliyor'
+  moat_active: 'Moat sansür atlatma %{count} doğrulanmış obfs4 köprü ile aktif'
+  bridge_configuring: '%{pt} sansüre dayanıklı takılabilir aktarım yapılandırılıyor...'
+  bridge_enabled: '%{count} %{pt} köprü ile köprü modu etkinleştirildi'
+  bridge_fallback: 'Köprü hatası: %{error}, doğrudan Tor''a geçiliyor'
 config_cmd:
   show_title: 'Aktif Yapılandırma (/etc/wraith/config.toml):'
-  set_success: 'Yapılandırma anahtarı ''{key}'' değeri ''{value}'' olarak ayarlandı [{path}]'
+  set_success: 'Yapılandırma anahtarı ''%{key}'' değeri ''%{value}'' olarak ayarlandı [%{path}]'
   key_unknown: bilinmeyen_anahtar
   key_unset: ayarlanmamış
 runtime:
   emergency_abort_title: '┌── [ 🚨 ACİL DURDURMA: SIGINT (Ctrl+C) YAKALANDI ] ─────────────────────────┐'
   emergency_abort_desc: │  Başlatma kesildi. Tüm sistem ağı ve güvenliği geri yükleniyor...         │
   emergency_abort_foot: └───────────────────────────────────────────────────────────────────────────┘
-  startup_aborted: 'Wraith başlatma işlemi iptal edildi: {}'
+  startup_aborted: 'Wraith başlatma işlemi iptal edildi: %{e}'
   help_hint: Kullanılabilir komutlar ve seçenekler için 'wraith --help' veya 'wraith
     -h' kullanın.
-  root_required: '{} (Lütfen yetkili olarak çalıştırın: sudo wraith ...)'
+  root_required: '%{e} (Lütfen yetkili olarak çalıştırın: sudo wraith ...)'
   mac_randomized: Donanım MAC adresi ve Cihaz Adı (Hostname) rastgeleleştirildi
-  profile_applied: 'Çıkış profili uygulandı: {}'
+  profile_applied: 'Çıkış profili uygulandı: %{name}'
   already_running: 'Wraith zaten çalışıyor! Önce durdurun: sudo wraith stop'
   not_running: 'Wraith çalışmıyor. Önce başlatın: sudo wraith start'
   stopped_success: Wraith durduruldu — İzolasyon sonlandırıldı & Normal Ağ geri yüklendi
   updated_success: Wraith başarıyla güncellendi ve yerinde yeniden devreye alındı!
-  doh_locked: 'DoH Çözücü kilitlendi: {} [{}]'
-  doh_locked_cli: 'CLI üzerinden DoH Çözücü kilitlendi: {} [{}]'
+  doh_locked: 'DoH Çözücü kilitlendi: %{name} [%{url}]'
+  doh_locked_cli: 'CLI üzerinden DoH Çözücü kilitlendi: %{name} [%{url}]'
   interface_locked: 'Hedef ağ adaptörü kilitlendi: %{selected}'
   interface_locked_cli: 'CLI üzerinden hedef ağ adaptörü kilitlendi: %{iface}'
   interface_fallback: 'Yedek ağ adaptörü seçildi: %{iface}'
-  doh_engine_armed: 'RFC 8484 Şifreli DoH Motoru silahlandı -> {}'
+  doh_engine_armed: 'RFC 8484 Şifreli DoH Motoru silahlandı -> %{url}'
 
