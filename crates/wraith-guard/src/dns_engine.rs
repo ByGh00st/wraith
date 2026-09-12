@@ -676,11 +676,21 @@ impl SovereignDnsServer {
         let mut response_bytes: Option<Vec<u8>> = None;
 
         if let DnsTransport::DoH(ref doh_url) = transport {
-            let result = tokio::time::timeout(Duration::from_secs(25), crate::dnssec::resolve(doh_url, &query_bytes)).await;
-            return match result {
-                Ok(Ok(response)) => Ok(Some(response)),
-                _ => Ok(Some(crate::dnssec::servfail(&query_bytes)?)),
-            };
+            let result = tokio::time::timeout(Duration::from_secs(8), crate::dnssec::resolve(doh_url, &query_bytes)).await;
+            if let Ok(Ok(response)) = result {
+                return Ok(Some(response));
+            }
+
+            // Fallback 1: Direct DoH query through Tor (resolves non-DNSSEC signed domains like firefox.com without broken stub recursion)
+            if let Ok(Ok(raw_doh_resp)) = tokio::time::timeout(Duration::from_secs(8), Self::query_doh(doh_url, &query_bytes)).await {
+                if let Ok(response) = DnsPacket::parse(&raw_doh_resp) {
+                    if response.header.qr && response.header.id == parsed_pkt.header.id {
+                        let padded = DnsPacket::apply_edns0_padding(raw_doh_resp, EDNS0_TARGET_PADDING_SIZE);
+                        return Ok(Some(padded));
+                    }
+                }
+            }
+            // Fallback 2: Local Tor DNSPort (5353) will be queried below
         }
 
         if response_bytes.is_none() {
@@ -710,7 +720,8 @@ impl SovereignDnsServer {
             return Ok(Some(padded));
         }
 
-        Ok(None)
+        // If all upstream paths fail, return SERVFAIL to prevent client from hanging indefinitely
+        Ok(Some(crate::dnssec::servfail(&query_bytes)?))
     }
 
     /// Queries upstream DoH endpoint using RFC 8484 application/dns-message POST wire format
