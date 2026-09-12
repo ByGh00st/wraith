@@ -92,12 +92,49 @@ impl StateManager {
     }
 
     pub fn is_active(&self) -> bool {
-        self.path.exists()
+        let data = self.read();
+        if !data.active {
+            return false;
+        }
+        if let Some(_pid) = data.pid {
+            #[cfg(unix)]
+            {
+                unsafe { libc::kill(_pid as i32, 0) == 0 }
+            }
+            #[cfg(not(unix))]
+            {
+                true
+            }
+        } else {
+            true
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        if !self.path.exists() {
+            return false;
+        }
+        let data = self.read();
+        if let Some(_pid) = data.pid {
+            #[cfg(unix)]
+            {
+                unsafe { libc::kill(_pid as i32, 0) == 0 }
+            }
+            #[cfg(not(unix))]
+            {
+                true
+            }
+        } else {
+            self.path.exists()
+        }
     }
 
     pub fn claim(&self, mut data: StateData) -> Result<()> {
         let parent = self.path.parent().unwrap_or_else(|| Path::new("/var/run"));
         fs::create_dir_all(parent)?;
+        if self.path.exists() && !self.is_running() {
+            let _ = fs::remove_file(&self.path);
+        }
         data.active = false;
         data.state = Some(State::Arming);
         data.pid = Some(std::process::id());
