@@ -9,3 +9,6 @@ guard:
   jitter_engine_started: Preenchimento de tráfego sintético ativo (jitter de Poisson)
   leak_test_passed: Conjunto de testes de vazamento passou com 0 vazamentos
   leak_test_failed: Vazamento crítico de rede detectado durante a inspeção
+geo:
+  unknown: "Desconhecido"
+  location_unknown: "Localização Desconhecida"

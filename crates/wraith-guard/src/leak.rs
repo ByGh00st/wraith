@@ -56,27 +56,67 @@ pub fn iso_country_name(code: &str) -> &'static str {
     }
 }
 
+pub fn localized_unknown() -> String {
+    rust_i18n::t!("geo.unknown").into_owned()
+}
+
+pub fn localized_location_unknown() -> String {
+    rust_i18n::t!("geo.location_unknown").into_owned()
+}
+
+pub fn localized_country_name(code: &str) -> String {
+    let cc_clean = code.trim().to_uppercase();
+    let key = format!("geo.countries.{}", cc_clean);
+    let tr = rust_i18n::t!(&key);
+    if tr != key {
+        tr.into_owned()
+    } else {
+        let en = iso_country_name(&cc_clean);
+        if en != "Unknown" {
+            en.to_string()
+        } else {
+            localized_unknown()
+        }
+    }
+}
+
 impl std::fmt::Display for IpGeoInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match (self.country_code.as_deref(), self.country_name.as_deref()) {
-            (Some(cc), Some(country)) if !cc.trim().is_empty() && cc != "??" && country != "Unknown" && country != "??" => {
+        let unk = localized_unknown();
+        match self.country_code.as_deref() {
+            Some(cc) if !cc.trim().is_empty() && cc != "??" && cc != "Unknown" => {
+                let cc_clean = cc.trim().to_uppercase();
+                let country = localized_country_name(&cc_clean);
+                let country_name = if country != unk && country != "Unknown" {
+                    country
+                } else if let Some(ref c) = self.country_name {
+                    if !c.trim().is_empty() && c != "Unknown" && c != "??" {
+                        c.clone()
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+
                 if let Some(city) = &self.city {
                     if !city.trim().is_empty() && city != "Unknown" && city != "??" {
-                        return write!(f, "{} [📍 {}] {}, {}", self.ip, cc, country, city);
+                        if !country_name.is_empty() {
+                            return write!(f, "{} [📍 {}] {}, {}", self.ip, cc_clean, country_name, city);
+                        } else {
+                            return write!(f, "{} [📍 {}], {}", self.ip, cc_clean, city);
+                        }
                     }
                 }
-                write!(f, "{} [📍 {}] {}", self.ip, cc, country)
-            }
-            (Some(cc), None) if !cc.trim().is_empty() && cc != "??" => {
-                let lookup = iso_country_name(cc);
-                if lookup != "Unknown" {
-                    write!(f, "{} [📍 {}] {}", self.ip, cc, lookup)
+
+                if !country_name.is_empty() {
+                    write!(f, "{} [📍 {}] {}", self.ip, cc_clean, country_name)
                 } else {
-                    write!(f, "{} [📍 {}]", self.ip, cc)
+                    write!(f, "{} [📍 {}]", self.ip, cc_clean)
                 }
             }
             _ => {
-                write!(f, "{} [Bilinmiyor]", self.ip)
+                write!(f, "{} [{unk}]", self.ip)
             }
         }
     }
@@ -166,7 +206,7 @@ pub async fn get_current_ip_geo() -> IpGeoInfo {
                 }
                 if let Some(cc) = json.get("country").and_then(|v| v.as_str()) {
                     let code = cc.to_string();
-                    let cname = iso_country_name(&code).to_string();
+                    let cname = localized_country_name(&code).to_string();
                     info.country_code = Some(code);
                     info.country_name = Some(cname);
                     return info;

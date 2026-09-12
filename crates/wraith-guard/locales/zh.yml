@@ -6,3 +6,6 @@ guard:
   jitter_engine_started: 合成流量填充已激活 (泊松抖动)
   leak_test_passed: 多向量泄漏测试完成，未检测到泄漏
   leak_test_failed: 在检查期间检测到严重网络泄漏
+geo:
+  unknown: "未知"
+  location_unknown: "位置未知"

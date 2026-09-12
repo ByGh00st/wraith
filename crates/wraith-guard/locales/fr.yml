@@ -9,3 +9,6 @@ guard:
   jitter_engine_started: Rembourrage de trafic synthétique actif (gigue de Poisson)
   leak_test_passed: Suite de tests de fuite multi-vecteurs réussie avec 0 fuite
   leak_test_failed: Fuite réseau critique détectée lors de l'inspection
+geo:
+  unknown: "Inconnu"
+  location_unknown: "Localisation Inconnue"

@@ -7,3 +7,6 @@ guard:
   jitter_engine_started: Relleno de tráfico sintético activo (jitter de Poisson)
   leak_test_passed: Pruebas de fugas superadas con 0 fugas detectadas
   leak_test_failed: Fuga crítica de red detectada durante la auditoría
+geo:
+  unknown: "Desconocido"
+  location_unknown: "Ubicación Desconocida"

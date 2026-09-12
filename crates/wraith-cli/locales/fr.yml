@@ -425,3 +425,28 @@ runtime:
   interface_locked_cli: 'Target network adapter locked from CLI: %{iface}'
   interface_fallback: 'Fallback network adapter selected: %{iface}'
   doh_engine_armed: 'Arming RFC 8484 Encrypted DoH Engine -> %{url}'
+geo:
+  unknown: "Inconnu"
+  location_unknown: "Localisation Inconnue"
+  countries:
+    BE: "Belgique"
+    CA: "Canada"
+    CH: "Suisse"
+    CN: "Chine"
+    DE: "Allemagne"
+    DK: "Danemark"
+    ES: "Espagne"
+    FI: "Finlande"
+    FR: "France"
+    GB: "Royaume-Uni"
+    IT: "Italie"
+    JP: "Japon"
+    NL: "Pays-Bas"
+    NO: "Norvège"
+    PL: "Pologne"
+    RU: "Russie"
+    SE: "Suède"
+    TR: "Turquie"
+    UA: "Ukraine"
+    UK: "Royaume-Uni"
+    US: "États-Unis"

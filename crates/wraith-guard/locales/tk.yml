@@ -9,3 +9,6 @@ guard:
   jitter_engine_started: Sentetik trafik dolgusu (Poisson jitter) devrede
   leak_test_passed: Çoklu vektör sızıntı denetimi 0 sızıntı ile tamamlandı
   leak_test_failed: Denetim sırasında kritik ağ sızıntısı tespit edildi
+geo:
+  unknown: "Näbelli"
+  location_unknown: "Näbelli ýerleşiş"
