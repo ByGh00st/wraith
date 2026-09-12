@@ -74,6 +74,38 @@ sudo wraith shred /path/to/target.dump
 > [!NOTE]
 > **Solid-State Drive (SSD) Caveat:** Flash translation layers (FTL), wear-leveling algorithms, and over-provisioned blocks on modern NVMe/SATA SSDs can prevent in-place overwriting of physical flash cells. Complete sanitization on flash media requires full-disk encryption (FDE) or hardware cryptographic erase.
 
+### 3.4 Configurable Font Shield & Whitelisting (`[fonts]`)
+Operators can granularly configure which fonts are permitted to resolve or shielded from discovery via `/etc/wraith/config.toml` or the CLI config interface:
+
+```bash
+# Whitelist specific fonts permitted to be visible / resolved:
+sudo wraith config set fonts.allowed "Hack, JetBrains Mono, DejaVu Sans Mono"
+
+# Explicitly blacklist/hide identifying font families from discovery:
+sudo wraith config set fonts.blocked "Comic Sans MS, MesloLGS NF, Segoe UI"
+
+# Block custom font paths from Fontconfig enumeration:
+sudo wraith config set fonts.blocked_paths "/opt/custom_fonts/*, /usr/share/fonts/extra/*"
+
+# Define custom monospace font preference order:
+sudo wraith config set fonts.monospace "JetBrains Mono, Hack, DejaVu Sans Mono"
+
+# Enable font sandbox permanently across sessions:
+sudo wraith config set fonts.enabled true
+```
+
+Example `/etc/wraith/config.toml` specification:
+```toml
+[fonts]
+enabled = true
+allowed_fonts = ["Hack", "JetBrains Mono"]
+blocked_fonts = ["Comic Sans MS", "MesloLGS NF"]
+blocked_paths = ["/opt/custom_fonts/*"]
+preferred_monospace = ["JetBrains Mono", "Hack"]
+```
+
+When active, Wraith generates an isolated `/etc/fonts/local.conf` with corresponding `<acceptfont>` and `<rejectfont>` directives and triggers `fc-cache -f`.
+
 ---
 
 ## 4. Authorized Network Auditing Protocols
