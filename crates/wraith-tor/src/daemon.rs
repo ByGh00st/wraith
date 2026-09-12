@@ -102,6 +102,10 @@ pub fn stop_existing_tor() {
 pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
     stop_existing_tor();
 
+    // Terminate any standard systemd Tor service that may hog ports 9050/9051
+    let _ = Command::new("systemctl").args(["stop", "tor"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    let _ = Command::new("systemctl").args(["stop", "tor@default"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+
     let tor_bin = if Path::new("/usr/bin/tor").exists() {
         "/usr/bin/tor"
     } else if Path::new("/usr/local/bin/tor").exists() {
@@ -112,21 +116,24 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
 
     info!("Spawning Tor daemon process...");
 
-    // Ensure Tor runtime directory exists with correct ownership
-    let runtime = fs::symlink_metadata("/run/tor")?;
-    if !runtime.is_dir() {
-        return Err(WraithError::Configuration("Tor runtime directory must be provisioned by the Tor package".into()));
+    // Ensure Tor runtime and data directories exist with correct permissions and ownership
+    for dir in ["/run/tor", "/var/lib/tor"] {
+        let p = Path::new(dir);
+        if !p.exists() {
+            let _ = fs::create_dir_all(p);
+        }
+        let _ = Command::new("chown").args(["-R", &format!("{TOR_USER}:{TOR_USER}"), dir]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        let _ = Command::new("chmod").args(["700", dir]).stdout(Stdio::null()).stderr(Stdio::null()).status();
     }
 
-    let status = Command::new("sudo")
+    let output = Command::new("sudo")
         .args(["-u", TOR_USER, tor_bin, "-f", TORRC_PATH])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
+        .output()
         .map_err(|e| WraithError::Tor(format!("Failed to spawn Tor daemon: {e}")))?;
 
-    if !status.success() {
-        return Err(WraithError::Tor(format!("Tor failed to start as {TOR_USER}; root fallback is disabled")));
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(WraithError::Tor(format!("Tor failed to start as {TOR_USER}: {err_msg}")));
     }
 
     // Wait for Tor bootstrap on ControlPort

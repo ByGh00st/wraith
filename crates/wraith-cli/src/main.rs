@@ -765,8 +765,13 @@ pub async fn main() -> Result<()> {
         Commands::Start(args) => {
             // Check if we need to daemonize (-s without -F/strict_hardening and not already daemon_worker)
             if !args.strict_hardening && !args.daemon_worker {
+                let state_mgr = wraith_core::state::StateManager::default();
+                if state_mgr.is_active() {
+                    display::print_error("Wraith is already running! Use 'wraith -i' to view status, or 'wraith -x' to stop.");
+                    return Ok(());
+                }
+
                 println!("\n  🚀 \x1b[1;36mWRAITH\x1b[0m is starting in the background (Daemon Mode)...");
-                println!("  To view status telemetry, use: \x1b[1;33mwraith -i\x1b[0m");
                 
                 let mut cmd = std::process::Command::new(std::env::current_exe()?);
                 // Forward all original arguments and append --daemon-worker
@@ -775,16 +780,80 @@ pub async fn main() -> Result<()> {
                 
                 // Detach from current terminal
                 cmd.stdin(std::process::Stdio::null());
-                cmd.stdout(std::process::Stdio::null());
-                cmd.stderr(std::process::Stdio::null());
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::CommandExt;
+                    unsafe {
+                        cmd.pre_exec(|| {
+                            libc::setsid();
+                            Ok(())
+                        });
+                    }
+                }
+
+                let _ = std::fs::create_dir_all("/var/log/wraith");
+                let log_file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open("/var/log/wraith/daemon.log");
+                if let Ok(ref file) = log_file {
+                    if let Ok(out_f) = file.try_clone() {
+                        cmd.stdout(out_f);
+                    }
+                    if let Ok(err_f) = file.try_clone() {
+                        cmd.stderr(err_f);
+                    }
+                } else {
+                    cmd.stdout(std::process::Stdio::null());
+                    cmd.stderr(std::process::Stdio::null());
+                }
                 
-                match cmd.spawn() {
-                    Ok(_) => return Ok(()),
+                let mut child = match cmd.spawn() {
+                    Ok(c) => c,
                     Err(e) => {
                         display::print_error(&format!("Failed to spawn daemon: {}", e));
                         return Err(wraith_core::error::WraithError::Custom(format!("Daemon spawn failed: {}", e)));
                     }
+                };
+
+                // Wait briefly for daemon to initialize Tor and activate routing
+                print!("  [~] Initializing Tor network gateway in background");
+                use std::io::Write;
+                let _ = std::io::stdout().flush();
+
+                let mut activated = false;
+                for _ in 0..25 {
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    print!(".");
+                    let _ = std::io::stdout().flush();
+                    
+                    if let Ok(Some(status)) = child.try_wait() {
+                        println!();
+                        let log_content = std::fs::read_to_string("/var/log/wraith/daemon.log").unwrap_or_default();
+                        let err_detail = log_content.lines().last().unwrap_or("Unknown exit reason");
+                        display::print_error(&format!("Daemon exited unexpectedly ({status}): {err_detail}"));
+                        return Err(wraith_core::error::WraithError::Custom("Daemon startup failed".into()));
+                    }
+
+                    if state_mgr.is_active() {
+                        activated = true;
+                        break;
+                    }
                 }
+                println!();
+
+                if activated {
+                    let state = state_mgr.read();
+                    let ip_str = state.ip.as_deref().unwrap_or("Verified Tor Node");
+                    println!("  \x1b[1;32m✔\x1b[0m WRAITH Daemon Armed & Active!");
+                    println!("  \x1b[1;36mExit IP:\x1b[0m \x1b[1;37m{ip_str}\x1b[0m");
+                    println!("  \x1b[2mTo monitor:\x1b[0m \x1b[1;33mwraith -i\x1b[0m   \x1b[2mTo stop:\x1b[0m \x1b[1;31mwraith -x\x1b[0m\n");
+                } else {
+                    println!("  \x1b[1;33m▲\x1b[0m Daemon process is running, waiting for full Tor circuit bootstrap.");
+                    println!("  Check status shortly using: \x1b[1;33mwraith -i\x1b[0m\n");
+                }
+                return Ok(());
             }
 
             tokio::select! {

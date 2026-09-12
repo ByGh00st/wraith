@@ -395,8 +395,8 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     }
     state_mgr.activate(state_data.clone())?;
 
-    // 4. Initial cleartext HTTP header normalization and HTTPS CONNECT relay.
-    {
+    // 4. Initial cleartext HTTP header normalization and HTTPS CONNECT relay (Only in Full Security / Strict Mode).
+    if is_strict {
         let (server, ct) = TlsCamouflageServer::new(None);
         let handle = server.spawn_server().await?;
         print_step("HTTP/CONNECT relay ready; Wraith HTTPS clients use verified browser TLS profiles", "ok");
@@ -619,12 +619,14 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // application traffic. Keep UID-aware netfilter enforcement here; filtering
     // relay TCP by the local TransPort number disconnects Tor itself.
 
-    // 11. Zero-Copy IDS Raw Packet Sniffer & Egress Watchdog (Acquire raw AF_PACKET before Seccomp sandbox)
-    print_step(&t!("commands.cmd_step_78"), "info");
-    let (ids, _telemetry, ct) = EgressIntrusionDetector::new();
-    let handle = ids.spawn_sniffer();
-    print_step(&t!("commands.cmd_step_79"), "ok");
-    bg_services.ids = Some((ct, handle));
+    // 11. Zero-Copy IDS Raw Packet Sniffer & Egress Watchdog (Acquired only under strict/full security mode)
+    if is_strict {
+        print_step(&t!("commands.cmd_step_78"), "info");
+        let (ids, _telemetry, ct) = EgressIntrusionDetector::new();
+        let handle = ids.spawn_sniffer();
+        print_step(&t!("commands.cmd_step_79"), "ok");
+        bg_services.ids = Some((ct, handle));
+    }
 
     // 12. Seccomp-BPF Syscall Sandboxing (Raw Socket Filter)
     if is_strict {

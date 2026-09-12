@@ -340,97 +340,88 @@ pub fn print_error(msg: &str) {
 }
 
 pub fn show_status_dashboard(state: &StateData, is_tor: bool, ip: &str, circuits: usize) {
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_content_arrangement(ContentArrangement::Dynamic);
+    let mut rows = Vec::new();
 
-    table.set_header(vec![
-        Cell::new("🛡️ Security & Telemetry Vector").add_attribute(Attribute::Bold).fg(Color::Cyan),
-        Cell::new("⚡ Operational Status & Forensic State").add_attribute(Attribute::Bold).fg(Color::Cyan),
-    ]);
-
-    let status_cell = if state.active {
-        Cell::new("● ACTIVE / ARMED (Fail-Closed Gate)").fg(Color::Green).add_attribute(Attribute::Bold)
+    let status_str = if state.active {
+        format!("{} {}", "● ACTIVE".bold().bright_green(), "[Fail-Closed Gate Armed]".dimmed())
     } else {
-        Cell::new("○ INACTIVE").fg(Color::DarkGrey)
+        format!("{} {}", "○ INACTIVE".bold().bright_black(), "[Clearnet Fallback]".bright_red())
+    };
+    rows.push(format!("{:<22} : {}", "ANONYMIZATION GATE".bold().bright_cyan(), status_str));
+
+    let ip_str = if is_tor {
+        format!("{} {}", ip.bold().bright_green(), "[Verified Tor Node]".dimmed())
+    } else {
+        format!("{} {}", ip.bold().bright_red(), "[✖ DIRECT CLEARNET WARNING]".bold().bright_red())
+    };
+    rows.push(format!("{:<22} : {}", "PUBLIC EXIT IP".bold().bright_cyan(), ip_str));
+
+    let route_str = if is_tor {
+        "✔ Enforced via Tor Transparent Proxy (Port 9040)".bright_green().to_string()
+    } else {
+        "✖ Bypass / Direct Clearnet Active".bold().bright_red().to_string()
+    };
+    rows.push(format!("{:<22} : {}", "TRAFFIC ROUTING".bold().bright_cyan(), route_str));
+
+    let ks_str = if state.kill_switch {
+        "● Armed (Fail-Closed Sub-Millisecond Drop)".bright_green().to_string()
+    } else {
+        "○ Disabled (--no-ks)".bright_yellow().to_string()
+    };
+    rows.push(format!("{:<22} : {}", "KILL-SWITCH".bold().bright_cyan(), ks_str));
+
+    if state.active {
+        rows.push(format!("{:<22} : {}", "ACTIVE CIRCUITS".bold().bright_cyan(), format!("{circuits} multi-hop circuit(s) established").bright_cyan()));
+
+        if let Some(iface) = &state.target_interface {
+            rows.push(format!("{:<22} : {}", "LOCKED INTERFACE".bold().bright_cyan(), format!("✔ {iface}").bright_green()));
+        }
+
+        if let Some(mac) = &state.mac_new {
+            rows.push(format!("{:<22} : {}", "MAC ADDRESS".bold().bright_cyan(), format!("✔ Spoofed: {mac}").bright_magenta()));
+        }
+
+        if let Some(prof) = &state.exit_profile {
+            rows.push(format!("{:<22} : {}", "EXIT NODE PROFILE".bold().bright_cyan(), format!("✔ {prof}").bright_blue()));
+        }
+
+        if state.multihop_enabled {
+            rows.push(format!("{:<22} : {}", "MULTIHOP OVERLAY".bold().bright_cyan(), "✔ WireGuard ➔ Tor ➔ Exit".bright_green().bold()));
+        }
+
+        if state.browser_hardened > 0 {
+            rows.push(format!("{:<22} : {}", "BROWSER SHIELD".bold().bright_cyan(), format!("✔ {} browser profiles jailed", state.browser_hardened).bright_green()));
+        }
+
+        if state.namespace_active {
+            rows.push(format!("{:<22} : {}", "NET NAMESPACE".bold().bright_cyan(), "✔ Isolated Jail (10.200.1.0/24)".bright_green()));
+        }
+
+        if state.tcp_stack_masked {
+            rows.push(format!("{:<22} : {}", "TCP/IP MASK (p0f)".bold().bright_cyan(), "✔ Stack Normalized (TTL=128, TS=0)".bright_green()));
+        }
+    }
+
+    let title = if state.active {
+        "🛡️ WRAITH // SYSTEM TELEMETRY & GATE STATUS"
+    } else {
+        "⚠️ WRAITH // OFFLINE / INACTIVE GATE"
     };
 
-    let tor_cell = if is_tor {
-        Cell::new("✔ Verified via Tor Transparent Proxy (9040)").fg(Color::Green)
+    let box_lines = render_box(title, &rows, BoxCorner::Rounded, 78);
+    if state.active {
+        println!("{}", box_lines[0].bright_cyan());
+        for row in &box_lines[1..box_lines.len() - 1] {
+            println!("{row}");
+        }
+        println!("{}\n", box_lines.last().unwrap().bright_cyan());
     } else {
-        Cell::new("✖ Unverified / Direct Clearnet Warning").fg(Color::Red).add_attribute(Attribute::Bold)
-    };
-
-    let ks_cell = if state.kill_switch {
-        Cell::new("● Fail-Closed Async Watchdog Armed (<1ms Drop)").fg(Color::Green)
-    } else {
-        Cell::new("○ Watchdog Disabled").fg(Color::Yellow)
-    };
-
-    table.add_row(vec![Cell::new("Anonymization State"), status_cell]);
-    table.add_row(vec![Cell::new("Public Exit IP"), Cell::new(ip).fg(Color::White).add_attribute(Attribute::Bold)]);
-    table.add_row(vec![Cell::new("Tor Network Routing"), tor_cell]);
-    table.add_row(vec![Cell::new("KillSwitch Gate"), ks_cell]);
-    table.add_row(vec![
-        Cell::new("Active Circuits"),
-        Cell::new(format!("{circuits} isolated multi-hop circuit(s) established")).fg(Color::Cyan),
-    ]);
-
-    table.add_row(vec![
-        Cell::new("DPI Tool Auto-Sanitizer"),
-        Cell::new("✔ In-Flight (Nmap, Sqlmap, Ffuf, Nikto headers rewritten to Chrome/Firefox)").fg(Color::Green),
-    ]);
-
-    table.add_row(vec![
-        Cell::new("RAMFS Vault & Scrambler"),
-        Cell::new("✔ Active (/dev/shm, mlockall + MADV_DONTDUMP + XOR rotation)").fg(Color::Green),
-    ]);
-
-    if let Some(iface) = &state.target_interface {
-        table.add_row(vec![
-            Cell::new("Target Network Interface"),
-            Cell::new(format!("✔ Locked Adapter: {iface}")).fg(Color::Cyan),
-        ]);
+        println!("{}", box_lines[0].bright_yellow());
+        for row in &box_lines[1..box_lines.len() - 1] {
+            println!("{row}");
+        }
+        println!("{}\n", box_lines.last().unwrap().bright_yellow());
     }
-
-    if let Some(mac) = &state.mac_new {
-        table.add_row(vec![
-            Cell::new("Hardware MAC Spoof"),
-            Cell::new(format!("✔ Randomized: {mac}")).fg(Color::Magenta),
-        ]);
-    }
-
-    if let Some(prof) = &state.exit_profile {
-        table.add_row(vec![
-            Cell::new("Geographic Exit Profile"),
-            Cell::new(format!("✔ Active: {prof}")).fg(Color::Blue),
-        ]);
-    }
-
-    if state.namespace_active {
-        table.add_row(vec![
-            Cell::new("Kernel Net Namespace"),
-            Cell::new("✔ Isolated Jail (10.200.1.0/24 veth pair)").fg(Color::Green),
-        ]);
-    }
-
-    if state.tcp_stack_masked {
-        table.add_row(vec![
-            Cell::new("TCP/IP Stack Mask (p0f)"),
-            Cell::new("✔ Windows 11 L4 Profile (TTL=128, TS=0)").fg(Color::Green),
-        ]);
-    }
-
-    if state.machine_id_old.is_some() {
-        table.add_row(vec![
-            Cell::new("Hardware DMI Cloaking"),
-            Cell::new("✔ /etc/machine-id rotated (DMI unchanged)").fg(Color::Green),
-        ]);
-    }
-
-    println!("{table}\n");
 }
 
 pub fn show_leak_report(report: &LeakReport) {
