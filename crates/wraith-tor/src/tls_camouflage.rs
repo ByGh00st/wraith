@@ -118,7 +118,12 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
     let mut modified_lines = Vec::new();
     let mut was_sanitized = false;
 
-    let target_ua = BROWSER_USER_AGENTS[0];
+    // Diversified UA pool
+    let pool = wraith_core::signatures::BROWSER_USER_AGENT_POOL;
+    let pool_idx = req_data.len() % pool.len();
+    let target_ua = pool[pool_idx];
+
+    let full_sigs = wraith_core::signatures::get_offensive_tool_signatures();
 
     for line in req_str.split("\r\n") {
         if line.to_lowercase().starts_with("host:") {
@@ -126,9 +131,13 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
             modified_lines.push(line.to_string());
         } else if line.to_lowercase().starts_with("user-agent:") {
             let current_ua = line[11..].trim();
+            let raw_ua_lower = current_ua.to_lowercase();
+            
             let is_audit_tool = AUDIT_TOOL_SIGNATURES
                 .iter()
-                .any(|&sig| current_ua.to_lowercase().contains(sig));
+                .any(|&sig| raw_ua_lower.contains(sig))
+                || full_sigs.iter().any(|sig| raw_ua_lower.contains(sig.as_str()));
+                
             let is_browser = current_ua.starts_with("Mozilla/5.0");
 
             if is_audit_tool || !is_browser {
@@ -214,7 +223,10 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
         // Headers and the first TLS record may arrive in the same read.
         tor_stream.write_all(&request.payload).await?;
     } else {
-        let (sanitized, _, _) = sanitize_http_request(&request.payload);
+        let (sanitized, host, was_sanitized) = sanitize_http_request(&request.payload);
+        if was_sanitized {
+            tracing::info!("DPI Proxy: Sanitized offensive UA in cleartext HTTP to {host}");
+        }
         tor_stream.write_all(&sanitized).await?;
     }
     tokio::io::copy_bidirectional(&mut client, &mut tor_stream).await?;

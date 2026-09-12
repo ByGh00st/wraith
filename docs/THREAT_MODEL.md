@@ -14,7 +14,7 @@ The project aims to protect intended Tor routing, DNS integrity, sensitive runti
 | DNS response forgery | Local DNSSEC validation over verified Tor DoH | Authenticated unsigned delegations remain unsigned |
 | HTTPS impersonation | Certificate-chain and hostname verification in the native client | Depends on trust anchors and a correct clock |
 | TLS fingerprint differentiation | Browser-profile TLS/HTTP2 for Wraith-owned requests | Not universal JA3/JA4 matching; CONNECT retains application TLS |
-| HTTP client header exposure | Initial cleartext HTTP header normalization | Does not decrypt HTTPS or normalize all later requests |
+| HTTP client header & Tool exposure | Real-time L7 Proxy Deep Packet Inspection (DPI) & wire-level UA rewriting | Does not decrypt HTTPS. Modifies cleartext HTTP headers. |
 | Unsafe setup or interrupted cleanup | Pre-mutation state, snapshots and retryable restoration | Snapshots do not capture all metadata or independent external changes |
 | Process inspection and buffer exposure | Ptrace restrictions, memory locking, authenticated vault and zeroization | Does not defend against a compromised kernel; crashes may skip destructors |
 | Traffic timing observation | Optional netem and bounded cover requests | No demonstrated traffic-correlation resistance |
