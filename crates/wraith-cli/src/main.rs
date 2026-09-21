@@ -385,6 +385,11 @@ struct Cli {
 enum Commands {
     /// Start Wraith network anonymization
     Start(StartArgs),
+    /// Launch an application in an active Wraith namespace as the invoking user
+    Exec {
+        #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
     /// Stop Wraith and restore normal network
     Stop {
         /// ⚠ Cryptographically shred binary and state files during shutdown
@@ -701,6 +706,7 @@ pub async fn main() -> Result<()> {
 
     // Single unified dispatch pipeline with fail-safe SIGINT guard
     match command {
+        Commands::Exec { command } => commands::cmd_exec(command).await?,
         Commands::Fetch {
             url,
             tls_profile,
@@ -1183,7 +1189,7 @@ mod tests {
 
         // Start & strict hardening shortcuts
         let cli_start = Cli::try_parse_from(["wraith", "-s"]).unwrap();
-        assert_eq!(resolve_command(&cli_start), Some(Commands::Start(StartArgs::default())));
+        assert_eq!(resolve_command(&cli_start), Some(Commands::Start(StartArgs { tcp_profile: "auto".into(), ..Default::default() })));
 
         let cli_fs = Cli::try_parse_from(["wraith", "-Fs"]).unwrap();
         assert!(matches!(resolve_command(&cli_fs), Some(Commands::Start(args)) if args.strict_hardening));

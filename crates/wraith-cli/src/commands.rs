@@ -20,12 +20,12 @@ use wraith_guard::{
 };
 use wraith_net::{
     apply_ipv6_block, apply_tor_rules_with_journal, block_stun_ports,
-    create_cgroup_jail, create_namespace_with_l4_profile, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
+    create_cgroup_jail, create_namespace_with_l4_profile, destroy_cgroup_jail, destroy_namespace,
     restore_mac,
     EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
     TrafficShapingProfile,
 };
-use wraith_core::tcp_fingerprint::{CrossLayerProfile, L7BrowserHint, TcpFingerprintProfile};
+use wraith_core::tcp_fingerprint::TcpFingerprintProfile;
 use wraith_net::tcp_stack::{restore_netns_tcp_stack, NetnsTcpSnapshot};
 use wraith_tor::{
     apply_exit_profile, arm_onion_service, backup_resolv, configure_dns,
@@ -402,35 +402,16 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         state_mgr.activate(state_data.clone())?;
     }
 
-    // 3. L4 TCP Stack Morphing (3-Tier: Sysctl + Netfilter MSS + FIB Routing)
-    if args.namespace {
-        // L4 profile is armed inside namespace during isolation (namespace.rs)
-        state_data.tcp_stack_masked = true;
-        print_step("L4 TCP stack morphing delegated to namespace isolation engine", "ok");
-    } else if args.tcp_mask || is_strict || (!args.tcp_profile.is_empty() && args.tcp_profile != "auto") {
-        let tcp_profile = resolve_tcp_profile(&args);
-        print_step(&format!("Deploying L4 TCP profile: {} [{}]", tcp_profile.name, tcp_profile.format_summary()), "info");
+    // TCP profiles apply to applications explicitly launched in the namespace.
+    // Never mark a requested profile active before the kernel accepted it.
+    args.namespace |= args.tcp_mask || is_strict
+        || (!args.tcp_profile.is_empty() && args.tcp_profile != "auto");
 
-        // Cross-layer correlation verification
-        let cl = CrossLayerProfile::from_browser(resolve_browser_hint(&args));
-        if !cl.is_consistent() {
-            for anomaly in cl.validate() {
-                print_step(&format!("L4↔L7 Anomaly: {anomaly}"), "warn");
-            }
-        }
-
-        state_data.tcp_stack_masked = true;
-        state_data.tcp_profile_kind = Some(tcp_profile.name.clone());
-        state_mgr.activate(state_data.clone())?;
-    }
-
-    // 4. Initial cleartext HTTP header normalization and HTTPS CONNECT relay (Only in Full Security / Strict Mode).
-    if is_strict {
-        let (server, ct) = TlsCamouflageServer::new(None);
-        let handle = server.spawn_server().await?;
-        print_step("HTTP/CONNECT relay ready; Wraith HTTPS clients use verified browser TLS profiles", "ok");
-        bg_services.tls = Some((ct, handle));
-    }
+    // Every mode redirects port 80 here, so every mode needs this listener.
+    let (server, ct) = TlsCamouflageServer::new(None);
+    let handle = server.spawn_server().await?;
+    print_step("HTTP/CONNECT relay ready; Wraith HTTPS clients use verified browser TLS profiles", "ok");
+    bg_services.tls = Some((ct, handle));
 
     journal_file(&state_mgr, &mut state_data, wraith_core::config::TORRC_PATH, false)?;
     // 5. Tor Configuration & Bridges
@@ -733,6 +714,9 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // 16. Network Namespace
     if args.namespace || is_strict {
         print_step(&t!("commands.cmd_step_18"), "info");
+        if wraith_net::is_namespace_active() {
+            return Err(WraithError::Namespace("An existing namespace must be recovered before starting".into()));
+        }
         state_data.namespace_active = true;
         state_mgr.activate(state_data.clone())?;
         let tcp_profile = resolve_tcp_profile(&args);
@@ -754,8 +738,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                 state_data.tcp_snapshot_json = serde_json::to_string(&snapshot).ok();
                 state_mgr.activate(state_data.clone())?;
             }
-            Err(e) if is_strict => return Err(e),
-            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_net_ns", e = e.to_string())), "warn"),
+            Err(e) => return Err(e),
         }
     }
 
@@ -1831,11 +1814,6 @@ fn resolve_tcp_profile(args: &crate::StartArgs) -> TcpFingerprintProfile {
     }
 }
 
-/// Resolves L7 browser identity hint
-fn resolve_browser_hint(_args: &crate::StartArgs) -> L7BrowserHint {
-    L7BrowserHint::ChromeWindows
-}
-
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
@@ -1870,4 +1848,29 @@ mod lifecycle_tests {
         args.tcp_profile = "".to_string();
         assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
     }
+}
+
+/// Join the already protected namespace, then drop privileges before exec.
+pub async fn cmd_exec(command: Vec<String>) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let state = StateManager::default().read_checked()?;
+        if !state.active || !state.namespace_active || !StateManager::default().is_running() {
+            return Err(WraithError::Configuration("Start Wraith with --namespace first".into()));
+        }
+        let uid = std::env::var("SUDO_UID").ok().and_then(|s| s.parse::<u32>().ok())
+            .filter(|uid| *uid != 0).ok_or_else(|| WraithError::Configuration("Run sudo wraith exec -- PROGRAM from your normal user account".into()))?;
+        let user = nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid)).map_err(|e| WraithError::Configuration(e.to_string()))?
+            .ok_or_else(|| WraithError::Configuration("Invoking user does not exist".into()))?;
+        let mut args = vec!["-u".to_owned(), user.name, "--".to_owned(), "/usr/bin/env".to_owned(), "-u".to_owned(), "LD_PRELOAD".to_owned(), "-u".to_owned(), "LD_LIBRARY_PATH".to_owned()];
+        args.extend(command);
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut child = wraith_net::spawn_in_namespace("/usr/sbin/runuser", &refs)?;
+        let status = tokio::task::spawn_blocking(move || child.wait()).await
+            .map_err(|e| WraithError::Configuration(e.to_string()))??;
+        if !status.success() { return Err(WraithError::Configuration(format!("Application exited with {status}"))); }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    { let _ = command; Err(WraithError::Configuration("Network namespaces require Linux".into())) }
 }

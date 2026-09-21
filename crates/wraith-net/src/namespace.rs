@@ -32,7 +32,7 @@ pub fn is_namespace_active() -> bool {
     Command::new("ip")
         .args(["netns", "list"])
         .output()
-        .map(|out| String::from_utf8_lossy(&out.stdout).contains(NAMESPACE_NAME))
+        .map(|out| String::from_utf8_lossy(&out.stdout).lines().any(|line| line.split_whitespace().next() == Some(NAMESPACE_NAME)))
         .unwrap_or(false)
 }
 
@@ -40,10 +40,7 @@ pub fn is_namespace_active() -> bool {
 /// with the specified `TcpFingerprintProfile`.
 pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Result<NetnsTcpSnapshot> {
     if is_namespace_active() {
-        info!("Network namespace {} already exists", NAMESPACE_NAME);
-        let snapshot = crate::tcp_stack::apply_profile_to_netns(NAMESPACE_NAME, profile, false)
-            .map_err(|e| WraithError::Namespace(e.to_string()))?;
-        return Ok(snapshot);
+        return Err(WraithError::Namespace("Existing namespace must be recovered before starting".into()));
     }
 
     info!("Constructing isolated Linux Network Namespace: {}", NAMESPACE_NAME);
@@ -88,7 +85,7 @@ pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Resu
 
     // 9. Normalize TCP/IP stack inside network namespace (p0f OS Fingerprint Evasion & Anti-Clock Skew)
     // 3-Tier Execution: Sysctl + Netfilter MSS + FIB Routing
-    let snapshot = match crate::tcp_stack::apply_profile_to_netns(NAMESPACE_NAME, profile, false) {
+    let snapshot = match crate::tcp_stack::apply_profile_to_netns(NAMESPACE_NAME, profile, true) {
         Ok(snap) => {
             info!(
                 "L4 TCP stack morphing armed in namespace '{}': {} [p0f: {}]",
@@ -99,8 +96,8 @@ pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Resu
             snap
         }
         Err(err) => {
-            tracing::warn!("L4 TCP stack morphing warning during namespace isolation: {err}");
-            NetnsTcpSnapshot::new(NAMESPACE_NAME)
+            let _ = destroy_namespace();
+            return Err(err.into());
         }
     };
 
@@ -150,6 +147,8 @@ fn namespace_rules() -> Vec<Vec<String>> {
     let mut add = |args: Vec<&str>| rules.push(args.into_iter().map(String::from).collect());
     // General TCP first; the DNS rules inserted later take priority.
     add(vec!["-t", "nat", "-I", "PREROUTING", "1", "-i", VETH_HOST, "-s", &subnet, "-p", "tcp", "--syn", "-j", "DNAT", "--to-destination", "127.0.0.1:9040"]);
+    add(vec!["-t", "nat", "-I", "PREROUTING", "1", "-i", VETH_HOST, "-s", &subnet, "-p", "tcp", "--dport", "80", "-j", "DNAT", "--to-destination", "127.0.0.1:9055"]);
+    add(vec!["-I", "INPUT", "1", "-i", VETH_HOST, "-s", &subnet, "-d", "127.0.0.1", "-p", "tcp", "--dport", "9055", "-j", "ACCEPT"]);
     let dns_target = format!("127.0.0.1:{dns}");
     for protocol in ["tcp", "udp"] {
         add(vec!["-t", "nat", "-I", "PREROUTING", "1", "-i", VETH_HOST, "-s", &subnet, "-p", protocol, "--dport", "53", "-j", "DNAT", "--to-destination", &dns_target]);
@@ -163,7 +162,7 @@ fn namespace_rules() -> Vec<Vec<String>> {
 
 pub fn spawn_in_namespace(command: &str, args: &[&str]) -> Result<Child> {
     if !is_namespace_active() {
-        create_namespace()?;
+        return Err(WraithError::Namespace("Start a namespace session before launching applications".into()));
     }
 
     let mut full_args = vec!["netns", "exec", NAMESPACE_NAME, command];
