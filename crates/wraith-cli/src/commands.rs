@@ -1208,127 +1208,14 @@ pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
     Ok(())
 }
 
-/// Build scripts and Git hooks must never execute with the installer's root UID.
-async fn cmd_update_from_github() -> Result<()> {
-    #[cfg(not(target_os = "linux"))]
-    { Err(WraithError::UnsupportedPlatform) }
-    #[cfg(target_os = "linux")]
-    {
-        use std::process::Command;
-        
-        let mut target_repo_dir: Option<std::path::PathBuf> = None;
-        
-        // 1. Discover repo root if running from inside any repository directory or subdirectory
-        if let Ok(output) = Command::new("git").args(["rev-parse", "--show-toplevel"]).output() {
-            if output.status.success() {
-                let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !path_str.is_empty() && Path::new(&path_str).join(".git").exists() {
-                    target_repo_dir = Some(std::path::PathBuf::from(path_str));
-                }
-            }
-        }
-
-        // 2. Discover standard repository paths if executed outside repository
-        if target_repo_dir.is_none() {
-            let candidates = [
-                "/home/ghost/wraith",
-                "/root/wraith",
-                "/opt/wraith",
-                "/usr/src/wraith",
-            ];
-            for c in candidates {
-                let p = Path::new(c);
-                if p.join(".git").exists() {
-                    target_repo_dir = Some(p.to_path_buf());
-                    break;
-                }
-            }
-        }
-
-        // 3. Fall back to binary location ancestor directories
-        if target_repo_dir.is_none() {
-            if let Ok(exe) = std::env::current_exe() {
-                let mut current = exe.parent();
-                while let Some(parent) = current {
-                    if parent.join(".git").exists() {
-                        target_repo_dir = Some(parent.to_path_buf());
-                        break;
-                    }
-                    current = parent.parent();
-                }
-            }
-        }
-
-        let current_dir = match target_repo_dir {
-            Some(d) => d,
-            None => {
-                let err_rows = vec![
-                    "No .git repository metadata discovered in active or standard directories.".to_string(),
-                    "".to_string(),
-                    "Navigate to your existing clone or clone freshly:".to_string(),
-                    format!("  {}", "git clone https://github.com/ByGh00st/wraith.git".bold().bright_cyan()),
-                    format!("  {}", "cd wraith && sudo ./build.sh".bold().bright_green()),
-                ];
-                let err_box = render_box("✖ GIT REPOSITORY NOT FOUND", &err_rows, BoxCorner::Rounded, 78);
-                println!("{}", err_box[0].bright_red());
-                for row in &err_box[1..err_box.len() - 1] {
-                    println!("{row}");
-                }
-                println!("{}\n", err_box.last().unwrap().bright_red());
-                return Ok(());
-            }
-        };
-
-        let sync_rows = vec![
-            format!("{:<16} : {}", "OPERATION".bold().bright_cyan(), "KERNEL REPOSITORY SYNCHRONIZATION".bold().bright_white()),
-            format!("{:<16} : {}", "TARGET DIRECTORY".bold().bright_cyan(), current_dir.display().to_string().bold().bright_yellow()),
-            format!("{:<16} : {}", "BRANCH & ORIGIN".bold().bright_cyan(), "main ➔ origin/main (HEAD Force Sync)".bold().bright_magenta()),
-            format!("{:<16} : {}", "BUILD ENGINE".bold().bright_cyan(), "OOM PREVENTION (External Isolated Build)".bold().bright_green()),
-        ];
-        let sync_box = render_box("⚔ WRAITH-PRIME // SOURCE SYNCHRONIZATION GATE", &sync_rows, BoxCorner::Rounded, 78);
-        println!("{}", sync_box[0].bright_cyan());
-        for row in &sync_box[1..sync_box.len() - 1] {
-            println!("{row}");
-        }
-        println!("{}\n", sync_box.last().unwrap().bright_cyan());
-
-        print_step("Fetching latest upstream commits from origin...", "info");
-        let mut fetch = Command::new("/usr/bin/git");
-        fetch.current_dir(&current_dir).args(["fetch", "--all"]);
-        if !fetch.output()?.status.success() {
-            return Err(WraithError::Command("Git fetch failed; check network connectivity or GitHub access".into()));
-        }
-
-        print_step("Force-aligning local working tree with origin/main...", "info");
-        let mut reset = Command::new("/usr/bin/git");
-        reset.current_dir(&current_dir).args(["reset", "--hard", "origin/main"]);
-        if !reset.output()?.status.success() {
-            return Err(WraithError::Command("Git reset failed".into()));
-        }
-
-        print_step("All source files aligned with latest master commit.", "ok");
-
-        let act_rows = vec![
-            format!("{:<18} : {}", "SYNC STATUS".bold().bright_cyan(), "✔ SUCCESSFUL / WORKING TREE ALIGNED".bold().bright_green()),
-            format!("{:<18} : {}", "SAFETY PROTOCOL".bold().bright_cyan(), "OOM-Killer Bypass (Cargo compilation deferred)".bold().bright_yellow()),
-            "".to_string(),
-            "To compile and install the updated binary into /usr/local/bin/wraith:".to_string(),
-            format!("  {}", "sudo ./build.sh".bold().bright_green()),
-        ];
-        let act_box = render_box("⚡ ACTION REQUIRED // REBUILD BINARY", &act_rows, BoxCorner::Rounded, 78);
-        println!("\n{}", act_box[0].bright_green());
-        for row in &act_box[1..act_box.len() - 1] {
-            println!("{row}");
-        }
-        println!("{}\n", act_box.last().unwrap().bright_green());
-        
-        Ok(())
+/// Synchronize only the official source tree, without running Git as root.
+pub async fn cmd_update(artifact: Option<std::path::PathBuf>, manifest: Option<std::path::PathBuf>, signature: Option<std::path::PathBuf>) -> Result<()> {
+    if artifact.is_some() || manifest.is_some() || signature.is_some() {
+        return Err(WraithError::Configuration("Artifact installation is unavailable; signed input must not be silently ignored".into()));
     }
-}
-
-pub async fn cmd_update(_artifact: Option<std::path::PathBuf>, _manifest: Option<std::path::PathBuf>, _signature: Option<std::path::PathBuf>) -> Result<()> {
-    print_banner(false);
-    cmd_update_from_github().await
+    crate::source_update::update()?;
+    print_success("Official main source synchronized. Run sudo ./build.sh in this repository to build and install.");
+    Ok(())
 }
 
 pub async fn cmd_switch() -> Result<()> {

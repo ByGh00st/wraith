@@ -3,6 +3,7 @@
 
 mod benchmark;
 mod commands;
+mod source_update;
 mod diagnostics;
 mod display;
 pub mod doh_tui;
@@ -695,7 +696,7 @@ pub async fn main() -> Result<()> {
 
     // Check root privileges for system-modifying operations
     match &command {
-        Commands::Pentest | Commands::Interfaces { .. } | Commands::Config { .. } | Commands::Fetch { .. } => {} // Read-only or self-managing operations do not require root
+        Commands::Pentest | Commands::Interfaces { .. } | Commands::Config { .. } | Commands::Fetch { .. } | Commands::Update { .. } => {} // Read-only or self-managing operations do not require root
         _ => {
             if let Err(e) = check_root() {
                 display::print_error(&format!("{}", rust_i18n::t!("runtime.root_required", e = e.to_string())));

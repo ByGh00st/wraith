@@ -62,8 +62,7 @@ if [[ $EUID -eq 0 && ${SUDO_UID:-0} -ne 0 ]]; then
     BUILD_USER=$(getent passwd "$SUDO_UID" | cut -d: -f1)
     BUILD_HOME=$(getent passwd "$SUDO_UID" | cut -d: -f6)
 elif [[ $EUID -eq 0 && ${SUDO_UID:-0} -eq 0 ]]; then
-    BUILD_USER="root"
-    BUILD_HOME="/root"
+    echo "Run sudo ./build.sh from a non-root account; Cargo must not build as root." >&2; exit 1;
 else
     echo "Please run: sudo ./build.sh" >&2; exit 1;
 fi
