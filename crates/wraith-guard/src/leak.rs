@@ -3,9 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use tokio::net::{TcpStream, UdpSocket};
-use std::process::Command;
 use std::time::Duration;
-use tracing::{debug, warn};
+use tracing::warn;
 use wraith_core::config::{IP_CHECK_APIS, REQUEST_TIMEOUT_SECS, TOR_CHECK_API};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -314,32 +313,19 @@ pub async fn check_dns_leak() -> bool {
         return true; // Leak risk: local secure proxy inactive
     }
 
-    // 2. Check /etc/resolv.conf: Ensure nameserver points to localhost loopback
-    if let Ok(resolv) = std::fs::read_to_string(wraith_core::config::RESOLV_PATH) {
-        let has_secure_ns = resolv.lines().any(|l| {
-            let trimmed = l.trim();
-            trimmed.starts_with("nameserver") && (trimmed.contains("127.0.0.1") || trimmed.contains("::1"))
-        });
-        if !has_secure_ns {
-            warn!("System /etc/resolv.conf does not point to localhost — potential clearnet DNS leak!");
-            return true;
-        }
+    // Every configured resolver must be loopback, not merely one matching line.
+    match std::fs::read_to_string(wraith_core::config::RESOLV_PATH) {
+        Ok(resolv) => !loopback_resolvers_only(&resolv),
+        Err(_) => true,
     }
+}
 
-    // 3. If dig is available, verify that queries are redirected without exposing external clearnet
-    if let Ok(output) = Command::new("dig")
-        .args(["+time=3", "+tries=1", "+short", "myip.opendns.com", "@resolver1.opendns.com"])
-        .output()
-    {
-        if output.status.success() {
-            let res = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !res.is_empty() {
-                debug!("DNS resolution probe returned: {res}");
-            }
-        }
-    }
-
-    false // Fail-closed netfilter trap and local DoH proxy verified
+fn loopback_resolvers_only(resolv: &str) -> bool {
+    let servers: Vec<_> = resolv.lines().filter_map(|line| {
+        let mut fields = line.split_whitespace();
+        (fields.next() == Some("nameserver")).then(|| fields.next().unwrap_or(""))
+    }).collect();
+    !servers.is_empty() && servers.iter().all(|s| s.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback()))
 }
 
 pub async fn check_webrtc_leak() -> bool {
@@ -363,7 +349,7 @@ pub async fn check_webrtc_leak() -> bool {
         stun_req[4..8].copy_from_slice(&0x2112A442u32.to_be_bytes()); // Magic Cookie: 0x2112A442
         // Transaction ID: 12 pseudorandom bytes
         for (i, b) in stun_req[8..20].iter_mut().enumerate() {
-            *b = (0xAA ^ (i as u8 * 0x1F)).wrapping_add(0x3B);
+            *b = (0xAA ^ (i as u8).wrapping_mul(0x1F)).wrapping_add(0x3B);
         }
 
         if let Ok(socket) = UdpSocket::bind("0.0.0.0:0").await {
@@ -414,18 +400,11 @@ pub async fn run_full_leak_test() -> LeakReport {
         report.errors.push("WebRTC leak detected: STUN/TURN port filter bypassed.".into());
     }
 
-    // 5. L4 TCP Stack Morphing & L4↔L7 Cross-Layer Coherence Verification
-    let cl = wraith_core::tcp_fingerprint::CrossLayerProfile::from_browser(
-        wraith_core::tcp_fingerprint::L7BrowserHint::ChromeWindows,
-    );
-    report.l4_coherent = cl.is_consistent();
-    report.l4_anomalies = cl.validate().iter().map(|a| a.to_string()).collect();
-    if !report.l4_coherent {
-        report.errors.push(format!(
-            "L4↔L7 cross-layer paradox detected: {} anomalies",
-            report.l4_anomalies.len()
-        ));
-    }
+    // A reference profile cannot prove the characteristics of a live connection.
+    report.l4_coherent = false;
+    report.l4_anomalies.push("Not measured: capture application SYN and ClientHello to verify coherence".into());
+    report.dns_checked = false;
+    report.errors.push("DNS routing checks cannot establish absence of leaks; external observation is required".into());
 
     report.secure = report.is_tor
         && report.dns_checked
@@ -485,6 +464,14 @@ async fn query_endpoint(url: &str, seconds: u64) -> std::io::Result<std::process
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mixed_or_unreadable_dns_configuration_is_not_secure() {
+        assert!(loopback_resolvers_only("nameserver 127.0.0.1\nnameserver ::1"));
+        for config in ["", "# nameserver 127.0.0.1", "nameserver", "nameserver 127.0.0.1\nnameserver 8.8.8.8", "nameserver 127.0.0.1.evil"] {
+            assert!(!loopback_resolvers_only(config));
+        }
+    }
+
     #[test]
     fn rejects_error_pages_and_malformed_ip_results() {
         assert_eq!(valid_ip(" 203.0.113.1 ").as_deref(), Some("203.0.113.1"));

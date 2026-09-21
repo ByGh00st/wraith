@@ -313,31 +313,12 @@ impl DiagnosticsRunner {
     }
 
     fn check_l4_l7_coherence() -> DiagnosticCheck {
-        let cl = wraith_core::tcp_fingerprint::CrossLayerProfile::from_browser(
-            wraith_core::tcp_fingerprint::L7BrowserHint::ChromeWindows,
-        );
-        let anomalies = cl.validate();
         DiagnosticCheck {
             category: "L4/L7",
             name: "Cross-Layer Stack Coherence",
-            passed: anomalies.is_empty(),
+            passed: false,
             latency_ms: None,
-            detail: if anomalies.is_empty() {
-                format!(
-                    "Coherent — L4 [{}] matches L7 TLS [Chrome/Windows 11]",
-                    cl.l4_profile.format_summary()
-                )
-            } else {
-                format!(
-                    "{} paradox anomaly(ies) detected: {}",
-                    anomalies.len(),
-                    anomalies
-                        .iter()
-                        .map(|a| a.parameter.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            },
+            detail: "Not measured: requires captured SYN and ClientHello from the same application flow".into(),
         }
     }
 
@@ -347,9 +328,9 @@ impl DiagnosticsRunner {
         DiagnosticCheck {
             category: "L4/L7",
             name: "Expected p0f SYN Signature",
-            passed: true,
+            passed: false,
             latency_ms: None,
-            detail: format!("p0f: {sig}"),
+            detail: format!("Reference only, not measured; p0f: {sig}"),
         }
     }
 
@@ -460,18 +441,15 @@ mod tests {
     fn test_diagnostics_l4_l7_coherence_check() {
         let check = DiagnosticsRunner::check_l4_l7_coherence();
         assert_eq!(check.category, "L4/L7");
-        assert!(
-            check.passed,
-            "Default Chrome/Windows profile must be coherent"
-        );
-        assert!(check.detail.contains("Coherent"));
+        assert!(!check.passed);
+        assert!(check.detail.contains("Not measured"));
     }
 
     #[test]
     fn test_diagnostics_p0f_signature_check() {
         let check = DiagnosticsRunner::check_p0f_signature_match();
         assert_eq!(check.category, "L4/L7");
-        assert!(check.passed);
+        assert!(!check.passed);
         assert!(check
             .detail
             .contains("p0f: *:128:0:1460:65535,8:mss,nop,ws,nop,nop,sok:df,id+:0"));
