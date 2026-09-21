@@ -148,8 +148,13 @@ pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
 async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // 0-CFG. Merge persistent configuration defaults if not explicitly provided
     let mut args = args;
+    let moat_transport;
     {
         let cfg = wraith_core::WraithConfig::load()?;
+        moat_transport = cfg.tor.moat_transport.unwrap_or_else(|| "obfs4".into());
+        if wraith_tor::PluggableTransportType::from_str(&moat_transport).is_none() {
+            return Err(WraithError::Configuration("Unsupported tor.moat_transport".into()));
+        }
         if args.interface.is_none() && !args.select_interface {
             args.interface = cfg.network.default_interface.or(cfg.default_interface);
         }
@@ -165,7 +170,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
             args.bridge_type = cfg.tor.bridge_type.or(cfg.bridge_type);
         }
         if args.doh.is_none() && !args.select_doh {
-            args.doh = cfg.dns.upstream.or(cfg.doh_upstream);
+            args.doh = cfg.dns.upstream.or(cfg.doh_upstream).or(cfg.dns.provider);
         }
         if !args.strict_hardening {
             if let Some(s) = cfg.hardening.strict.or(cfg.strict_hardening) {
@@ -174,6 +179,15 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         }
         if args.rotate_interval.is_none() {
             args.rotate_interval = cfg.tor.rotate_interval.or(cfg.rotate_interval);
+        }
+        if args.wireguard.is_none() { args.wireguard = cfg.network.wireguard_config; }
+        args.tcp_mask |= cfg.hardening.tcp_mask.unwrap_or(false);
+        args.browser_shield |= cfg.hardening.browser_shield.unwrap_or(false);
+        args.honey_ports |= cfg.hardening.honey_ports.unwrap_or(false);
+        if let Some(transport) = cfg.dns.transport.or(cfg.dns_transport) {
+            if !transport.eq_ignore_ascii_case("doh") {
+                return Err(WraithError::Configuration("DNSSEC protection requires dns.transport = doh".into()));
+            }
         }
         if !args.font_sandbox {
             if let Some(fs) = cfg.fonts.enabled.or(cfg.hardening.font_sandbox) {
@@ -420,9 +434,10 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         if b_type.eq_ignore_ascii_case("moat") {
             print_step(&t!("bridge_tui.moat_engaging"), "info");
             let moat = wraith_tor::MoatClient::default();
-            let bridges = moat.auto_discover_or_fallback("obfs4").await;
+            let bridges = moat.auto_discover_or_fallback(&moat_transport).await;
             let count = wraith_tor::write_pluggable_transport_torrc(
-                wraith_tor::PluggableTransportType::Obfs4,
+                wraith_tor::PluggableTransportType::from_str(&moat_transport)
+                    .ok_or_else(|| WraithError::Configuration("Unsupported Moat transport".into()))?,
                 Some(bridges),
             )?;
             print_step(&format!("{}", t!("bridge_tui.moat_active", count = count)), "ok");
