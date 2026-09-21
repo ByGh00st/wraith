@@ -159,6 +159,17 @@ pub enum BrowserType {
     EdgeWin11,
 }
 
+impl From<BrowserType> for wraith_core::tcp_fingerprint::L7BrowserHint {
+    fn from(b: BrowserType) -> Self {
+        match b {
+            BrowserType::ChromeWin11 => Self::ChromeWindows,
+            BrowserType::FirefoxLinux => Self::FirefoxLinux,
+            BrowserType::SafariMacOS => Self::SafariMacOS,
+            BrowserType::EdgeWin11 => Self::EdgeWindows,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DynamicTlsFingerprint {
     pub browser: BrowserType,
