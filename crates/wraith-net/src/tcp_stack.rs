@@ -1,7 +1,7 @@
 //! Wraith Layer 4 TCP Stack Morphing & p0f Evasion Engine
 //!
 //! Normalizes Linux kernel TCP/IP stack signatures within isolated Network Namespaces
-//! to eliminate fingerprint discrepancies against L7 TLS (JA3/JA4) profiles.
+//! toward reference profiles. Configuration does not prove on-wire L4/L7 equivalence.
 //!
 //! ## Three-Tier Application Architecture
 //!
@@ -20,13 +20,13 @@
 //! 3. **Layer Separation**: `forced_syn_mss` and `init_cwnd`/`init_rwnd` are decoupled from sysctl
 //!    and routed to Netfilter (iptables) and Routing (FIB) layers respectively.
 //! 4. **Graceful Kernel Fallback**: Differentiates between core per-netns parameters (atomic fail-closed)
-//!    and kernel-version-dependent extended parameters (graceful warn & continue).
+//!    and extended parameters (required in strict mode).
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use wraith_core::error::{Result as CoreResult, WraithError};
 use wraith_core::tcp_fingerprint::TcpFingerprintProfile;
 
@@ -288,8 +288,58 @@ pub fn write_netns_sysctl(netns: &str, key: &str, val: &str) -> std::result::Res
         });
     }
 
-    debug!("Namespace [{netns}] sysctl set: {key}={val}");
+    let observed = read_netns_sysctl(netns, key)?;
+    verify_sysctl_value(netns, key, val, &observed)?;
+    debug!("Namespace [{netns}] sysctl set and read back: {key}={val}");
     Ok(())
+}
+
+fn verify_sysctl_value(netns: &str, key: &str, expected: &str, observed: &str) -> std::result::Result<(), TcpMorphError> {
+    if expected.split_whitespace().eq(observed.split_whitespace()) { return Ok(()); }
+    Err(TcpMorphError::ExecutionFailed {
+        parameter: key.into(), namespace: netns.into(),
+        details: format!("Readback mismatch: requested {expected:?}, observed {observed:?}"),
+    })
+}
+
+// Preflight every required backup before the first write. Include the attempted key
+// in rollback: a command can change the value and then fail its readback.
+fn apply_sysctl_entries<F>(snapshot: &NetnsTcpSnapshot, entries: &[(&str, String)], strict: bool, mut write: F)
+    -> std::result::Result<bool, TcpMorphError>
+where F: FnMut(&str, &str) -> std::result::Result<(), TcpMorphError> {
+    for (key, _) in entries {
+        if !snapshot.values.contains_key(*key) && (strict || CORE_SYSCTL_KEYS.contains(key)) {
+            return Err(TcpMorphError::ExecutionFailed { parameter: (*key).into(),
+                namespace: snapshot.namespace.clone(), details: "Original value unavailable; refusing an untracked mutation".into() });
+        }
+    }
+    let mut complete = true;
+    let mut attempted = Vec::new();
+    for (key, value) in entries {
+        if !snapshot.values.contains_key(*key) { complete = false; continue; }
+        attempted.push(*key);
+        if let Err(error) = write(key, value) {
+            if !strict && !CORE_SYSCTL_KEYS.contains(key) {
+                // Even optional writes must be restored when verification fails.
+                if write(key, &snapshot.values[*key]).is_ok() {
+                    complete = false;
+                    warn!("Optional TCP parameter {key} was not applied: {error}");
+                    continue;
+                }
+                // Failed optional restoration is fatal too; roll back core writes below.
+            }
+            let mut failures = Vec::new();
+            for applied in attempted.iter().rev() {
+                if let Err(e) = write(applied, &snapshot.values[*applied]) { failures.push(e.to_string()); }
+            }
+            if !failures.is_empty() {
+                return Err(TcpMorphError::RollbackFailed { namespace: snapshot.namespace.clone(),
+                    details: format!("{error}; {}", failures.join("; ")) });
+            }
+            return Err(error);
+        }
+    }
+    Ok(complete)
 }
 
 /// Captures a snapshot of target sysctl parameters inside the specified namespace.
@@ -391,7 +441,9 @@ pub fn remove_netfilter_mss(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        warn!("Netfilter TCPMSS rule removal warning in [{netns}]: {}", stderr.trim());
+        return Err(TcpMorphError::NetfilterFailed {
+            namespace: netns.into(), details: format!("TCPMSS removal failed: {}", stderr.trim()),
+        });
     } else {
         debug!("Namespace [{netns}] Netfilter TCPMSS rule removed (MSS={mss})");
     }
@@ -430,39 +482,14 @@ pub fn apply_route_metrics(
             details: format!("Failed to read default route: {e}"),
         })?;
 
-    let route_line = String::from_utf8_lossy(&route_output.stdout);
-    let route_line = route_line.trim();
-
-    if route_line.is_empty() {
-        warn!("No default route found in namespace '{netns}'; skipping FIB metric morphing");
-        return Ok(());
+    if !route_output.status.success() {
+        return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
+            details: format!("Cannot read default route: {}", String::from_utf8_lossy(&route_output.stderr).trim()) });
     }
-
-    // Parse gateway from existing route
-    let parts: Vec<&str> = route_line.split_whitespace().collect();
-    let via_idx = parts.iter().position(|&p| p == "via");
-    let dev_idx = parts.iter().position(|&p| p == "dev");
-
-    // Build the route change command
-    let mut args = vec![
-        "netns".to_string(), "exec".to_string(), netns.to_string(),
-        "ip".to_string(), "route".to_string(), "change".to_string(),
-        "default".to_string(),
-    ];
-
-    if let Some(idx) = via_idx {
-        if let Some(gw) = parts.get(idx + 1) {
-            args.push("via".to_string());
-            args.push(gw.to_string());
-        }
-    }
-
-    if let Some(idx) = dev_idx {
-        if let Some(dev) = parts.get(idx + 1) {
-            args.push("dev".to_string());
-            args.push(dev.to_string());
-        }
-    }
+    let route_args = default_route_identity(netns, &String::from_utf8_lossy(&route_output.stdout))?;
+    let mut args = vec!["netns".into(), "exec".into(), netns.into(),
+        "ip".into(), "-4".into(), "route".into(), "change".into()];
+    args.extend(route_args);
 
     // Append FIB metrics from profile
     args.extend(profile.fib_route_metrics());
@@ -491,6 +518,25 @@ pub fn apply_route_metrics(
     Ok(())
 }
 
+// A single unicast route is required; never guess between multiple defaults or
+// collapse multipath next hops into a different route.
+fn default_route_identity(netns: &str, routes: &str) -> std::result::Result<Vec<String>, TcpMorphError> {
+    let lines: Vec<_> = routes.lines().filter(|line| !line.trim().is_empty()).collect();
+    let invalid = || TcpMorphError::RoutingFailed { namespace: netns.into(),
+        details: "Expected exactly one unicast default route with a device".into() };
+    if lines.len() != 1 { return Err(invalid()); }
+    let parts: Vec<_> = lines[0].split_whitespace().collect();
+    if parts.first() != Some(&"default") || parts.contains(&"nexthop") { return Err(invalid()); }
+    let mut args = vec!["default".to_string()];
+    for key in ["via", "dev", "metric", "table"] {
+        if let Some(index) = parts.iter().position(|p| *p == key) {
+            let value = parts.get(index + 1).ok_or_else(invalid)?;
+            args.extend([key.to_string(), (*value).to_string()]);
+        } else if key == "dev" { return Err(invalid()); }
+    }
+    Ok(args)
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // UNIFIED APPLICATION ENGINE (3-Tier Orchestrator)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -504,9 +550,9 @@ pub fn apply_route_metrics(
 /// 4. **Tier 3 — FIB Routing**: initcwnd/initrwnd via `ip route change`.
 ///
 /// ## Rollback Strategy
-/// - Core sysctl failure → immediate rollback of all written parameters → abort.
+/// - Core sysctl failure → rollback of attempted parameters → abort.
 /// - Netfilter/routing failure → warn and continue (fail-open on non-core tiers by default).
-/// - `fail_closed`: If true, aborts on ANY tier failure. If false, only core sysctl is atomic.
+/// - `fail_closed`: Requires backups and successful writes for extended parameters too.
 pub fn apply_profile_to_netns(
     netns: &str,
     profile: &TcpFingerprintProfile,
@@ -531,46 +577,10 @@ pub fn apply_profile_to_netns(
     let mut snapshot = snapshot_netns_tcp_stack(netns, &all_keys)?;
     snapshot.profile_name = Some(profile.name.clone());
 
-    let mut written_keys = Vec::new();
-
-    // ── Phase 1: Core Sysctl (Strict Enforcement & Rollback) ───────────────
-    for (key, val) in &core_entries {
-        if let Err(e) = write_netns_sysctl(netns, key, val) {
-            error!(
-                "Failed writing core sysctl '{key}={val}' into netns '{netns}': {e}. Executing atomic rollback."
-            );
-
-            // Atomic rollback of modified core parameters
-            for applied_key in &written_keys {
-                if let Some(orig_val) = snapshot.values.get(*applied_key) {
-                    let _ = write_netns_sysctl(netns, applied_key, orig_val);
-                }
-            }
-
-            if fail_closed {
-                return Err(e);
-            } else {
-                warn!("Fail-open active: L4 TCP core morphing failed, proceeding with fallback");
-                return Ok(snapshot);
-            }
-        }
-        written_keys.push(*key);
-    }
-
-    // ── Phase 2: Extended Sysctl (Graceful Fallback) ───────────────────────
-    for (key, val) in &extended_entries {
-        if let Err(e) = write_netns_sysctl(netns, key, val) {
-            if e.is_fallback_eligible() {
-                warn!(
-                    "Extended sysctl '{key}={val}' unsupported or restricted in netns '{netns}': {e}. Graceful fallback applied."
-                );
-            } else {
-                warn!("Warning: Failed applying extended sysctl '{key}={val}': {e}");
-            }
-        } else {
-            written_keys.push(*key);
-        }
-    }
+    let entries = profile.sysctl_entries();
+    let complete = apply_sysctl_entries(&snapshot, &entries, fail_closed,
+        |key, value| write_netns_sysctl(netns, key, value))?;
+    if !complete { snapshot.profile_name = None; }
 
     // ── Phase 3: Netfilter MSS Clamping (Tier 2) ──────────────────────────
     if let Some(mss) = profile.forced_syn_mss {
@@ -581,14 +591,10 @@ pub fn apply_profile_to_netns(
             }
             Err(e) => {
                 if fail_closed {
-                    // Rollback sysctl before aborting
-                    for applied_key in &written_keys {
-                        if let Some(orig_val) = snapshot.values.get(*applied_key) {
-                            let _ = write_netns_sysctl(netns, applied_key, orig_val);
-                        }
-                    }
+                    restore_after_failure(&snapshot, &e)?;
                     return Err(e);
                 }
+                snapshot.profile_name = None;
                 warn!("Netfilter TCPMSS clamping failed in [{netns}]: {e}. Continuing without MSS override.");
             }
         }
@@ -602,27 +608,26 @@ pub fn apply_profile_to_netns(
             }
             Err(e) => {
                 if fail_closed {
-                    // Rollback Netfilter + sysctl
-                    if let Some(mss) = snapshot.netfilter_mss_value {
-                        let _ = remove_netfilter_mss(netns, mss);
-                    }
-                    for applied_key in &written_keys {
-                        if let Some(orig_val) = snapshot.values.get(*applied_key) {
-                            let _ = write_netns_sysctl(netns, applied_key, orig_val);
-                        }
-                    }
+                    restore_after_failure(&snapshot, &e)?;
                     return Err(e);
                 }
+                snapshot.profile_name = None;
                 warn!("FIB routing metric morphing failed in [{netns}]: {e}. Continuing with kernel defaults.");
             }
         }
     }
 
     info!(
-        "L4 TCP Stack normalization verified in namespace '{}': Profile [{}] armed across all tiers",
-        netns, profile.name
+        "L4 configuration finished in namespace '{}': profile [{}], complete={}; wire fingerprint not measured",
+        netns, profile.name, snapshot.profile_name.is_some()
     );
     Ok(snapshot)
+}
+
+fn restore_after_failure(snapshot: &NetnsTcpSnapshot, original: &TcpMorphError) -> std::result::Result<(), TcpMorphError> {
+    restore_netns_tcp_stack(snapshot).map_err(|rollback| TcpMorphError::RollbackFailed {
+        namespace: snapshot.namespace.clone(), details: format!("{original}; {rollback}"),
+    })
 }
 
 /// Restores original TCP stack state from a `NetnsTcpSnapshot`.
@@ -712,6 +717,80 @@ pub fn write_sysctl(key: &str, val: &str) -> CoreResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_backup_prevents_all_writes_in_strict_mode() {
+        let mut snapshot = NetnsTcpSnapshot::new("test");
+        snapshot.values.insert("net.ipv4.ip_default_ttl".into(), "64".into());
+        let entries = vec![("net.ipv4.ip_default_ttl", "128".into()), ("net.ipv4.tcp_ecn", "0".into())];
+        let mut writes = 0;
+        assert!(apply_sysctl_entries(&snapshot, &entries, true, |_, _| { writes += 1; Ok(()) }).is_err());
+        assert_eq!(writes, 0);
+    }
+
+    #[test]
+    fn failed_extended_write_restores_attempted_value_and_core() {
+        let mut snapshot = NetnsTcpSnapshot::new("test");
+        snapshot.values.insert("net.ipv4.ip_default_ttl".into(), "64".into());
+        snapshot.values.insert("net.ipv4.tcp_ecn".into(), "2".into());
+        let entries = vec![("net.ipv4.ip_default_ttl", "128".into()), ("net.ipv4.tcp_ecn", "0".into())];
+        let mut writes = Vec::new();
+        let result = apply_sysctl_entries(&snapshot, &entries, true, |key, value| {
+            writes.push((key.to_string(), value.to_string()));
+            if key == "net.ipv4.tcp_ecn" && value == "0" { return Err(TcpMorphError::Io(std::io::ErrorKind::PermissionDenied.into())); }
+            Ok(())
+        });
+        assert!(result.is_err());
+        assert_eq!(writes.iter().map(|(_, value)| value.as_str()).collect::<Vec<_>>(), ["128", "0", "2", "64"]);
+    }
+
+    #[test]
+    fn rollback_failure_is_reported() {
+        let mut snapshot = NetnsTcpSnapshot::new("test");
+        snapshot.values.insert("net.ipv4.ip_default_ttl".into(), "64".into());
+        let result = apply_sysctl_entries(&snapshot, &[("net.ipv4.ip_default_ttl", "128".into())], true,
+            |_, _| Err(TcpMorphError::Io(std::io::ErrorKind::PermissionDenied.into())));
+        assert!(matches!(result, Err(TcpMorphError::RollbackFailed { .. })));
+    }
+
+    #[test]
+    fn optional_restore_failure_still_rolls_back_core_writes() {
+        let mut snapshot = NetnsTcpSnapshot::new("test");
+        snapshot.values.insert("net.ipv4.ip_default_ttl".into(), "64".into());
+        snapshot.values.insert("net.ipv4.tcp_ecn".into(), "2".into());
+        let entries = vec![("net.ipv4.ip_default_ttl", "128".into()), ("net.ipv4.tcp_ecn", "0".into())];
+        let mut ttl = String::from("64");
+        let result = apply_sysctl_entries(&snapshot, &entries, false, |key, value| {
+            if key == "net.ipv4.tcp_ecn" { return Err(TcpMorphError::Io(std::io::ErrorKind::PermissionDenied.into())); }
+            ttl = value.to_string();
+            Ok(())
+        });
+        assert!(matches!(result, Err(TcpMorphError::RollbackFailed { .. })));
+        assert_eq!(ttl, "64");
+    }
+
+    #[test]
+    fn optional_missing_backup_is_skipped_and_marks_incomplete() {
+        let snapshot = NetnsTcpSnapshot::new("test");
+        let complete = apply_sysctl_entries(&snapshot, &[("net.ipv4.tcp_ecn", "0".into())], false,
+            |_, _| panic!("Untracked setting must not be written")).unwrap();
+        assert!(!complete);
+    }
+
+    #[test]
+    fn readback_accepts_kernel_spacing_but_rejects_different_values() {
+        assert!(verify_sysctl_value("test", "ports", "49152 65535", "49152\t65535").is_ok());
+        assert!(verify_sysctl_value("test", "ttl", "128", "64").is_err());
+    }
+
+    #[test]
+    fn route_selection_rejects_missing_ambiguous_and_multipath_defaults() {
+        for route in ["", "default via 10.0.0.1", "default dev eth0\ndefault dev eth1", "default nexthop via 10.0.0.1 dev eth0"] {
+            assert!(default_route_identity("test", route).is_err(), "{route}");
+        }
+        assert_eq!(default_route_identity("test", "default via 10.0.0.1 dev eth0 proto static metric 100").unwrap(),
+            ["default", "via", "10.0.0.1", "dev", "eth0", "metric", "100"]);
+    }
 
     #[test]
     fn test_sysctl_key_to_proc_path() {
