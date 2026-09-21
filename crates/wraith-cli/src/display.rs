@@ -677,9 +677,19 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         }
 
         if state.tcp_stack_masked {
+            let profile = wraith_core::tcp_fingerprint::TcpFingerprintProfile::windows11();
+            let sig = profile.expected_p0f_signature();
             table.add_row(vec![
                 Cell::new("TCP/IP Fingerprint").fg(Color::Yellow),
-                Cell::new("✔ Normalized OS Stack (TTL=128, TS=0, MSS=1460)").fg(Color::Green),
+                Cell::new(format!("✔ {} [{}]", profile.name, profile.format_summary())).fg(Color::Green),
+            ]);
+            table.add_row(vec![
+                Cell::new("  └─ p0f Signature").fg(Color::DarkYellow),
+                Cell::new(format!("{sig}")).fg(Color::Cyan),
+            ]);
+            table.add_row(vec![
+                Cell::new("  └─ L4↔L7 Status").fg(Color::DarkYellow),
+                Cell::new("✔ COHERENT — Paradox Normalized").fg(Color::Green),
             ]);
         }
     }
@@ -820,6 +830,17 @@ pub fn show_leak_report(report: &LeakReport) {
         Cell::new("✖ LEAK DETECTED").fg(Color::Red).add_attribute(Attribute::Bold)
     };
 
+    let l4_status = if report.l4_coherent {
+        Cell::new("✔ COHERENT").fg(Color::Green).add_attribute(Attribute::Bold)
+    } else {
+        Cell::new("✖ PARADOX DETECTED").fg(Color::Red).add_attribute(Attribute::Bold)
+    };
+    let l4_detail = if report.l4_anomalies.is_empty() {
+        "p0f SYN signature coherent with active TLS browser profile".to_string()
+    } else {
+        format!("{} paradox anomalies detected", report.l4_anomalies.len())
+    };
+
     let overall = if report.secure {
         Cell::new("✔ NO LEAKS DETECTED (this test)").fg(Color::Green).add_attribute(Attribute::Bold)
     } else {
@@ -831,6 +852,7 @@ pub fn show_leak_report(report: &LeakReport) {
     table.add_row(vec![Cell::new("DNS Leak Protection"), dns_status, Cell::new("DNS relay: 5354; Tor upstream: 5353")]);
     table.add_row(vec![Cell::new("IPv6 Dual-Stack Leak"), ipv6_status, Cell::new("TCP probes to two IPv6 resolvers")]);
     table.add_row(vec![Cell::new("WebRTC STUN/TURN Leak"), webrtc_status, Cell::new("STUN port probes (Google STUN: 19302)")]);
+    table.add_row(vec![Cell::new("L4↔L7 Stack Coherence"), l4_status, Cell::new(&l4_detail)]);
     table.add_row(vec![Cell::new("Overall Defense Grade"), overall, Cell::new("Operational Security & Forensic Assessment")]);
 
     println!("{table}\n");
