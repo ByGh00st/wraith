@@ -36,12 +36,23 @@ pub fn is_namespace_active() -> bool {
         .unwrap_or(false)
 }
 
+/// Check ownership collisions before any namespace resource is journaled.
+pub fn preflight_namespace() -> Result<()> {
+    let namespaces = run_cmd("ip", &["netns", "list"])?;
+    let links = run_cmd("ip", &["-o", "link", "show"])?;
+    if namespaces.lines().any(|line| line.split_whitespace().next() == Some(NAMESPACE_NAME))
+        || links.lines().any(|line| line.split_whitespace().nth(1).is_some_and(|name|
+            [VETH_HOST, VETH_NS].contains(&name.trim_end_matches(':').split('@').next().unwrap_or(""))))
+        || fs::symlink_metadata(format!("/etc/netns/{NAMESPACE_NAME}")).is_ok() {
+        return Err(WraithError::Namespace("Namespace resources already exist; recover the previous session first".into()));
+    }
+    Ok(())
+}
+
 /// Constructs an isolated Network Namespace and arms 3-tier L4 TCP stack morphing
 /// with the specified `TcpFingerprintProfile`.
 pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Result<NetnsTcpSnapshot> {
-    if is_namespace_active() {
-        return Err(WraithError::Namespace("Existing namespace must be recovered before starting".into()));
-    }
+    preflight_namespace()?;
 
     info!("Constructing isolated Linux Network Namespace: {}", NAMESPACE_NAME);
 
@@ -68,7 +79,8 @@ pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Resu
 
     // 7. Configure /etc/netns/wraith_ns/resolv.conf for dedicated Tor DNS
     let netns_etc = format!("/etc/netns/{NAMESPACE_NAME}");
-    fs::create_dir_all(&netns_etc)?;
+    fs::create_dir_all("/etc/netns")?;
+    fs::create_dir(&netns_etc)?;
     fs::write(format!("{netns_etc}/resolv.conf"), format!("nameserver {NS_SUBNET}.1\n"))?;
 
     // REDIRECT targets the veth address, but Tor listens on loopback only.
@@ -127,7 +139,14 @@ pub fn destroy_namespace() -> Result<()> {
 
     let netns_dir = format!("/etc/netns/{NAMESPACE_NAME}");
     if Path::new(&netns_dir).exists() {
-        fs::remove_dir_all(&netns_dir)?;
+        let resolver = Path::new(&netns_dir).join("resolv.conf");
+        match fs::remove_file(resolver) {
+            Ok(()) => {},
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {},
+            Err(e) => return Err(e.into()),
+        }
+        // Unexpected files must be reviewed, never recursively discarded.
+        fs::remove_dir(&netns_dir)?;
     }
 
     let remaining = run_cmd("ip", &["netns", "list"])?;

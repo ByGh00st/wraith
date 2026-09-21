@@ -734,9 +734,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // 16. Network Namespace
     if args.namespace || is_strict {
         print_step(&t!("commands.cmd_step_18"), "info");
-        if wraith_net::is_namespace_active() {
-            return Err(WraithError::Namespace("An existing namespace must be recovered before starting".into()));
-        }
+        wraith_net::preflight_namespace()?;
         state_data.namespace_active = true;
         state_mgr.activate(state_data.clone())?;
         let tcp_profile = resolve_tcp_profile(&args);
