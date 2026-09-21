@@ -681,16 +681,9 @@ impl SovereignDnsServer {
                 return Ok(Some(response));
             }
 
-            // Fallback 1: Direct DoH query through Tor (resolves non-DNSSEC signed domains like firefox.com without broken stub recursion)
-            if let Ok(Ok(raw_doh_resp)) = tokio::time::timeout(Duration::from_secs(8), Self::query_doh(doh_url, &query_bytes)).await {
-                if let Ok(response) = DnsPacket::parse(&raw_doh_resp) {
-                    if response.header.qr && response.header.id == parsed_pkt.header.id {
-                        let padded = DnsPacket::apply_edns0_padding(raw_doh_resp, EDNS0_TARGET_PADDING_SIZE);
-                        return Ok(Some(padded));
-                    }
-                }
-            }
-            // Fallback 2: Local Tor DNSPort (5353) will be queried below
+            // Insecure delegations are handled by the validator. A validation
+            // failure must never select an unvalidated transport.
+            return Ok(Some(crate::dnssec::servfail(&query_bytes)?));
         }
 
         if response_bytes.is_none() {
@@ -813,6 +806,19 @@ pub type SovereignDnsEngine = SovereignDnsServer;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn invalid_doh_cannot_fall_back_to_unvalidated_udp() {
+        let upstream = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let query = vec![0x12,0x34,1,0,0,1,0,0,0,0,0,0,7,b'e',b'x',b'a',b'm',b'p',b'l',b'e',3,b'c',b'o',b'm',0,0,1,0,1];
+        let response = SovereignDnsServer::resolve_query(query,
+            upstream.local_addr().unwrap().to_string(), DnsTransport::DoH("http://invalid.local/dns-query".into()))
+            .await.unwrap().unwrap();
+        assert_eq!(&response[..2], &[0x12, 0x34]);
+        assert_eq!(response[3] & 0x0f, 2); // SERVFAIL
+        let mut buf = [0; 512];
+        assert!(tokio::time::timeout(Duration::from_millis(50), upstream.recv(&mut buf)).await.is_err());
+    }
 
     #[test]
     fn test_doh_provider_presets() {
