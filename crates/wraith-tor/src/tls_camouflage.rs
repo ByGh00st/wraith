@@ -198,8 +198,10 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
 
     // 1. Direct SOCKS5 client protocol check
     if peek_buf[0] == 0x05 {
-        let mut tor_stream = TcpStream::connect(format!("127.0.0.1:{socks_port}")).await?;
-        tokio::io::copy_bidirectional(&mut client, &mut tor_stream).await?;
+        let mut tor_stream = tokio::time::timeout(std::time::Duration::from_secs(10),
+            TcpStream::connect(format!("127.0.0.1:{socks_port}"))).await
+            .map_err(|_| WraithError::Network("Tor SOCKS connection timed out".into()))??;
+        relay_with_idle(&mut client, &mut tor_stream, std::time::Duration::from_secs(120)).await?;
         return Ok(());
     }
 
@@ -252,8 +254,47 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
         }
         tor_stream.write_all(&sanitized).await?;
     }
-    tokio::io::copy_bidirectional(&mut client, &mut tor_stream).await?;
+    relay_with_idle(&mut client, &mut tor_stream, std::time::Duration::from_secs(120)).await?;
     Ok(())
+}
+
+// Half-closes are preserved, but silent peers cannot occupy every relay slot forever.
+async fn relay_with_idle<A, B>(a: &mut A, b: &mut B, idle: std::time::Duration) -> std::io::Result<()>
+where A: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+      B: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin {
+    async fn pump<R: tokio::io::AsyncRead + Unpin, W: tokio::io::AsyncWrite + Unpin>(
+        mut reader: R, mut writer: W, progress: tokio::sync::watch::Sender<tokio::time::Instant>,
+    ) -> std::io::Result<()> {
+        let mut buffer = [0u8; 16 * 1024];
+        loop {
+            let n = reader.read(&mut buffer).await?;
+            if n == 0 { writer.shutdown().await?; return Ok(()); }
+            let mut offset = 0;
+            while offset < n {
+                let written = writer.write(&buffer[offset..n]).await?;
+                if written == 0 { return Err(std::io::ErrorKind::WriteZero.into()); }
+                offset += written;
+                progress.send_replace(tokio::time::Instant::now());
+            }
+        }
+    }
+    let (tx, mut rx) = tokio::sync::watch::channel(tokio::time::Instant::now());
+    let (ar, aw) = tokio::io::split(a);
+    let (br, bw) = tokio::io::split(b);
+    let transfer = async { tokio::try_join!(pump(ar, bw, tx.clone()), pump(br, aw, tx.clone())).map(|_| ()) };
+    tokio::pin!(transfer);
+    loop {
+        let deadline = *rx.borrow_and_update() + idle;
+        tokio::select! {
+            result = &mut transfer => return result,
+            _ = rx.changed() => {},
+            _ = tokio::time::sleep_until(deadline) => {
+                if rx.borrow().elapsed() >= idle {
+                    return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Proxy connection idle timeout"));
+                }
+            }
+        }
+    }
 }
 
 pub(crate) async fn connect_socks(host: &str, port: u16, socks_port: u16) -> Result<TcpStream> {
@@ -349,6 +390,16 @@ async fn read_socks_reply<R: tokio::io::AsyncRead + Unpin>(reader: &mut R) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn idle_peers_release_their_relay_slot() {
+        let (_left_peer, mut left) = tokio::io::duplex(64);
+        let (_right_peer, mut right) = tokio::io::duplex(64);
+        let error = tokio::time::timeout(std::time::Duration::from_secs(2),
+            relay_with_idle(&mut left, &mut right, std::time::Duration::from_millis(20)))
+            .await.unwrap().unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    }
 
     #[test]
     fn preserves_binary_body_and_does_not_parse_body_as_headers() {
