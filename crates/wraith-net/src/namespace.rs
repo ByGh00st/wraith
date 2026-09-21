@@ -6,6 +6,8 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use tracing::info;
 use wraith_core::error::{Result, WraithError};
+use wraith_core::tcp_fingerprint::TcpFingerprintProfile;
+use crate::tcp_stack::NetnsTcpSnapshot;
 
 pub const NAMESPACE_NAME: &str = "wraith_ns";
 pub const VETH_HOST: &str = "veth-wr-host";
@@ -34,10 +36,14 @@ pub fn is_namespace_active() -> bool {
         .unwrap_or(false)
 }
 
-pub fn create_namespace() -> Result<()> {
+/// Constructs an isolated Network Namespace and arms 3-tier L4 TCP stack morphing
+/// with the specified `TcpFingerprintProfile`.
+pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Result<NetnsTcpSnapshot> {
     if is_namespace_active() {
         info!("Network namespace {} already exists", NAMESPACE_NAME);
-        return Ok(());
+        let snapshot = crate::tcp_stack::apply_profile_to_netns(NAMESPACE_NAME, profile, false)
+            .map_err(|e| WraithError::Namespace(e.to_string()))?;
+        return Ok(snapshot);
     }
 
     info!("Constructing isolated Linux Network Namespace: {}", NAMESPACE_NAME);
@@ -80,13 +86,32 @@ pub fn create_namespace() -> Result<()> {
         }
     }
 
-    // 9. Normalize TCP/IP stack inside network namespace (Eradicate TCP timestamps & align TTL)
-    for (key, val) in crate::tcp_stack::TARGET_SYSCTL_SETTINGS {
-        let _ = run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "sysctl", "-w", &format!("{key}={val}")]);
-    }
+    // 9. Normalize TCP/IP stack inside network namespace (p0f OS Fingerprint Evasion & Anti-Clock Skew)
+    // 3-Tier Execution: Sysctl + Netfilter MSS + FIB Routing
+    let snapshot = match crate::tcp_stack::apply_profile_to_netns(NAMESPACE_NAME, profile, false) {
+        Ok(snap) => {
+            info!(
+                "L4 TCP stack morphing armed in namespace '{}': {} [p0f: {}]",
+                NAMESPACE_NAME,
+                profile.name,
+                profile.expected_p0f_signature()
+            );
+            snap
+        }
+        Err(err) => {
+            tracing::warn!("L4 TCP stack morphing warning during namespace isolation: {err}");
+            NetnsTcpSnapshot::new(NAMESPACE_NAME)
+        }
+    };
 
     info!("Network namespace {} successfully isolated and linked to Tor", NAMESPACE_NAME);
-    Ok(())
+    Ok(snapshot)
+}
+
+/// Backward-compatible namespace creation applying default Windows 11 L4 TCP profile
+pub fn create_namespace() -> Result<()> {
+    let default_profile = TcpFingerprintProfile::windows11();
+    create_namespace_with_l4_profile(&default_profile).map(|_| ())
 }
 
 pub fn destroy_namespace() -> Result<()> {
