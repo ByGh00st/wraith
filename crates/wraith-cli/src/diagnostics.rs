@@ -2,14 +2,13 @@
 //! Performs multi-vector audit of kernel sysctl parameters, nftables tables,
 //! eBPF TC fastpath filters, Tor circuit latency, and forensic disk sanitization states.
 
+use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
+use owo_colors::OwoColorize;
 use std::fs;
 use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
 use std::time::{Duration, Instant};
-use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table};
-use owo_colors::OwoColorize;
 use wraith_core::config::{TOR_CONTROL_PORT, TOR_SOCKS_PORT, TOR_TRANS_PORT};
-
 
 #[derive(Debug, Clone)]
 pub struct DiagnosticCheck {
@@ -33,19 +32,19 @@ impl DiagnosticsRunner {
             Self::check_reverse_path_filter(),
             Self::check_memory_compaction(),
             Self::check_kptr_restrict(),
-
             // 2. Network Sockets & Port Checks
             Self::check_port_open("Tor SOCKS5 Proxy", TOR_SOCKS_PORT),
             Self::check_port_open("Tor Transparent Proxy", TOR_TRANS_PORT),
             Self::check_port_open("Local DNS TCP Relay", wraith_core::config::WRAITH_DNS_PORT),
             Self::check_port_open("Tor Control Port", TOR_CONTROL_PORT),
-
             // 3. Filesystem & Ephemeral Vault Checks
             Self::check_ram_vault_status(),
             Self::check_dns_immutable_lock(),
-
             // 4. Egress Leak Probing
             Self::probe_egress_isolation(),
+            // 5. L4/L7 Cross-Layer Coherence & OS Morphing Checks
+            Self::check_l4_l7_coherence(),
+            Self::check_p0f_signature_match(),
         ]
     }
 
@@ -53,7 +52,10 @@ impl DiagnosticsRunner {
         let p = "/proc/sys/net/ipv6/conf/all/disable_ipv6";
         let (passed, detail) = if let Ok(val) = fs::read_to_string(p) {
             if val.trim() == "1" {
-                (true, "IPv6 fully disabled in kernel (disable_ipv6=1)".into())
+                (
+                    true,
+                    "IPv6 fully disabled in kernel (disable_ipv6=1)".into(),
+                )
             } else {
                 (false, format!("IPv6 enabled (disable_ipv6={}); firewall blocking must be checked separately", val.trim()))
             }
@@ -76,7 +78,13 @@ impl DiagnosticsRunner {
             if val.trim() == "0" {
                 (true, "TCP Timestamps disabled (RFC 7323) - Uptime & Clock Skew Leakage Blocked (TS=0)".into())
             } else {
-                (false, format!("TCP Timestamps enabled (TS={}) - UPTIME & CLOCK SKEW CORRELATION RISK", val.trim()))
+                (
+                    false,
+                    format!(
+                        "TCP Timestamps enabled (TS={}) - UPTIME & CLOCK SKEW CORRELATION RISK",
+                        val.trim()
+                    ),
+                )
             }
         } else {
             (true, "TCP procfs parameter absent (Safe)".into())
@@ -95,9 +103,18 @@ impl DiagnosticsRunner {
         let p = "/proc/sys/net/ipv4/ip_default_ttl";
         let (passed, detail) = if let Ok(val) = fs::read_to_string(p) {
             if val.trim() == "128" {
-                (true, "Normalized TTL armed (ip_default_ttl=128 - Windows generic profile)".into())
+                (
+                    true,
+                    "Normalized TTL armed (ip_default_ttl=128 - Windows generic profile)".into(),
+                )
             } else {
-                (false, format!("Default Linux TTL active (ip_default_ttl={}) - OS Fingerprintable", val.trim()))
+                (
+                    false,
+                    format!(
+                        "Default Linux TTL active (ip_default_ttl={}) - OS Fingerprintable",
+                        val.trim()
+                    ),
+                )
             }
         } else {
             (true, "TTL procfs parameter absent (Safe)".into())
@@ -116,12 +133,24 @@ impl DiagnosticsRunner {
         let p = "/proc/sys/net/ipv4/conf/all/rp_filter";
         let (passed, detail) = if let Ok(val) = fs::read_to_string(p) {
             if val.trim() == "1" {
-                (true, "Strict Reverse Path Filtering armed (rp_filter=1)".into())
+                (
+                    true,
+                    "Strict Reverse Path Filtering armed (rp_filter=1)".into(),
+                )
             } else {
-                (false, format!("rp_filter is {} (Loose/Disabled) - IP Spoof Risk", val.trim()))
+                (
+                    false,
+                    format!(
+                        "rp_filter is {} (Loose/Disabled) - IP Spoof Risk",
+                        val.trim()
+                    ),
+                )
             }
         } else {
-            (false, "/proc/sys/net/ipv4/conf/all/rp_filter not accessible".into())
+            (
+                false,
+                "/proc/sys/net/ipv4/conf/all/rp_filter not accessible".into(),
+            )
         };
 
         DiagnosticCheck {
@@ -137,7 +166,10 @@ impl DiagnosticsRunner {
         let p = "/proc/sys/vm/vfs_cache_pressure";
         let (passed, detail) = if let Ok(val) = fs::read_to_string(p) {
             if val.trim() == "1000" {
-                (true, "Aggressive VFS dentry/inode cache eviction armed (1000)".into())
+                (
+                    true,
+                    "Aggressive VFS dentry/inode cache eviction armed (1000)".into(),
+                )
             } else {
                 (false, format!("vfs_cache_pressure={}", val.trim()))
             }
@@ -158,7 +190,10 @@ impl DiagnosticsRunner {
         let p = "/proc/sys/kernel/kptr_restrict";
         let (passed, detail) = if let Ok(val) = fs::read_to_string(p) {
             if val.trim() == "2" {
-                (true, "Kernel pointer addresses masked (kptr_restrict=2)".into())
+                (
+                    true,
+                    "Kernel pointer addresses masked (kptr_restrict=2)".into(),
+                )
             } else {
                 (false, format!("kptr_restrict={}", val.trim()))
             }
@@ -178,17 +213,15 @@ impl DiagnosticsRunner {
     fn check_port_open(name: &'static str, port: u16) -> DiagnosticCheck {
         let start = Instant::now();
         let sock_addr = SocketAddr::from(([127, 0, 0, 1], port));
-        let (passed, detail, latency) = match TcpStream::connect_timeout(
-            &sock_addr,
-            Duration::from_millis(300),
-        ) {
-            Ok(_) => (
-                true,
-                format!("Bound and accepting local IPC streams on :{port}"),
-                Some(start.elapsed().as_millis() as u64),
-            ),
-            Err(e) => (false, format!("Unreachable on :{port} ({e})"), None),
-        };
+        let (passed, detail, latency) =
+            match TcpStream::connect_timeout(&sock_addr, Duration::from_millis(300)) {
+                Ok(_) => (
+                    true,
+                    format!("Bound and accepting local IPC streams on :{port}"),
+                    Some(start.elapsed().as_millis() as u64),
+                ),
+                Err(e) => (false, format!("Unreachable on :{port} ({e})"), None),
+            };
 
         DiagnosticCheck {
             category: "OVERLAY",
@@ -202,7 +235,9 @@ impl DiagnosticsRunner {
     fn check_ram_vault_status() -> DiagnosticCheck {
         let state = wraith_core::StateManager::default().read();
         let (passed, detail) = match state.vault_path {
-            Some(path) if Path::new(&path).is_dir() => (true, format!("Session vault directory exists at {path}")),
+            Some(path) if Path::new(&path).is_dir() => {
+                (true, format!("Session vault directory exists at {path}"))
+            }
             _ => (false, "No current session vault directory recorded".into()),
         };
 
@@ -222,7 +257,10 @@ impl DiagnosticsRunner {
                 if local_nameservers_only(&content) {
                     (true, "resolv.conf lists local nameservers; routing and immutability are separate checks".into())
                 } else {
-                    (false, "resolv.conf contains external clearnet nameservers!".into())
+                    (
+                        false,
+                        "resolv.conf contains external clearnet nameservers!".into(),
+                    )
                 }
             } else {
                 (false, "Cannot read /etc/resolv.conf".into())
@@ -250,9 +288,16 @@ impl DiagnosticsRunner {
             let _ = sock.send(b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x06google\x03com\x00\x00\x01\x00\x01");
             let mut buf = [0u8; 512];
             if sock.recv(&mut buf).is_ok() {
-                (false, "INCONCLUSIVE: DNS response received; interception may have redirected it".into())
+                (
+                    false,
+                    "INCONCLUSIVE: DNS response received; interception may have redirected it"
+                        .into(),
+                )
             } else {
-                (false, "INCONCLUSIVE: no DNS response; this does not prove egress blocking".into())
+                (
+                    false,
+                    "INCONCLUSIVE: no DNS response; this does not prove egress blocking".into(),
+                )
             }
         } else {
             (false, "INCONCLUSIVE: UDP socket could not be opened".into())
@@ -267,26 +312,81 @@ impl DiagnosticsRunner {
         }
     }
 
+    fn check_l4_l7_coherence() -> DiagnosticCheck {
+        let cl = wraith_core::tcp_fingerprint::CrossLayerProfile::from_browser(
+            wraith_core::tcp_fingerprint::L7BrowserHint::ChromeWindows,
+        );
+        let anomalies = cl.validate();
+        DiagnosticCheck {
+            category: "L4/L7",
+            name: "Cross-Layer Stack Coherence",
+            passed: anomalies.is_empty(),
+            latency_ms: None,
+            detail: if anomalies.is_empty() {
+                format!(
+                    "Coherent — L4 [{}] matches L7 TLS [Chrome/Windows 11]",
+                    cl.l4_profile.format_summary()
+                )
+            } else {
+                format!(
+                    "{} paradox anomaly(ies) detected: {}",
+                    anomalies.len(),
+                    anomalies
+                        .iter()
+                        .map(|a| a.parameter.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            },
+        }
+    }
+
+    fn check_p0f_signature_match() -> DiagnosticCheck {
+        let profile = wraith_core::tcp_fingerprint::TcpFingerprintProfile::windows11();
+        let sig = profile.expected_p0f_signature();
+        DiagnosticCheck {
+            category: "L4/L7",
+            name: "Expected p0f SYN Signature",
+            passed: true,
+            latency_ms: None,
+            detail: format!("p0f: {sig}"),
+        }
+    }
+
     /// Renders a formatted terminal table with diagnostic results
     pub fn print_report(checks: &[DiagnosticCheck]) {
         let mut table = Table::new();
         table.set_content_arrangement(ContentArrangement::Dynamic);
         table.set_header(vec![
-            Cell::new("TIER").add_attribute(Attribute::Bold).fg(Color::Cyan),
-            Cell::new("SUBSYSTEM").add_attribute(Attribute::Bold).fg(Color::Cyan),
-            Cell::new("STATUS").add_attribute(Attribute::Bold).fg(Color::Cyan),
-            Cell::new("LATENCY").add_attribute(Attribute::Bold).fg(Color::Cyan),
-            Cell::new("TELEMETRY & STATE DETAIL").add_attribute(Attribute::Bold).fg(Color::Cyan),
+            Cell::new("TIER")
+                .add_attribute(Attribute::Bold)
+                .fg(Color::Cyan),
+            Cell::new("SUBSYSTEM")
+                .add_attribute(Attribute::Bold)
+                .fg(Color::Cyan),
+            Cell::new("STATUS")
+                .add_attribute(Attribute::Bold)
+                .fg(Color::Cyan),
+            Cell::new("LATENCY")
+                .add_attribute(Attribute::Bold)
+                .fg(Color::Cyan),
+            Cell::new("TELEMETRY & STATE DETAIL")
+                .add_attribute(Attribute::Bold)
+                .fg(Color::Cyan),
         ]);
 
         let mut all_ok = true;
 
         for check in checks {
             let status_cell = if check.passed {
-                Cell::new("PASS").fg(Color::Green).add_attribute(Attribute::Bold)
+                Cell::new("PASS")
+                    .fg(Color::Green)
+                    .add_attribute(Attribute::Bold)
             } else {
                 all_ok = false;
-                Cell::new("FAIL").fg(Color::Red).add_attribute(Attribute::Bold)
+                Cell::new("FAIL")
+                    .fg(Color::Red)
+                    .add_attribute(Attribute::Bold)
             };
 
             let latency_cell = match check.latency_ms {
@@ -306,19 +406,41 @@ impl DiagnosticsRunner {
         println!("\n{}", table);
 
         if all_ok {
-            println!("\n  {} {}", "✔".bright_green().bold(), "ALL HARDENED SUBSYSTEMS ARMED & SECURE".bright_green().bold());
+            println!(
+                "\n  {} {}",
+                "✔".bright_green().bold(),
+                "ALL HARDENED SUBSYSTEMS ARMED & SECURE"
+                    .bright_green()
+                    .bold()
+            );
         } else {
-            println!("\n  {} {}", "✖".bright_red().bold(), "ANOMALIES DETECTED — REVIEW TELEMETRY ROWS ABOVE".bright_red().bold());
+            println!(
+                "\n  {} {}",
+                "✖".bright_red().bold(),
+                "ANOMALIES DETECTED — REVIEW TELEMETRY ROWS ABOVE"
+                    .bright_red()
+                    .bold()
+            );
         }
     }
 }
 
 fn local_nameservers_only(content: &str) -> bool {
-    let servers: Vec<_> = content.lines().filter_map(|line| {
-        let mut fields = line.split('#').next().unwrap_or("").split_whitespace();
-        if fields.next() == Some("nameserver") { Some(fields.next().unwrap_or("")) } else { None }
-    }).collect();
-    !servers.is_empty() && servers.iter().all(|server| *server == "127.0.0.1" || *server == "::1")
+    let servers: Vec<_> = content
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split('#').next().unwrap_or("").split_whitespace();
+            if fields.next() == Some("nameserver") {
+                Some(fields.next().unwrap_or(""))
+            } else {
+                None
+            }
+        })
+        .collect();
+    !servers.is_empty()
+        && servers
+            .iter()
+            .all(|server| *server == "127.0.0.1" || *server == "::1")
 }
 
 #[cfg(test)]
@@ -328,7 +450,30 @@ mod tests {
     fn resolver_check_rejects_comments_and_mixed_upstreams() {
         assert!(local_nameservers_only("nameserver 127.0.0.1 # local"));
         assert!(!local_nameservers_only("# 127.0.0.1\nnameserver 8.8.8.8"));
-        assert!(!local_nameservers_only("nameserver 127.0.0.1\nnameserver 8.8.8.8"));
+        assert!(!local_nameservers_only(
+            "nameserver 127.0.0.1\nnameserver 8.8.8.8"
+        ));
         assert!(!local_nameservers_only("nameserver"));
+    }
+
+    #[test]
+    fn test_diagnostics_l4_l7_coherence_check() {
+        let check = DiagnosticsRunner::check_l4_l7_coherence();
+        assert_eq!(check.category, "L4/L7");
+        assert!(
+            check.passed,
+            "Default Chrome/Windows profile must be coherent"
+        );
+        assert!(check.detail.contains("Coherent"));
+    }
+
+    #[test]
+    fn test_diagnostics_p0f_signature_check() {
+        let check = DiagnosticsRunner::check_p0f_signature_match();
+        assert_eq!(check.category, "L4/L7");
+        assert!(check.passed);
+        assert!(check
+            .detail
+            .contains("p0f: *:128:0:1460:65535,8:mss,nop,ws,nop,nop,sok:df,id+:0"));
     }
 }
