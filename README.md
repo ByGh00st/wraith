@@ -460,7 +460,7 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | `-p` | `sudo wraith -p <NAME>` / `wraith profile` | **Geographic Exit Profiler**: Enforces Tor exit nodes (`stealth`, `speed`, `journalists`, `research`, `darkweb`). |
 | `-F` | `sudo wraith -F` / `wraith -s -F` | **Strict Preset**: Requires core setup and the kill switch; see prerequisites below. |
 | `-K` | `sudo wraith -s -K` / `--kworker` | **Process Masquerade**: Sets process name in Linux kernel scheduler as `[kworker/u16:0]` via prctl. |
-| `-u` | `sudo wraith -u` / `wraith update` | **Official GitHub Update**: Fetches source, builds without root, then atomically installs. |
+| `-u` | `sudo wraith -u` / `wraith update` | **Official GitHub Update**: Validates the official clone and fast-forwards source; run `sudo ./build.sh` to build and install. |
 | `-c` | `sudo wraith -c` / `wraith cleanup`| **Volatile State Purge**: Clears volatile RAM caches, DNS cache, and ephemeral session traces. |
 | — | `sudo wraith --cleanup-full` | **Deep Storage Purge**: Sanitizes RAM, swap partitions, and transient system authentication logs. |
 | `-M` | `sudo wraith -M` / `wraith monitor` | **Real-Time DPI Monitor**: Streams in-flight HTTP port 9055 packet inspections and signatures. |
@@ -576,7 +576,7 @@ Quick Shortcuts:
   -r, --switch                     Request new Tor exit identity (Newnym)
   -t, --test                       Run bounded connectivity checks
   -i, --info                       Display live telemetry dashboard & circuits
-  -u, --update                     Fetch updates & recompile binary in-place
+  -u, --update                     Fast-forward official source; build separately
   -c, --cleanup                    Anti-forensic RAM and state purge
       --cleanup-full               Thorough anti-forensic purge (RAM, swap, auth logs)
   -M, --monitor                    Launch packet-observation monitor
@@ -599,7 +599,7 @@ Network Isolation & Tunneling:
 System Hardening & Anti-Fingerprinting:
       --honey-ports                Arm localhost deception honeypot traps (:2222, :3306, :5432, :6379, :8080, :27017)
                                    [aliases: --honeypot, --honey-trap, --trap-ports]
-      --honey-lan                  🚨 LAN SENSOR MODE: Bind honeypots to 0.0.0.0 (Trap & tarpit Wi-Fi/LAN port scanners)
+      --honey-lan                  🚨 LAN SENSOR MODE: Bind honeypots to the selected private LAN address
                                    [aliases: --lan-honeypot, --lan-trap, --deception-sensor]
       --display-sandbox            Spawn isolated X11 Virtual Display sandbox (Xvfb 1920x1080@24bit) to mask EDID
                                    [aliases: --virtual-display, --xvfb, --display-jail]
@@ -869,54 +869,48 @@ Snapshots preserve regular-file content, mode/ownership, missing-file state and 
 
 Live Linux routing and kernel recovery remain integration work. Keep console access when evaluating network changes.
 
+### Namespace application scope and recovery
+
+`--namespace`, `--tcp-mask` and full-security sessions create the isolated application network namespace. Start a new application inside it:
+
+```bash
+sudo wraith start --namespace --tcp-profile windows11
+# From another terminal, as your normal user:
+sudo wraith exec -- curl https://example.com
+```
+
+`exec` enters the existing protected namespace and runs the application as the invoking sudo user. Existing applications are not moved into it. TCP normalization applies to the namespace stack; it does not rewrite the host Tor daemon's connections or Tor exit-node TCP fingerprints. ClientHello profiles apply to Wraith TLS clients; tunneling an application's encrypted TLS bytes does not change its fingerprint. Diagnostics distinguish reference profiles from measurements and do not certify unobserved p0f or cross-layer coherence.
+
+Honeypot startup must reserve every configured port before adding LAN firewall exceptions. LAN mode requires a private address on the selected interface; connections have a shared limit and a deadline. A port already used by a real service aborts startup.
+
+`wraith stop` restores recorded settings. Missing state never triggers a firewall flush, and failed restoration retains its recovery record for retry. Reset and uninstall use the same restoration path. Sessions leave irreversible kernel lockdown, kexec-disable and ptrace policies under the administrator's control. File overwrites cannot guarantee erasure from SSD remapping, snapshots or backups.
+
 <a id="updates"></a>
 ## ⬆️ Official GitHub Updates
 
-The normal update stays one command:
+Update from your existing official GitHub clone:
 
 ```bash
-sudo wraith -u
-# Equivalent:
-sudo wraith update
+cd /path/to/wraith
+wraith -u                 # equivalent: wraith update
+sudo ./build.sh            # compile as your normal user, then install
 ```
 
-Wraith fetches the official `ByGh00st/wraith` **main** branch over HTTPS, builds with `Cargo.lock` as the non-root sudo caller, and atomically installs `/usr/local/bin/wraith`. Git global/system configuration is suppressed and certificate verification stays enabled. Build failure preserves the installed executable. No manual key or manifest is needed.
+The updater validates the origin and `main` branch, rejects uncommitted changes and URL rewrite rules, then performs a **fast-forward-only** update from `ByGh00st/wraith` over verified HTTPS. It never resets your work. Git hooks and filesystem monitors are disabled; Git runs as the normal user even when invoked through `sudo`. A failed fetch or divergent branch returns an error. `./update.sh` follows the same source-sync workflow.
 
-Run the updater through `sudo` from the account that owns your Rust toolchain. It uses a unique build workspace under `/var/tmp`, one Cargo build job, an explicit Linux target and a fixed output directory. A user-level Cargo target-directory setting cannot redirect the expected artifact. Git, a current Rust toolchain, C/C++ compilers, CMake, Perl, libclang and sufficient disk space must be available. Missing compiler tools produce an actionable error before cloning; a direct root shell without a non-root sudo caller is rejected.
+Source synchronization and binary installation are separate steps. `build.sh` uses an isolated build directory and installs only after a successful locked build. Run it through `sudo` from the account that owns your Rust toolchain. Direct root builds are rejected. GitHub HTTPS and repository access controls are the source-update trust boundary.
 
-<details>
-<summary><b>🔐 Optional signed offline release installation</b></summary>
+The core library contains Minisign manifest verification, but the CLI does **not** currently install signed offline artifacts. Supplying `--artifact`, `--manifest` or `--signature` returns an explicit error rather than falling through to a source update.
 
-This separate path verifies a Minisign signature over a JSON manifest, then checks the executable's SHA-256, Linux target and newer stable version with [minisign-verify](https://docs.rs/minisign-verify/0.2.5/minisign_verify/).
-
-```bash
-sudo wraith update --artifact ./wraith-linux-amd64 --manifest ./release.json --signature ./release.json.minisig
-```
-
-Provision a publisher key independently at `/etc/wraith/update.pub`, owned by root and not group/other-writable. Missing/invalid keys or signatures are rejected. No production key is bundled.
-
-Example manifest (version illustrative):
-
-```json
-{
-  "version": "1.4.0",
-  "target": "x86_64-unknown-linux-gnu",
-  "sha256": "<SHA-256 of final executable, lowercase hex>"
-}
-```
-
-Publishers sign exact manifest bytes with `minisign -Sm release.json -s /secure/path/publisher.key`. Keep private keys outside the repository. Normal source updates trust GitHub HTTPS and repository access controls, without independent publisher-signature verification.
-
-</details>
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Latest local checks: **92 portable tests passed** and Linux-target Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
+Latest checks: **140 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
 
 ```bash
 cargo test --workspace --locked
 cargo check --workspace --tests --target x86_64-unknown-linux-gnu --locked
-cargo clippy --workspace --tests --target x86_64-unknown-linux-gnu --locked -- -D warnings
+cargo clippy --workspace --target x86_64-unknown-linux-gnu --locked -- -D warnings
 cargo audit --deny warnings
 ```
 
