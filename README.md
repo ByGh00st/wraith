@@ -416,7 +416,7 @@ wraith --help
 | Dependency | Required for |
 | :--- | :--- |
 | Tor and dedicated `debian-tor` account | Tor transport; UID 0 is never a fallback |
-| Tor package runtime directory `/run/tor` | Daemon runtime files; ownership is not recursively rewritten |
+| Dedicated `/run/wraith-tor` and `/var/lib/wraith/tor` | Wraith Tor runtime and data; system Tor files are kept separate |
 | iproute2 (`ip`, `tc`) | Interfaces, namespaces and optional shaping |
 | iptables/ip6tables plus save/restore tools | Session policy and recovery snapshots |
 | CMake, Perl, libclang, C/C++ compiler | Native browser TLS engine build, including source updates |
@@ -655,6 +655,10 @@ sudo wraith -x
 # Update from official GitHub
 sudo wraith -u
 ```
+
+WireGuard mode accepts a single peer with an IPv4 CIDR address, a numeric IPv4 endpoint and `AllowedIPs = 0.0.0.0/0`. Preshared keys, keepalive, listen port and MTU are supported. Wraith manages DNS through its own relay and rejects shell hooks/custom routing tables. Existing interfaces and occupied routing resources are never replaced. The tunnel policy is installed before Tor bootstraps; a failed setup restores the session snapshots.
+
+Wraith keeps its Tor data separate from the system Tor instance. Active system Tor services are recorded, temporarily stopped and restored on cleanup; their boot enablement is preserved. Process shutdown uses exact configuration matching and Linux pidfds. The HTTP/SOCKS relay releases connections after 120 seconds without transferred data. Cache cleanup preserves active conntrack translations so existing proxied connections can continue.
 
 Keep the foreground process running. Ctrl+C requests cleanup. NEWNYM does not migrate existing streams. Destructive cleanup/self-destruct options are not necessary for the strict preset.
 
@@ -905,7 +909,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Latest checks: **140 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
+Latest checks: **147 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
 
 ```bash
 cargo test --workspace --locked
