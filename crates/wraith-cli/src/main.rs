@@ -15,6 +15,7 @@ use tracing_subscriber::EnvFilter;
 use wraith_core::error::Result;
 
 rust_i18n::i18n!("locales");
+use rust_i18n::t;
 
 #[derive(Args, Clone, Debug, Default, PartialEq, Eq)]
 #[command(args_override_self = true)]
@@ -175,6 +176,18 @@ pub struct StartArgs {
     #[arg(long = "tcp-mask", help_heading = "System Hardening")]
     pub tcp_mask: bool,
 
+    /// L4 TCP/IP OS fingerprint emulation profile (windows11, macos, linux, auto)
+    /// 'auto' infers from the active TLS browser profile
+    #[arg(
+        long = "tcp-profile",
+        visible_aliases = ["l4-profile", "os-profile"],
+        value_name = "PROFILE",
+        value_parser = ["windows11", "macos", "linux", "auto"],
+        default_value = "auto",
+        help_heading = "System Hardening"
+    )]
+    pub tcp_profile: String,
+
     /// Rotate unique OS /etc/machine-id and system hardware identifiers
     #[arg(long = "machine-id", visible_aliases = ["cloaking"], help_heading = "System Hardening")]
     pub machine_id_rotation: bool,
@@ -262,6 +275,7 @@ impl StartArgs {
             || self.honey_ports
             || self.honey_lan
             || self.tcp_mask
+            || (!self.tcp_profile.is_empty() && self.tcp_profile != "auto")
             || self.machine_id_rotation
             || self.strict_hardening
             || self.monitor_window
@@ -884,7 +898,7 @@ pub async fn main() -> Result<()> {
                     Err(e) => {
                         let spawn_err = t!("daemon_cli.spawn_failed", err = e.to_string());
                         display::print_error(&spawn_err);
-                        return Err(wraith_core::error::WraithError::Custom(spawn_err));
+                        return Err(wraith_core::error::WraithError::Custom(spawn_err.to_string()));
                     }
                 };
 
