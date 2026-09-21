@@ -77,25 +77,11 @@ pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
     let state = get_lockdown_status();
     info!("Current Linux Kernel Lockdown state: {:?}", state);
 
-    // 1. Elevate Lockdown Mode to Confidentiality if permitted by securityfs
-    let path = Path::new(LOCKDOWN_PATH);
-    if path.exists() && (state == LockdownState::None || state == LockdownState::Integrity) {
-        if fs::write(path, "confidentiality").is_ok() {
-            info!("Linux Kernel Lockdown elevated to 'confidentiality'");
-        } else if fs::write(path, "integrity").is_ok() {
-            info!("Linux Kernel Lockdown elevated to 'integrity'");
-        }
-    }
+    // Lockdown, kexec_load_disabled and ptrace_scope=3 can be irreversible
+    // until reboot. Observe the administrator's policy; never raise it here.
 
     // 2. Enforce required reversible controls (SysRq=0, core_pattern=|/bin/false)
     enforce_controls(|path| Ok(fs::read_to_string(path)?), |path, value| Ok(fs::write(path, value)?))?;
-
-    // 3. Proactively harden kexec and ptrace scope if available
-    for (path, val) in [("/proc/sys/kernel/kexec_load_disabled", "1"), ("/proc/sys/kernel/yama/ptrace_scope", "3")] {
-        if Path::new(path).exists() {
-            let _ = fs::write(path, val);
-        }
-    }
 
     // 4. Verify IOMMU
     let iommu_path = Path::new(IOMMU_PATH);
