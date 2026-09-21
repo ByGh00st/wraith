@@ -17,6 +17,12 @@ pub struct LeakReport {
     pub dns_leak: bool,
     pub ipv6_leak: bool,
     pub webrtc_leak: bool,
+    /// L4 TCP fingerprint profile coherence status with L7 browser identity
+    #[serde(default)]
+    pub l4_coherent: bool,
+    /// Detected L4↔L7 anomalies (empty = coherent)
+    #[serde(default)]
+    pub l4_anomalies: Vec<String>,
     pub secure: bool,
     pub errors: Vec<String>,
 }
@@ -408,7 +414,25 @@ pub async fn run_full_leak_test() -> LeakReport {
         report.errors.push("WebRTC leak detected: STUN/TURN port filter bypassed.".into());
     }
 
-    report.secure = report.is_tor && report.dns_checked && !report.ipv6_leak && !report.dns_leak && !report.webrtc_leak;
+    // 5. L4 TCP Stack Morphing & L4↔L7 Cross-Layer Coherence Verification
+    let cl = wraith_core::tcp_fingerprint::CrossLayerProfile::from_browser(
+        wraith_core::tcp_fingerprint::L7BrowserHint::ChromeWindows,
+    );
+    report.l4_coherent = cl.is_consistent();
+    report.l4_anomalies = cl.validate().iter().map(|a| a.to_string()).collect();
+    if !report.l4_coherent {
+        report.errors.push(format!(
+            "L4↔L7 cross-layer paradox detected: {} anomalies",
+            report.l4_anomalies.len()
+        ));
+    }
+
+    report.secure = report.is_tor
+        && report.dns_checked
+        && !report.ipv6_leak
+        && !report.dns_leak
+        && !report.webrtc_leak
+        && report.l4_coherent;
     report
 }
 
@@ -419,7 +443,7 @@ fn valid_ip(value: &str) -> Option<String> {
 async fn query_endpoint(url: &str, seconds: u64) -> std::io::Result<std::process::Output> {
     use std::process::Stdio;
     use tokio::io::AsyncReadExt;
-    let connect_timeout = seconds.min(8).max(5);
+    let connect_timeout = seconds.clamp(5, 8);
     tokio::time::timeout(Duration::from_secs(seconds + 1), async {
         let mut child = tokio::process::Command::new("curl")
             .args([
@@ -465,5 +489,24 @@ mod tests {
     fn rejects_error_pages_and_malformed_ip_results() {
         assert_eq!(valid_ip(" 203.0.113.1 ").as_deref(), Some("203.0.113.1"));
         for value in ["error", "<html>", "1.2.3.4/path", "1.2.3.4, 2.3.4.5", "999.1.1.1"] { assert!(valid_ip(value).is_none()); }
+    }
+
+    #[test]
+    fn test_leak_report_l4_coherence_defaults() {
+        let report = LeakReport::default();
+        assert!(!report.l4_coherent);
+        assert!(report.l4_anomalies.is_empty());
+        assert!(!report.secure);
+    }
+
+    #[test]
+    fn test_leak_report_serde_roundtrip_with_l4() {
+        let mut report = LeakReport::default();
+        report.l4_coherent = true;
+        report.l4_anomalies = vec!["None".into()];
+        let json = serde_json::to_string(&report).expect("Serialize LeakReport");
+        let decoded: LeakReport = serde_json::from_str(&json).expect("Deserialize LeakReport");
+        assert!(decoded.l4_coherent);
+        assert_eq!(decoded.l4_anomalies, vec!["None"]);
     }
 }
