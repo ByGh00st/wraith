@@ -225,16 +225,22 @@ fn install_tor_rules_with(
 }
 
 /// Allows inbound traffic to honeypot decoy ports on external LAN interfaces (for LAN Deception Sensor Mode)
-pub fn allow_honey_lan_ports(ports: &[u16]) -> Result<()> {
-    if ports.is_empty() {
-        return Ok(());
+pub fn allow_honey_lan_ports(ports: &[u16], interface: &str, address: std::net::Ipv4Addr) -> Result<()> {
+    if ports.is_empty() || ports.len() > 15 || ports.contains(&0) || !address.is_private() {
+        return Err(WraithError::Configuration("Invalid LAN honeypot scope".into()));
     }
-    let ports_str = ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");
-    execute_command(
-        "iptables",
-        &["-I", "INPUT", "1", "-p", "tcp", "-m", "multiport", "--dports", &ports_str, "-j", "ACCEPT"],
-    )?;
-    info!("Exempted LAN Honeypot ports ({ports_str}) in INPUT filter table (LAN Deception Sensor Active)");
+    crate::validate_interface(interface)?;
+    let source = match address.octets() {
+        [10, ..] => "10.0.0.0/8",
+        [172, ..] => "172.16.0.0/12",
+        _ => "192.168.0.0/16",
+    };
+    let ports = ports.iter().map(u16::to_string).collect::<Vec<_>>().join(",");
+    let address = address.to_string();
+    execute_command("iptables", &["-I", "INPUT", "1", "-i", interface, "-s", source, "-d", &address,
+        "-p", "tcp", "-m", "multiport", "--dports", &ports, "-j", "ACCEPT"])?;
+    execute_command("iptables", &["-I", "OUTPUT", "1", "-o", interface, "-s", &address, "-d", source,
+        "-p", "tcp", "-m", "multiport", "--sports", &ports, "-m", "conntrack", "--ctstate", "ESTABLISHED", "-j", "ACCEPT"])?;
     Ok(())
 }
 

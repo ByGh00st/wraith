@@ -14,7 +14,7 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 pub const DECOY_PORTS: &[u16] = &[2222, 3306, 5432, 6379, 8080, 27017];
 
@@ -64,68 +64,60 @@ impl HoneyPortTrap {
         self.alerts_triggered.load(Ordering::Relaxed)
     }
 
-    /// Spawns decoy honeypot listeners across all configured ports as a unified background service
-    pub fn spawn_service(&self) -> (CancellationToken, tokio::task::JoinHandle<()>) {
+    /// Bind all ports before exposing any firewall exception. A busy port is an error.
+    pub async fn spawn_service(&self, address: std::net::Ipv4Addr) -> wraith_core::error::Result<(CancellationToken, tokio::task::JoinHandle<()>)> {
+        self.spawn_on_ports(address, DECOY_PORTS).await
+    }
+
+    async fn spawn_on_ports(&self, address: std::net::Ipv4Addr, ports: &[u16]) -> wraith_core::error::Result<(CancellationToken, tokio::task::JoinHandle<()>)> {
+        if (!self.bind_all_interfaces && !address.is_loopback()) || (self.bind_all_interfaces && !address.is_private()) {
+            return Err(wraith_core::error::WraithError::Configuration("Honeypot requires loopback or an explicit private LAN address".into()));
+        }
+        let mut listeners = Vec::new();
+        for &port in ports {
+            listeners.push((port, TcpListener::bind((address, port)).await?));
+        }
         let cancel = self.cancel_token.clone();
-        let cancel_child = cancel.clone();
+        let ct = cancel.clone();
         let alerts = self.alerts_triggered.clone();
         let auto_freeze = self.auto_freeze_rogue_process;
-        let bind_lan = self.bind_all_interfaces;
-
         let handle = tokio::spawn(async move {
-            let mut sub_handles = Vec::new();
-
-            for &port in DECOY_PORTS {
-                let ct = cancel_child.clone();
-                let al = alerts.clone();
-
-                let h = tokio::spawn(async move {
-                    let host_ip = if bind_lan { "0.0.0.0" } else { "127.0.0.1" };
-                    let bind_addr = format!("{host_ip}:{port}");
-                    match TcpListener::bind(&bind_addr).await {
-                        Ok(listener) => {
-                            if bind_lan {
-                                info!("Active LAN Deception Sensor listening on {bind_addr} [ALL INTERFACES]");
-                            } else {
-                                info!("Active Deception Honeypot listening on {bind_addr} (Strict Loopback Isolation)");
-                            }
-                            loop {
-                                tokio::select! {
-                                    _ = ct.cancelled() => break,
-                                    res = listener.accept() => {
-                                        match res {
-                                            Ok((stream, peer_addr)) => {
-                                                al.fetch_add(1, Ordering::SeqCst);
-                                                let client_cancel = ct.clone();
-
-                                                tokio::spawn(async move {
-                                                    Self::handle_intruder(stream, peer_addr, port, auto_freeze, client_cancel).await;
-                                                });
-                                            }
-                                            Err(e) => {
-                                                warn!("Honeypot accept error on :{port}: {e}");
-                                            }
-                                        }
+            let capacity = Arc::new(tokio::sync::Semaphore::new(64));
+            let mut servers = tokio::task::JoinSet::new();
+            for (port, listener) in listeners {
+                let ct = ct.clone();
+                let capacity = capacity.clone();
+                let alerts = alerts.clone();
+                servers.spawn(async move {
+                    let mut clients = tokio::task::JoinSet::new();
+                    loop {
+                        tokio::select! {
+                            biased;
+                            _ = ct.cancelled() => break,
+                            _ = clients.join_next(), if !clients.is_empty() => {},
+                            incoming = listener.accept() => {
+                                let Ok((stream, peer)) = incoming else { break; };
+                                let Ok(permit) = capacity.clone().try_acquire_owned() else { continue; };
+                                alerts.fetch_add(1, Ordering::Relaxed);
+                                let cancel = ct.clone();
+                                clients.spawn(async move {
+                                    let _permit = permit;
+                                    tokio::select! {
+                                        _ = cancel.cancelled() => {},
+                                        _ = tokio::time::timeout(Duration::from_secs(30),
+                                            Self::handle_intruder(stream, peer, port, auto_freeze, cancel.clone())) => {}
                                     }
-                                }
+                                });
                             }
-                        }
-                        Err(e) => {
-                            tracing::debug!("Honeypot skip binding :{port} (already bound or restricted): {e}");
                         }
                     }
+                    clients.shutdown().await;
                 });
-                sub_handles.push(h);
             }
-
-            // Wait for cancellation
-            cancel_child.cancelled().await;
-            for h in sub_handles {
-                let _ = h.await;
-            }
+            ct.cancelled().await;
+            while servers.join_next().await.is_some() {}
         });
-
-        (cancel, handle)
+        Ok((cancel, handle))
     }
 
     /// Handles an incoming intruder connection with active forensic investigation, protocol emulation, and TCP tarpit
@@ -337,7 +329,7 @@ impl HoneyPortTrap {
             let sig = if kill { libc::SIGKILL } else { libc::SIGSTOP };
             let res = unsafe { libc::kill(pid as i32, sig) };
             if res == 0 {
-                info!(
+                tracing::info!(
                     "Rogue process PID: {} successfully {}",
                     pid,
                     if kill { "TERMINATED (SIGKILL)" } else { "FROZEN (SIGSTOP)" }
@@ -363,12 +355,26 @@ impl HoneyPortTrap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn occupied_port_aborts_all_bindings() {
+        let occupied = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = occupied.local_addr().unwrap().port();
+        let trap = HoneyPortTrap::new();
+        assert!(trap.spawn_on_ports(std::net::Ipv4Addr::LOCALHOST, &[0, port]).await.is_err());
+        assert_eq!(trap.alerts_count(), 0);
+    }
+    #[tokio::test]
+    async fn wildcard_lan_binding_is_rejected() {
+        assert!(HoneyPortTrap::new().with_lan_binding(true)
+            .spawn_on_ports(std::net::Ipv4Addr::UNSPECIFIED, &[0]).await.is_err());
+    }
+
 
     #[tokio::test]
     async fn test_honeypot_initialization_and_cancel() {
         let trap = HoneyPortTrap::new().with_auto_freeze(false);
         assert_eq!(trap.alerts_count(), 0);
-        let (ct, handle) = trap.spawn_service();
+        let (ct, handle) = trap.spawn_on_ports(std::net::Ipv4Addr::LOCALHOST, &[0]).await.unwrap();
         ct.cancel();
         let _ = tokio::time::timeout(std::time::Duration::from_millis(500), handle).await;
     }

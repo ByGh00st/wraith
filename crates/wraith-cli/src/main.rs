@@ -164,7 +164,7 @@ pub struct StartArgs {
     )]
     pub honey_ports: bool,
 
-    /// 🚨 LAN SENSOR MODE: Bind honeypot traps to 0.0.0.0 (Exposes decoy ports to Wi-Fi/LAN scanners & tarpits them)
+    /// 🚨 LAN SENSOR MODE: Bind honeypot traps to the selected private interface address (Exposes decoy ports to Wi-Fi/LAN scanners & tarpits them)
     #[arg(
         long = "honey-lan",
         visible_aliases = ["lan-honeypot", "lan-trap", "deception-sensor"],

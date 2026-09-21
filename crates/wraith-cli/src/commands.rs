@@ -810,24 +810,26 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     if args.honey_lan || args.honey_ports || is_strict {
         if args.honey_lan {
             print_step(&t!("commands.cmd_step_56"), "info");
-            if let Err(e) = wraith_net::allow_honey_lan_ports(wraith_guard::DECOY_PORTS) {
-                tracing::warn!("Failed opening firewall exception for LAN honeypot: {e}");
-            }
+            let address = wraith_net::validate_interface(&target_interface)?.ipv4
+                .and_then(|value| value.parse::<std::net::Ipv4Addr>().ok())
+                .filter(|ip| ip.is_private())
+                .ok_or_else(|| WraithError::Configuration("LAN honeypot requires a private IPv4 address on the selected interface".into()))?;
             let trap = HoneyPortTrap::new().with_lan_binding(true);
-            let (ct, handle) = trap.spawn_service();
+            let (ct, handle) = trap.spawn_service(address).await?;
+            bg_services.honeypot = Some((ct, handle));
+            wraith_net::allow_honey_lan_ports(wraith_guard::DECOY_PORTS, &target_interface, address)?;
             print_step(&t!("commands.cmd_step_57"), "ok");
             state_data.honeypot_active = true;
             state_data.honeypot_lan_active = true;
             state_mgr.activate(state_data.clone())?;
-            bg_services.honeypot = Some((ct, handle));
         } else {
             print_step(&t!("commands.cmd_step_58"), "info");
             let trap = HoneyPortTrap::new().with_lan_binding(false);
-            let (ct, handle) = trap.spawn_service();
+            let (ct, handle) = trap.spawn_service(std::net::Ipv4Addr::LOCALHOST).await?;
             print_step(&t!("commands.cmd_step_59"), "ok");
+            bg_services.honeypot = Some((ct, handle));
             state_data.honeypot_active = true;
             state_mgr.activate(state_data.clone())?;
-            bg_services.honeypot = Some((ct, handle));
         }
     }
 
