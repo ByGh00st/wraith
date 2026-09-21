@@ -8,25 +8,14 @@ use tracing::info;
 use wraith_core::error::{Result, WraithError};
 
 pub fn clear_memory_caches() -> Result<()> {
-    // 1. Flush dirty pages to sync memory state
-    let _ = Command::new("sync").status();
-
-    // 2. Drop pagecache, dentries, and inodes
-    if fs::write("/proc/sys/vm/drop_caches", "3").is_ok() {
-        info!("Kernel memory caches (pagecache, dentries, inodes) dropped");
+    if !Command::new("sync").status()?.success() {
+        return Err(WraithError::Forensic("Filesystem sync failed; cache cleanup stopped".into()));
     }
-
-    // 3. Force kernel memory compaction to eliminate unallocated fragmented structures
+    fs::write("/proc/sys/vm/drop_caches", "3")?;
     if Path::new("/proc/sys/vm/compact_memory").exists() {
-        let _ = fs::write("/proc/sys/vm/compact_memory", "1");
-        info!("Kernel memory compacted (/proc/sys/vm/compact_memory = 1)");
+        fs::write("/proc/sys/vm/compact_memory", "1")?;
     }
-
-    // 4. Set VFS cache pressure aggressively to reclaim dentry/inode caches
-    if Path::new("/proc/sys/vm/vfs_cache_pressure").exists() {
-        let _ = fs::write("/proc/sys/vm/vfs_cache_pressure", "1000");
-    }
-
+    info!("Kernel caches dropped; memory compaction requested where supported");
     Ok(())
 }
 

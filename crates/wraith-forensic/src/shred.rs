@@ -96,6 +96,32 @@ pub fn secure_delete_file(path: &Path, passes: u8) -> Result<()> {
     Ok(())
 }
 
+/// Truncate an existing log only after verifying its opened inode. Never open
+/// with O_TRUNC before rejecting symlinks, devices and additional hard links.
+pub(crate) fn truncate_log_file(path: &Path) -> Result<()> {
+    use wraith_core::error::WraithError;
+    #[cfg(target_os = "linux")]
+    let (_directory, anchored) = pin_parent(path)?;
+    #[cfg(target_os = "linux")]
+    let path = anchored.as_path();
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err(WraithError::Forensic("Log is not a regular file".into()));
+    }
+    let file = open_no_follow_write(path)?;
+    let opened = file.metadata()?;
+    if !opened.is_file() { return Err(WraithError::Forensic("Log changed type".into())); }
+    #[cfg(unix)] {
+        use std::os::unix::fs::MetadataExt;
+        if opened.nlink() != 1 || opened.ino() != metadata.ino() || opened.dev() != metadata.dev() {
+            return Err(WraithError::Forensic("Log changed or has extra hard links".into()));
+        }
+    }
+    file.set_len(0)?;
+    file.sync_all()?;
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 fn pin_parent(path: &Path) -> Result<(fs::File, std::path::PathBuf)> {
     use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
@@ -122,6 +148,17 @@ fn pin_parent(path: &Path) -> Result<(fs::File, std::path::PathBuf)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn log_truncation_rejects_links_without_modifying_the_target() {
+        let dir = tempfile::tempdir().unwrap(); let file = dir.path().join("log");
+        fs::write(&file, b"keep").unwrap();
+        std::os::unix::fs::symlink(&file, dir.path().join("symlink")).unwrap();
+        assert!(truncate_log_file(&dir.path().join("symlink")).is_err());
+        fs::hard_link(&file, dir.path().join("hardlink")).unwrap();
+        assert!(truncate_log_file(&dir.path().join("hardlink")).is_err());
+        assert_eq!(fs::read(file).unwrap(), b"keep");
+    }
     #[test]
     fn zero_passes_cannot_delete_data() {
         let dir = tempfile::tempdir().unwrap(); let path = dir.path().join("data");

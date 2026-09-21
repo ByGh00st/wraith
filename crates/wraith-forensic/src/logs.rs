@@ -1,8 +1,8 @@
 //! Wraith Log, History & Network Neighbor Eviction
-//! Cleans volatile logs, shell histories, ARP tables, and connection tracking tables.
+//! Cleans logs, histories and neighbor caches while retaining active conntrack mappings.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use tracing::info;
 use wraith_core::error::Result;
@@ -11,8 +11,7 @@ use crate::anti_forensic_stealth::{scrub_system_logs, wipe_all_user_histories};
 use crate::shred::secure_delete_file;
 
 pub fn clear_shell_histories() -> Result<usize> {
-    let cleared = wipe_all_user_histories().unwrap_or(0);
-    let _ = Command::new("history").args(["-c"]).status();
+    let cleared = wipe_all_user_histories()?;
     info!("Wiped {cleared} shell/interpreter history files via DoD 5220.22-M sanitization");
     Ok(cleared)
 }
@@ -35,26 +34,17 @@ pub fn clear_dns_and_arp_caches() -> Result<()> {
         .stderr(std::process::Stdio::null())
         .status();
 
-    // ARP neighbor table flush
-    let _ = Command::new("ip")
-        .args(["neigh", "flush", "all"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    // Netfilter Connection Tracking flush
-    let _ = Command::new("conntrack")
-        .arg("-F")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    info!("DNS, ARP neighbors, and Netfilter conntrack tables flushed");
+    if !Command::new("ip").args(["neigh", "flush", "all"]).status()?.success() {
+        return Err(wraith_core::error::WraithError::Forensic("Neighbor cache flush failed".into()));
+    }
+    // Conntrack entries carry active transparent-proxy translations. Flushing
+    // them breaks existing Tor sockets and is not a DNS-cache operation.
+    info!("Neighbor cache flushed; available DNS cache services were requested to flush");
     Ok(())
 }
 
 pub fn clear_system_logs() -> Result<usize> {
-    let mut cleared = scrub_system_logs().unwrap_or(0);
+    let mut cleared = scrub_system_logs()?;
     let log_dirs = ["/var/log/wraith", "/var/log/specternet", "/var/log/tor"];
 
     for d in &log_dirs {
@@ -64,7 +54,7 @@ pub fn clear_system_logs() -> Result<usize> {
                 for entry in entries.flatten() {
                     if let Ok(file_type) = entry.file_type() {
                         if file_type.is_file() {
-                            let _ = secure_delete_file(&entry.path(), 1);
+                            secure_delete_file(&entry.path(), 1)?;
                             cleared += 1;
                         }
                     }
@@ -78,96 +68,35 @@ pub fn clear_system_logs() -> Result<usize> {
 }
 
 pub fn fast_ram_and_arp_purge() -> Result<()> {
-    // 1. Instantly drop kernel pagecache, dentries, and inodes
-    let _ = fs::write("/proc/sys/vm/drop_caches", "3");
-    let _ = fs::write("/proc/sys/vm/compact_memory", "1");
-
-    // 2. Instantly flush ARP neighbor cache
-    let _ = Command::new("ip")
-        .args(["neigh", "flush", "all"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    // 3. Instantly flush routing / conntrack cache
-    let _ = Command::new("ip")
-        .args(["route", "flush", "cache"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    let _ = Command::new("conntrack")
-        .arg("-F")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    // 4. Instantly flush DNS caches
-    let _ = Command::new("resolvectl")
-        .arg("flush-caches")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    let _ = Command::new("systemd-resolve")
-        .arg("--flush-caches")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    info!("High-speed RAM, ARP, and routing cache purge complete (<10ms)");
+    crate::memory::clear_memory_caches()?;
+    clear_dns_and_arp_caches()?;
     Ok(())
 }
 
 pub fn run_full_cleanup(thorough: bool, is_emergency: bool) -> Result<usize> {
-    let mut total_ops = 0;
-
-    let _ = clear_dns_and_arp_caches();
-    total_ops += 1;
-
-    if let Ok(count) = clear_system_logs() {
-        total_ops += count;
+    if thorough && is_emergency {
+        return Err(wraith_core::error::WraithError::Forensic("Full swap cleanup is unavailable in emergency mode".into()));
     }
-
+    clear_dns_and_arp_caches()?;
+    let mut total_ops = 1 + clear_system_logs()?;
     if thorough {
-        if let Ok(count) = clear_shell_histories() {
-            total_ops += count;
-        }
-        let _ = crate::memory::clear_memory_caches();
-        crate::memory::overwrite_swap(is_emergency)?;
+        total_ops += clear_shell_histories()?;
+        crate::memory::clear_memory_caches()?;
+        crate::memory::overwrite_swap(false)?;
         total_ops += 2;
     }
-
     Ok(total_ops)
 }
 
 pub fn panic_emergency_purge(self_destruct: bool) -> Result<usize> {
-    info!("EXECUTING EMERGENCY PANIC PURGE (Ctrl+C / SIGINT)");
-    let mut ops = run_full_cleanup(true, true)?;
-
-    // Shred state and config artifacts
-    let ephemeral_targets = [
-        "/var/run/wraith.state",
-        "/run/wraith.state",
-        "/etc/tor/wraithrc",
-    ];
-
-    for target in &ephemeral_targets {
-        let p = Path::new(target);
-        if p.exists() {
-            let _ = secure_delete_file(p, 2);
-            ops += 1;
-        }
+    if self_destruct && wraith_core::StateManager::default().exists() {
+        return Err(wraith_core::error::WraithError::Forensic("Restore the session before removing its recovery executable".into()));
     }
-
-    // Optional self-destruct (shreds current running binary from RAM/Disk)
+    let mut ops = run_full_cleanup(false, true)?;
+    // Recovery state and torrc are intentionally retained until restoration.
     if self_destruct {
-        if let Ok(current_exe) = std::env::current_exe() {
-            info!("Self-destruct triggered: shredding {}", current_exe.display());
-            let _ = secure_delete_file(&current_exe, 2);
-            ops += 1;
-        }
+        secure_delete_file(&std::env::current_exe()?, 2)?;
+        ops += 1;
     }
-
     Ok(ops)
 }

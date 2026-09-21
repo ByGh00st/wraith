@@ -1029,8 +1029,10 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                                 }
                                 crossterm::event::KeyCode::Char('c') | crossterm::event::KeyCode::Char('C') => {
                                     print!("\r\n  {}\r\n", t!("commands.cmd_hotkey_memory_purge"));
-                                    let _ = wraith_forensic::logs::fast_ram_and_arp_purge();
-                                    print!("  {}\r\n\r\n", t!("commands.cmd_hotkey_memory_eradicated"));
+                                    match wraith_forensic::logs::fast_ram_and_arp_purge() {
+                                        Ok(()) => print!("  {}\r\n\r\n", t!("commands.cmd_hotkey_memory_eradicated")),
+                                        Err(error) => print!("  Cleanup failed: {error}\r\n\r\n"),
+                                    }
                                 }
                                 _ => {}
                             }
