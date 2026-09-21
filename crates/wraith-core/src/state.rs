@@ -28,6 +28,8 @@ pub struct StateData {
     #[serde(default)]
     pub tor_started: bool,
     #[serde(default)]
+    pub stopped_tor_services: Vec<String>,
+    #[serde(default)]
     pub saved_resolver: Option<String>,
     #[serde(default)]
     pub physical_fastpath_disabled: bool,

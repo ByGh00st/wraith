@@ -61,7 +61,7 @@ pub fn write_bridge_torrc(custom_bridges: Option<Vec<String>>) -> Result<usize> 
 
     let content = format!(
         "\
-DataDirectory /var/lib/tor
+DataDirectory /var/lib/wraith/tor
 VirtualAddrNetworkIPv4 10.192.0.0/10
 AutomapHostsOnResolve 1
 TransPort 127.0.0.1:{TOR_TRANS_PORT}
@@ -70,7 +70,7 @@ SocksPort 127.0.0.1:9050
 ControlPort 127.0.0.1:{TOR_CONTROL_PORT}
 RunAsDaemon 1
 CookieAuthentication 1
-CookieAuthFile /run/tor/control.authcookie
+CookieAuthFile /run/wraith-tor/control.authcookie
 CookieAuthFileGroupReadable 1
 AvoidDiskWrites 1
 UseBridges 1

@@ -8,7 +8,7 @@ use tracing::info;
 use wraith_core::config::TORRC_PATH;
 use wraith_core::error::{Result, WraithError};
 
-pub const ONION_SERVICE_DIR: &str = "/var/lib/tor/wraith_hidden_service";
+pub const ONION_SERVICE_DIR: &str = "/var/lib/wraith/tor/onion_service";
 
 #[derive(Debug, Clone)]
 pub struct OnionServiceConfig {
@@ -159,7 +159,7 @@ mod tests {
         let mut cfg = OnionServiceConfig::default();
         cfg.add_port(80, 8080);
         let directives = OnionServiceManager::render_service_directives(&cfg);
-        assert!(directives.contains("HiddenServiceDir /var/lib/tor/wraith_hidden_service"));
+        assert!(directives.contains("HiddenServiceDir /var/lib/wraith/tor/onion_service"));
         assert!(directives.contains("HiddenServicePort 80 127.0.0.1:8080"));
         assert!(directives.contains("HiddenServiceEnablePoW 1"));
     }

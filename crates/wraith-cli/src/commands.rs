@@ -506,14 +506,55 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         }
     }
 
-    // 6. Start Tor Daemon FIRST (Before modifying DNS / Firewall)
+    // 9. Firewall & IPv6 Drop
+    print_step(&t!("commands.cmd_step_9"), "info");
+    let saved = apply_tor_rules_with_journal(is_strict, |backup| {
+        state_data.saved_rules = Some(backup.into());
+        state_mgr.activate(state_data.clone())
+    })?;
+    state_data.saved_rules = Some(saved);
+    state_mgr.activate(state_data.clone())?;
+    print_step(&t!("commands.cmd_step_10"), "ok");
+
+    print_step(&t!("commands.cmd_step_11"), "info");
+    let ipv6_backup = Command::new("ip6tables-save").output()?;
+    if !ipv6_backup.status.success() {
+        return Err(WraithError::Firewall("Cannot back up IPv6 firewall".into()));
+    }
+    state_data.saved_ipv6_rules = Some(String::from_utf8_lossy(&ipv6_backup.stdout).into_owned());
+    state_mgr.activate(state_data.clone())?;
+    apply_ipv6_block()?;
+    print_step(&t!("commands.cmd_step_12"), "ok");
+
+    print_step(&t!("commands.cmd_step_13"), "info");
+    block_stun_ports()?;
+    print_step(&t!("commands.cmd_step_14"), "ok");
+
+    // 9b. Multi-Hop Policy Routing Enforcement (Binding Tor Outbound Egress to WireGuard Hop 1)
+    if let Some(ref wg_iface) = wg_active_iface {
+        print_step(&format!("{}: {wg_iface}...", t!("commands.cmd_step_48")), "info");
+        let tor_uid = wraith_net::get_tor_uid()?;
+        match MultiHopTunnelEngine::bind_tor_to_wireguard(tor_uid, wg_iface) {
+            Ok(true) => {
+                print_step(&t!("commands.cmd_step_49"), "ok");
+            }
+            Ok(false) => return Err(WraithError::Network("WireGuard routing could not be verified; refusing unprotected fallback".into())),
+            Err(e) => return Err(e),
+        }
+    }
+
+    // Save service state before stopping only active system Tor units.
+    state_data.stopped_tor_services = wraith_tor::active_system_tor_services()?;
+    state_mgr.activate(state_data.clone())?;
+    wraith_tor::set_system_tor_services(&state_data.stopped_tor_services, false)?;
+
+    // 6. Bootstrap only after the egress and optional tunnel policy is armed.
     print_step(&t!("commands.cmd_step_5"), "info");
     state_data.tor_started = true;
     state_mgr.activate(state_data.clone())?;
     if let Err(e) = start_tor_daemon().await {
         print_step(&format!("{}", t!("commands.cmd_err_tor_bootstrap", e = e.to_string())), "error");
-        // DNS and firewall have not been changed yet. Do not flush the user's
-        // existing protection merely because Tor bootstrap failed.
+        // The outer startup owner restores the recorded pre-session policy.
         return Err(e);
     }
     print_step(&t!("commands.cmd_step_6"), "ok");
@@ -601,43 +642,6 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
             }
             Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_onion_provision", e = e.to_string())), "warn"),
-        }
-    }
-
-    // 9. Firewall & IPv6 Drop
-    print_step(&t!("commands.cmd_step_9"), "info");
-    let saved = apply_tor_rules_with_journal(is_strict, |backup| {
-        state_data.saved_rules = Some(backup.into());
-        state_mgr.activate(state_data.clone())
-    })?;
-    state_data.saved_rules = Some(saved);
-    state_mgr.activate(state_data.clone())?;
-    print_step(&t!("commands.cmd_step_10"), "ok");
-
-    print_step(&t!("commands.cmd_step_11"), "info");
-    let ipv6_backup = Command::new("ip6tables-save").output()?;
-    if !ipv6_backup.status.success() {
-        return Err(WraithError::Firewall("Cannot back up IPv6 firewall".into()));
-    }
-    state_data.saved_ipv6_rules = Some(String::from_utf8_lossy(&ipv6_backup.stdout).into_owned());
-    state_mgr.activate(state_data.clone())?;
-    apply_ipv6_block()?;
-    print_step(&t!("commands.cmd_step_12"), "ok");
-
-    print_step(&t!("commands.cmd_step_13"), "info");
-    block_stun_ports()?;
-    print_step(&t!("commands.cmd_step_14"), "ok");
-
-    // 9b. Multi-Hop Policy Routing Enforcement (Binding Tor Outbound Egress to WireGuard Hop 1)
-    if let Some(ref wg_iface) = wg_active_iface {
-        print_step(&format!("{}: {wg_iface}...", t!("commands.cmd_step_48")), "info");
-        let tor_uid = wraith_net::get_tor_uid()?;
-        match MultiHopTunnelEngine::bind_tor_to_wireguard(tor_uid, wg_iface) {
-            Ok(true) => {
-                print_step(&t!("commands.cmd_step_49"), "ok");
-            }
-            Ok(false) => return Err(WraithError::Network("WireGuard routing could not be verified; refusing unprotected fallback".into())),
-            Err(e) => return Err(e),
         }
     }
 
@@ -1131,8 +1135,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         record_cleanup("legacy packet filter", EgressFastpath::new(iface).and_then(|mut filter| filter.detach()), &mut errors);
     }
     if state_info.tor_started || state_info.active {
-        stop_tor_daemon();
-        wraith_tor::stop_existing_tor();
+        record_cleanup("Tor daemon", stop_tor_daemon(), &mut errors);
     }
     if state_info.multihop_enabled {
         record_cleanup("WireGuard", MultiHopTunnelEngine::teardown_wireguard(state_info.wireguard_config.as_deref()), &mut errors);
@@ -1187,6 +1190,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     }
     if let Some(saved) = &state_info.saved_ipv6_rules {
         record_cleanup("IPv6 firewall", wraith_net::restore_ipv6_rules(saved), &mut errors);
+    }
+    if errors.is_empty() {
+        record_cleanup("original Tor services", wraith_tor::set_system_tor_services(&state_info.stopped_tor_services, true), &mut errors);
     }
     if errors.is_empty() && self_destruct {
         record_cleanup("self destruct", std::env::current_exe().map_err(WraithError::from)

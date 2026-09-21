@@ -2,13 +2,12 @@
 //! Native line-based TCP client for Tor ControlPort with zero external Python/Stem dependency.
 
 use std::fs;
-use std::path::Path;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tracing::{debug, info};
 use wraith_core::config::TOR_CONTROL_PORT;
 use wraith_core::error::{Result, WraithError};
-use zeroize::Zeroize;
+use zeroize::Zeroizing;
 
 pub struct TorControlClient {
     stream: Option<BufReader<TcpStream>>,
@@ -33,7 +32,10 @@ impl TorControlClient {
             .map_err(|e| WraithError::Tor(format!("Failed connecting to Tor ControlPort on {addr}: {e}")))?;
 
         self.stream = Some(BufReader::new(stream));
-        self.authenticate().await?;
+        if let Err(error) = self.authenticate().await {
+            self.stream = None;
+            return Err(error);
+        }
         Ok(())
     }
 
@@ -43,7 +45,10 @@ impl TorControlClient {
         }
         let result = tokio::time::timeout(std::time::Duration::from_secs(3), self.send_command_inner(cmd)).await;
         match result {
-            Ok(result) => result,
+            Ok(result) => {
+                if result.is_err() { self.stream = None; }
+                result
+            },
             Err(_) => {
                 self.stream = None;
                 Err(WraithError::Tor("Control command timed out".into()))
@@ -64,77 +69,19 @@ impl TorControlClient {
 
         stream.flush().await?;
 
-        let mut lines = Vec::new();
-        loop {
-            let mut line = String::new();
-            let n = stream.read_line(&mut line).await?;
-            if n == 0 {
-                return Err(WraithError::Tor("EOF received from Tor ControlPort".into()));
-            }
-
-            let trimmed = line.trim_end_matches(['\r', '\n']).to_string();
-            let is_end = trimmed.starts_with("250 ") || trimmed.starts_with("250 OK");
-            let is_err = trimmed.starts_with("5") || trimmed.starts_with("4");
-
-            lines.push(trimmed.clone());
-
-            if is_err {
-                return Err(WraithError::Tor(format!("Tor control command rejected: {trimmed}")));
-            }
-
-            if is_end {
-                break;
-            }
-        }
-
-        Ok(lines)
+        read_reply(stream).await
     }
 
     pub async fn authenticate(&mut self) -> Result<()> {
-        // Attempt cookie authentication first
-        let cookie_paths = [
-            "/run/tor/control.authcookie",
-            "/var/run/tor/control.authcookie",
-            "/var/lib/tor/control_auth_cookie",
-            "/run/tor/control_auth_cookie",
-            "/var/run/tor/control_auth_cookie",
-            "/var/lib/tor/control.authcookie",
-            "/etc/tor/control.authcookie",
-            "/var/lib/tor/data/control_auth_cookie",
-        ];
-
-        let mut authenticated = false;
-
-        for path in cookie_paths {
-            if Path::new(path).exists() {
-                if let Ok(mut cookie_bytes) = fs::read(path) {
-                    let hex_cookie = cookie_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<String>();
-                    cookie_bytes.zeroize();
-
-                    if self.send_command(&format!("AUTHENTICATE {hex_cookie}")).await.is_ok() {
-                        debug!("Authenticated to Tor via cookie at {path}");
-                        authenticated = true;
-                        break;
-                    }
-                }
-            }
+        let cookie = Zeroizing::new(fs::read("/run/wraith-tor/control.authcookie")?);
+        if cookie.len() != 32 {
+            self.stream = None;
+            return Err(WraithError::Tor("Invalid managed Tor authentication cookie".into()));
         }
-
-        if !authenticated {
-            // Fallback: blank authentication
-            if self.send_command("AUTHENTICATE \"\"").await.is_ok() {
-                debug!("Authenticated to Tor with blank credentials");
-                authenticated = true;
-            }
-        }
-
-        if !authenticated {
-            return Err(WraithError::Tor("Authentication to Tor ControlPort failed".into()));
-        }
-
+        let hex = Zeroizing::new(cookie.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        let command = Zeroizing::new(format!("AUTHENTICATE {}", hex.as_str()));
+        self.send_command(&command).await?;
+        debug!("Authenticated with managed Tor cookie");
         Ok(())
     }
 
@@ -170,10 +117,10 @@ impl TorControlClient {
             if first_line.starts_with(&format!("250+{key}=")) || first_line.starts_with("250+") {
                 let mut data_lines = Vec::new();
                 for line in &lines[1..] {
-                    if line == "." || line == "250 OK" || line.starts_with("250 ") {
+                    if line == "." {
                         break;
                     }
-                    data_lines.push(line.as_str());
+                    data_lines.push(if line.starts_with("..") { &line[1..] } else { line.as_str() });
                 }
                 return Ok(data_lines.join("\n"));
             }
@@ -189,5 +136,59 @@ impl TorControlClient {
             }
         }
         Ok(String::new())
+    }
+}
+
+// Bound both individual lines and the aggregate response before allocation grows.
+async fn read_reply<R: tokio::io::AsyncBufRead + Unpin>(stream: &mut R) -> Result<Vec<String>> {
+    const MAX_LINE: u64 = 64 * 1024;
+    const MAX_REPLY: usize = 1024 * 1024;
+    let mut lines = Vec::new();
+    let mut total = 0;
+    let mut in_data = false;
+    loop {
+        let mut bytes = Vec::new();
+        let n = (&mut *stream).take(MAX_LINE + 1).read_until(b'\n', &mut bytes).await?;
+        total += n;
+        if n == 0 || n > MAX_LINE as usize || total > MAX_REPLY || lines.len() >= 4096 || !bytes.ends_with(b"\r\n") {
+            return Err(WraithError::Tor("Incomplete or oversized control reply".into()));
+        }
+        let line = String::from_utf8(bytes[..bytes.len()-2].to_vec())
+            .map_err(|_| WraithError::Tor("Invalid control reply encoding".into()))?;
+        if in_data {
+            if line == "." { in_data = false; }
+            lines.push(line);
+            continue;
+        }
+        let code = line.get(..3).unwrap_or("");
+        let separator = line.as_bytes().get(3).copied();
+        if !code.bytes().all(|b| b.is_ascii_digit()) || code.len() != 3 || !matches!(separator, Some(b' ' | b'-' | b'+')) {
+            return Err(WraithError::Tor("Malformed control reply status".into()));
+        }
+        if code != "250" {
+            return Err(WraithError::Tor(format!("Tor control command rejected: {code}")));
+        }
+        in_data = separator == Some(b'+');
+        lines.push(line);
+        if separator == Some(b' ') { return Ok(lines); }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn multiline_data_is_not_a_status_and_dot_stuffing_is_preserved() {
+        let mut input = &b"250+key=\r\n500 this is data\r\n..dot\r\n.\r\n250 OK\r\n"[..];
+        let lines = read_reply(&mut input).await.unwrap();
+        assert_eq!(&lines[1..3], &["500 this is data", "..dot"]);
+    }
+    #[tokio::test]
+    async fn oversized_and_incomplete_replies_fail() {
+        let bytes = vec![b'a'; 65538];
+        assert!(read_reply(&mut bytes.as_slice()).await.is_err());
+        assert!(read_reply(&mut &b"250+key=\r\nunfinished"[..]).await.is_err());
+        assert!(read_reply(&mut &b"250 OK\n"[..]).await.is_err());
+        assert!(read_reply(&mut &b"515 Bad authentication\r\n"[..]).await.is_err());
     }
 }

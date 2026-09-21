@@ -101,16 +101,13 @@ if [[ "${1:-}" == "--uninstall" ]] || [[ "${1:-}" == "uninstall" ]]; then
         exec "${SCRIPT_DIR}/uninstall.sh"
     fi
     echo -e "  ${CLR_CYAN}◈ [DAEMON PURGE]${CLR_RESET} ${CLR_WHITE}Stopping and disabling Wraith systemd daemon...${CLR_RESET}"
-    systemctl stop wraith.service 2>/dev/null || true
+    "$WRAITH_BIN" stop
+    systemctl stop wraith.service
     systemctl disable wraith.service 2>/dev/null || true
     rm -f /etc/systemd/system/wraith.service
     rm -f /etc/systemd/system/wraith-early.service
     rm -f /etc/wraith/daemon.conf
     systemctl daemon-reload 2>/dev/null || true
-    # Restore host system Tor service
-    systemctl unmask tor.service 2>/dev/null || true
-    systemctl unmask tor@default.service 2>/dev/null || true
-    systemctl enable tor.service 2>/dev/null || true
     echo -e "        ${CLR_EMERALD}✔ [REMOVED]${CLR_RESET} Wraith daemon service uninstalled cleanly."
     echo -e "        ${CLR_WHITE}ℹ [BİLGİ]${CLR_RESET} ${CLR_SLATE}Tüm kısayollar, tab tamamlamaları ve binary dosyalarını tamamen silmek için:${CLR_RESET} ${CLR_CYAN}sudo ./uninstall.sh${CLR_RESET}\n"
     exit 0
@@ -381,18 +378,16 @@ Description=Wraith Sovereign Kernel Defense & Anonymization Engine (Daemon)
 Documentation=https://github.com/ByGh00st/wraith
 After=network.target network-online.target
 Wants=network-online.target
-Conflicts=tor.service tor@default.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/etc/wraith
 ExecStart=${CMD_EXEC_LINE}
-ExecStop=${WRAITH_BIN} stop
 Restart=on-failure
 RestartSec=5s
 KillSignal=SIGTERM
-TimeoutStopSec=45s
+TimeoutStopSec=90s
 LimitNOFILE=65535
 LimitMEMLOCK=infinity
 StandardOutput=journal
@@ -409,8 +404,8 @@ systemctl daemon-reload
 echo -e "        ${CLR_EMERALD}✔ [GENERATED]${CLR_RESET} Systemd unit compiled for ${CLR_BOLD}${OPT_BOOT_MODE^^}${CLR_RESET} mode."
 
 # ─── [ ACTIVATION & REGISTRATION ] ─────────────────────────────────────────────
-# Deconflict with system Tor so ports 9050/9051 and /var/lib/tor lock belong solely to Wraith
-systemctl disable --now tor.service tor@default.service > /dev/null 2>&1 || true
+# Wraith journals active system Tor units and restores them when the session ends.
+# Leave their boot enablement untouched.
 
 if [ "$OPT_BOOT_MODE" = "early" ] || [ "$OPT_BOOT_MODE" = "standard" ]; then
     systemctl enable wraith.service > /dev/null 2>&1

@@ -105,156 +105,163 @@ pub fn resolve_tor_user() -> &'static str {
     TOR_USER
 }
 
-pub fn stop_existing_tor() {
-    // Target any Wraith-managed Tor processes matching our specific torrc configuration
-    let _ = Command::new("pkill")
-        .args(["-f", "wraithrc"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    std::thread::sleep(Duration::from_millis(500));
+
+const SYSTEM_TOR_SERVICES: &[&str] = &["tor.service", "tor@default.service"];
+
+pub fn active_system_tor_services() -> Result<Vec<String>> {
+    if !Path::new("/run/systemd/system").exists() { return Ok(Vec::new()); }
+    let mut active = Vec::new();
+    for service in SYSTEM_TOR_SERVICES {
+        let status = Command::new("systemctl").args(["is-active", "--quiet", service]).status()?;
+        match status.code() {
+            Some(0) => active.push((*service).into()),
+            Some(3 | 4) => {},
+            _ => return Err(WraithError::Tor(format!("Cannot determine service state: {service}"))),
+        }
+    }
+    Ok(active)
+}
+
+pub fn set_system_tor_services(services: &[String], start: bool) -> Result<()> {
+    let mut errors = Vec::new();
+    for service in services {
+        if !SYSTEM_TOR_SERVICES.contains(&service.as_str()) {
+            return Err(WraithError::Tor("Unrecognized saved Tor service".into()));
+        }
+    }
+    for service in services {
+        let status = Command::new("systemctl").args([if start { "start" } else { "stop" }, service]).status();
+        if !status.is_ok_and(|status| status.success()) { errors.push(service.clone()); }
+    }
+    if errors.is_empty() { Ok(()) }
+    else { Err(WraithError::Tor(format!("Service transition failed: {}", errors.join(", ")))) }
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn managed_tor_command(cmdline: &[u8]) -> bool {
+    let args: Vec<_> = cmdline.split(|b| *b == 0).filter(|s| !s.is_empty()).collect();
+    args.first().is_some_and(|arg| arg.rsplit(|b| *b == b'/').next() == Some(b"tor".as_slice()))
+        && args.windows(2).any(|pair| pair == [b"-f".as_slice(), TORRC_PATH.as_bytes()])
+}
+
+/// Stop only Tor processes launched with our exact configuration argument.
+pub fn stop_existing_tor() -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut targets = Vec::new();
+        for entry in fs::read_dir("/proc")? {
+            let entry = entry?;
+            let Some(pid) = entry.file_name().to_str().and_then(|s| s.parse::<i32>().ok()).filter(|pid| *pid > 1) else { continue; };
+            if fs::read(entry.path().join("cmdline")).is_ok_and(|line| managed_tor_command(&line)) {
+                let before = fs::read(entry.path().join("stat"))?;
+                let start = process_start(&before).ok_or_else(|| WraithError::Tor("Invalid Tor process identity".into()))?.to_vec();
+                // A pidfd binds the signal to one process lifetime even if a PID
+                // is recycled between inspection and delivery.
+                use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+                let raw = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
+                if raw < 0 {
+                    let error = std::io::Error::last_os_error();
+                    if error.raw_os_error() == Some(libc::ESRCH) { continue; }
+                    return Err(error.into());
+                }
+                let fd = unsafe { OwnedFd::from_raw_fd(raw as i32) };
+                if !fs::read(entry.path().join("stat")).is_ok_and(|stat| process_start(&stat) == Some(start.as_slice())) { continue; }
+                if unsafe { libc::syscall(libc::SYS_pidfd_send_signal, fd.as_raw_fd(), libc::SIGTERM, std::ptr::null::<libc::siginfo_t>(), 0) } != 0 {
+                    let error = std::io::Error::last_os_error();
+                    if error.raw_os_error() != Some(libc::ESRCH) { return Err(error.into()); }
+                }
+                targets.push((pid, start));
+            }
+        }
+        for _ in 0..50 {
+            targets.retain(|(pid, start)| fs::read(format!("/proc/{pid}/stat")).ok()
+                .is_some_and(|stat| process_start(&stat) == Some(start.as_slice()) && !stat.windows(4).any(|w| w == b") Z ")));
+            if targets.is_empty() { return Ok(()); }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        Err(WraithError::Tor("Managed Tor has not stopped; recovery record must be retained".into()))
+    }
+    #[cfg(not(target_os = "linux"))]
+    { Err(WraithError::UnsupportedPlatform) }
+}
+
+#[cfg(target_os = "linux")]
+fn process_start(stat: &[u8]) -> Option<&[u8]> {
+    let end = stat.iter().rposition(|b| *b == b')')?;
+    stat.get(end + 2..)?.split(|b| *b == b' ').nth(19)
+}
+
+fn prepare_tor_directory(path: &str, user: &str) -> Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if !metadata.is_dir() || metadata.file_type().is_symlink() =>
+            return Err(WraithError::Tor(format!("Unsafe Tor directory: {path}"))),
+        Ok(_) => {},
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => fs::create_dir_all(path)?,
+        Err(e) => return Err(e.into()),
+    }
+    for (command, args) in [("chown", vec![user, path]), ("chmod", vec!["700", path])] {
+        if !Command::new(command).args(args).status()?.success() {
+            return Err(WraithError::Tor(format!("Cannot prepare Tor directory: {path}")));
+        }
+    }
+    Ok(())
 }
 
 pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
-    stop_existing_tor();
-
-    // 1. Terminate standard systemd Tor service instances that may hog ports 9050/9051
-    let _ = Command::new("systemctl")
-        .args(["stop", "tor", "tor@default"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    let _ = Command::new("pkill")
-        .args(["-f", "wraithrc"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-
-    // 2. Actively probe and ensure ports 9050 (SOCKS) and 9051 (Control) are free
-    for _ in 0..15 {
-        let p9050_free = std::net::TcpListener::bind("127.0.0.1:9050").is_ok();
-        let p9051_free = std::net::TcpListener::bind("127.0.0.1:9051").is_ok();
-        if p9050_free && p9051_free {
-            break;
-        }
-        // Force-kill any lingering system tor instances holding ports 9050/9051
-        let _ = Command::new("killall")
-            .args(["-9", "tor"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        sleep(Duration::from_millis(200)).await;
+    stop_existing_tor()?;
+    // Keep every reservation until the final probe has succeeded.
+    let mut probes = Vec::new();
+    for port in [TOR_TRANS_PORT, TOR_DNS_PORT, 9050, TOR_CONTROL_PORT] {
+        probes.push(std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
+            .map_err(|e| WraithError::Tor(format!("Tor port {port} is occupied: {e}; no unrelated process was killed")))?);
     }
-
-    // 3. Clear stale file lock if previous instance died uncleanly
-    let lock_path = Path::new("/var/lib/tor/lock");
-    if lock_path.exists() {
-        let _ = fs::remove_file(lock_path);
-    }
-
+    let udp_probe = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, TOR_DNS_PORT))?;
     let tor_user = resolve_tor_user();
-
-    let tor_bin = if Path::new("/usr/bin/tor").exists() {
-        "/usr/bin/tor"
-    } else if Path::new("/usr/local/bin/tor").exists() {
-        "/usr/local/bin/tor"
-    } else {
-        "tor"
-    };
-
-    info!("Spawning Tor daemon process as user {tor_user}...");
-
-    // Ensure Tor runtime and data directories exist with correct permissions and ownership
-    for dir in ["/run/tor", "/var/lib/tor"] {
-        let p = Path::new(dir);
-        if !p.exists() {
-            let _ = fs::create_dir_all(p);
+    for dir in ["/var/lib/wraith/tor", "/run/wraith-tor"] { prepare_tor_directory(dir, tor_user)?; }
+    let group = Command::new("id").args(["-g", tor_user]).output()?;
+    if !group.status.success() || !fs::symlink_metadata(TORRC_PATH)?.is_file() {
+        return Err(WraithError::Tor("Cannot prepare managed Tor configuration permissions".into()));
+    }
+    let gid = String::from_utf8_lossy(&group.stdout).trim().parse::<u32>()
+        .map_err(|_| WraithError::Tor("Invalid Tor group ID".into()))?;
+    for (program, args) in [("chown", vec![format!("0:{gid}"), TORRC_PATH.into()]), ("chmod", vec!["640".into(), TORRC_PATH.into()])] {
+        if !Command::new(program).args(args).status()?.success() {
+            return Err(WraithError::Tor("Cannot set managed Tor configuration permissions".into()));
         }
-        let _ = Command::new("chown")
-            .args(["-R", &format!("{tor_user}:{tor_user}"), dir])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        let _ = Command::new("chmod")
-            .args(["700", dir])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
     }
-    let _ = Command::new("chmod")
-        .args(["644", TORRC_PATH])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-
-    // Detached background daemons cannot reliably use sudo without a controlling TTY.
-    // Use runuser (standard on Debian/Kali for daemon privilege drop) with su as fallback.
-    let runuser_bin = if Path::new("/sbin/runuser").exists() {
-        "/sbin/runuser"
-    } else if Path::new("/usr/sbin/runuser").exists() {
-        "/usr/sbin/runuser"
-    } else if Path::new("/bin/runuser").exists() {
-        "/bin/runuser"
-    } else if Path::new("/usr/bin/runuser").exists() {
-        "/usr/bin/runuser"
-    } else {
-        "runuser"
-    };
-
-    let has_runuser = Path::new(runuser_bin).exists()
-        || Command::new("which")
-            .arg("runuser")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-
-    let output = if has_runuser {
-        Command::new(runuser_bin)
-            .args(["-u", tor_user, "--", tor_bin, "-f", TORRC_PATH])
-            .output()
-    } else if Path::new("/bin/su").exists() || Path::new("/usr/bin/su").exists() {
-        Command::new("su")
-            .args(["-s", "/bin/sh", tor_user, "-c", &format!("{tor_bin} -f {TORRC_PATH}")])
-            .output()
-    } else {
-        Command::new("sudo")
-            .args(["-u", tor_user, tor_bin, "-f", TORRC_PATH])
-            .output()
-    }
-    .map_err(|e| WraithError::Tor(format!("Failed to spawn Tor daemon: {e}")))?;
-
+    let tor_bin = ["/usr/bin/tor", "/usr/local/bin/tor"].into_iter().find(|p| Path::new(p).is_file())
+        .ok_or_else(|| WraithError::Tor("Tor executable is missing".into()))?;
+    let runuser = ["/usr/sbin/runuser", "/sbin/runuser", "/usr/bin/runuser", "/bin/runuser"].into_iter().find(|p| Path::new(p).is_file())
+        .ok_or_else(|| WraithError::Tor("runuser is required to drop Tor privileges".into()))?;
+    drop(probes); drop(udp_probe);
+    let output = tokio::time::timeout(Duration::from_secs(15), tokio::process::Command::new(runuser)
+        .args(["-u", tor_user, "--", tor_bin, "-f", TORRC_PATH]).kill_on_drop(true).output()).await
+        .map_err(|_| WraithError::Tor("Tor launcher timed out".into()))??;
     if !output.status.success() {
-        let err_msg = String::from_utf8_lossy(&output.stderr);
-        return Err(WraithError::Tor(format!("Tor failed to start as {tor_user}: {err_msg}")));
+        return Err(WraithError::Tor(format!("Tor startup failed: {}", String::from_utf8_lossy(&output.stderr))));
     }
+    tokio::time::timeout(Duration::from_secs(timeout_secs), async {
+        loop {
+            let mut client = TorControlClient::default();
+            if client.connect().await.is_ok() && client.is_ready().await { return; }
+            sleep(Duration::from_secs(1)).await;
+        }
+    }).await.map_err(|_| WraithError::Tor(format!("Tor failed to bootstrap within {timeout_secs}s")))?;
+    info!("Managed Tor initialized");
+    Ok(())
+}
 
-    // Wait for Tor bootstrap on ControlPort
-    for _ in 0..timeout_secs {
-        sleep(Duration::from_secs(1)).await;
-        let mut client = TorControlClient::default();
-        if client.connect().await.is_ok() && client.is_ready().await {
-            info!("Tor daemon initialized and responsive on ControlPort");
-            return Ok(());
+pub async fn start_tor_daemon() -> Result<()> { start_tor_daemon_with_timeout(45).await }
+pub fn stop_tor_daemon() -> Result<()> { stop_existing_tor() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn process_matching_requires_tor_and_exact_configuration_argument() {
+        assert!(managed_tor_command(b"/usr/bin/tor\0-f\0/etc/tor/wraithrc\0"));
+        for unrelated in [b"tor\0-f\0/etc/tor/torrc\0".as_slice(), b"editor\0/etc/tor/wraithrc\0", b"tor\0-f\0/etc/tor/wraithrc.other\0", b"other-tor\0-f\0/etc/tor/wraithrc\0"] {
+            assert!(!managed_tor_command(unrelated));
         }
     }
-
-    Err(WraithError::Tor(format!(
-        "Tor daemon started but failed to bootstrap within {timeout_secs}s"
-    )))
-}
-
-pub async fn start_tor_daemon() -> Result<()> {
-    start_tor_daemon_with_timeout(45).await
-}
-
-pub fn stop_tor_daemon() {
-    stop_existing_tor();
-    let _ = Command::new("pkill")
-        .args(["-9", "-f", "wraithrc"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    info!("Tor daemon stopped");
 }
