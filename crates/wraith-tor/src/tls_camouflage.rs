@@ -44,9 +44,32 @@ pub const AUDIT_TOOL_SIGNATURES: &[&str] = &[
 
 pub const OFFENSIVE_SIGNATURES: &[&str] = AUDIT_TOOL_SIGNATURES;
 
-/// Legacy fingerprint metadata; actual handshakes use `BrowserTlsClient` profiles.
+/// Returns the active TLS profile with cross-layer L4 validation
 pub fn get_active_tls_profile() -> DynamicTlsFingerprint {
-    DynamicTlsFingerprint::generate(BrowserType::ChromeWin11)
+    let fp = DynamicTlsFingerprint::generate(BrowserType::ChromeWin11);
+
+    // Cross-layer coherence check: verify L7 TLS browser identity matches L4 expectations
+    let browser_hint = wraith_core::tcp_fingerprint::L7BrowserHint::from(fp.browser);
+    let cl = wraith_core::tcp_fingerprint::CrossLayerProfile::from_browser(browser_hint);
+    if !cl.is_consistent() {
+        tracing::warn!("L4↔L7 cross-layer paradox detected: {}", cl.status_report());
+    }
+
+    fp
+}
+
+/// Validates whether a selected TLS browser profile is coherent with an L4 TCP profile
+pub fn validate_tls_with_l4(
+    browser: BrowserType,
+    l4_profile: &wraith_core::tcp_fingerprint::TcpFingerprintProfile,
+) -> Vec<wraith_core::tcp_fingerprint::CrossLayerAnomaly> {
+    let hint: wraith_core::tcp_fingerprint::L7BrowserHint = browser.into();
+    let cl = wraith_core::tcp_fingerprint::CrossLayerProfile {
+        l7_browser: hint,
+        l4_profile: l4_profile.clone(),
+        expected_p0f: l4_profile.expected_p0f_signature().to_p0f_string(),
+    };
+    cl.validate()
 }
 
 /// Spawns the async TLS Camouflage & HTTP DPI Sanitizer Proxy server
@@ -482,4 +505,41 @@ mod tests {
         let (server, _) = TlsCamouflageServer::new(Some(occupied.local_addr().unwrap().port()));
         assert!(server.spawn_server().await.is_err());
     }
+
+    #[test]
+    fn test_get_active_tls_profile_cross_layer() {
+        let profile = get_active_tls_profile();
+        assert_eq!(profile.browser, BrowserType::ChromeWin11);
+        let hint: wraith_core::tcp_fingerprint::L7BrowserHint = profile.browser.into();
+        assert_eq!(
+            hint.implied_os(),
+            wraith_core::tcp_fingerprint::TcpProfileKind::Windows11
+        );
+    }
+
+    #[test]
+    fn test_validate_tls_with_l4_coherence_matrix() {
+        use wraith_core::tcp_fingerprint::TcpFingerprintProfile;
+
+        // Windows 11 Chrome with Windows 11 L4 profile -> fully coherent
+        let win11 = TcpFingerprintProfile::windows11();
+        let anomalies = validate_tls_with_l4(BrowserType::ChromeWin11, &win11);
+        assert!(
+            anomalies.is_empty(),
+            "Expected zero anomalies for ChromeWin11 + Windows 11 L4, got: {:?}",
+            anomalies
+        );
+
+        // Windows 11 Chrome with Linux default L4 profile -> paradox detected
+        let linux = TcpFingerprintProfile::linux_default();
+        let anomalies = validate_tls_with_l4(BrowserType::ChromeWin11, &linux);
+        assert!(
+            !anomalies.is_empty(),
+            "Expected paradox anomalies for ChromeWin11 + Linux L4"
+        );
+        let param_names: Vec<_> = anomalies.iter().map(|a| a.parameter.as_str()).collect();
+        assert!(param_names.contains(&"default_ttl"));
+        assert!(param_names.contains(&"tcp_timestamps"));
+    }
 }
+
