@@ -3100,6 +3100,7 @@ dependencies = [
  "rand 0.8.8",
  "rust-i18n",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
