@@ -1,78 +1,54 @@
-# TROUBLESHOOTING & RECOVERY PROCEDURES
+# Troubleshooting & recovery
 
-Operational remediation guide for initialization failures, port collisions, Tor bootstrap delays, and emergency network state restoration.
+> **06 / RECOVER** · Use the reported failure and recorded state to guide the next step.
 
----
+## Start with the symptom
 
-## 1. Emergency Host Network Restoration
+| Symptom | Check first | Next step |
+| :--- | :--- | :--- |
+| Strict startup is refused | The named host prerequisite or setup error | Review [advanced configuration](Advanced-Configuration.md) |
+| Wi-Fi disconnects after a MAC change | Adapter association and DHCP | Restore/reassociate the selected interface |
+| UDP or QUIC application fails | Whether it requires unsupported UDP transport | Check application TCP support |
+| DNS returns SERVFAIL | Tor/DoH availability, system clock and DNSSEC proofs | Inspect the reported resolver failure |
+| Fetch rejects a certificate | Hostname, certificate chain and clock | Correct the endpoint or trust problem; verification stays enabled |
+| Fetch refuses an output file | Whether the target already exists | Choose a new output filename |
+| Source update is refused | Origin, branch, dirty checkout or divergent history | Preserve local work; use a fresh clone if history was rewritten |
+| Build fails | Rust and native compiler dependencies | Correct the dependency; source synchronization is a separate step |
+| Cleanup is incomplete | The resource named in the error | Resolve the cause and retry the recorded cleanup |
 
-If an unexpected system crash, power loss, or forced reboot occurs while Wraith is active, netfilter rules may remain in a fail-closed state (`OUTPUT DROP`).
+## Retry cleanup
 
-### Primary Recovery: Native Command
 ```bash
 sudo wraith -x
 ```
-*Parses existing state journals in `/var/run/wraith/` and executes clean deconfiguration of firewall rules, sysctl flags, and DNS settings.*
 
-### Secondary Recovery: Standalone Reset Scripts
-If the Wraith binary was deleted or cannot execute, execute the standalone POSIX recovery scripts:
-```bash
-sudo ./reset.sh
-# or
-sudo ./reset_network.sh
-```
+Wraith retains recovery state when cleanup fails. Keep that state available, address the reported problem and retry. The panic handler restores terminal presentation while preserving restrictive policy; it does not reset firewall rules to unrestricted access or select public DNS.
 
-**Actions Executed by Recovery Scripts:**
-1. **Firewall Reset:** Flushes all custom and standard rules across `filter`, `nat`, and `mangle` tables in both `iptables` and `ip6tables`.
-2. **Policy Reset:** Restores default policies to `ACCEPT` on `INPUT`, `FORWARD`, and `OUTPUT` chains.
-3. **DNS Restoration:** Clears the immutable flag (`chattr -i /etc/resolv.conf`), restores nameservers from backup (`/etc/resolv.conf.wraith.bak`), or populates trusted fallbacks (`9.9.9.9`, `1.1.1.1`).
-4. **Process Cleanup:** Terminates orphaned Tor or Wraith worker processes bound to ports 9040, 9050, 9051, 5354, or 9055.
-5. **Interface State:** Verifies that physical network interfaces remain in an `UP` operational state.
+## What gets restored
 
----
+| Resource | Recorded recovery |
+| :--- | :--- |
+| IPv4 / IPv6 firewall | Saved tables after required host cleanup |
+| Resolver and Tor configuration | Saved file content or original entry |
+| MAC and hostname | Journaled values |
+| Reversible sysctl settings | Previous values |
+| Browser preferences | Managed block removed; unrelated preferences preserved |
+| Font configuration | Saved entry / backup and cache refresh |
+| Namespace and WireGuard | Recorded resource teardown |
+| Traffic shaper | Owned netem handle `a731:` |
 
-## 2. Common Diagnostic Conditions & Solutions
+Snapshots do not capture every ACL/xattr, Tor working data or unrelated changes by other programs. Coordinate with other privileged firewall managers. Live Linux routing and kernel recovery still need integration validation.
 
-### Condition A: "Wraith daemon is currently running via systemd"
-* **Diagnosis:** The background systemd service (`wraith.service`) was enabled and currently holds the exclusive process lock.
-* **Remediation:** Stop the service before invoking the interactive CLI:
-  ```bash
-  sudo systemctl stop wraith
-  # or terminate session via CLI:
-  sudo wraith -x
-  ```
+## Report a reproducible issue
 
-### Condition B: "Address already in use: Port 9050 / 9051 / 5354 / 9055"
-* **Diagnosis:** An external Tor instance, local DNS cache (such as `systemd-resolved` or `dnsmasq`), or leftover process is bound to one of Wraith's designated service ports.
-* **Remediation:** Inspect and terminate the competing process:
-  ```bash
-  # Check active port bindings:
-  sudo ss -tulpn | grep -E ':(9040|9050|9051|5354|9055)'
+Include the command, distribution, selected interface, expected result, actual result and sanitized error output. Omit keys, passwords and tokens. File it in [GitHub Issues](https://github.com/ByGh00st/wraith/issues).
 
-  # Stop standard distribution Tor daemons:
-  sudo systemctl stop tor
-  sudo systemctl stop tor@default
-  ```
+**Next:** [Architecture →](Architecture.md)
 
-### Condition C: "Tor bootstrap stalled at 5% / 10% / 85%"
-* **Diagnosis:** Direct access to Tor Directory Authorities is intercepted, filtered, or blocked by upstream network intermediaries (ISP / Deep Packet Inspection).
-* **Remediation:** Configure censorship-resistant Pluggable Transports using the Bridge engine:
-  ```bash
-  # Query bridges via Moat API:
-  wraith bridge moat --transport obfs4
+## Recovery details
 
-  # Start session utilizing obfs4 bridges:
-  sudo wraith -s --bridge --bridge-type obfs4
-  ```
+Reset scripts delegate to the installed `wraith stop` implementation. They do not flush arbitrary firewall rules or invent fallback DNS. Without a recovery record they are a no-op; with a record but no executable they report an error.
 
-### Condition D: "ip6tables: Table does not exist" on Minimal Kernels
-* **Diagnosis:** The operating system kernel is compiled without the optional `ip6table_nat` kernel module (common in lightweight virtualization containers or minimal cloud kernels).
-* **Remediation:** In current versions of Wraith, `ip6tables -t nat` errors are classified as non-fatal warnings; the engine enforces IPv6 containment by setting default `DROP` policies in the `filter` table, maintaining complete leak prevention without requiring the NAT module.
+A live legacy session without process-lifetime identity cannot be signaled automatically. Stop its original foreground worker with Ctrl+C, or its owning systemd service, then retry recovery. Do not delete the journal as a workaround.
 
-### Condition E: "Operation not permitted on /etc/resolv.conf"
-* **Diagnosis:** Another security utility has applied the immutable ext4/xfs file attribute (`chattr +i`).
-* **Remediation:** Remove the immutable attribute and re-run session startup:
-  ```bash
-  sudo chattr -i /etc/resolv.conf
-  sudo wraith -s
-  ```
+TCP setup errors identify missing backups, readback differences or unsupported routes. Route restoration rejects a changed default-route identity rather than editing a replacement route. Old TCP snapshots without route metrics require namespace teardown for complete restoration.

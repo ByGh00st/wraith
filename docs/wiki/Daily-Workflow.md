@@ -1,144 +1,61 @@
-# DAILY WORKFLOW // OPERATIONAL PROTOCOLS & INTEGRATION
+# Daily workflow
 
-Operational reference for everyday session management, telemetry monitoring, circuit rotation, forensic data sanitization, and security auditing workflows.
+> **02 / OPERATE** · Start, inspect, adjust and stop.
 
----
+## Session commands
 
-## 1. Primary Command Reference
+| Command | What it does |
+| :--- | :--- |
+| `sudo wraith -s` | Start a foreground session |
+| `sudo wraith -i` | Inspect status and Tor circuit information |
+| `sudo wraith -r` | Request a new identity for eligible new Tor streams |
+| `sudo wraith -x` | Stop and restore recorded settings |
+| `sudo wraith doctor` | Run diagnostics |
+| `sudo wraith -t` | Run the network-check suite |
+| `sudo wraith -u` | Update from the official GitHub repository |
 
-| Flag / Shortcut | Command Syntax | Operational Function |
-| :---: | :--- | :--- |
-| **`-s`** | `sudo wraith -s [OPTIONS]` | **Initialize Session:** Activates fail-closed transparent proxying and local DoH relay. |
-| **`-x`** | `sudo wraith -x [-d]` | **Terminate Session:** Restores pre-session netfilter rules, routing tables, and nameservers. |
-| **`-r`** | `sudo wraith -r` | **Circuit Rotation:** Issues `SIGNAL NEWNYM` to Tor ControlPort to acquire a new exit identity. |
-| **`-c`** | `sudo wraith -c` | **Volatile State Purge:** Clears kernel page caches, ARP cache, and ephemeral session buffers. |
-| — | `sudo wraith --cleanup-full` | **Deep Storage Purge:** Deactivates swap, overwrites swap space, and scrubs session authentication records. |
-| **`-t`** | `sudo wraith -t` | **Multi-Vector Leak Audit:** Performs RFC 5389 UDP STUN tests, DNS validation, and IPv4/IPv6 egress verification. |
-| **`-i`** | `sudo wraith -i` | **Telemetry Dashboard:** Queries active connection metrics, public exit node IP, and circuit relay nodes. |
-| **`-M`** | `sudo wraith -M` | **Real-Time DPI Monitor:** Streams packet inspections and signature classifications from port 9055. |
-| **`-K`** | `sudo wraith -s -K` | **Process Masquerade:** Replaces scheduler process name (`PR_SET_NAME`) with `[kworker/u16:0]`. |
-| **`-F`** | `sudo wraith -Fs` | **Strict Preset:** Demands kernel lockdown, `kexec_load_disabled`, and memory vault locks. |
-| **`-u`** | `sudo wraith -u` | **Official In-Place Update:** Fetches source from GitHub, builds non-root, and atomically replaces binary. |
+NEWNYM does not move existing connections or erase cookies and logins. A successful exit-IP check describes that request, not every application or interface.
 
----
-
-## 2. Circuit Rotation & Identity Lifecycle
-
-When operating across rate-limited or congested endpoints, operators can cycle Tor exit nodes without terminating the active session:
+## Choose an interface
 
 ```bash
-sudo wraith -r
+wraith interfaces
+sudo wraith start -I wlan0
 ```
 
-### Operational Mechanics:
-1. Wraith connects to Tor ControlPort (`127.0.0.1:9051`) using cookie or password authentication.
-2. Sends the `SIGNAL NEWNYM` directive.
-3. Tor marks current circuits as dirty, ensuring subsequent TCP connection requests negotiate a new three-hop path (Guard -> Middle -> Exit).
-4. Clears local DNS cache entries.
-5. Re-queries public verification endpoints to confirm the new exit IP address and jurisdiction.
+Replace `wlan0` with your adapter. MAC changes can interrupt Wi-Fi association or DHCP; see [troubleshooting](Troubleshooting.md).
 
-> [!IMPORTANT]
-> **Stream Boundary Notice:** In accordance with Tor specification, `SIGNAL NEWNYM` does not migrate or terminate currently established, active TCP streams. New circuits apply exclusively to subsequent connections opened after the signal.
+## Choose a language
 
----
+Wraith ships **17 locales**:
 
-## 3. Data Sanitization & Memory Protocols
-
-### 3.1 Ephemeral State Cleansing (`wraith -c`)
-Flushes volatile kernel memory caches and file buffers to ensure clean baseline states:
-```bash
-sudo wraith -c
-```
-- Executes `sync` to flush unwritten filesystem buffers to storage.
-- Writes to `/proc/sys/vm/drop_caches` to free clean pagecache, dentries, and inodes.
-- Flushes ARP neighbor tables.
-
-### 3.2 Deep Swap & Session Cleansing (`wraith --cleanup-full`)
-Recommended prior to host decommissioning or after intensive auditing sessions:
-```bash
-sudo wraith --cleanup-full
-```
-- Disables active swap partitions (`swapoff -a`).
-- Performs overwrite patterns across raw swap devices to sanitize unencrypted memory dumps.
-- Truncates transient session logs in `/var/log/` and shell history files.
-
-### 3.3 DoD 5220.22-M Cryptographic File Sanitization
-To sanitize target files with multi-pass random data overwrites:
-```bash
-sudo wraith shred /path/to/target.dump
-```
-- Executes 7 sequential overwrite passes following Department of Defense 5220.22-M specifications.
-- Issues `fsync` after each pass to force physical write execution.
-- Truncates file length to zero before unlinking from directory structure.
-
-> [!NOTE]
-> **Solid-State Drive (SSD) Caveat:** Flash translation layers (FTL), wear-leveling algorithms, and over-provisioned blocks on modern NVMe/SATA SSDs can prevent in-place overwriting of physical flash cells. Complete sanitization on flash media requires full-disk encryption (FDE) or hardware cryptographic erase.
-
-### 3.4 Configurable Font Shield & Whitelisting (`[fonts]`)
-Operators can granularly configure which fonts are permitted to resolve or shielded from discovery via `/etc/wraith/config.toml` or the CLI config interface:
+`ar` · `az` · `de` · `en` · `es` · `fa` · `fr` · `it` · `ja` · `ko` · `nl` · `pl` · `pt` · `ru` · `tr` · `uk` · `zh`
 
 ```bash
-# Whitelist specific fonts permitted to be visible / resolved:
-sudo wraith config set fonts.allowed "Hack, JetBrains Mono, DejaVu Sans Mono"
-
-# Explicitly blacklist/hide identifying font families from discovery:
-sudo wraith config set fonts.blocked "Comic Sans MS, MesloLGS NF, Segoe UI"
-
-# Block custom font paths from Fontconfig enumeration:
-sudo wraith config set fonts.blocked_paths "/opt/custom_fonts/*, /usr/share/fonts/extra/*"
-
-# Define custom monospace font preference order:
-sudo wraith config set fonts.monospace "JetBrains Mono, Hack, DejaVu Sans Mono"
-
-# Enable font sandbox permanently across sessions:
-sudo wraith config set fonts.enabled true
+wraith --select-lang
+wraith --lang tr --help
 ```
 
-Example `/etc/wraith/config.toml` specification:
-```toml
-[fonts]
-enabled = true
-allowed_fonts = ["Hack", "JetBrains Mono"]
-blocked_fonts = ["Comic Sans MS", "MesloLGS NF"]
-blocked_paths = ["/opt/custom_fonts/*"]
-preferred_monospace = ["JetBrains Mono", "Hack"]
-```
-
-When active, Wraith generates an isolated `/etc/fonts/local.conf` with corresponding `<acceptfont>` and `<rejectfont>` directives and triggers `fc-cache -f`.
-
----
-
-## 4. Authorized Network Auditing Protocols
-
-For authorized security evaluations, penetration testing, and vulnerability research, client tools should be configured to use local SOCKS5 or HTTP proxies to ensure complete network isolation:
+## Update source, then install
 
 ```bash
-# Built-in configuration guide:
-sudo wraith pentest
+cd /path/to/wraith
+wraith -u
+sudo ./build.sh
 ```
 
-### Recommended Proxy Client Configurations:
+The updater requires the official origin, `main`, a clean checkout and a fast-forward update. It does not build or replace the installed binary. The build helper compiles as your normal sudo account and installs only after a successful locked build.
 
-#### 1. Network Discovery (Nmap)
-Tor carries TCP exclusively. Scans must utilize TCP connect (`-sT`) without ICMP ping discovery (`-Pn`):
+A clone predating a history rewrite may be refused as divergent. Preserve your local work and clone into a new directory; the updater never resets the existing checkout. Signed offline artifact installation is not implemented; its CLI options return an explicit error.
+
+## Namespace applications
+
 ```bash
-nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_host>
+sudo wraith start --namespace --tcp-profile windows11
+# In another terminal, from your normal sudo account:
+sudo wraith exec -- curl https://example.com
 ```
 
-#### 2. HTTP Inspection (Curl via Port 9055 Relay)
-Routing cleartext HTTP requests through the in-flight DPI sanitizer automatically removes identifying tool signatures:
-```bash
-curl -x http://127.0.0.1:9055 http://example.org/api
-```
+Existing applications are not moved into the namespace. Curl still constructs its own TLS handshake. See [L4 and L7](L4-and-L7.md) for the boundary between TCP controls and Wraith-owned TLS.
 
-#### 3. Web Application Auditing (Sqlmap)
-Enforces SOCKS5 routing and randomized User-Agent headers:
-```bash
-sqlmap -u "http://target.example/query?id=1" --proxy="socks5://127.0.0.1:9050" --random-agent
-```
-
-#### 4. Post-Exploitation Frameworks (Metasploit)
-Configures global proxy settings to avoid accidental egress over raw interfaces:
-```bash
-msfconsole -x "setg Proxies socks5:127.0.0.1:9050; setg HTTP_USER_AGENT Mozilla/5.0"
-```
+**Next:** [TLS profiles and HTTP](TLS-and-HTTP.md)

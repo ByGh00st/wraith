@@ -340,7 +340,7 @@ struct Cli {
     #[arg(long)]
     pentest: bool,
 
-    /// Fetch latest updates and recompile/hot-swap binary in-place
+    /// Fast-forward source from official GitHub; run build.sh separately to install
     #[arg(short = 'u', long)]
     update: bool,
 
@@ -438,7 +438,7 @@ enum Commands {
         #[arg(short, long)]
         output: std::path::PathBuf,
     },
-    /// Update from official GitHub, or install an optional signed offline release
+    /// Fast-forward source from official GitHub (offline artifact installation is unsupported)
     Update {
         #[arg(long, requires_all = ["manifest", "signature"])]
         artifact: Option<std::path::PathBuf>,

@@ -1,69 +1,51 @@
-# TLS, DPI & HTTP PROTOCOL CAMOUFLAGE
+# TLS profiles & HTTP
 
-Technical specifications for cleartext HTTP header normalization (port 9055), BoringSSL browser TLS handshakes (JA3/JA4), RFC 8701 GREASE extensions, and cover traffic generation.
+> **03 / CONNECTIONS** · Know which layer Wraith controls.
 
----
+## Three distinct paths
 
-## 1. In-Flight Cleartext HTTP Relay (Port 9055)
-
-Many automated command-line utilities, script interpreters, and security testing tools broadcast distinct headers and default User-Agent strings (e.g., `sqlmap/1.8`, `Nmap Scripting Engine`, `python-requests/2.31.0`, `Go-http-client/1.1`). 
-
-To prevent passive network intermediaries and HTTP destinations from identifying client toolchains on unencrypted sessions, Wraith deploys an in-flight HTTP proxy bound to `127.0.0.1:9055` (`wraith_core::config::DPI_HTTP_PORT`).
-
-```
-[CLIENT UTILITY] ──HTTP:80──► [NETFILTER REDIRECT] ──► [PORT 9055 PROXY]
-                                                            │
-                                              • Inspect HTTP Request Framing
-                                              • Strip Identifying Headers
-                                              • Substitute Desktop Browser UA
-                                              • Forward via Tor SOCKS5 (:9050)
-```
-
-### Sanitization Specifications:
-1. **User-Agent Normalization:** Replaces detected non-browser or tool User-Agents with an active pool of contemporary desktop browser headers (Windows 11 / Linux / macOS).
-2. **Identifying Egress Headers Stripped:**
-   - `X-Forwarded-For`
-   - `X-Real-IP`
-   - `Via`
-   - `Client-IP`
-   - `True-Client-IP`
-3. **Signature Catalog Filtering:** Scans headers against a built-in catalog of 1,338 tool signatures across vulnerability scanners, web fuzzers, OSINT frameworks, and HTTP libraries.
-4. **HTTPS CONNECT Passthrough:** When handling HTTPS `CONNECT` requests, the proxy establishes an opaque bidirectional TCP tunnel over Tor SOCKS5 without inspecting or decrypting the underlying TLS session. The application's original TLS handshake and end-to-end encryption remain untouched.
-
----
-
-## 2. Browser TLS Handshake Emulation (BoringSSL)
-
-Unlike proxies that rely on standard OpenSSL or Rustls configurations—which present distinctive cipher suite orderings easily classified by network sensors—Wraith embeds a dedicated HTTPS client backed by **BoringSSL** (via `wreq`).
-
-This client constructs authentic browser-grade TLS ClientHello messages matching contemporary browser releases:
-
-| Emulation Profile | Target Platform | Cryptographic & Protocol Characteristics |
+| Path | Wraith controls | Application keeps |
 | :--- | :--- | :--- |
-| **`chrome` (Chrome 131)** | Google Chrome (Windows 11 / Linux) | ALPN (`h2`, `http/1.1`), RFC 8701 GREASE cipher/extension injection, Post-Quantum Kyber768/X25519 hybrid key exchange. |
-| **`firefox` (Firefox 133)** | Mozilla Firefox (Linux / Windows) | Specific Firefox cipher priority, curve25519 key share, Extended Master Secret extension. |
-| **`safari` (Safari 18)** | Apple Safari (macOS Sonoma / Sequoia) | Native Apple SecureTransport extension sequence, specific elliptic curve preferences. |
+| Wraith HTTPS client | Actual browser-profile TLS handshake and HTTP/2 settings | The caller chooses the supported request and URL |
+| Cleartext HTTP relay | Initial HTTP request header normalization and Tor forwarding | Application behavior and later request semantics |
+| HTTPS CONNECT tunnel | Destination parsing and byte transport over Tor | Its own ClientHello, certificate checks and encrypted HTTP |
 
-### Operational Scope & Limitations:
-- **Direct Client Scope:** Browser TLS profiles apply strictly to requests originated by Wraith itself—specifically `wraith fetch`, local DNS-over-HTTPS (DoH) queries, and applications utilizing the public `wraith_tor::BrowserTlsClient` API.
-- **Transparent HTTPS:** Third-party applications communicating over HTTPS via the transparent Tor proxy (`TransPort 9040`) retain their own native TLS handshakes and JA3/JA4 fingerprints. Wraith does not act as a Man-In-The-Middle (MITM) proxy and does not install local root certificate authorities.
-- **Handshake vs. Behavior:** Emulating a TLS ClientHello does not simulate browser JavaScript execution, DOM capabilities, cookie persistence, or HTTP/2 priority tree scheduling.
+### Real ClientHello profiles
 
----
+The native client uses BoringSSL through wreq and supported emulation profiles. These affect the actual TLS connection, rather than only a displayed fingerprint or User-Agent.
 
-## 3. Cover Traffic Generation (Jitter Worker)
+| CLI profile | Pinned emulation | Integration |
+| :--- | :--- | :--- |
+| `chrome` | Chrome 131 | Default fetch, DoH and cover requests |
+| `firefox` | Firefox 133 | Fetch and public Rust client API |
+| `safari` | Safari 18 | Fetch and public Rust client API |
 
-To introduce non-deterministic background traffic on active network interfaces, Wraith includes an optional cover request generator:
+With a Wraith/Tor session already running:
 
 ```bash
-sudo wraith -s --jitter --jitter-endpoint https://authorized-endpoint.example/health
+wraith fetch https://example.org/ --tls-profile chrome --output page.html
+wraith fetch https://example.org/ --tls-profile firefox --output firefox-page.html
+wraith fetch --help
 ```
 
-### Operational Parameters:
-- **Transport Route:** Requests are dispatched as authentic HTTPS GET operations through Tor SOCKS5.
-- **Randomized Intervals:** Inter-request intervals vary between **15 and 45 seconds**, randomized via uniform distribution to disrupt static polling signatures.
-- **Payload Boundaries:** Inbound responses are truncated at **16 KiB** to prevent excessive bandwidth consumption.
-- **Authorization Requirement:** Operators must explicitly designate a valid HTTPS target that they own or are authorized to query.
+Fetch runs without root, uses SOCKS5 remote DNS, verifies the certificate chain and hostname, and requires TLS 1.2 or newer. It has bounded timeouts and an **8 MiB** response limit. Redirects are not followed, existing output files are not overwritten, and a failed Tor connection does not fall back to a direct request.
 
-> [!CAUTION]
-> **Traffic Correlation Notice:** Background cover requests introduce synthetic HTTP activity, but do not provide formal mathematical or cryptographic resistance against advanced global statistical traffic correlation (e.g., netflow timing analysis performed by autonomous system adversaries observing both ingress and egress Tor relays).
+### JA3 / JA4: the scope
+
+JA3 and JA4 describe connection fingerprints. A browser TLS profile does not reproduce browser JavaScript, cookies, user behavior or every network characteristic. Wraith does not promise an exact JA3/JA4 match or non-detection.
+
+Other applications keep their TLS fingerprints when using CONNECT. Wraith does not install a root certificate or perform HTTPS MITM.
+
+### HTTP relay
+
+The local relay listens on **127.0.0.1:9055** and forwards through Tor SOCKS. It supports CONNECT, absolute HTTP URLs, explicit destination ports, IPv6 authority parsing, fragmented headers and binary bodies. CONNECT preserves coalesced first TLS bytes and stream half-close.
+
+Normalization applies to the **initial cleartext HTTP request**. Tool/non-browser User-Agents are normalized. `Forwarded`, `X-Forwarded-For`, `X-Real-IP`, `Via`, `Client-IP`, `True-Client-IP`, `X-Client-IP` and `X-Originating-IP` are removed case-insensitively, along with `Proxy-Authorization` and `Proxy-Connection`. Origin authorization, cookies and binary body bytes are preserved.
+
+Later requests on a persistent stream are relayed without reparsing; this is not a complete HTTP traffic anonymizer. CONNECT preserves application TLS. The relay allows at most 128 client tasks, bounds setup writes to 10 seconds and releases established relays after 120 seconds without transferred data.
+
+### Developer integration
+
+Supported callers can invoke `wraith fetch`, or use the public `wraith_tor::BrowserTlsClient` API for bounded HTTPS GET requests. The DNS relay uses the same client for DNS-message POST requests.
+
+**Next:** [DNS and routing →](DNS-and-Routing.md)

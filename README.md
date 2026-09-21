@@ -671,7 +671,7 @@ Keep the foreground process running. Ctrl+C requests cleanup. NEWNYM does not mi
 
 The source contains **1,338 signature entries** spanning HTTP clients and security tools. Matching text does not prove every named tool is proxied or indistinguishable from a browser.
 
-The HTTP relay on port 9055 intercepts all cleartext HTTP traffic (redirected by iptables NAT) and performs real wire-level User-Agent sanitization against the full 1,338+ signature catalog before forwarding through Tor SOCKS. HTTPS CONNECT tunnels preserve the application's original TLS stream. The `AF_PACKET` packet monitor inspects copies for detection and alerting; wire sanitization is handled exclusively by the L7 proxy.
+The HTTP relay on port 9055 handles redirected port-80 traffic and performs initial-request User-Agent sanitization against the 1,338+ signature catalog before forwarding through Tor SOCKS. It removes `Forwarded`, `X-Forwarded-For`, `X-Real-IP`, `Via`, `Client-IP`, `True-Client-IP`, `X-Client-IP`, `X-Originating-IP` and proxy-only authentication/connection headers. Origin authorization, cookies and binary bodies are preserved. Later requests on a persistent stream are not reparsed. HTTPS CONNECT tunnels preserve the application's original TLS stream. The `AF_PACKET` packet monitor inspects copies for detection and alerting; wire sanitization is handled by the L7 proxy.
 
 ```text
 Cleartext HTTP → HTTP relay :9055 → Tor SOCKS :9050 → destination
@@ -885,7 +885,9 @@ sudo wraith exec -- curl https://example.com
 
 `exec` enters the existing protected namespace and runs the application as the invoking sudo user. Existing applications are not moved into it. TCP normalization applies to the namespace stack; it does not rewrite the host Tor daemon's connections or Tor exit-node TCP fingerprints. ClientHello profiles apply to Wraith TLS clients; tunneling an application's encrypted TLS bytes does not change its fingerprint. Diagnostics distinguish reference profiles from measurements and do not certify unobserved p0f or cross-layer coherence.
 
-Strict TCP profile setup requires an original-value backup for every requested sysctl and reads each value back after writing it. Missing settings, mismatched readbacks and absent or ambiguous default routes stop setup; rollback failures are surfaced. These checks verify configuration, not an exact operating-system fingerprint or TCP option order.
+Strict TCP profile setup requires an original-value backup for every requested sysctl and reads each value back after writing it. Missing settings, mismatched readbacks and absent or ambiguous default routes stop setup; rollback failures are surfaced. Original `initcwnd` and `initrwnd` route metrics are restored and read back even when the namespace stays alive; a changed route identity is rejected. These checks verify configuration, not an exact operating-system fingerprint or TCP option order.
+
+New Linux session records bind the worker to its boot ID, process start ticks and executable device/inode. Shutdown verifies that identity and signals through a pidfd, avoiding name-based matching and recycled-PID signaling. A live legacy record without identity is not automatically signaled: stop its original worker, retain the journal and retry recovery. See the [L4/L7 guide](https://github.com/ByGh00st/wraith/wiki/L4-and-L7).
 
 Honeypot startup must reserve every configured port before adding LAN firewall exceptions. LAN mode requires a private address on the selected interface; connections have a shared limit and a deadline. A port already used by a real service aborts startup.
 
@@ -906,12 +908,14 @@ The updater validates the origin and `main` branch, rejects uncommitted changes 
 
 Source synchronization and binary installation are separate steps. `build.sh` uses an isolated build directory and installs only after a successful locked build. Run it through `sudo` from the account that owns your Rust toolchain. Direct root builds are rejected. GitHub HTTPS and repository access controls are the source-update trust boundary.
 
+Clones predating a repository history rewrite may fail the fast-forward check. Preserve local work and clone into a new directory; the updater will not reset your existing checkout.
+
 The core library contains Minisign manifest verification, but the CLI does **not** currently install signed offline artifacts. Supplying `--artifact`, `--manifest` or `--signature` returns an explicit error rather than falling through to a source update.
 
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Latest checks: **156 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
+Checks recorded **2026-09-21**: **163 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
 
 ```bash
 cargo test --workspace --locked
@@ -971,7 +975,7 @@ This responsible-use notice is not intended to add restrictions to the rights gr
 
 | Report securely | Contribute | Get support | Understand scope | Deep Technical Wiki |
 | :--- | :--- | :--- | :--- | :--- |
-| [Security policy](SECURITY.md) | [Contribution guide](CONTRIBUTING.md) | [Support guide](SUPPORT.md) | [Threat model](docs/THREAT_MODEL.md) | [Wiki Documentation](docs/wiki/Home.md) |
+| [Security policy](SECURITY.md) | [Contribution guide](CONTRIBUTING.md) | [Support guide](SUPPORT.md) | [Threat model](docs/THREAT_MODEL.md) | [GitHub Wiki](https://github.com/ByGh00st/wraith/wiki) · [Repository copy](docs/wiki/Home.md) |
 
 Bug and feature forms are available in [Issues](https://github.com/ByGh00st/wraith/issues/new/choose). Sensitive vulnerabilities use the private channel described in the security policy. Collaboration follows the [community code of conduct](CODE_OF_CONDUCT.md).
 

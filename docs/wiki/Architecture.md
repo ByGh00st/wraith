@@ -1,110 +1,54 @@
-# ARCHITECTURE & SUBSYSTEM INTERNALS
+# Architecture
 
-Technical design documentation detailing the 6-crate modular workspace, Linux netfilter packet traversal, unforgeable process lifecycle supervision, and RFC-compliant leak auditing engines.
+> **07 / UNDERSTAND** · Components, responsibilities and deployment scope.
 
----
-
-## 1. Modular Workspace Architecture
-
-Wraith is organized as a multi-crate Cargo workspace enforcing strict separation of concerns, compile-time safety boundaries, and minimal inter-crate coupling:
-
-```
-crates/
-├── wraith-core/       # Foundational primitives, state persistence, ChaCha20-Poly1305 vault, config
-├── wraith-net/        # Netfilter rules, Netlink interface management, IPv6 drop, traffic shaping
-├── wraith-guard/      # Hickory DNSSEC DoH engine, RFC 5389 STUN auditor, killswitch watchdog
-├── wraith-tor/        # Tor daemon supervisor, ControlPort client, BoringSSL TLS client, HTTP relay
-├── wraith-forensic/   # DoD 5220.22-M shredder, memory zeroization, process scheduler masquerading
-└── wraith-cli/        # Terminal user interface, command dispatcher, diagnostics, 17-language i18n
+```mermaid
+flowchart LR
+    A[Linux applications] --> B[Netfilter / optional namespace]
+    B --> C[Tor transparent TCP :9040]
+    A --> D[HTTP / CONNECT relay :9055]
+    A --> E[Wraith HTTPS client]
+    B --> F[DNSSEC relay :5354]
+    D --> G[Tor SOCKS :9050]
+    E --> G
+    F --> G
+    C --> H[Tor network]
+    G --> H
 ```
 
-### Component Responsibility Breakdown:
+## Six crates, separate responsibilities
 
-| Crate | Primary System Responsibilities |
+| Crate | Responsibility |
 | :--- | :--- |
-| **`wraith-core`** | Manages `/var/run/wraith.pid` lockfiles, configuration defaults (`DPI_HTTP_PORT = 9055`), system configuration snapshots (resolv.conf, sysctl), and secure memory allocations utilizing `ZeroizeOnDrop` and `mlockall`. |
-| **`wraith-net`** | Manages netfilter/iptables rulesets via atomic transaction pipelines. Enforces IPv6 `filter` drop policies while gracefully handling minimal environments lacking `ip6table_nat`. Controls hardware MAC randomization via AF_NETLINK. |
-| **`wraith-guard`** | Operates a local DNS relay on `127.0.0.1:5354` implementing RFC 8484 (DNS-over-HTTPS) with built-in DNSSEC root trust anchors. Executes dual-stack WebRTC STUN leak probes. Supervises Tor health via bounded killswitch loop. |
-| **`wraith-tor`** | Superintends an isolated Tor daemon process running under a dedicated system user (`debian-tor`). Exposes an authenticated ControlPort client (`127.0.0.1:9051`) and an in-flight cleartext HTTP relay (`127.0.0.1:9055`). Hosts the BoringSSL client. |
-| **`wraith-forensic`** | Implements DoD 5220.22-M 7-pass file shredding, kernel pagecache flushing (`drop_caches`), process memory dump denial (`PR_SET_DUMPABLE=0`), and process scheduler name modification (`PR_SET_NAME`). |
-| **`wraith-cli`** | Implements the user-facing command-line interface, ANSI HUD display tables, system health diagnostics (`wraith doctor`), and the 17-language localized string catalog. |
+| `wraith-core` | State, snapshots, configuration and cryptographic utilities |
+| `wraith-net` | Network policy, interfaces, namespaces and optional shaping |
+| `wraith-tor` | Tor transport, HTTP CONNECT and the verified browser TLS client |
+| `wraith-guard` | DNS, DNSSEC, watchdog, observations and optional cover requests |
+| `wraith-forensic` | Managed browser/host controls and explicit cleanup utilities |
+| `wraith-cli` | Session orchestration, commands and terminal presentation |
 
----
+## Choose by deployment scope
 
-## 2. Netfilter Packet Traversal & Policy Enforcement
+| Approach | Projects | Typical workflow |
+| :--- | :--- | :--- |
+| Existing-host privacy sessions | Wraith, AnonSurf, TorGhost | Configure routing on the current Linux environment |
+| Selected-application proxying | Proxychains-NG | Start compatible programs through configured proxies |
+| Separate privacy operating system | Tails | Boot a dedicated environment |
 
-When a session is initialized, Wraith configures transactional iptables rules across the `nat` and `filter` tables:
+See the [source-backed comparison](https://github.com/ByGh00st/wraith#privacy-matrix) for differences and practical boundaries. This is an architecture comparison, not an anonymity ranking or performance benchmark.
 
-```
-[OUTBOUND PACKET FROM LOCAL APPLICATION]
-                    │
-                    ▼
-     Is Destination Loopback or Tor UID?
-                    │
-           ┌────────┴────────┐
-          YES                NO
-           │                 │
-           ▼                 ▼
-     [ALLOW LOCAL]    Is Port 53 (DNS)?
-                             │
-                    ┌────────┴────────┐
-                   YES                NO
-                    │                 │
-                    ▼                 ▼
-          REDIRECT to Port 5354   Is Port 80 (Cleartext HTTP)?
-          (Local Tor DoH Relay)       │
-                                     ┌┴┐
-                                   YES  NO
-                                    │    │
-                                    ▼    ▼
-                       REDIRECT to 9055   REDIRECT to 9040
-                       (DPI Relay)        (Tor TransPort)
-```
+## Reading the security boundaries
 
-### Table & Chain Specifications:
+Netfilter and namespaces enforce routing policy; packet observations do not rewrite arbitrary encrypted payloads. Tor exit addresses can be blocked by destinations. Changing a TLS profile does not guarantee browser indistinguishability, and memory controls do not isolate from a compromised kernel.
 
-1. **Tor UID Exemption (`nat` OUTPUT):** Outbound traffic generated by the dedicated Tor user (UID `debian-tor` / `tor`) or targeted to localhost (`127.0.0.1`) bypasses redirection to avoid infinite routing loops.
-2. **DNS Interception (`nat` OUTPUT):** All UDP and TCP traffic targeted to port 53 is redirected to local port `5354` (`127.0.0.1:5354`), where the Hickory DoH resolver performs DNSSEC chain-of-trust validation before routing through Tor.
-3. **HTTP Cleartext Wire Redirection (`nat` OUTPUT):** Port 80 SYN packets are redirected to local port `9055`, where the in-flight proxy strips identifying tool headers and normalizes User-Agent strings.
-4. **General TCP Redirection (`nat` OUTPUT):** All other outbound TCP SYN packets are redirected to local port `9040` (Tor `TransPort`).
-5. **Fail-Closed Default Policy (`filter` OUTPUT):** Default policy on the `OUTPUT` chain is set to `DROP`. Only explicitly redirected packets, established connections, and local loopback traffic are permitted to traverse the interface.
+## Session identity and managed Tor
 
----
+The recovery journal is `/var/run/wraith.state`. New Linux session records bind ownership to boot ID, process start ticks and executable device/inode. Shutdown opens a pidfd, verifies the recorded identity and sends SIGTERM through that descriptor. Renaming a process does not establish ownership, and PID reuse does not select the replacement process for signaling.
 
-## 3. Process Lifecycle & Inode Supervision
+A live legacy record without this identity is refused for automatic signaling. Stop its original worker before retrying recovery; keep the journal. The Linux runtime needs pidfd support.
 
-To prevent monitoring utilities from easily identifying the session process, Wraith supports scheduler name masking via the Linux kernel `prctl` interface:
+Wraith uses `/etc/tor/wraithrc`, `/var/lib/wraith/tor` and `/run/wraith-tor/control.authcookie`. Supported active system Tor services are recorded, temporarily stopped and restored during cleanup. Their boot enablement is preserved. Egress restrictions are armed before Tor bootstrap.
 
-```c
-prctl(PR_SET_NAME, "[kworker/u16:0]");
-```
+TCP rollback includes saved sysctl values, the MSS rule and original initial-window route metrics. Metrics are restored and read back even if the namespace remains alive; a changed route identity is rejected. Session namespace teardown still removes its owned resources.
 
-This modifies `/proc/self/comm`, causing the process to appear as an unassigned kernel worker thread in standard process listings (`ps`, `top`).
-
-### Canonical Binary Inode Verification:
-Modifying `/proc/self/comm` can disrupt naive process supervisors that search by command name. To maintain state integrity, `StateManager::is_running()` in `wraith-core` applies an unforgeable three-tier validation sequence:
-
-1. **Process Existence & Permission:** Executes `libc::kill(pid, 0)` to verify that the recorded PID is currently active and within the calling user's permission domain.
-2. **Canonical Binary Inode Match:** Resolves the kernel-maintained symlink `/proc/{pid}/exe` via `std::fs::read_link`. Because `/proc/{pid}/exe` is managed directly by the Linux virtual file system (VFS) and cannot be forged or redirected by userspace `prctl` calls, verifying its canonical path against the installed binary path (`/usr/local/bin/wraith`) guarantees process identity.
-3. **Scheduler Comm Tolerance:** Validates that `/proc/{pid}/comm` matches either the standard executable name (`wraith`) or the recognized masquerade prefix (`[kworker`).
-
----
-
-## 4. RFC 5389 WebRTC STUN Leak Detection Engine
-
-Modern web browsers can inadvertently bypass transparent proxies by emitting direct UDP Session Traversal Utilities for NAT (STUN) packets to discover public network candidates for WebRTC peer connections.
-
-Wraith implements an automated, RFC 5389-compliant audit probe within `wraith-guard::leak`:
-
-```
-+-------------------------------------------------------------+
-|              RFC 5389 STUN MESSAGE HEADER (20 BYTES)         |
-|  0x0001 (Binding Request)  │ 0x0000 (Message Length: 0)     |
-|  0x2112A442 (Magic Cookie) │ 12-Byte Unique Transaction ID  |
-+-------------------------------------------------------------+
-```
-
-### Audit Protocol:
-- **Header Structure:** Generates a 20-byte STUN Binding Request consisting of Message Type `0x0001`, standard Magic Cookie `0x2112A442`, and a 12-byte cryptographically secure pseudorandom transaction ID.
-- **Dual-Stack Transport:** Dispatches test datagrams across well-known STUN infrastructure ports (`19302`, `3478`) utilizing non-blocking UDP (`tokio::net::UdpSocket`) with graceful TCP stream fallback (`tokio::net::TcpStream`).
-- **Detection Criteria:** If any outbound STUN binding response is successfully received from an external server, the engine detects that raw UDP egress has escaped the proxy boundary and issues an immediate critical telemetry alert.
+**Next:** [Development and project information →](Development.md)
