@@ -1226,7 +1226,9 @@ pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
         return Ok(());
     }
 
-    wraith_forensic::dod_7pass_shred(path)?;
+    let passes = u8::try_from(passes).ok().filter(|n| *n > 0)
+        .ok_or_else(|| WraithError::Configuration("Overwrite passes must be 1..=255".into()))?;
+    wraith_forensic::shred::secure_delete_file(path, passes)?;
     print_success(&format!(
         "{}",
         t!("daemon_cli.shred_success", target = target)

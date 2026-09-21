@@ -4,10 +4,8 @@
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
-use std::time::Duration;
-use tracing::{debug, info};
-use wraith_core::error::Result;
+use tracing::info;
+use wraith_core::error::{Result, WraithError};
 
 pub fn clear_memory_caches() -> Result<()> {
     // 1. Flush dirty pages to sync memory state
@@ -33,77 +31,60 @@ pub fn clear_memory_caches() -> Result<()> {
 }
 
 pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
-    if let Ok(output) = Command::new("swapon").args(["--show=NAME,SIZE,USED", "--noheadings", "--bytes"]).output() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if !parts.is_empty() {
-                let device = parts[0].to_string();
-                let size_mb = parts.get(1)
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .map(|b| (b / (1024 * 1024)).max(1))
-                    .unwrap_or(100);
-                let used_bytes = parts.get(2)
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .unwrap_or(0);
-                let used_mb = (used_bytes / (1024 * 1024)).max(1);
-
-                info!("Securing and wiping swap space: {device} (size: {size_mb}MB, used: {used_bytes}B, emergency: {is_emergency})");
-
-                let wipe_fn = move || {
-                    let _ = Command::new("swapoff")
-                        .arg(&device)
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status();
-
-                    // 1. Attempt hardware TRIM / blkdiscard if block device
-                    let discard_success = Command::new("blkdiscard")
-                        .arg(&device)
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status()
-                        .map(|s| s.success())
-                        .unwrap_or(false);
-
-                    // 2. Fast Zero-fill only if used or non-SSD
-                    if !discard_success && used_bytes > 0 {
-                        let wipe_count = if is_emergency { used_mb.min(256) } else { size_mb };
-                        let _ = Command::new("dd")
-                            .args(["if=/dev/zero", &format!("of={device}"), "bs=1M", &format!("count={wipe_count}"), "status=none"])
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .status();
-                    }
-
-                    let _ = Command::new("mkswap")
-                        .arg(&device)
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status();
-                    let _ = Command::new("swapon")
-                        .arg(&device)
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status();
-                };
-
-                if is_emergency {
-                    let (tx, rx) = mpsc::channel();
-                    std::thread::spawn(move || {
-                        wipe_fn();
-                        let _ = tx.send(());
-                    });
-
-                    if rx.recv_timeout(Duration::from_secs(5)).is_err() {
-                        debug!("Swap wipe timeout exceeded (5s emergency limit) — continuing emergency exit");
-                    }
-                } else {
-                    wipe_fn();
-                }
-            }
+    if is_emergency {
+        return Err(WraithError::Forensic("Swap wiping is not safe during emergency shutdown; use explicit full cleanup".into()));
+    }
+    let output = Command::new("swapon")
+        .args(["--show=NAME,SIZE,USED,PRIO", "--noheadings", "--bytes", "--raw"]).output()?;
+    if !output.status.success() {
+        return Err(WraithError::Forensic("Cannot enumerate active swap".into()));
+    }
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let fields: Vec<_> = line.split_whitespace().collect();
+        if fields.len() != 4 || !fields[0].starts_with('/') || fields[0].contains('\\') {
+            return Err(WraithError::Forensic("Unsupported swap path; no destructive operation attempted".into()));
+        }
+        let device = fields[0];
+        let size = fields[1].parse::<u64>().map_err(|e| WraithError::Forensic(e.to_string()))?;
+        let uuid = Command::new("blkid").args(["-s", "UUID", "-o", "value", "--", device]).output()?;
+        if !uuid.status.success() { return Err(WraithError::Forensic("Cannot read swap UUID".into())); }
+        let priority = fields[3].parse::<i32>().map_err(|e| WraithError::Forensic(e.to_string()))?;
+        let uuid = String::from_utf8(uuid.stdout).map_err(|e| WraithError::Forensic(e.to_string()))?;
+        let uuid = uuid.trim();
+        if uuid.is_empty() || !uuid.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
+            return Err(WraithError::Forensic(format!("Cannot preserve swap UUID for {device}")));
+        }
+        checked_swap_command("swapoff", &["--", device])?;
+        let active = fs::read_to_string("/proc/swaps")?;
+        if active.lines().skip(1).any(|line| line.split_whitespace().next() == Some(device)) {
+            return Err(WraithError::Forensic(format!("{device} is still active; refusing swap wipe")));
+        }
+        // Wipe synchronously: no detached worker may continue writing after exit.
+        // swapon SIZE excludes the swap header page. Include that page while
+        // preserving the existing file length with conv=notrunc.
+        #[cfg(unix)]
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        #[cfg(not(unix))]
+        let page_size = 4096i64;
+        if page_size <= 0 { return Err(WraithError::Forensic("Cannot determine swap page size".into())); }
+        let bytes = size.checked_add(page_size as u64).ok_or_else(|| WraithError::Forensic("Invalid swap size".into()))?;
+        checked_swap_command("dd", &["if=/dev/zero", &format!("of={device}"), "bs=1M",
+            &format!("count={bytes}"), "iflag=count_bytes", "oflag=nofollow", "conv=notrunc,fsync", "status=none"])?;
+        checked_swap_command("mkswap", &["-U", uuid, "--", device])?;
+        if priority >= 0 {
+            checked_swap_command("swapon", &["--priority", fields[3], "--", device])?;
+        } else {
+            checked_swap_command("swapon", &["--", device])?;
         }
     }
-    info!("Swap spaces dynamically scrubbed and reinitialized");
+    info!("Inactive swap areas overwritten and reactivated; physical erasure depends on storage");
+    Ok(())
+}
+
+fn checked_swap_command(program: &str, args: &[&str]) -> Result<()> {
+    let status = Command::new(program).args(args).stdout(Stdio::null()).stderr(Stdio::null()).status()?;
+    if !status.success() {
+        return Err(WraithError::Forensic(format!("{program} failed; swap cleanup stopped, inspect swap status before retrying")));
+    }
     Ok(())
 }

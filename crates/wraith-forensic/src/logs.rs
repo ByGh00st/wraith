@@ -134,7 +134,7 @@ pub fn run_full_cleanup(thorough: bool, is_emergency: bool) -> Result<usize> {
             total_ops += count;
         }
         let _ = crate::memory::clear_memory_caches();
-        let _ = crate::memory::overwrite_swap(is_emergency);
+        crate::memory::overwrite_swap(is_emergency)?;
         total_ops += 2;
     }
 

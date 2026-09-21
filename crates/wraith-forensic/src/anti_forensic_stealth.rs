@@ -2,11 +2,10 @@
 //! Implements DoD 5220.22-M (7-pass) / Gutmann (35-pass) sanitization,
 //! Linux process masquerading ([kworker/u16:2]), and utmp/wtmp/journal log scrubbing.
 
-use rand::RngCore;
 #[cfg(unix)]
 use std::ffi::CString;
 use std::fs::{self, OpenOptions};
-use std::io::{Seek, SeekFrom, Write};
+use std::io::Write;
 use std::path::Path;
 use tracing::info;
 use wraith_core::error::Result;
@@ -40,101 +39,9 @@ pub const SHELL_HISTORY_PATTERNS: &[&str] = &[
     ".sqlite_history",
 ];
 
-fn open_no_follow_write(path: &Path) -> std::io::Result<fs::File> {
-    let mut options = OpenOptions::new();
-    options.write(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW);
-    }
-    options.open(path)
-}
-
-/// DoD 5220.22-M 7-Pass Cryptographic Shredder
+/// Overwrites through a pinned file descriptor; storage-level erasure is not guaranteed.
 pub fn dod_7pass_shred(file_path: &Path) -> Result<()> {
-    // CRITICAL: Symlink defense — never follow symlinks into target files
-    let sym_meta = match fs::symlink_metadata(file_path) {
-        Ok(m) => m,
-        Err(_) => return Ok(()),
-    };
-
-    if sym_meta.file_type().is_symlink() {
-        tracing::warn!(
-            "Refusing to shred symlink target {:?} — removing link only",
-            file_path
-        );
-        let _ = fs::remove_file(file_path);
-        return Ok(());
-    }
-
-    let size = sym_meta.len();
-    if size == 0 {
-        let _ = fs::remove_file(file_path);
-        return Ok(());
-    }
-
-    let is_ssd = !crate::shred::is_rotational_device(file_path);
-    if is_ssd {
-        let discard_success = std::process::Command::new("fallocate")
-            .args(["-p", "-n", "-o", "0", "-l", &size.to_string(), file_path.to_string_lossy().as_ref()])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-
-        if !discard_success {
-            let mut file = open_no_follow_write(file_path)?;
-            let rand_buf = vec![0u8; 4096];
-            let mut written = 0u64;
-            while written < size {
-                let to_write = (size - written).min(4096) as usize;
-                file.write_all(&rand_buf[..to_write])?;
-                written += to_write as u64;
-            }
-            file.sync_all()?;
-            tracing::warn!("SSD detected on {file_path:?}: fallocate punch-hole failed, fell back to single pass zero-fill. Note: In-place overwriting on SSD is not perfectly secure due to wear-leveling.");
-        } else {
-            tracing::info!("SSD detected: Successfully applied fallocate punch-hole (TRIM) on {file_path:?}");
-        }
-
-        let _ = fs::remove_file(file_path);
-        return Ok(());
-    }
-
-    let mut file = open_no_follow_write(file_path)?;
-    let mut rng = rand::thread_rng();
-
-    let passes: [u8; 5] = [0x00, 0xFF, 0x96, 0x69, 0xAA];
-
-    for &pattern in &passes {
-        file.seek(SeekFrom::Start(0))?;
-        let buf = vec![pattern; 4096];
-        let mut written = 0u64;
-        while written < size {
-            let to_write = (size - written).min(4096) as usize;
-            file.write_all(&buf[..to_write])?;
-            written += to_write as u64;
-        }
-        file.sync_all()?;
-    }
-
-    // Random passes
-    for _ in 0..2 {
-        file.seek(SeekFrom::Start(0))?;
-        let mut rand_buf = vec![0u8; 4096];
-        let mut written = 0u64;
-        while written < size {
-            let to_write = (size - written).min(4096) as usize;
-            rng.fill_bytes(&mut rand_buf);
-            file.write_all(&rand_buf[..to_write])?;
-            written += to_write as u64;
-        }
-        file.sync_all()?;
-    }
-
-    drop(file);
-    let _ = fs::remove_file(file_path);
-    Ok(())
+    crate::shred::secure_delete_file(file_path, 7)
 }
 
 /// Masquerades the current running process name in Linux `ps`, `top`, and `/proc/self/comm`

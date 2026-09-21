@@ -5,9 +5,8 @@ use rand::RngCore;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use tracing::{debug, warn, info};
+use tracing::debug;
 use wraith_core::error::Result;
-use zeroize::Zeroize;
 
 pub fn is_rotational_device(path: &Path) -> bool {
     if let Ok(out) = std::process::Command::new("df").arg("-P").arg(path).output() {
@@ -37,81 +36,118 @@ fn open_no_follow_write(path: &Path) -> std::io::Result<fs::File> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW);
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
     options.open(path)
 }
 
 pub fn secure_delete_file(path: &Path, passes: u8) -> Result<()> {
-    // CRITICAL: Symlink defense — never follow symlinks into target files
-    let sym_meta = match fs::symlink_metadata(path) {
-        Ok(m) => m,
-        Err(_) => return Ok(()),
+    use wraith_core::error::WraithError;
+    use std::io::{Seek, SeekFrom};
+    if passes == 0 { return Err(WraithError::Forensic("Overwrite pass count must be nonzero".into())); }
+    #[cfg(target_os = "linux")]
+    let (_directory, anchored) = pin_parent(path)?;
+    #[cfg(target_os = "linux")]
+    let path = anchored.as_path();
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e.into()),
     };
-
-    if sym_meta.file_type().is_symlink() {
-        warn!("Refusing to shred symlink target {:?} — removing link only", path);
-        let _ = fs::remove_file(path);
+    if metadata.file_type().is_symlink() {
+        fs::remove_file(path)?;
         return Ok(());
     }
-
-    let size = sym_meta.len() as usize;
-    if size > 0 {
-        let is_ssd = !is_rotational_device(path);
-        
-        if is_ssd {
-            let discard_success = std::process::Command::new("fallocate")
-                .args(["-p", "-n", "-o", "0", "-l", &size.to_string(), path.to_string_lossy().as_ref()])
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
-
-            if !discard_success {
-                let mut file = open_no_follow_write(path)?;
-                let buffer = vec![0u8; size.min(1024 * 1024)];
-                let mut written = 0;
-                while written < size {
-                    let to_write = (size - written).min(buffer.len());
-                    file.write_all(&buffer[..to_write])?;
-                    written += to_write;
-                }
-                file.sync_all()?;
-                warn!("SSD detected on {path:?}: fallocate punch-hole failed, fell back to single pass zero-fill. Note: In-place overwriting on SSD is not perfectly secure due to wear-leveling.");
-            } else {
-                info!("SSD detected: Successfully applied fallocate punch-hole (TRIM) on {path:?}");
-            }
-        } else {
-            let mut rng = rand::thread_rng();
-            let mut buffer = vec![0u8; size.min(1024 * 1024)]; // 1MB chunk
-
-            for _ in 0..passes {
-                let mut file = open_no_follow_write(path)?;
-                let mut written = 0;
-                while written < size {
-                    let to_write = (size - written).min(buffer.len());
-                    rng.fill_bytes(&mut buffer[..to_write]);
-                    file.write_all(&buffer[..to_write])?;
-                    written += to_write;
-                }
-                file.sync_all()?;
-            }
-
-            buffer.zeroize();
+    if !metadata.is_file() { return Err(WraithError::Forensic("Only regular files can be overwritten".into())); }
+    // All writes use this one no-follow descriptor, including on SSDs. Never
+    // pass a previously checked pathname to fallocate or another writer.
+    let mut file = open_no_follow_write(path)?;
+    let opened = file.metadata()?;
+    if !opened.is_file() { return Err(WraithError::Forensic("Target changed to a non-regular file".into())); }
+    #[cfg(unix)] {
+        use std::os::unix::fs::MetadataExt;
+        if opened.nlink() != 1 || opened.ino() != metadata.ino() || opened.dev() != metadata.dev() {
+            return Err(WraithError::Forensic("Target changed or has additional hard links".into()));
         }
     }
-
+    let size = opened.len();
+    let mut buffer = zeroize::Zeroizing::new(vec![0u8; 1024 * 1024]);
+    let mut rng = rand::thread_rng();
+    for _ in 0..passes {
+        file.seek(SeekFrom::Start(0))?;
+        let mut remaining = size;
+        while remaining > 0 {
+            let count = remaining.min(buffer.len() as u64) as usize;
+            rng.fill_bytes(&mut buffer[..count]);
+            file.write_all(&buffer[..count])?;
+            remaining -= count as u64;
+        }
+        file.sync_all()?;
+    }
+    #[cfg(unix)] {
+        use std::os::unix::fs::MetadataExt;
+        let current = fs::symlink_metadata(path)?;
+        if current.ino() != opened.ino() || current.dev() != opened.dev() {
+            return Err(WraithError::Forensic("Target name changed during overwrite; refusing unlink".into()));
+        }
+    }
     fs::remove_file(path)?;
-
-    // Force filesystem sync to mitigate cached write-back on journaling filesystems
-    let _ = std::process::Command::new("sync").status();
-
-    debug!("Cryptographically purged: {}", path.display());
+    debug!("Overwritten and unlinked: {} (storage snapshots and SSD remapping are outside this guarantee)", path.display());
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn pin_parent(path: &Path) -> Result<(fs::File, std::path::PathBuf)> {
+    use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+    use std::path::{Component, PathBuf};
+    use wraith_core::error::WraithError;
+    let absolute = if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir()?.join(path) };
+    let parent = absolute.parent().ok_or_else(|| WraithError::Forensic("Missing parent".into()))?;
+    let mut directory = fs::File::open("/")?;
+    for component in parent.components() {
+        match component {
+            Component::RootDir | Component::CurDir => {},
+            Component::Normal(name) => {
+                let next = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd())).join(name);
+                directory = OpenOptions::new().read(true).custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW).open(next)?;
+            }
+            _ => return Err(WraithError::Forensic("Invalid parent component".into())),
+        }
+    }
+    let name = absolute.file_name().ok_or_else(|| WraithError::Forensic("Missing filename".into()))?;
+    let anchored = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd())).join(name);
+    Ok((directory, anchored))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn zero_passes_cannot_delete_data() {
+        let dir = tempfile::tempdir().unwrap(); let path = dir.path().join("data");
+        fs::write(&path, b"keep").unwrap();
+        assert!(secure_delete_file(&path, 0).is_err());
+        assert_eq!(fs::read(path).unwrap(), b"keep");
+    }
+    #[cfg(unix)]
+    #[test]
+    fn additional_hardlink_prevents_overwrite() {
+        let dir = tempfile::tempdir().unwrap(); let path = dir.path().join("data");
+        fs::write(&path, b"keep").unwrap();
+        fs::hard_link(&path, dir.path().join("alias")).unwrap();
+        assert!(secure_delete_file(&path, 1).is_err());
+        assert_eq!(fs::read(path).unwrap(), b"keep");
+    }
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn symlinked_parent_prevents_overwrite() {
+        let dir = tempfile::tempdir().unwrap(); let target = dir.path().join("real");
+        fs::create_dir(&target).unwrap(); fs::write(target.join("data"), b"keep").unwrap();
+        std::os::unix::fs::symlink(&target, dir.path().join("alias")).unwrap();
+        assert!(secure_delete_file(&dir.path().join("alias/data"), 1).is_err());
+        assert_eq!(fs::read(target.join("data")).unwrap(), b"keep");
+    }
+
 
     #[test]
     fn test_secure_delete_file_basic() {
