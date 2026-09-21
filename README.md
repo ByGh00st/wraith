@@ -658,7 +658,7 @@ sudo wraith -u
 
 WireGuard mode accepts a single peer with an IPv4 CIDR address, a numeric IPv4 endpoint and `AllowedIPs = 0.0.0.0/0`. Preshared keys, keepalive, listen port and MTU are supported. Wraith manages DNS through its own relay and rejects shell hooks/custom routing tables. Existing interfaces and occupied routing resources are never replaced. The tunnel policy is installed before Tor bootstraps; a failed setup restores the session snapshots.
 
-Wraith keeps its Tor data separate from the system Tor instance. Active system Tor services are recorded, temporarily stopped and restored on cleanup; their boot enablement is preserved. Process shutdown uses exact configuration matching and Linux pidfds. The HTTP/SOCKS relay releases connections after 120 seconds without transferred data. Cache cleanup preserves active conntrack translations so existing proxied connections can continue.
+Wraith keeps its Tor data separate from the system Tor instance. Active system Tor services are recorded, temporarily stopped and restored on cleanup; their boot enablement is preserved. Process shutdown uses exact configuration matching and Linux pidfds. The HTTP/SOCKS relay releases connections after 120 seconds without transferred data. Initial HTTP responses and buffered request writes have a separate 10-second deadline, including CONNECT tunnel setup. Cache cleanup preserves active conntrack translations so existing proxied connections can continue.
 
 Keep the foreground process running. Ctrl+C requests cleanup. NEWNYM does not migrate existing streams. Destructive cleanup/self-destruct options are not necessary for the strict preset.
 
@@ -885,6 +885,8 @@ sudo wraith exec -- curl https://example.com
 
 `exec` enters the existing protected namespace and runs the application as the invoking sudo user. Existing applications are not moved into it. TCP normalization applies to the namespace stack; it does not rewrite the host Tor daemon's connections or Tor exit-node TCP fingerprints. ClientHello profiles apply to Wraith TLS clients; tunneling an application's encrypted TLS bytes does not change its fingerprint. Diagnostics distinguish reference profiles from measurements and do not certify unobserved p0f or cross-layer coherence.
 
+Strict TCP profile setup requires an original-value backup for every requested sysctl and reads each value back after writing it. Missing settings, mismatched readbacks and absent or ambiguous default routes stop setup; rollback failures are surfaced. These checks verify configuration, not an exact operating-system fingerprint or TCP option order.
+
 Honeypot startup must reserve every configured port before adding LAN firewall exceptions. LAN mode requires a private address on the selected interface; connections have a shared limit and a deadline. A port already used by a real service aborts startup.
 
 `wraith stop` restores recorded settings. Missing state never triggers a firewall flush, and failed restoration retains its recovery record for retry. Reset and uninstall use the same restoration path. Sessions leave irreversible kernel lockdown, kexec-disable and ptrace policies under the administrator's control. File overwrites cannot guarantee erasure from SSD remapping, snapshots or backups.
@@ -909,7 +911,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Latest checks: **147 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
+Latest checks: **156 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised.
 
 ```bash
 cargo test --workspace --locked
