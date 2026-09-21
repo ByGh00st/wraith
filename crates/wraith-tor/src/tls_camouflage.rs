@@ -215,8 +215,7 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
     let request = match crate::proxy_request::parse(&req_buf) {
         Ok(request) => request,
         Err(error) => {
-            client
-                .write_all(
+            write_initial(&mut client,
                     b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
                 )
                 .await?;
@@ -231,8 +230,7 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
     {
         Ok(Ok(stream)) => stream,
         _ => {
-            client
-                .write_all(
+            write_initial(&mut client,
                     b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
                 )
                 .await?;
@@ -242,20 +240,30 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
         }
     };
     if request.tunnel {
-        client
-            .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+        write_initial(&mut client, b"HTTP/1.1 200 Connection Established\r\n\r\n")
             .await?;
         // Headers and the first TLS record may arrive in the same read.
-        tor_stream.write_all(&request.payload).await?;
+        write_initial(&mut tor_stream, &request.payload).await?;
     } else {
         let (sanitized, host, was_sanitized) = sanitize_http_request(&request.payload);
         if was_sanitized {
             tracing::info!("DPI Proxy: Sanitized offensive UA in cleartext HTTP to {host}");
         }
-        tor_stream.write_all(&sanitized).await?;
+        write_initial(&mut tor_stream, &sanitized).await?;
     }
     relay_with_idle(&mut client, &mut tor_stream, std::time::Duration::from_secs(120)).await?;
     Ok(())
+}
+
+// The relay's idle timer starts after setup; bound setup writes separately so
+// a peer that stops reading cannot retain one of the connection slots forever.
+async fn write_initial<W: tokio::io::AsyncWrite + Unpin>(writer: &mut W, bytes: &[u8]) -> std::io::Result<()> {
+    write_with_deadline(writer, bytes, std::time::Duration::from_secs(10)).await
+}
+
+async fn write_with_deadline<W: tokio::io::AsyncWrite + Unpin>(writer: &mut W, bytes: &[u8], deadline: std::time::Duration) -> std::io::Result<()> {
+    tokio::time::timeout(deadline, writer.write_all(bytes)).await
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "Proxy setup write timeout"))?
 }
 
 // Half-closes are preserved, but silent peers cannot occupy every relay slot forever.
@@ -390,6 +398,26 @@ async fn read_socks_reply<R: tokio::io::AsyncRead + Unpin>(reader: &mut R) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn blocked_initial_write_times_out() {
+        let (mut writer, _unread_peer) = tokio::io::duplex(1);
+        let error = write_with_deadline(&mut writer, b"request", std::time::Duration::from_millis(20))
+            .await.unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    }
+
+    #[tokio::test]
+    async fn initial_write_preserves_binary_payload() {
+        let (mut writer, mut reader) = tokio::io::duplex(1);
+        let payload = b"\x00\xff\x16\x03\x03";
+        let (sent, received) = tokio::join!(
+            write_initial(&mut writer, payload),
+            async { let mut bytes = [0u8; 5]; reader.read_exact(&mut bytes).await.unwrap(); bytes }
+        );
+        sent.unwrap();
+        assert_eq!(&received, payload);
+    }
 
     #[tokio::test]
     async fn idle_peers_release_their_relay_slot() {
