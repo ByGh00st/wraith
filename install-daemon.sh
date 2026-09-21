@@ -188,20 +188,17 @@ if [ "$INTERACTIVE" = true ]; then
     # --- STEP 1: Boot Mode & Root Activation ---
     echo -e "  ${CLR_CYAN}◈ [ADIM 1/6]${CLR_RESET} ${CLR_WHITE}${CLR_BOLD}Sistem Başlangıç ve Oturum Kilidi (Boot Mode)${CLR_RESET}"
     echo -e "    ${CLR_SLATE}Sistemin ne zaman ve nasıl devreye gireceğini seçin:${CLR_RESET}"
-    echo -e "    ${CLR_EMERALD}${CLR_BOLD}[1] ERKEN BAŞLANGIÇ (Early-Boot / Pre-Network Defense) [TAVSİYE EDİLEN]${CLR_RESET}"
-    echo -e "        ${CLR_DIM}➥ Root ve kullanıcı oturumu açılmadan ÖNCE, ağ servisleri başlamadan devreye girer.${CLR_DIM}"
-    echo -e "        ${CLR_DIM}➥ Sistem açılışında 1 bayt dahi clearnet (şifresiz) sızıntıyı engeller (Fail-Closed).${CLR_DIM}"
     echo -e "    ${CLR_WHITE}[2] STANDART SERVİS (Standard Multi-User Daemon)${CLR_RESET}"
     echo -e "        ${CLR_DIM}➥ Normal sistem açılışında arka plan servisi olarak çalışır.${CLR_DIM}"
     echo -e "    ${CLR_AMBER}[3] YALNIZCA MANUEL / TALEP ÜZERİNE (On-Demand)${CLR_RESET}"
     echo -e "        ${CLR_DIM}➥ Servis kurulur ancak otomatik başlamaz. 'systemctl start wraith' ile manuel açılır.${CLR_DIM}"
-    echo -ne "    ${CLR_PURPLE}❯ Seçiminiz [1/2/3] (Varsayılan: 1): ${CLR_RESET}"
+    echo -ne "    ${CLR_PURPLE}❯ Seçiminiz [2/3] (Varsayılan: 2): ${CLR_RESET}"
     read -r input_boot
-    case "${input_boot:-1}" in
-        1) OPT_BOOT_MODE="early" ;;
+    case "${input_boot:-2}" in
+        1) OPT_BOOT_MODE="standard" ;;
         2) OPT_BOOT_MODE="standard" ;;
         3) OPT_BOOT_MODE="manual" ;;
-        *) OPT_BOOT_MODE="early" ;;
+        *) OPT_BOOT_MODE="standard" ;;
     esac
     echo -e "      ${CLR_EMERALD}✔ Seçildi:${CLR_RESET} ${CLR_WHITE}${OPT_BOOT_MODE^^}${CLR_RESET}\n"
 
@@ -263,7 +260,7 @@ if [ "$INTERACTIVE" = true ]; then
         2) OPT_DOH="cloudflare" ;;
         3) OPT_DOH="mullvad" ;;
         4) OPT_DOH="adguard" ;;
-        5) OPT_DOH="libredns" ;;
+        5) OPT_DOH="controld" ;;
         6) OPT_DOH="none" ;;
         *) OPT_DOH="quad9" ;;
     esac
@@ -335,7 +332,7 @@ if [ "$OPT_DOH" != "none" ]; then
 fi
 
 if [ "$OPT_BRIDGE" != "none" ]; then
-    DAEMON_ARGS+=("--bridge" "$OPT_BRIDGE")
+    DAEMON_ARGS+=("--bridge" "--bridge-type" "$OPT_BRIDGE")
 fi
 
 [ "$OPT_ANTI_DEBUG" = true ] && DAEMON_ARGS+=("--aggressive-anti-debug")
@@ -348,7 +345,7 @@ if [ "$OPT_ROTATE" -gt 0 ] 2>/dev/null; then
     DAEMON_ARGS+=("--rotate-interval" "$OPT_ROTATE")
 fi
 
-CMD_EXEC_LINE="$WRAITH_BIN start ${DAEMON_ARGS[*]}"
+CMD_EXEC_LINE="$WRAITH_BIN start --daemon-worker ${DAEMON_ARGS[*]}"
 
 # Persist configuration in /etc/wraith/daemon.conf
 mkdir -p /etc/wraith
