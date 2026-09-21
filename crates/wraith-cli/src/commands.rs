@@ -751,7 +751,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                 state_data.tcp_stack_masked = true;
                 state_data.tcp_profile_kind = Some(tcp_profile.name.clone());
                 state_data.tcp_stack_backup = snapshot.values.clone();
-                state_data.tcp_snapshot_json = serde_json::to_string(&snapshot).ok();
+                state_data.tcp_snapshot_json = Some(serde_json::to_string(&snapshot)?);
                 state_mgr.activate(state_data.clone())?;
             }
             Err(e) => return Err(e),
@@ -1147,12 +1147,16 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         // When namespace is purged, netns-specific sysctl, netfilter and FIB are destroyed with it.
         // If running without namespace, rollback from captured snapshot.
         if !state_info.namespace_active {
-            let snapshot = NetnsTcpSnapshot {
-                namespace: wraith_net::namespace::NAMESPACE_NAME.to_string(),
-                values: state_info.tcp_stack_backup.clone(),
-                ..Default::default()
+            let restored = match &state_info.tcp_snapshot_json {
+                Some(json) => serde_json::from_str::<NetnsTcpSnapshot>(json).map_err(WraithError::from)
+                    .and_then(|snapshot| restore_netns_tcp_stack(&snapshot).map_err(Into::into)),
+                None => restore_netns_tcp_stack(&NetnsTcpSnapshot {
+                    namespace: wraith_net::namespace::NAMESPACE_NAME.to_string(),
+                    values: state_info.tcp_stack_backup.clone(),
+                    ..Default::default()
+                }).map_err(Into::into),
             };
-            record_cleanup("TCP stack (3-tier rollback)", restore_netns_tcp_stack(&snapshot).map_err(Into::into), &mut errors);
+            record_cleanup("TCP stack (3-tier rollback)", restored, &mut errors);
         }
     }
     if state_info.namespace_active { record_cleanup("namespace", destroy_namespace(), &mut errors); }

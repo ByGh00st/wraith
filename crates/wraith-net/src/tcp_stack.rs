@@ -148,6 +148,8 @@ pub struct NetnsTcpSnapshot {
     pub netfilter_mss_value: Option<u16>,
     /// Whether FIB route metrics were modified.
     pub had_route_metrics: bool,
+    #[serde(default)]
+    pub original_route_metrics: Option<RouteMetricSnapshot>,
 }
 
 impl NetnsTcpSnapshot {
@@ -159,6 +161,7 @@ impl NetnsTcpSnapshot {
             had_netfilter_mss: false,
             netfilter_mss_value: None,
             had_route_metrics: false,
+            original_route_metrics: None,
         }
     }
 }
@@ -468,53 +471,86 @@ pub fn apply_route_metrics(
     netns: &str,
     profile: &TcpFingerprintProfile,
 ) -> std::result::Result<(), TcpMorphError> {
-    if !profile.requires_route_metrics() {
-        return Ok(());
-    }
+    if !profile.requires_route_metrics() { return Ok(()); }
     require_active_netns(netns)?;
-
-    // First, get the current default route
-    let route_output = Command::new("ip")
-        .args(["netns", "exec", netns, "ip", "-4", "route", "show", "default"])
-        .output()
-        .map_err(|e| TcpMorphError::RoutingFailed {
-            namespace: netns.to_string(),
-            details: format!("Failed to read default route: {e}"),
-        })?;
-
-    if !route_output.status.success() {
-        return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
-            details: format!("Cannot read default route: {}", String::from_utf8_lossy(&route_output.stderr).trim()) });
+    let original = read_route_metrics(netns)?;
+    let requested = RouteMetricSnapshot {
+        identity: original.identity.clone(),
+        init_cwnd: profile.init_cwnd.map(u32::from).unwrap_or(original.init_cwnd),
+        init_rwnd: profile.init_rwnd.map(u32::from).unwrap_or(original.init_rwnd),
+    };
+    if let Err(error) = set_route_metrics(netns, &requested) {
+        if let Err(rollback) = set_route_metrics(netns, &original) {
+            return Err(TcpMorphError::RollbackFailed { namespace: netns.into(),
+                details: format!("{error}; {rollback}") });
+        }
+        return Err(error);
     }
-    let route_args = default_route_identity(netns, &String::from_utf8_lossy(&route_output.stdout))?;
-    let mut args = vec!["netns".into(), "exec".into(), netns.into(),
-        "ip".into(), "-4".into(), "route".into(), "change".into()];
-    args.extend(route_args);
+    Ok(())
+}
 
-    // Append FIB metrics from profile
-    args.extend(profile.fib_route_metrics());
+/// Only the metrics changed by Wraith; zero means use the kernel default.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RouteMetricSnapshot {
+    pub identity: Vec<String>,
+    pub init_cwnd: u32,
+    pub init_rwnd: u32,
+}
 
-    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let output = Command::new("ip")
-        .args(&args_ref)
-        .output()
-        .map_err(|e| TcpMorphError::RoutingFailed {
-            namespace: netns.to_string(),
-            details: format!("ip route change failed: {e}"),
-        })?;
+fn parse_route_metrics(netns: &str, route: &str) -> std::result::Result<RouteMetricSnapshot, TcpMorphError> {
+    let identity = default_route_identity(netns, route)?;
+    let parts: Vec<_> = route.split_whitespace().collect();
+    let metric = |key| -> std::result::Result<u32, TcpMorphError> {
+        match parts.iter().position(|part| *part == key) {
+            None => Ok(0),
+            Some(index) => parts.get(index + 1).and_then(|value| value.parse().ok())
+                .ok_or_else(|| TcpMorphError::RoutingFailed { namespace: netns.into(),
+                    details: format!("Unsupported or locked {key} route metric") }),
+        }
+    };
+    Ok(RouteMetricSnapshot { identity, init_cwnd: metric("initcwnd")?, init_rwnd: metric("initrwnd")? })
+}
 
+fn read_route_metrics(netns: &str) -> std::result::Result<RouteMetricSnapshot, TcpMorphError> {
+    require_active_netns(netns)?;
+    let output = Command::new("ip").args(["netns", "exec", netns, "ip", "-o", "-4", "route", "show", "default"]).output()?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(TcpMorphError::RoutingFailed {
-            namespace: netns.to_string(),
-            details: format!("FIB metric application failed: {}", stderr.trim()),
-        });
+        return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
+            details: format!("Cannot read default route: {}", String::from_utf8_lossy(&output.stderr).trim()) });
     }
+    parse_route_metrics(netns, &String::from_utf8_lossy(&output.stdout))
+}
 
-    info!(
-        "Namespace [{netns}] FIB routing metrics applied: {}",
-        profile.fib_route_metrics().join(" ")
-    );
+fn route_metric_args(saved: &RouteMetricSnapshot) -> Vec<String> {
+    let mut args = saved.identity.clone();
+    args.extend(["initcwnd".into(), saved.init_cwnd.to_string(), "initrwnd".into(), saved.init_rwnd.to_string()]);
+    args
+}
+
+fn set_route_metrics(netns: &str, saved: &RouteMetricSnapshot) -> std::result::Result<(), TcpMorphError> {
+    update_route_metrics(netns, saved, || read_route_metrics(netns), |args| {
+        let output = Command::new("ip").args(["netns", "exec", netns, "ip", "-4", "route", "change"])
+            .args(args).output()?;
+        if !output.status.success() {
+            return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
+                details: format!("Route metric write failed: {}", String::from_utf8_lossy(&output.stderr).trim()) });
+        }
+        Ok(())
+    })
+}
+
+fn update_route_metrics<R, W>(netns: &str, saved: &RouteMetricSnapshot, mut read: R, mut write: W)
+    -> std::result::Result<(), TcpMorphError>
+where R: FnMut() -> std::result::Result<RouteMetricSnapshot, TcpMorphError>,
+      W: FnMut(Vec<String>) -> std::result::Result<(), TcpMorphError> {
+    let identity = default_route_identity(netns, &saved.identity.join(" "))?;
+    if identity != saved.identity || read()?.identity != identity {
+        return Err(TcpMorphError::RoutingFailed { namespace: netns.into(), details: "Default route identity changed".into() });
+    }
+    write(route_metric_args(saved))?;
+    if read()? != *saved {
+        return Err(TcpMorphError::RoutingFailed { namespace: netns.into(), details: "Route metric readback mismatch".into() });
+    }
     Ok(())
 }
 
@@ -576,6 +612,9 @@ pub fn apply_profile_to_netns(
     // ── Phase 0: Pre-Mutation Snapshot ──────────────────────────────────────
     let mut snapshot = snapshot_netns_tcp_stack(netns, &all_keys)?;
     snapshot.profile_name = Some(profile.name.clone());
+    if profile.requires_route_metrics() {
+        snapshot.original_route_metrics = Some(read_route_metrics(netns)?);
+    }
 
     let entries = profile.sysctl_entries();
     let complete = apply_sysctl_entries(&snapshot, &entries, fail_closed,
@@ -611,6 +650,7 @@ pub fn apply_profile_to_netns(
                     restore_after_failure(&snapshot, &e)?;
                     return Err(e);
                 }
+                if matches!(e, TcpMorphError::RollbackFailed { .. }) { return Err(e); }
                 snapshot.profile_name = None;
                 warn!("FIB routing metric morphing failed in [{netns}]: {e}. Continuing with kernel defaults.");
             }
@@ -659,8 +699,15 @@ pub fn restore_netns_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Resu
         }
     }
 
-    // Tier 3: FIB route metrics are reset when the namespace is destroyed,
-    // so no explicit rollback is needed unless the namespace persists.
+    // Tier 3: restore metrics even when the namespace remains alive.
+    if snapshot.had_route_metrics {
+        match &snapshot.original_route_metrics {
+            Some(original) => {
+                if let Err(error) = set_route_metrics(netns, original) { errors.push(format!("route metrics: {error}")); }
+            }
+            None => errors.push("Original route metrics missing from legacy snapshot; namespace teardown is required".into()),
+        }
+    }
 
     if !errors.is_empty() {
         return Err(TcpMorphError::RollbackFailed {
@@ -717,6 +764,37 @@ pub fn write_sysctl(key: &str, val: &str) -> CoreResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn route_metrics_capture_explicit_and_default_values() {
+        let route = parse_route_metrics("test", "default via 10.0.0.1 dev eth0 initcwnd 20 initrwnd 30").unwrap();
+        assert_eq!((route.init_cwnd, route.init_rwnd), (20, 30));
+        let defaults = parse_route_metrics("test", "default dev eth0").unwrap();
+        assert_eq!((defaults.init_cwnd, defaults.init_rwnd), (0, 0));
+        assert!(parse_route_metrics("test", "default dev eth0 initcwnd lock 10").is_err());
+        assert!(parse_route_metrics("test", "default dev eth0 initrwnd invalid").is_err());
+    }
+
+    #[test]
+    fn route_restore_resets_overrides_and_checks_readback() {
+        use std::cell::RefCell;
+        let saved = parse_route_metrics("test", "default dev eth0 initcwnd 20").unwrap();
+        let current = RefCell::new(parse_route_metrics("test", "default dev eth0 initcwnd 10 initrwnd 44").unwrap());
+        update_route_metrics("test", &saved, || Ok(current.borrow().clone()), |args| {
+            *current.borrow_mut() = parse_route_metrics("test", &args.join(" "))?;
+            Ok(())
+        }).unwrap();
+        assert_eq!(*current.borrow(), saved);
+        let defaults = parse_route_metrics("test", "default dev eth0").unwrap();
+        assert!(update_route_metrics("test", &defaults, || Ok(current.borrow().clone()), |_| Ok(())).is_err());
+    }
+
+    #[test]
+    fn route_restore_refuses_a_replaced_route_without_writing() {
+        let saved = parse_route_metrics("test", "default dev eth0 initrwnd 12").unwrap();
+        let other = parse_route_metrics("test", "default dev eth1 initrwnd 12").unwrap();
+        assert!(update_route_metrics("test", &saved, || Ok(other.clone()), |_| panic!("must not mutate replacement route")).is_err());
+    }
 
     #[test]
     fn missing_backup_prevents_all_writes_in_strict_mode() {
