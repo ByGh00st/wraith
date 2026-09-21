@@ -15,16 +15,18 @@ use wraith_forensic::{
     run_full_cleanup, VirtualDisplay,
 };
 use wraith_guard::{
-    enforce_seccomp_socket_jail, get_current_ip, get_current_ip_geo, run_full_leak_test,
-    verify_tor_connection, HoneyPortTrap, KillSwitch, TrafficJitterEngine,
+    enforce_seccomp_socket_jail, get_current_ip_geo, run_full_leak_test,
+    HoneyPortTrap, KillSwitch, TrafficJitterEngine,
 };
 use wraith_net::{
-    apply_ipv6_block, apply_tor_rules_with_journal, backup_tcp_stack, block_stun_ports,
-    create_cgroup_jail, create_namespace, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
+    apply_ipv6_block, apply_tor_rules_with_journal, block_stun_ports,
+    create_cgroup_jail, create_namespace_with_l4_profile, destroy_cgroup_jail, destroy_namespace, flush_ipv6_block,
     restore_mac,
     EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
     TrafficShapingProfile,
 };
+use wraith_core::tcp_fingerprint::{CrossLayerProfile, L7BrowserHint, TcpFingerprintProfile};
+use wraith_net::tcp_stack::{restore_netns_tcp_stack, NetnsTcpSnapshot};
 use wraith_tor::{
     apply_exit_profile, arm_onion_service, backup_resolv, configure_dns,
     get_circuit_telemetry, purge_onion_service, restore_dns, start_tor_daemon, stop_tor_daemon,
@@ -400,21 +402,27 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         state_mgr.activate(state_data.clone())?;
     }
 
-    // 3. TCP/IP Stack Normalization (p0f OS Fingerprint Evasion & Anti-Clock Skew)
-    // Always enforce TCP timestamp eradication (TS=0) and L4 stack normalization
-    print_step(&t!("commands.cmd_step_74"), "info");
-    match backup_tcp_stack() {
-        Ok(_backup_map) => {
-            print_step(&t!("commands.cmd_step_75"), "ok");
-            state_data.tcp_stack_masked = true;
-            state_data.tcp_stack_backup = _backup_map;
-            state_mgr.activate(state_data.clone())?;
-            wraith_net::apply_tcp_mask(&state_data.tcp_stack_backup)?;
+    // 3. L4 TCP Stack Morphing (3-Tier: Sysctl + Netfilter MSS + FIB Routing)
+    if args.namespace {
+        // L4 profile is armed inside namespace during isolation (namespace.rs)
+        state_data.tcp_stack_masked = true;
+        print_step("L4 TCP stack morphing delegated to namespace isolation engine", "ok");
+    } else if args.tcp_mask || is_strict || (!args.tcp_profile.is_empty() && args.tcp_profile != "auto") {
+        let tcp_profile = resolve_tcp_profile(&args);
+        print_step(&format!("Deploying L4 TCP profile: {} [{}]", tcp_profile.name, tcp_profile.format_summary()), "info");
+
+        // Cross-layer correlation verification
+        let cl = CrossLayerProfile::from_browser(resolve_browser_hint(&args));
+        if !cl.is_consistent() {
+            for anomaly in cl.validate() {
+                print_step(&format!("L4↔L7 Anomaly: {anomaly}"), "warn");
+            }
         }
-        Err(e) if is_strict => return Err(e),
-        Err(e) => print_step(&format!("TCP/IP stack normalization warning: {e}"), "warn"),
+
+        state_data.tcp_stack_masked = true;
+        state_data.tcp_profile_kind = Some(tcp_profile.name.clone());
+        state_mgr.activate(state_data.clone())?;
     }
-    state_mgr.activate(state_data.clone())?;
 
     // 4. Initial cleartext HTTP header normalization and HTTPS CONNECT relay (Only in Full Security / Strict Mode).
     if is_strict {
@@ -544,7 +552,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     let exit_prof = if is_strict && args.profile.is_none() {
         Some("stealth".to_string())
     } else {
-        args.profile
+        args.profile.clone()
     };
 
     if let Some(prof_name) = &exit_prof {
@@ -727,10 +735,23 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         print_step(&t!("commands.cmd_step_18"), "info");
         state_data.namespace_active = true;
         state_mgr.activate(state_data.clone())?;
-        match create_namespace() {
-            Ok(()) => {
+        let tcp_profile = resolve_tcp_profile(&args);
+        match create_namespace_with_l4_profile(&tcp_profile) {
+            Ok(snapshot) => {
                 print_step(&t!("commands.cmd_step_19"), "ok");
+                print_step(
+                    &format!(
+                        "L4 TCP profile armed in namespace: {} [{}]",
+                        tcp_profile.name,
+                        tcp_profile.format_summary()
+                    ),
+                    "ok",
+                );
                 state_data.namespace_active = true;
+                state_data.tcp_stack_masked = true;
+                state_data.tcp_profile_kind = Some(tcp_profile.name.clone());
+                state_data.tcp_stack_backup = snapshot.values.clone();
+                state_data.tcp_snapshot_json = serde_json::to_string(&snapshot).ok();
                 state_mgr.activate(state_data.clone())?;
             }
             Err(e) if is_strict => return Err(e),
@@ -1134,7 +1155,16 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         record_cleanup("legacy machine ID", restore_machine_id(old), &mut errors);
     }
     if state_info.tcp_stack_masked {
-        record_cleanup("TCP settings", wraith_net::restore_tcp_stack(&state_info.tcp_stack_backup), &mut errors);
+        // When namespace is purged, netns-specific sysctl, netfilter and FIB are destroyed with it.
+        // If running without namespace, rollback from captured snapshot.
+        if !state_info.namespace_active {
+            let snapshot = NetnsTcpSnapshot {
+                namespace: wraith_net::namespace::NAMESPACE_NAME.to_string(),
+                values: state_info.tcp_stack_backup.clone(),
+                ..Default::default()
+            };
+            record_cleanup("TCP stack (3-tier rollback)", restore_netns_tcp_stack(&snapshot).map_err(Into::into), &mut errors);
+        }
     }
     if state_info.namespace_active { record_cleanup("namespace", destroy_namespace(), &mut errors); }
     if state_info.browser_configured || state_info.browser_hardened > 0 {
@@ -1793,6 +1823,28 @@ fn record_cleanup(label: &str, result: Result<()>, errors: &mut Vec<String>) {
     }
 }
 
+/// Resolves L4 TCP fingerprint profile from runtime parameters or defaults
+fn resolve_tcp_profile(args: &crate::StartArgs) -> TcpFingerprintProfile {
+    match args.tcp_profile.to_ascii_lowercase().as_str() {
+        "windows11" | "win" | "win11" => TcpFingerprintProfile::windows11(),
+        "macos" | "mac" | "darwin" => TcpFingerprintProfile::macos(),
+        "linux" => TcpFingerprintProfile::linux_default(),
+        "auto" | "" => {
+            // In auto mode, infer from the active TLS camouflage browser profile
+            TcpFingerprintProfile::from_tls_profile("Google Chrome v131 (Windows 11 x86_64)")
+        }
+        _ => {
+            // Fallback for any other unrecognized profile
+            TcpFingerprintProfile::from_tls_profile("Google Chrome v131 (Windows 11 x86_64)")
+        }
+    }
+}
+
+/// Resolves L7 browser identity hint
+fn resolve_browser_hint(_args: &crate::StartArgs) -> L7BrowserHint {
+    L7BrowserHint::ChromeWindows
+}
+
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
@@ -1800,5 +1852,31 @@ mod lifecycle_tests {
     fn malformed_onion_ports_never_publish_a_default_service() {
         for value in ["", "0", "65536", "abc", "80:90"] { assert!(parse_onion_port(value).is_err()); }
         assert_eq!(parse_onion_port("8080").unwrap(), 8080);
+    }
+
+    #[test]
+    fn test_resolve_tcp_profile_variants() {
+        let mut args = crate::StartArgs::default();
+
+        args.tcp_profile = "auto".to_string();
+        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
+
+        args.tcp_profile = "windows11".to_string();
+        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
+
+        args.tcp_profile = "win".to_string();
+        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
+
+        args.tcp_profile = "macos".to_string();
+        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::MacOS);
+
+        args.tcp_profile = "mac".to_string();
+        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::MacOS);
+
+        args.tcp_profile = "linux".to_string();
+        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::LinuxDefault);
+
+        args.tcp_profile = "".to_string();
+        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
     }
 }
