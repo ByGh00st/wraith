@@ -1,71 +1,53 @@
-//! Wraith STUN / TURN WebRTC Port Blocker
-//! Prevents STUN-based real public IP extraction through browser WebRTC subsystems.
+//! Block STUN before transparent NAT rewrites the original destination port.
+use std::process::Command;
+use wraith_core::error::{Result, WraithError};
 
-use std::process::{Command, Stdio};
-use tracing::info;
-use wraith_core::error::Result;
+pub const STUN_PORTS: &[u16] = &[3478, 3479, 5349, 5350, 19302, 19303, 19304, 19305, 19306, 19307, 19308, 19309];
 
-pub const STUN_PORTS: &[u16] = &[
-    3478, 3479, 5349, 5350, 19302, 19303, 19304, 19305, 19306, 19307, 19308, 19309,
-];
-
-pub fn block_stun_ports() -> Result<()> {
-    for port in STUN_PORTS {
-        let p_str = port.to_string();
-        let _ = Command::new("iptables")
-            .args(["-A", "OUTPUT", "-p", "udp", "--dport", &p_str, "-j", "DROP"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        let _ = Command::new("iptables")
-            .args(["-A", "OUTPUT", "-p", "tcp", "--dport", &p_str, "-j", "DROP"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+fn rules(uid: u32) -> Vec<Vec<String>> {
+    let ports = STUN_PORTS.iter().map(u16::to_string).collect::<Vec<_>>().join(",");
+    let uid = uid.to_string();
+    let mut rules = Vec::new();
+    for protocol in ["tcp", "udp"] {
+        // OUTPUT sees locally originated packets before REDIRECT in nat/OUTPUT.
+        // Tor itself may legitimately connect to a relay using one of these ports.
+        rules.push(vec!["OUTPUT", "-p", protocol, "-m", "owner", "!", "--uid-owner", &uid,
+            "-m", "mark", "!", "--mark", "0x5183", "-m", "multiport", "--dports", &ports, "-j", "DROP"].into_iter().map(str::to_owned).collect());
+        rules.push(vec!["PREROUTING", "-i", crate::namespace::VETH_HOST, "-p", protocol,
+            "-m", "multiport", "--dports", &ports, "-j", "DROP"].into_iter().map(str::to_owned).collect());
     }
+    rules.push(vec!["OUTPUT", "!", "-o", "lo", "-p", "udp", "--dport", "5353", "-j", "DROP"]
+        .into_iter().map(str::to_owned).collect());
+    rules
+}
 
-    // Block mDNS local candidate gathering (UDP 5353 to multicast / external networks, NEVER loopback)
-    // CRITICAL: NEVER drop UDP 5353 on loopback (-o lo) because Tor DNSPort listens on 127.0.0.1:5353!
-    let _ = Command::new("iptables")
-        .args(["-A", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    let _ = Command::new("iptables")
-        .args(["-A", "OUTPUT", "!", "-o", "lo", "-p", "udp", "--dport", "5353", "-j", "DROP"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-
-    info!("STUN/TURN/mDNS ports blocked ({} ports dropped + mDNS candidate suppression)", STUN_PORTS.len());
+fn apply(insert: bool) -> Result<()> {
+    for rule in rules(crate::get_tor_uid()?) {
+        let mut args = vec!["-w", "5", "-t", "raw", if insert { "-I" } else { "-D" }];
+        args.extend(rule.iter().map(String::as_str));
+        let output = Command::new("iptables").args(args).output()?;
+        if !output.status.success() {
+            return Err(WraithError::Firewall(format!("STUN rule failed: {}", String::from_utf8_lossy(&output.stderr))));
+        }
+    }
     Ok(())
 }
 
-pub fn unblock_stun_ports() -> Result<()> {
-    for port in STUN_PORTS {
-        let p_str = port.to_string();
-        let _ = Command::new("iptables")
-            .args(["-D", "OUTPUT", "-p", "udp", "--dport", &p_str, "-j", "DROP"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        let _ = Command::new("iptables")
-            .args(["-D", "OUTPUT", "-p", "tcp", "--dport", &p_str, "-j", "DROP"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-    let _ = Command::new("iptables")
-        .args(["-D", "OUTPUT", "-d", "224.0.0.251", "-j", "DROP"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    let _ = Command::new("iptables")
-        .args(["-D", "OUTPUT", "!", "-o", "lo", "-p", "udp", "--dport", "5353", "-j", "DROP"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+pub fn block_stun_ports() -> Result<()> { apply(true) }
+pub fn unblock_stun_ports() -> Result<()> { apply(false) }
 
-    info!("STUN/TURN/mDNS port blocks removed");
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn both_local_and_namespace_traffic_are_filtered_without_blocking_tor() {
+        let rules = rules(123);
+        for protocol in ["tcp", "udp"] {
+            assert!(rules.iter().any(|r| r[0] == "OUTPUT" && r.windows(2).any(|p| p == ["-p", protocol])
+                && r.windows(3).any(|p| p == ["!", "--uid-owner", "123"])));
+            assert!(rules.iter().any(|r| r[0] == "PREROUTING" && r.windows(2).any(|p| p == ["-i", crate::namespace::VETH_HOST])
+                && r.windows(2).any(|p| p == ["-p", protocol])));
+        }
+        assert!(rules.last().unwrap().windows(3).any(|p| p == ["!", "-o", "lo"]));
+    }
 }
