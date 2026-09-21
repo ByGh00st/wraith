@@ -955,7 +955,6 @@ pub async fn main() -> Result<()> {
                             format!("{prefix}: {e}")
                         };
                         display::print_error(&err_msg);
-                        let _ = commands::cmd_stop(false).await;
                         return Err(e);
                     }
                 }
@@ -964,7 +963,10 @@ pub async fn main() -> Result<()> {
                     println!("\r\n\n  {}", rust_i18n::t!("runtime.emergency_abort_title"));
                     println!("  {}", rust_i18n::t!("runtime.emergency_abort_desc"));
                     println!("  {}\n", rust_i18n::t!("runtime.emergency_abort_foot"));
-                    let _ = commands::cmd_stop(false).await;
+                    let manager = wraith_core::StateManager::default();
+                    if manager.read_checked().ok().and_then(|state| state.pid) == Some(std::process::id()) {
+                        commands::cmd_stop(false).await?;
+                    }
                 }
             }
         }

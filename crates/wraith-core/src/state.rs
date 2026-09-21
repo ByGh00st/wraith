@@ -156,8 +156,10 @@ impl StateManager {
     pub fn claim(&self, mut data: StateData) -> Result<()> {
         let parent = self.path.parent().unwrap_or_else(|| Path::new("/var/run"));
         fs::create_dir_all(parent)?;
-        if self.path.exists() && !self.is_running() {
-            let _ = fs::remove_file(&self.path);
+        if self.path.exists() {
+            return Err(crate::error::WraithError::Configuration(
+                "Session record already exists; run wraith stop to recover it before starting again".into(),
+            ));
         }
         data.active = false;
         data.state = Some(State::Arming);
@@ -274,6 +276,17 @@ impl StateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn stale_and_corrupt_records_cannot_be_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let manager = StateManager { path: dir.path().join("state") };
+        for bytes in [b"{invalid recovery record".as_slice(), br#"{"pid":4294967295,"active":true}"#] {
+            fs::write(&manager.path, bytes).unwrap();
+            assert!(manager.claim(StateData::default()).is_err());
+            assert_eq!(fs::read(&manager.path).unwrap(), bytes);
+        }
+    }
+
     #[test]
     fn incomplete_cleanup_preserves_recovery_record() {
         let dir = tempfile::tempdir().unwrap();

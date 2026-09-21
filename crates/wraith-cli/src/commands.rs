@@ -963,19 +963,19 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
                     println!("\r\n  {}\r\n", t!("commands.cmd_signal_sighup"));
                     break;
                 }
-                key_res = tokio::task::spawn_blocking(move || {
+                key_res = async {
                     if args.daemon_worker {
-                        // In daemon mode, we don't have a terminal, so we sleep forever
-                        std::thread::park();
-                        return None;
+                        return std::future::pending().await;
                     }
+                    tokio::task::spawn_blocking(move || {
                     if crossterm::event::poll(Duration::from_millis(200)).unwrap_or(false) {
                         if let Ok(crossterm::event::Event::Key(k)) = crossterm::event::read() {
                             return Some(k);
                         }
                     }
                     None
-                }) => {
+                    }).await
+                } => {
                     if let Ok(Some(k)) = key_res {
                         // 1. Immediate Emergency Exit on Ctrl+C, Ctrl+D, Esc, 'q', 'Q'
                         if (k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
@@ -1054,6 +1054,12 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
     print_banner(false);
 
+    let state_mgr = StateManager::default();
+    if !state_mgr.exists() {
+        print_step("No recorded Wraith session; no system settings changed.", "info");
+        return Ok(());
+    }
+
     #[cfg(target_os = "linux")]
     {
         let is_systemd_active = std::process::Command::new("systemctl")
@@ -1061,27 +1067,18 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
             .status()
             .map(|s| s.success())
             .unwrap_or(false);
-        if is_systemd_active {
+        if is_systemd_active && std::env::var_os("INVOCATION_ID").is_none() {
             print_step("Stopping active Wraith systemd daemon service...", "info");
-            let _ = std::process::Command::new("systemctl")
+            let status = std::process::Command::new("systemctl")
                 .args(["stop", "wraith.service"])
-                .status();
+                .status()?;
+            if !status.success() {
+                return Err(WraithError::Command("Could not stop wraith.service".into()));
+            }
         }
     }
 
-    let state_mgr = StateManager::default();
-    if !state_mgr.exists() {
-        // Even if state file is missing, ensure Tor daemon, stray iptables rules, and DNS are restored
-        wraith_tor::stop_tor_daemon();
-        wraith_tor::stop_existing_tor();
-        let _ = wraith_net::flush_rules();
-        let _ = flush_ipv6_block();
-        let _ = restore_dns();
-        print_step("No active Wraith session found; ensuring network, DNS, and gateway are cleared.", "info");
-        return Ok(());
-    }
-
-    let state_info = state_mgr.read();
+    let state_info = state_mgr.read_checked()?;
 
     #[cfg(target_os = "linux")]
     if let Some(pid) = state_info.pid.filter(|pid| *pid > 1 && *pid != std::process::id() && *pid <= i32::MAX as u32) {
@@ -1095,8 +1092,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
                 let _ = unsafe { libc::kill(pid as i32, libc::SIGTERM) };
                 
                 let mut exited = false;
-                for _ in 0..20 {
+                for _ in 0..450 {
                     sleep(Duration::from_millis(100)).await;
+                    if !state_mgr.exists() { return Ok(()); }
                     if unsafe { libc::kill(pid as i32, 0) != 0 } {
                         exited = true;
                         break;
@@ -1104,8 +1102,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
                 }
 
                 if !exited {
-                    let _ = unsafe { libc::kill(pid as i32, libc::SIGKILL) };
-                    sleep(Duration::from_millis(100)).await;
+                    return Err(WraithError::Custom("Session has not stopped; recovery record retained. Inspect the worker before retrying.".into()));
                 }
             } else {
                 print_step(&format!("Session PID {pid} is no longer a Wraith process; proceeding with teardown."), "warn");
@@ -1114,6 +1111,8 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     }
 
 
+    // The worker may have completed restoration while this caller waited.
+    if !state_mgr.exists() { return Ok(()); }
     let mut errors = Vec::new();
     if (state_info.dns_configured || state_info.active) && !state_info.saved_files.contains_key(wraith_core::config::RESOLV_PATH) {
         let restored = match &state_info.saved_resolver {
@@ -1184,28 +1183,16 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     }
     if let Some(saved) = &state_info.saved_rules {
         record_cleanup("IPv4 firewall", wraith_net::restore_rules(saved), &mut errors);
-    } else {
-        record_cleanup("IPv4 firewall flush", wraith_net::flush_rules(), &mut errors);
     }
     if let Some(saved) = &state_info.saved_ipv6_rules {
         record_cleanup("IPv6 firewall", wraith_net::restore_ipv6_rules(saved), &mut errors);
-    } else {
-        record_cleanup("legacy IPv6 firewall", flush_ipv6_block(), &mut errors);
     }
     if errors.is_empty() && self_destruct {
         record_cleanup("self destruct", std::env::current_exe().map_err(WraithError::from)
             .and_then(|path| wraith_forensic::secure_delete_file(&path, 2)), &mut errors);
     }
 
-    // Always unconditionally deactivate and remove state file
-    let _ = state_mgr.deactivate();
-    if state_mgr.exists() {
-        let _ = std::fs::remove_file(state_mgr.path());
-    }
-
-    if !errors.is_empty() {
-        print_step(&format!("Teardown completed with warnings: {}", errors.join("; ")), "warn");
-    }
+    state_mgr.finish_cleanup(&errors)?;
 
     sleep(Duration::from_secs(2)).await;
     let real_geo = get_current_ip_geo().await;
