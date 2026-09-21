@@ -62,6 +62,12 @@ pub struct StateData {
     #[serde(default)]
     pub machine_id_backup: std::collections::HashMap<String, String>,
     pub tcp_stack_masked: bool,
+    /// Active L4 TCP profile kind name (e.g. "Windows 11", "macOS")
+    #[serde(default)]
+    pub tcp_profile_kind: Option<String>,
+    /// Serialized NetnsTcpSnapshot for 3-tier rollback
+    #[serde(default)]
+    pub tcp_snapshot_json: Option<String>,
     pub multihop_enabled: bool,
     pub wireguard_config: Option<String>,
     pub onion_service_active: bool,
@@ -290,5 +296,20 @@ mod tests {
         assert_eq!(fs::read(&manager.path).unwrap(), before);
         manager.activate(StateData::default()).unwrap();
         assert!(manager.read().active);
+    }
+
+    #[test]
+    fn test_state_data_tcp_persistence_roundtrip() {
+        let mut state = StateData::default();
+        state.tcp_stack_masked = true;
+        state.tcp_profile_kind = Some("Windows 11".to_string());
+        state.tcp_snapshot_json = Some(r#"{"namespace":"wraith_ns","values":{}}"#.to_string());
+
+        let json = serde_json::to_string(&state).expect("serialize StateData");
+        let decoded: StateData = serde_json::from_str(&json).expect("deserialize StateData");
+
+        assert!(decoded.tcp_stack_masked);
+        assert_eq!(decoded.tcp_profile_kind.as_deref(), Some("Windows 11"));
+        assert!(decoded.tcp_snapshot_json.is_some());
     }
 }
