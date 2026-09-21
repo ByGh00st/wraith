@@ -1,5 +1,3 @@
-#[cfg(target_os = "linux")]
-use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
@@ -1086,35 +1084,23 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     let state_info = state_mgr.read_checked()?;
 
     #[cfg(target_os = "linux")]
-    if let Some(pid) = state_info.pid.filter(|pid| *pid > 1 && *pid != std::process::id() && *pid <= i32::MAX as u32) {
-        if unsafe { libc::kill(pid as i32, 0) == 0 } {
-            let comm_path = format!("/proc/{pid}/comm");
-            let cmdline_path = format!("/proc/{pid}/cmdline");
-            let is_wraith = fs::read_to_string(&comm_path).map(|c| c.trim().contains("wraith")).unwrap_or(false)
-                || fs::read_to_string(&cmdline_path).map(|c| c.contains("wraith")).unwrap_or(false);
-            if is_wraith {
-                print_step(&format!("Terminating background session process (PID: {pid})..."), "info");
-                let _ = unsafe { libc::kill(pid as i32, libc::SIGTERM) };
-                
-                let mut exited = false;
-                for _ in 0..450 {
-                    sleep(Duration::from_millis(100)).await;
-                    if !state_mgr.exists() { return Ok(()); }
-                    if unsafe { libc::kill(pid as i32, 0) != 0 } {
-                        exited = true;
-                        break;
-                    }
-                }
-
-                if !exited {
-                    return Err(WraithError::Custom("Session has not stopped; recovery record retained. Inspect the worker before retrying.".into()));
-                }
-            } else {
-                print_step(&format!("Session PID {pid} is no longer a Wraith process; proceeding with teardown."), "warn");
+    if let Some(pid) = state_info.pid.filter(|pid| *pid != std::process::id()) {
+        if let Some(process) = wraith_core::process_identity::SessionProcess::open(
+            pid, state_info.process_identity.as_ref(),
+        )? {
+            print_step(&format!("Stopping verified session worker (PID: {pid})..."), "info");
+            process.terminate()?;
+            let mut exited = false;
+            for _ in 0..450 {
+                sleep(Duration::from_millis(100)).await;
+                if !state_mgr.exists() { return Ok(()); }
+                if process.has_exited()? { exited = true; break; }
+            }
+            if !exited {
+                return Err(WraithError::Custom("Session has not stopped; recovery record retained. Inspect the worker before retrying.".into()));
             }
         }
     }
-
 
     // The worker may have completed restoration while this caller waited.
     if !state_mgr.exists() { return Ok(()); }

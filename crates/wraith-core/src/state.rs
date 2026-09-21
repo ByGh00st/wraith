@@ -35,6 +35,8 @@ pub struct StateData {
     pub physical_fastpath_disabled: bool,
     pub state: Option<State>,
     pub pid: Option<u32>,
+    #[serde(default)]
+    pub process_identity: Option<crate::process_identity::ProcessIdentity>,
     pub ip: Option<String>,
     pub kill_switch: bool,
     pub mac_old: Option<String>,
@@ -108,43 +110,15 @@ impl StateManager {
     }
 
     pub fn is_running(&self) -> bool {
-        if !self.path.exists() {
-            return false;
+        let Ok(data) = self.read_checked() else { return false; };
+        let Some(pid) = data.pid else { return false; };
+        #[cfg(target_os = "linux")]
+        {
+            crate::process_identity::SessionProcess::open(pid, data.process_identity.as_ref())
+                .is_ok_and(|process| process.is_some())
         }
-        let data = self.read();
-        if let Some(_pid) = data.pid {
-            if _pid <= 1 {
-                return false;
-            }
-            #[cfg(unix)]
-            {
-                if unsafe { libc::kill(_pid as i32, 0) != 0 } {
-                    return false;
-                }
-                // Verify process identity to avoid false positives on recycled PIDs.
-                // Inspects comm, cmdline, the unforgeable canonical /proc/{pid}/exe symlink,
-                // and accepts cloaked kernel worker masquerade signatures ([kworker/u16:0]).
-                let comm_path = format!("/proc/{_pid}/comm");
-                let cmdline_path = format!("/proc/{_pid}/cmdline");
-                let exe_path = format!("/proc/{_pid}/exe");
-
-                let is_wraith_comm = fs::read_to_string(&comm_path).map(|c| c.trim().contains("wraith")).unwrap_or(false);
-                let is_wraith_cmd = fs::read_to_string(&cmdline_path).map(|c| c.contains("wraith")).unwrap_or(false);
-                let is_wraith_exe = fs::read_link(&exe_path).map(|p| p.to_string_lossy().contains("wraith")).unwrap_or(false);
-                let is_cloaked_worker = fs::read_to_string(&comm_path).map(|c| c.trim().starts_with("[kworker")).unwrap_or(false);
-
-                if !is_wraith_comm && !is_wraith_cmd && !is_wraith_exe && !is_cloaked_worker {
-                    return false;
-                }
-                true
-            }
-            #[cfg(not(unix))]
-            {
-                true
-            }
-        } else {
-            false
-        }
+        #[cfg(not(target_os = "linux"))]
+        { pid == std::process::id() }
     }
 
     pub fn is_active(&self) -> bool {
@@ -166,6 +140,8 @@ impl StateManager {
         data.active = false;
         data.state = Some(State::Arming);
         data.pid = Some(std::process::id());
+        #[cfg(target_os = "linux")]
+        { data.process_identity = Some(crate::process_identity::capture(std::process::id())?); }
         let mut temp = tempfile::NamedTempFile::new_in(parent)?;
         temp.write_all(serde_json::to_string_pretty(&data)?.as_bytes())?;
         temp.as_file().sync_all()?;
@@ -183,6 +159,8 @@ impl StateManager {
         payload.state = Some(payload.state.unwrap_or(State::Active));
         payload.active = payload.state == Some(State::Active);
         payload.pid = Some(std::process::id());
+        #[cfg(target_os = "linux")]
+        { payload.process_identity = Some(crate::process_identity::capture(std::process::id())?); }
 
         let serialized = serde_json::to_string_pretty(&payload)?;
 

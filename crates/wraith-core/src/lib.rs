@@ -7,6 +7,7 @@ pub mod error;
 pub mod kernel_lockdown;
 pub mod process_lockdown;
 pub mod state;
+pub mod process_identity;
 pub mod vault;
 
 pub use config::*;
