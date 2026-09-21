@@ -107,7 +107,7 @@ impl KillSwitch {
 
 fn lockdown_rules(uid: &str) -> Vec<Vec<String>> {
     vec![
-        vec!["OUTPUT", "!", "-o", "lo", "-m", "owner", "!", "--uid-owner", uid, "-m", "comment", "--comment", "wraith-emergency", "-j", "DROP"],
+        vec!["OUTPUT", "!", "-o", "lo", "-m", "owner", "!", "--uid-owner", uid, "-m", "mark", "!", "--mark", "0x5183", "-m", "comment", "--comment", "wraith-emergency", "-j", "DROP"],
         vec!["FORWARD", "-m", "comment", "--comment", "wraith-emergency", "-j", "DROP"],
     ].into_iter().map(|rule| rule.into_iter().map(str::to_owned).collect()).collect()
 }
@@ -121,5 +121,8 @@ mod tests {
         assert!(rules.iter().all(|rule| rule.last().unwrap() == "DROP"));
         assert!(rules[0].windows(3).any(|fields| fields == ["!", "--uid-owner", "123"]));
         assert_eq!(rules[1][0], "FORWARD");
+        // Let the encrypted WireGuard transport reach the original UDP-only
+        // policy so Tor can recover; this gate still grants no ACCEPT bypass.
+        assert!(rules[0].windows(3).any(|fields| fields == ["!", "--mark", "0x5183"]));
     }
 }

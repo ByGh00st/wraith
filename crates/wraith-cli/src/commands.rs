@@ -479,6 +479,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     let mut wg_active_iface: Option<String> = None;
     if let Some(ref wg_conf) = args.wireguard {
         print_step(&format!("{} [{wg_conf}]", t!("commands.cmd_step_46")), "info");
+        MultiHopTunnelEngine::preflight_wireguard(wg_conf)?;
         state_data.multihop_enabled = true;
         state_data.wireguard_config = Some(wg_conf.clone());
         state_mgr.activate(state_data.clone())?;
