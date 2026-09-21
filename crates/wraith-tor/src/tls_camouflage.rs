@@ -149,6 +149,10 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
     let full_sigs = wraith_core::signatures::get_offensive_tool_signatures();
 
     for line in req_str.split("\r\n") {
+        if line.split_once(':').is_some_and(|(name, _)| crate::proxy_request::private_proxy_header(name)) {
+            was_sanitized = true;
+            continue;
+        }
         if line.to_lowercase().starts_with("host:") {
             target_host = line[5..].trim().to_string();
             modified_lines.push(line.to_string());
@@ -399,6 +403,15 @@ async fn read_socks_reply<R: tokio::io::AsyncRead + Unpin>(reader: &mut R) -> Re
 mod tests {
     use super::*;
 
+    #[test]
+    fn sanitizer_removes_address_metadata_without_modifying_payload() {
+        let request = b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: Mozilla/5.0\r\nx-ReAl-Ip: 192.0.2.1\r\n\r\n\xffVia: body";
+        let (sanitized, host, changed) = sanitize_http_request(request);
+        assert!(changed);
+        assert_eq!(host, "example.org");
+        assert_eq!(sanitized, b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: Mozilla/5.0\r\n\r\n\xffVia: body");
+    }
+
     #[tokio::test]
     async fn blocked_initial_write_times_out() {
         let (mut writer, _unread_peer) = tokio::io::duplex(1);
@@ -510,6 +523,7 @@ mod tests {
                 let mut request = Vec::new();
                 stream.read_to_end(&mut request).await.unwrap();
                 assert!(request.ends_with(b"\xff\x00"));
+                assert!(!String::from_utf8_lossy(&request).contains("192.0.2.123"));
                 stream
                     .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
                     .await
@@ -524,7 +538,7 @@ mod tests {
             let handler = tokio::spawn(handle_proxy_client_with_port(accepted, socks_port));
             client
                 .write_all(
-                    b"POST / HTTP/1.1\r\nHost: example.org\r\nContent-Length: 2\r\n\r\n\xff\x00",
+                    b"POST / HTTP/1.1\r\nHost: example.org\r\nX-Forwarded-For: 192.0.2.123\r\nContent-Length: 2\r\n\r\n\xff\x00",
                 )
                 .await
                 .unwrap();

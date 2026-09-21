@@ -8,6 +8,13 @@ pub(crate) struct Request {
     pub payload: Vec<u8>,
 }
 
+/// Metadata that can disclose the client's pre-proxy address or proxy credentials.
+pub(crate) fn private_proxy_header(name: &str) -> bool {
+    ["proxy-authorization", "proxy-connection", "forwarded", "x-forwarded-for",
+        "x-real-ip", "via", "client-ip", "true-client-ip", "x-client-ip", "x-originating-ip"]
+        .iter().any(|header| name.eq_ignore_ascii_case(header))
+}
+
 fn invalid() -> WraithError {
     WraithError::Network("Invalid or ambiguous HTTP proxy request".into())
 }
@@ -93,9 +100,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Request> {
             }
             _ => {}
         }
-        if !name.eq_ignore_ascii_case("proxy-authorization")
-            && !name.eq_ignore_ascii_case("proxy-connection")
-        {
+        if !private_proxy_header(name) {
             headers.push(line);
         }
     }
@@ -165,6 +170,23 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Request> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn removes_private_headers_case_insensitively_and_preserves_body_and_origin_auth() {
+        let body = b"\x00\xffX-Forwarded-For: body-data";
+        let mut bytes = format!("POST / HTTP/1.1\r\nHost: example.org\r\nContent-Length: {}\r\nAuthorization: Bearer application-token\r\nCookie: session=example\r\n", body.len()).into_bytes();
+        for header in ["Forwarded", "X-Forwarded-For", "x-ReAl-Ip", "Via", "Client-IP", "True-Client-IP", "X-Client-IP", "X-Originating-IP", "Proxy-Authorization", "Proxy-Connection"] {
+            bytes.extend_from_slice(format!("{header}: sensitive-value\r\n").as_bytes());
+        }
+        bytes.extend_from_slice(b"\r\n"); bytes.extend_from_slice(body);
+        let parsed = parse(&bytes).unwrap();
+        assert!(parsed.payload.ends_with(body));
+        let end = parsed.payload.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+        let headers = std::str::from_utf8(&parsed.payload[..end]).unwrap();
+        assert!(!headers.contains("sensitive-value"));
+        assert!(headers.contains("Authorization: Bearer application-token"));
+        assert!(headers.contains("Cookie: session=example"));
+    }
+
     #[test]
     fn supports_connect_ipv6_custom_ports_and_coalesced_tls() {
         let request = parse(
