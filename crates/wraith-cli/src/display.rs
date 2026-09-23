@@ -552,6 +552,38 @@ pub fn print_background_hud(state: &StateData, geo: &IpGeoInfo) {
     println!("{}\n", hud_box.last().unwrap().bright_cyan());
 }
 
+fn l4_status_rows(state: &StateData) -> Vec<(String, String)> {
+    if !state.namespace_active { return vec![("L4 TCP profile".into(), "Inactive — no session namespace".into())]; }
+    if !state.tcp_stack_masked { return vec![("L4 TCP profile".into(), "Off — namespace kernel defaults".into())]; }
+    let mut rows = vec![("L4 TCP profile".into(), state.tcp_profile_kind.clone().unwrap_or_else(|| "Unknown".into()))];
+    let snapshot = state.tcp_snapshot_json.as_deref()
+        .ok_or_else(|| "Missing L4 snapshot".to_string())
+        .and_then(|json| serde_json::from_str::<wraith_net::NetnsTcpSnapshot>(json).map_err(|e| e.to_string()));
+    let snapshot = match snapshot {
+        Ok(snapshot) => snapshot,
+        Err(error) => { rows.push(("L4 live readback".into(), format!("Unavailable: {error}"))); return rows; }
+    };
+    match wraith_net::inspect_tcp_stack(&snapshot) {
+        Ok(live) => {
+            rows.push(("L4 live readback".into(), if live.matches_profile { "✔ Matches configured profile" } else { "✗ Configuration drift detected" }.into()));
+            let value = |key: &str| live.values.get(key).map(String::as_str).unwrap_or("unknown");
+            rows.push(("TTL / WS / TS / SACK".into(), format!("{} / {} / {} / {}",
+                value("net.ipv4.ip_default_ttl"), value("net.ipv4.tcp_window_scaling"),
+                value("net.ipv4.tcp_timestamps"), value("net.ipv4.tcp_sack"))));
+            rows.push(("SYN MSS cap".into(), match live.mss_present {
+                Some(present) => format!("{} bytes — {}", snapshot.netfilter_mss_value.unwrap_or_default(), if present { "rule present" } else { "rule MISSING" }),
+                None => "Kernel default (no Wraith override)".into(),
+            }));
+            rows.push(("FIB initcwnd / initrwnd".into(), live.route.map(|r|
+                format!("{} / {} segments", r.init_cwnd, r.init_rwnd)).unwrap_or_else(|| "Kernel default (no Wraith override)".into())));
+        }
+        Err(error) => rows.push(("L4 live readback".into(), format!("Unavailable: {error}"))),
+    }
+    if let Some(tls) = &state.tls_profile { rows.push(("Session TLS profile".into(), tls.clone())); }
+    rows.push(("L4 scope / wire proof".into(), "Namespace TCP only; p0f / L4↔L7 not measured".into()));
+    rows
+}
+
 pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize) {
     let mut table = Table::new();
     table
@@ -676,22 +708,10 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
             ]);
         }
 
-        if state.tcp_stack_masked {
-            let profile = wraith_core::tcp_fingerprint::TcpFingerprintProfile::windows11();
-            let sig = profile.expected_p0f_signature();
-            table.add_row(vec![
-                Cell::new("TCP/IP Fingerprint").fg(Color::Yellow),
-                Cell::new(format!("✔ {} [{}]", profile.name, profile.format_summary())).fg(Color::Green),
-            ]);
-            table.add_row(vec![
-                Cell::new("  └─ p0f Signature").fg(Color::DarkYellow),
-                Cell::new(format!("{sig}")).fg(Color::Cyan),
-            ]);
-            table.add_row(vec![
-                Cell::new("  └─ L4↔L7 Status").fg(Color::DarkYellow),
-                Cell::new("✔ COHERENT — Paradox Normalized").fg(Color::Green),
-            ]);
+        for (label, value) in l4_status_rows(state) {
+            table.add_row(vec![Cell::new(label).fg(Color::Yellow), Cell::new(value).fg(Color::Cyan)]);
         }
+
     }
 
     println!("\n{table}");
@@ -1021,7 +1041,7 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("wireguard", |a| a.help(t!("help.opt_wg").into_owned()))
         .mut_arg("browser_shield", |a| a.help(t!("help.opt_browser_shield").into_owned()))
         .mut_arg("font_sandbox", |a| a.help(t!("help.opt_font_sandbox").into_owned()))
-        .mut_arg("tcp_mask", |a| a.help(t!("help.opt_tcp_mask").into_owned()))
+        .mut_arg("tcp_mask", |a| a.help("Enable namespace TCP profile normalization (auto unless explicitly selected)"))
         .mut_arg("machine_id_rotation", |a| a.help(t!("help.opt_machine_id").into_owned()))
         .mut_arg("strict_hardening", |a| a.help(t!("help.opt_full_security").into_owned()))
         .mut_arg("monitor_window", |a| a.help(t!("help.opt_spawn_monitor").into_owned()))
@@ -1113,4 +1133,22 @@ pub fn print_demo_showcase() {
     print_step(&t!("commands.demo_step_13_ok"), "ok");
 
     print_success(&t!("commands.demo_success"));
+}
+
+#[cfg(test)]
+mod l4_display_tests {
+    use super::*;
+    #[test]
+    fn inactive_off_and_missing_snapshot_never_claim_live_verification() {
+        let mut state = StateData::default();
+        assert!(l4_status_rows(&state)[0].1.contains("Inactive"));
+        state.namespace_active = true;
+        assert!(l4_status_rows(&state)[0].1.contains("Off"));
+        state.tcp_stack_masked = true;
+        state.tcp_profile_kind = Some("macOS".into());
+        let rows = l4_status_rows(&state);
+        assert_eq!(rows[0].1, "macOS");
+        assert!(rows[1].1.contains("Unavailable"));
+        assert!(!rows.iter().any(|(_, value)| value.contains("COHERENT") || value.contains("Windows")));
+    }
 }

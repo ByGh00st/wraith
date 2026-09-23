@@ -36,6 +36,8 @@ pub struct TorSection {
 pub struct HardeningSection {
     pub strict: Option<bool>,
     pub tcp_mask: Option<bool>,
+    pub morph_l4: Option<String>,
+    pub tls_profile: Option<String>,
     pub browser_shield: Option<bool>,
     pub honey_ports: Option<bool>,
     pub font_sandbox: Option<bool>,
@@ -258,6 +260,18 @@ impl WraithConfig {
                 self.hardening.strict = Some(b);
                 self.strict_hardening = Some(b);
             }
+            "morph-l4" | "hardening.morph_l4" => {
+                if !["auto", "windows", "windows11", "macos", "linux", "off"].contains(&value) {
+                    return Err(WraithError::Configuration("L4 profile must be auto, windows, macos, linux or off".into()));
+                }
+                self.hardening.morph_l4 = Some(value.into());
+            }
+            "tls-profile" | "hardening.tls_profile" => {
+                if !["chrome", "firefox", "safari"].contains(&value) {
+                    return Err(WraithError::Configuration("TLS profile must be chrome, firefox or safari".into()));
+                }
+                self.hardening.tls_profile = Some(value.into());
+            }
             "dns" | "dns_transport" | "dns.transport" => {
                 self.dns.transport = Some(value.to_string());
                 self.dns_transport = Some(value.to_string());
@@ -334,6 +348,18 @@ impl WraithConfig {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn l4_and_tls_settings_validate_and_roundtrip() {
+        let mut config = WraithConfig::default();
+        config.set_key("hardening.morph_l4", "auto").unwrap();
+        config.set_key("hardening.tls_profile", "safari").unwrap();
+        let decoded: WraithConfig = toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+        assert_eq!(decoded.hardening.morph_l4.as_deref(), Some("auto"));
+        assert_eq!(decoded.hardening.tls_profile.as_deref(), Some("safari"));
+        assert!(config.set_key("hardening.morph_l4", "unknown").is_err());
+        assert!(config.set_key("hardening.tls_profile", "unknown").is_err());
+    }
 
     #[test]
     fn test_toml_config_set_and_sync() {

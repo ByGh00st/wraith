@@ -604,6 +604,7 @@ pub struct SovereignDnsServer {
     bind_addr: String,
     upstream_addr: String,
     transport: DnsTransport,
+    tls_profile: wraith_tor::BrowserProfile,
     cancel_token: CancellationToken,
 }
 
@@ -632,9 +633,15 @@ impl SovereignDnsServer {
             bind_addr: format!("127.0.0.1:{b_port}"),
             upstream_addr: format!("127.0.0.1:{u_port}"),
             transport,
+            tls_profile: wraith_tor::BrowserProfile::Chrome,
             cancel_token: cancel_token.clone(),
         };
         (srv, cancel_token)
+    }
+
+    pub fn with_tls_profile(mut self, profile: wraith_tor::BrowserProfile) -> Self {
+        self.tls_profile = profile;
+        self
     }
 
     /// Run the same bounded TCP/UDP implementation used by foreground sessions.
@@ -647,6 +654,7 @@ impl SovereignDnsServer {
         query_bytes: Vec<u8>,
         upstream: String,
         transport: DnsTransport,
+        tls_profile: wraith_tor::BrowserProfile,
     ) -> Result<Option<Vec<u8>>> {
         let parsed_pkt = match DnsPacket::parse(&query_bytes) {
             Ok(p) => p,
@@ -676,7 +684,7 @@ impl SovereignDnsServer {
         let mut response_bytes: Option<Vec<u8>> = None;
 
         if let DnsTransport::DoH(ref doh_url) = transport {
-            let result = tokio::time::timeout(Duration::from_secs(8), crate::dnssec::resolve(doh_url, &query_bytes)).await;
+            let result = tokio::time::timeout(Duration::from_secs(8), crate::dnssec::resolve(doh_url, &query_bytes, tls_profile)).await;
             if let Ok(Ok(response)) = result {
                 return Ok(Some(response));
             }
@@ -718,14 +726,16 @@ impl SovereignDnsServer {
     }
 
     /// Queries upstream DoH endpoint using RFC 8484 application/dns-message POST wire format
-    pub(crate) async fn query_doh(url: &str, query_bytes: &[u8]) -> Result<Vec<u8>> {
-        static CLIENT: std::sync::OnceLock<wraith_tor::BrowserTlsClient> =
-            std::sync::OnceLock::new();
-        if CLIENT.get().is_none() {
-            let client = wraith_tor::BrowserTlsClient::new(wraith_tor::BrowserProfile::Chrome)?;
-            let _ = CLIENT.set(client);
+    pub(crate) async fn query_doh(url: &str, query_bytes: &[u8], profile: wraith_tor::BrowserProfile) -> Result<Vec<u8>> {
+        use wraith_tor::BrowserProfile;
+        static CHROME: std::sync::OnceLock<wraith_tor::BrowserTlsClient> = std::sync::OnceLock::new();
+        static FIREFOX: std::sync::OnceLock<wraith_tor::BrowserTlsClient> = std::sync::OnceLock::new();
+        static SAFARI: std::sync::OnceLock<wraith_tor::BrowserTlsClient> = std::sync::OnceLock::new();
+        let selected = match profile { BrowserProfile::Chrome => &CHROME, BrowserProfile::Firefox => &FIREFOX, BrowserProfile::Safari => &SAFARI };
+        if selected.get().is_none() {
+            let _ = selected.set(wraith_tor::BrowserTlsClient::new(profile)?);
         }
-        CLIENT
+        selected
             .get()
             .ok_or_else(|| WraithError::Network("TLS client initialization failed".into()))?
             .post_dns(url, query_bytes)
@@ -736,6 +746,7 @@ impl SovereignDnsServer {
         let cancel = self.cancel_token.clone();
         let upstream = self.upstream_addr.clone();
         let transport = self.transport.clone();
+        let tls_profile = self.tls_profile;
         let socket = Arc::new(UdpSocket::bind(&self.bind_addr).await?);
         let tcp_listener = TcpListener::bind(&self.bind_addr).await?;
         let capacity = Arc::new(tokio::sync::Semaphore::new(128));
@@ -761,7 +772,7 @@ impl SovereignDnsServer {
                                     stream.read_exact(&mut query).await?;
                                     // Resolve directly: a TCP request must not consume a
                                     // second permit by sending back to this UDP listener.
-                                    if let Some(response) = Self::resolve_query(query, upstream, transport).await? {
+                                    if let Some(response) = Self::resolve_query(query, upstream, transport, tls_profile).await? {
                                         stream.write_u16(response.len() as u16).await?;
                                         stream.write_all(&response).await?;
                                     }
@@ -781,7 +792,7 @@ impl SovereignDnsServer {
                                 let _permit = permit;
                                 let _ = tokio::time::timeout(Duration::from_secs(30), async {
                                     let original = query.clone();
-                                    if let Ok(Some(response)) = Self::resolve_query(query, upstream, transport).await {
+                                    if let Ok(Some(response)) = Self::resolve_query(query, upstream, transport, tls_profile).await {
                                         if let Ok(response) = crate::dnssec::fit_udp(&original, response) {
                                             let _ = socket.send_to(&response, peer).await;
                                         }
@@ -812,7 +823,7 @@ mod tests {
         let upstream = UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let query = vec![0x12,0x34,1,0,0,1,0,0,0,0,0,0,7,b'e',b'x',b'a',b'm',b'p',b'l',b'e',3,b'c',b'o',b'm',0,0,1,0,1];
         let response = SovereignDnsServer::resolve_query(query,
-            upstream.local_addr().unwrap().to_string(), DnsTransport::DoH("http://invalid.local/dns-query".into()))
+            upstream.local_addr().unwrap().to_string(), DnsTransport::DoH("http://invalid.local/dns-query".into()), wraith_tor::BrowserProfile::Chrome)
             .await.unwrap().unwrap();
         assert_eq!(&response[..2], &[0x12, 0x34]);
         assert_eq!(response[3] & 0x0f, 2); // SERVFAIL

@@ -17,12 +17,16 @@ pub struct TrafficJitterEngine {
 
 impl TrafficJitterEngine {
     pub fn new(endpoint: &str) -> Result<(Self, CancellationToken)> {
+        Self::with_profile(endpoint, BrowserProfile::Chrome)
+    }
+
+    pub fn with_profile(endpoint: &str, profile: BrowserProfile) -> Result<(Self, CancellationToken)> {
         validate_https_url(endpoint)?;
         let cancel_token = CancellationToken::new();
         Ok((
             Self {
                 cancel_token: cancel_token.clone(),
-                client: BrowserTlsClient::new(BrowserProfile::Chrome)?,
+                client: BrowserTlsClient::new(profile)?,
                 endpoint: endpoint.into(),
             },
             cancel_token,

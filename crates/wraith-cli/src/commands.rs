@@ -18,7 +18,7 @@ use wraith_guard::{
 };
 use wraith_net::{
     apply_ipv6_block, apply_tor_rules_with_journal, block_stun_ports,
-    create_cgroup_jail, create_namespace_with_l4_profile, destroy_cgroup_jail, destroy_namespace,
+    create_cgroup_jail, create_namespace_with_optional_l4_profile, destroy_cgroup_jail, destroy_namespace,
     restore_mac,
     EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
     TrafficShapingProfile,
@@ -180,6 +180,8 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         }
         if args.wireguard.is_none() { args.wireguard = cfg.network.wireguard_config; }
         args.tcp_mask |= cfg.hardening.tcp_mask.unwrap_or(false);
+        if args.morph_l4.is_none() { args.morph_l4 = cfg.hardening.morph_l4; }
+        if args.tls_profile.is_none() { args.tls_profile = cfg.hardening.tls_profile; }
         args.browser_shield |= cfg.hardening.browser_shield.unwrap_or(false);
         args.honey_ports |= cfg.hardening.honey_ports.unwrap_or(false);
         if let Some(transport) = cfg.dns.transport.or(cfg.dns_transport) {
@@ -207,6 +209,8 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         return Ok(());
     }
 
+    let tls_profile: wraith_tor::BrowserProfile = args.tls_profile.as_deref().unwrap_or("chrome").parse()?;
+    let tcp_profile = resolve_tcp_profile(&args)?;
     let is_strict = args.strict_hardening;
     if is_strict && args.no_ks {
         return Err(WraithError::Configuration("Full security requires the kill switch; remove --no-ks".into()));
@@ -417,7 +421,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // TCP profiles apply to applications explicitly launched in the namespace.
     // Never mark a requested profile active before the kernel accepted it.
     args.namespace |= args.tcp_mask || is_strict
-        || (!args.tcp_profile.is_empty() && args.tcp_profile != "auto");
+        || args.morph_l4.as_deref().is_some_and(|mode| mode != "off");
 
     // Every mode redirects port 80 here, so every mode needs this listener.
     let (server, ct) = TlsCamouflageServer::new(None);
@@ -580,6 +584,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     };
 
     let (dns_srv, dns_ct) = wraith_guard::SovereignDnsServer::new_with_transport(None, None, dns_transport);
+    let dns_srv = dns_srv.with_tls_profile(tls_profile);
     let dns_handle = dns_srv.spawn_server().await?;
     bg_services.dns = Some((dns_ct, dns_handle));
     print_step(&t!("commands.cmd_step_76"), "ok");
@@ -735,23 +740,21 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         wraith_net::preflight_namespace()?;
         state_data.namespace_active = true;
         state_mgr.activate(state_data.clone())?;
-        let tcp_profile = resolve_tcp_profile(&args);
-        match create_namespace_with_l4_profile(&tcp_profile) {
+        match create_namespace_with_optional_l4_profile(tcp_profile.as_ref()) {
             Ok(snapshot) => {
                 print_step(&t!("commands.cmd_step_19"), "ok");
-                print_step(
-                    &format!(
-                        "L4 TCP profile armed in namespace: {} [{}]",
-                        tcp_profile.name,
-                        tcp_profile.format_summary()
-                    ),
-                    "ok",
-                );
                 state_data.namespace_active = true;
-                state_data.tcp_stack_masked = true;
-                state_data.tcp_profile_kind = Some(tcp_profile.name.clone());
-                state_data.tcp_stack_backup = snapshot.values.clone();
-                state_data.tcp_snapshot_json = Some(serde_json::to_string(&snapshot)?);
+                state_data.tls_profile = Some(args.tls_profile.clone().unwrap_or_else(|| "chrome".into()));
+                if let Some(snapshot) = snapshot {
+                    print_step(&format!("L4 namespace profile applied and read back: {}",
+                        snapshot.profile_name.as_deref().unwrap_or("unknown")), "ok");
+                    state_data.tcp_stack_masked = true;
+                    state_data.tcp_profile_kind = snapshot.profile_name.clone();
+                    state_data.tcp_stack_backup = snapshot.values.clone();
+                    state_data.tcp_snapshot_json = Some(serde_json::to_string(&snapshot)?);
+                } else {
+                    print_step("L4 morphing off; namespace isolation remains active", "info");
+                }
                 state_mgr.activate(state_data.clone())?;
             }
             Err(e) => return Err(e),
@@ -773,7 +776,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         let endpoint = args.jitter_endpoint.as_deref().ok_or_else(|| {
             WraithError::Configuration("--jitter requires --jitter-endpoint HTTPS_URL".into())
         })?;
-        let (je, ct) = TrafficJitterEngine::new(endpoint)?;
+        let (je, ct) = TrafficJitterEngine::with_profile(endpoint, tls_profile)?;
         let handle = je.spawn_obfuscator();
         print_step(
             "Tor HTTPS cover-request worker started (15–45 second intervals)",
@@ -1697,20 +1700,22 @@ fn record_cleanup(label: &str, result: Result<()>, errors: &mut Vec<String>) {
 }
 
 /// Resolves L4 TCP fingerprint profile from runtime parameters or defaults
-fn resolve_tcp_profile(args: &crate::StartArgs) -> TcpFingerprintProfile {
-    match args.tcp_profile.to_ascii_lowercase().as_str() {
-        "windows11" | "win" | "win11" => TcpFingerprintProfile::windows11(),
-        "macos" | "mac" | "darwin" => TcpFingerprintProfile::macos(),
+fn resolve_tcp_profile(args: &crate::StartArgs) -> Result<Option<TcpFingerprintProfile>> {
+    let browser: wraith_tor::BrowserProfile = args.tls_profile.as_deref().unwrap_or("chrome").parse()?;
+    let profile = match args.morph_l4.as_deref().unwrap_or("auto") {
+        "off" => {
+            if args.strict_hardening || args.tcp_mask {
+                return Err(WraithError::Configuration("--morph-l4 off conflicts with --full-security and --tcp-mask".into()));
+            }
+            return Ok(None);
+        }
+        "auto" => browser.l4_profile(),
+        "windows" | "windows11" => TcpFingerprintProfile::windows11(),
+        "macos" => TcpFingerprintProfile::macos(),
         "linux" => TcpFingerprintProfile::linux_default(),
-        "auto" | "" => {
-            // In auto mode, infer from the active TLS camouflage browser profile
-            TcpFingerprintProfile::from_tls_profile("Google Chrome v131 (Windows 11 x86_64)")
-        }
-        _ => {
-            // Fallback for any other unrecognized profile
-            TcpFingerprintProfile::from_tls_profile("Google Chrome v131 (Windows 11 x86_64)")
-        }
-    }
+        value => return Err(WraithError::Configuration(format!("Unknown L4 profile: {value}"))),
+    };
+    Ok(Some(profile))
 }
 
 #[cfg(test)]
@@ -1723,30 +1728,34 @@ mod lifecycle_tests {
     }
 
     #[test]
-    fn test_resolve_tcp_profile_variants() {
-        let mut args = crate::StartArgs::default();
-
-        args.tcp_profile = "auto".to_string();
-        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
-
-        args.tcp_profile = "windows11".to_string();
-        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
-
-        args.tcp_profile = "win".to_string();
-        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
-
-        args.tcp_profile = "macos".to_string();
-        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::MacOS);
-
-        args.tcp_profile = "mac".to_string();
-        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::MacOS);
-
-        args.tcp_profile = "linux".to_string();
-        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::LinuxDefault);
-
-        args.tcp_profile = "".to_string();
-        assert_eq!(resolve_tcp_profile(&args).kind, wraith_core::tcp_fingerprint::TcpProfileKind::Windows11);
+    fn auto_uses_selected_tls_platform_and_manual_profiles_override_it() {
+        use wraith_core::tcp_fingerprint::TcpProfileKind::*;
+        for (tls, expected) in [("chrome", Windows11), ("firefox", LinuxDefault), ("safari", MacOS)] {
+            let args = crate::StartArgs { tls_profile: Some(tls.into()), morph_l4: Some("auto".into()), ..Default::default() };
+            assert_eq!(resolve_tcp_profile(&args).unwrap().unwrap().kind, expected);
+        }
+        for (mode, expected) in [("windows", Windows11), ("windows11", Windows11), ("linux", LinuxDefault), ("macos", MacOS)] {
+            let args = crate::StartArgs { tls_profile: Some("safari".into()), morph_l4: Some(mode.into()), ..Default::default() };
+            assert_eq!(resolve_tcp_profile(&args).unwrap().unwrap().kind, expected);
+        }
     }
+
+    #[test]
+    fn off_and_invalid_profiles_are_not_silently_armed() {
+        let mut args = crate::StartArgs { morph_l4: Some("off".into()), ..Default::default() };
+        assert!(resolve_tcp_profile(&args).unwrap().is_none());
+        args.strict_hardening = true;
+        assert!(resolve_tcp_profile(&args).is_err());
+        args.strict_hardening = false;
+        args.tcp_mask = true;
+        assert!(resolve_tcp_profile(&args).is_err());
+        args.morph_l4 = Some("unknown".into());
+        assert!(resolve_tcp_profile(&args).is_err());
+        args.morph_l4 = Some("auto".into());
+        args.tls_profile = Some("unknown".into());
+        assert!(resolve_tcp_profile(&args).is_err());
+    }
+
 }
 
 /// Join the already protected namespace, then drop privileges before exec.

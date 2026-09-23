@@ -173,21 +173,20 @@ pub struct StartArgs {
     )]
     pub honey_lan: bool,
 
-    /// Normalize TCP/IP L4 stack parameters (TTL=128, timestamps=0) to resist OS fingerprinting
+    /// Enable namespace TCP profile normalization (auto unless explicitly selected)
     #[arg(long = "tcp-mask", help_heading = "System Hardening")]
     pub tcp_mask: bool,
 
-    /// L4 TCP/IP OS fingerprint emulation profile (windows11, macos, linux, auto)
-    /// 'auto' infers from the active TLS browser profile
-    #[arg(
-        long = "tcp-profile",
-        visible_aliases = ["l4-profile", "os-profile"],
-        value_name = "PROFILE",
-        value_parser = ["windows11", "macos", "linux", "auto"],
-        default_value = "auto",
-        help_heading = "System Hardening"
-    )]
-    pub tcp_profile: String,
+    /// Namespace L4 profile: auto follows --tls-profile; off keeps kernel defaults
+    #[arg(long = "morph-l4", visible_aliases = ["tcp-profile", "l4-profile", "os-profile"],
+        value_name = "PROFILE", value_parser = ["auto", "windows", "windows11", "macos", "linux", "off"],
+        help_heading = "System Hardening")]
+    pub morph_l4: Option<String>,
+
+    /// TLS profile for session DoH and cover requests (default: chrome)
+    #[arg(long = "tls-profile", value_name = "BROWSER", value_parser = ["chrome", "firefox", "safari"],
+        help_heading = "System Hardening")]
+    pub tls_profile: Option<String>,
 
     /// Rotate unique OS /etc/machine-id and system hardware identifiers
     #[arg(long = "machine-id", visible_aliases = ["cloaking"], help_heading = "System Hardening")]
@@ -276,7 +275,8 @@ impl StartArgs {
             || self.honey_ports
             || self.honey_lan
             || self.tcp_mask
-            || (!self.tcp_profile.is_empty() && self.tcp_profile != "auto")
+            || self.morph_l4.is_some()
+            || self.tls_profile.is_some()
             || self.machine_id_rotation
             || self.strict_hardening
             || self.monitor_window
@@ -1037,6 +1037,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn morph_l4_cli_supports_root_subcommand_aliases_and_explicit_auto() {
+        for flag in ["--morph-l4", "--tcp-profile", "--l4-profile", "--os-profile"] {
+            for profile in ["auto", "windows", "windows11", "macos", "linux", "off"] {
+                for prefix in [vec!["wraith"], vec!["wraith", "start"]] {
+                    let mut argv = prefix;
+                    argv.extend([flag, profile, "--tls-profile", "safari"]);
+                    let cli = Cli::try_parse_from(argv).unwrap();
+                    assert!(matches!(resolve_command(&cli), Some(Commands::Start(args))
+                        if args.morph_l4.as_deref() == Some(profile) && args.tls_profile.as_deref() == Some("safari")));
+                }
+            }
+        }
+        assert!(Cli::try_parse_from(["wraith", "--morph-l4", "unknown"]).is_err());
+        assert!(Cli::try_parse_from(["wraith", "--tls-profile", "unknown"]).is_err());
+    }
+
+    #[test]
     fn updater_supports_github_and_requires_complete_offline_inputs() {
         assert!(Cli::try_parse_from(["wraith", "-u"]).unwrap().update);
         assert!(matches!(Cli::try_parse_from(["wraith", "update"]).unwrap().command,
@@ -1190,7 +1207,7 @@ mod tests {
 
         // Start & strict hardening shortcuts
         let cli_start = Cli::try_parse_from(["wraith", "-s"]).unwrap();
-        assert_eq!(resolve_command(&cli_start), Some(Commands::Start(StartArgs { tcp_profile: "auto".into(), ..Default::default() })));
+        assert_eq!(resolve_command(&cli_start), Some(Commands::Start(StartArgs::default())));
 
         let cli_fs = Cli::try_parse_from(["wraith", "-Fs"]).unwrap();
         assert!(matches!(resolve_command(&cli_fs), Some(Commands::Start(args)) if args.strict_hardening));

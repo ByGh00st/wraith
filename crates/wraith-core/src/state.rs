@@ -69,6 +69,8 @@ pub struct StateData {
     /// Active L4 TCP profile kind name (e.g. "Windows 11", "macOS")
     #[serde(default)]
     pub tcp_profile_kind: Option<String>,
+    #[serde(default)]
+    pub tls_profile: Option<String>,
     /// Serialized NetnsTcpSnapshot for 3-tier rollback
     #[serde(default)]
     pub tcp_snapshot_json: Option<String>,

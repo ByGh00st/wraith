@@ -20,15 +20,17 @@ use wraith_core::error::{Result, WraithError};
 #[derive(Clone)]
 struct TorDoh {
     url: String,
+    profile: wraith_tor::BrowserProfile,
 }
 impl DnsHandle for TorDoh {
     type Runtime = TokioRuntimeProvider;
     type Response = Pin<Box<dyn Stream<Item = std::result::Result<DnsResponse, NetError>> + Send>>;
     fn send(&self, request: DnsRequest) -> Self::Response {
         let url = self.url.clone();
+        let profile = self.profile;
         Box::pin(stream::once(async move {
             let query = request.to_vec().map_err(NetError::from)?;
-            let bytes = SovereignDnsServer::query_doh(&url, &query)
+            let bytes = SovereignDnsServer::query_doh(&url, &query, profile)
                 .await
                 .map_err(|e| NetError::Msg(e.to_string()))?;
             let response = DnsResponse::from_buffer(bytes)?;
@@ -44,7 +46,7 @@ impl DnsHandle for TorDoh {
     }
 }
 
-pub(crate) async fn resolve(url: &str, query: &[u8]) -> Result<Vec<u8>> {
+pub(crate) async fn resolve(url: &str, query: &[u8], profile: wraith_tor::BrowserProfile) -> Result<Vec<u8>> {
     let mut request = Message::from_vec(query).map_err(|e| WraithError::Network(e.to_string()))?;
     if request.metadata.message_type != MessageType::Query
         || request.op_code != OpCode::Query
@@ -59,7 +61,7 @@ pub(crate) async fn resolve(url: &str, query: &[u8]) -> Result<Vec<u8>> {
     // A client's CD flag must not disable this gateway's validation policy.
     request.metadata.checking_disabled = false;
     request.metadata.authentic_data = false;
-    let validator = DnssecDnsHandle::new(TorDoh { url: url.into() }).validation_cache_size(256);
+    let validator = DnssecDnsHandle::new(TorDoh { url: url.into(), profile }).validation_cache_size(256);
     let mut replies = validator.send(DnsRequest::new(request, DnsRequestOptions::default()));
     let response = replies
         .next()
