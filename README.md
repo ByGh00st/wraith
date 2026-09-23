@@ -418,6 +418,7 @@ wraith --help
 | Tor and dedicated `debian-tor` account | Tor transport; UID 0 is never a fallback |
 | Dedicated `/run/wraith-tor` and `/var/lib/wraith/tor` | Wraith Tor runtime and data; system Tor files are kept separate |
 | iproute2 (`ip`, `tc`) | Interfaces, namespaces and optional shaping |
+| util-linux (`nsenter`) | Execute TCP settings through a pinned namespace descriptor |
 | iptables/ip6tables plus save/restore tools | Session policy and recovery snapshots |
 | CMake, Perl, libclang, C/C++ compiler | Native browser TLS engine build, including source updates |
 | curl | Connectivity and bridge helper requests |
@@ -887,6 +888,8 @@ sudo wraith exec -- curl https://example.com
 
 Strict TCP profile setup requires an original-value backup for every requested sysctl and reads each value back after writing it. Missing settings, mismatched readbacks and absent or ambiguous default routes stop setup; rollback failures are surfaced. Original `initcwnd` and `initrwnd` route metrics are restored and read back even when the namespace stays alive; a changed route identity is rejected. These checks verify configuration, not an exact operating-system fingerprint or TCP option order.
 
+The sysctl engine accepts only the managed namespace and approved TCP keys, rejects host namespace aliases and retains one namespace descriptor throughout the transaction. The legacy host writer is disabled. See the [profile and sysctl architecture](docs/L4-SYSCTL-DESIGN.md) for the typed API, failure policies and timestamp semantics.
+
 New Linux session records bind the worker to its boot ID, process start ticks and executable device/inode. Shutdown verifies that identity and signals through a pidfd, avoiding name-based matching and recycled-PID signaling. A live legacy record without identity is not automatically signaled: stop its original worker, retain the journal and retry recovery. See the [L4/L7 guide](https://github.com/ByGh00st/wraith/wiki/L4-and-L7).
 
 Honeypot startup must reserve every configured port before adding LAN firewall exceptions. LAN mode requires a private address on the selected interface; connections have a shared limit and a deadline. A port already used by a real service aborts startup.
@@ -915,7 +918,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-21**: **163 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
+Checks recorded **2026-09-24**: **174 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
 
 ```bash
 cargo test --workspace --locked
