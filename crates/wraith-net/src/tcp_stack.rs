@@ -158,7 +158,13 @@ pub struct NetnsTcpSnapshot {
     pub profile_name: Option<String>,
     /// Key-value mappings of backed-up sysctl parameters.
     pub values: HashMap<String, String>,
-    /// Whether a Netfilter MSS rule was active before morphing.
+    /// Profile applied by the complete three-tier transaction (not a wire measurement).
+    #[serde(default)]
+    pub applied_profile: Option<TcpFingerprintProfile>,
+    /// New rules carry a Wraith ownership comment; legacy snapshots remain readable.
+    #[serde(default)]
+    pub mss_rule_tagged: bool,
+    /// Whether this transaction installed a Netfilter MSS rule.
     pub had_netfilter_mss: bool,
     /// The MSS value that was set (for rollback deletion).
     pub netfilter_mss_value: Option<u16>,
@@ -173,6 +179,8 @@ impl NetnsTcpSnapshot {
         Self {
             namespace: namespace.into(),
             namespace_identity: None,
+            applied_profile: None,
+            mss_rule_tagged: false,
             profile_name: None,
             values: HashMap::new(),
             had_netfilter_mss: false,
@@ -194,10 +202,6 @@ fn guard_not_host(netns: &str) -> std::result::Result<(), TcpMorphError> {
 
 pub fn is_netns_active(netns: &str) -> bool {
     Namespace::open(netns).is_ok()
-}
-
-fn require_active_netns(netns: &str) -> std::result::Result<(), TcpMorphError> {
-    Namespace::open(netns).map(|_| ())
 }
 
 fn validate_sysctl_key(key: &str) -> std::result::Result<(), TcpMorphError> {
@@ -274,13 +278,18 @@ pub enum SysctlApplyOutcome {
 pub fn apply_sysctl_profile(netns: &str, profile: &TcpFingerprintProfile, policy: SysctlFailurePolicy)
     -> std::result::Result<SysctlApplyOutcome, TcpMorphError> {
     profile.validate()?;
-    let namespace = Namespace::open(netns)?;
+    apply_pinned_sysctl_profile(&Namespace::open(netns)?, profile, policy)
+}
+
+fn apply_pinned_sysctl_profile(namespace: &Namespace, profile: &TcpFingerprintProfile, policy: SysctlFailurePolicy)
+    -> std::result::Result<SysctlApplyOutcome, TcpMorphError> {
+    let netns = namespace.name.as_str();
     let mut snapshot = NetnsTcpSnapshot::new(netns);
     snapshot.namespace_identity = Some(namespace.identity);
     let entries = profile.sysctl_entries();
     match apply_sysctl_transaction(&mut snapshot, &entries,
-        |key| read_pinned_sysctl(&namespace, key),
-        |key, value| write_pinned_sysctl(&namespace, key, value)) {
+        |key| read_pinned_sysctl(namespace, key),
+        |key, value| write_pinned_sysctl(namespace, key, value)) {
         Ok(()) => {
             snapshot.profile_name = Some(profile.name.clone());
             info!("TCP sysctl profile '{}' applied and read back in {netns}", profile.name);
@@ -365,76 +374,71 @@ pub fn snapshot_netns_tcp_stack(netns: &str, keys: &[&str]) -> std::result::Resu
 // TIER 2: NETFILTER MSS CLAMPING (iptables mangle)
 // ══════════════════════════════════════════════════════════════════════════════
 
-/// Applies Netfilter TCPMSS clamping rule inside the network namespace.
-///
-/// This sets the Maximum Segment Size on outgoing SYN packets via the mangle table.
-/// The MSS value is NOT a sysctl — it must be enforced through iptables.
-///
-/// ## iptables Command Executed
-/// ```bash
-/// ip netns exec <ns> iptables -t mangle -A POSTROUTING -p tcp \
-///   --tcp-flags SYN,RST SYN -j TCPMSS --set-mss <mss>
-/// ```
-pub fn apply_netfilter_mss(
-    netns: &str,
-    mss: u16,
-) -> std::result::Result<(), TcpMorphError> {
-    require_active_netns(netns)?;
+/// Install an owned IPv4 SYN MSS cap, verify it, and remove it if readback fails.
+pub fn apply_netfilter_mss(netns: &str, mss: u16) -> std::result::Result<(), TcpMorphError> {
+    install_pinned_mss(&Namespace::open(netns)?, mss)
+}
 
-    let output = Namespace::open(netns)?.run("iptables", &[
-            "-t", "mangle",
-            "-A", "POSTROUTING",
-            "-p", "tcp",
-            "--tcp-flags", "SYN,RST", "SYN",
-            "-j", "TCPMSS",
-            "--set-mss", &mss.to_string(),
-        ])
-        .map_err(|e| TcpMorphError::NetfilterFailed {
-            namespace: netns.to_string(),
-            details: format!("iptables execution error: {e}"),
-        })?;
+fn mss_args(operation: &str, mss: u16, tagged: bool) -> Vec<String> {
+    let mut args = vec!["-w", "5", "-t", "mangle", operation, "POSTROUTING", "-p", "tcp",
+        "--tcp-flags", "SYN,RST", "SYN"];
+    if tagged { args.extend(["-m", "comment", "--comment", "wraith-l4"]); }
+    args.extend(["-j", "TCPMSS", "--set-mss"]);
+    let mut args: Vec<String> = args.into_iter().map(String::from).collect();
+    args.push(mss.to_string());
+    args
+}
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(TcpMorphError::NetfilterFailed {
-            namespace: netns.to_string(),
-            details: format!("TCPMSS --set-mss {mss} failed: {}", stderr.trim()),
-        });
+fn mss_command(namespace: &Namespace, operation: &str, mss: u16, tagged: bool)
+    -> std::result::Result<bool, TcpMorphError> {
+    let args = mss_args(operation, mss, tagged);
+    let refs: Vec<_> = args.iter().map(String::as_str).collect();
+    let output = namespace.run("iptables", &refs)?;
+    if output.status.success() { return Ok(true); }
+    // iptables -C uses exit 1 for an absent rule. Syntax/module/lock errors stay errors.
+    if operation == "-C" && output.status.code() == Some(1) { return Ok(false); }
+    Err(TcpMorphError::NetfilterFailed { namespace: namespace.name.clone(),
+        details: format!("TCPMSS {operation}: {}", String::from_utf8_lossy(&output.stderr).trim()) })
+}
+
+fn install_pinned_mss(namespace: &Namespace, mss: u16) -> std::result::Result<(), TcpMorphError> {
+    if mss < 536 { return Err(TcpMorphError::InvalidValue("SYN MSS below 536".into())); }
+    install_mss_transaction(&namespace.name, |op| mss_command(namespace, op, mss, true))
+}
+
+fn install_mss_transaction<F>(netns: &str, mut command: F) -> std::result::Result<(), TcpMorphError>
+where F: FnMut(&str) -> std::result::Result<bool, TcpMorphError> {
+    let error = |details: &str| TcpMorphError::NetfilterFailed { namespace: netns.into(), details: details.into() };
+    if command("-C")? { return Err(error("MSS rule already exists; refusing duplicate ownership")); }
+    let applied = command("-A").and_then(|_| {
+        if command("-C")? { Ok(()) } else { Err(error("MSS rule readback mismatch")) }
+    });
+    if let Err(cause) = applied {
+        // A failing command may have mutated state. Query and undo before returning.
+        let cleanup = (|| {
+            if command("-C")? { command("-D")?; }
+            if command("-C")? { return Err(error("MSS rule remains after rollback")); }
+            Ok(())
+        })();
+        if let Err(rollback) = cleanup {
+            return Err(TcpMorphError::RollbackFailed { namespace: netns.into(), details: format!("{cause}; {rollback}") });
+        }
+        return Err(cause);
     }
-
-    info!("Namespace [{netns}] Netfilter TCPMSS clamped to {mss} bytes");
+    info!("Namespace [{netns}] owned TCPMSS rule installed and read back");
     Ok(())
 }
 
-/// Removes a previously applied Netfilter TCPMSS clamping rule (rollback).
-pub fn remove_netfilter_mss(
-    netns: &str,
-    mss: u16,
-) -> std::result::Result<(), TcpMorphError> {
-    require_active_netns(netns)?;
+/// Remove a new owned rule. Snapshot restoration also supports older untagged rules.
+pub fn remove_netfilter_mss(netns: &str, mss: u16) -> std::result::Result<(), TcpMorphError> {
+    remove_pinned_mss(&Namespace::open(netns)?, mss, true)
+}
 
-    let output = Namespace::open(netns)?.run("iptables", &[
-            "-t", "mangle",
-            "-D", "POSTROUTING",
-            "-p", "tcp",
-            "--tcp-flags", "SYN,RST", "SYN",
-            "-j", "TCPMSS",
-            "--set-mss", &mss.to_string(),
-        ])
-        .map_err(|e| TcpMorphError::NetfilterFailed {
-            namespace: netns.to_string(),
-            details: format!("iptables deletion error: {e}"),
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(TcpMorphError::NetfilterFailed {
-            namespace: netns.into(), details: format!("TCPMSS removal failed: {}", stderr.trim()),
-        });
-    } else {
-        debug!("Namespace [{netns}] Netfilter TCPMSS rule removed (MSS={mss})");
+fn remove_pinned_mss(namespace: &Namespace, mss: u16, tagged: bool) -> std::result::Result<(), TcpMorphError> {
+    if mss_command(namespace, "-C", mss, tagged)? { mss_command(namespace, "-D", mss, tagged)?; }
+    if mss_command(namespace, "-C", mss, tagged)? {
+        return Err(TcpMorphError::NetfilterFailed { namespace: namespace.name.clone(), details: "MSS rule remains after removal".into() });
     }
-
     Ok(())
 }
 
@@ -444,8 +448,8 @@ pub fn remove_netfilter_mss(
 
 /// Applies FIB routing metrics (initcwnd / initrwnd) to the default route inside the namespace.
 ///
-/// These metrics control the initial TCP window sizes and directly affect what appears
-/// in the SYN packet's window field — a key p0f discriminator.
+/// initrwnd influences the receive window; initcwnd controls initial send congestion.
+/// Neither guarantees an exact SYN window or complete operating-system fingerprint.
 ///
 /// ## ip route Command Executed
 /// ```bash
@@ -456,15 +460,23 @@ pub fn apply_route_metrics(
     profile: &TcpFingerprintProfile,
 ) -> std::result::Result<(), TcpMorphError> {
     if !profile.requires_route_metrics() { return Ok(()); }
-    require_active_netns(netns)?;
-    let original = read_route_metrics(netns)?;
+    profile.validate()?;
+    let namespace = Namespace::open(netns)?;
+    let original = read_pinned_route_metrics(&namespace)?;
+    apply_pinned_route_metrics(&namespace, profile, &original)
+}
+
+fn apply_pinned_route_metrics(namespace: &Namespace, profile: &TcpFingerprintProfile, original: &RouteMetricSnapshot)
+    -> std::result::Result<(), TcpMorphError> {
+    let netns = namespace.name.as_str();
     let requested = RouteMetricSnapshot {
         identity: original.identity.clone(),
+        attributes: original.attributes.clone(),
         init_cwnd: profile.init_cwnd.map(u32::from).unwrap_or(original.init_cwnd),
         init_rwnd: profile.init_rwnd.map(u32::from).unwrap_or(original.init_rwnd),
     };
-    if let Err(error) = set_route_metrics(netns, &requested) {
-        if let Err(rollback) = set_route_metrics(netns, &original) {
+    if let Err(error) = set_pinned_route_metrics(namespace, &requested) {
+        if let Err(rollback) = set_pinned_route_metrics(namespace, original) {
             return Err(TcpMorphError::RollbackFailed { namespace: netns.into(),
                 details: format!("{error}; {rollback}") });
         }
@@ -477,6 +489,8 @@ pub fn apply_route_metrics(
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RouteMetricSnapshot {
     pub identity: Vec<String>,
+    #[serde(default)]
+    pub attributes: Vec<String>,
     pub init_cwnd: u32,
     pub init_rwnd: u32,
 }
@@ -492,12 +506,26 @@ fn parse_route_metrics(netns: &str, route: &str) -> std::result::Result<RouteMet
                     details: format!("Unsupported or locked {key} route metric") }),
         }
     };
-    Ok(RouteMetricSnapshot { identity, init_cwnd: metric("initcwnd")?, init_rwnd: metric("initrwnd")? })
+    let mut attributes = Vec::new();
+    let mut index = 1;
+    while index < parts.len() {
+        let key = parts[index];
+        let value = parts.get(index + 1).ok_or_else(|| TcpMorphError::RoutingFailed {
+            namespace: netns.into(), details: "Incomplete route attribute".into() })?;
+        if ["proto", "scope", "src"].contains(&key) {
+            attributes.extend([key.to_string(), (*value).to_string()]);
+        } else if !["via", "dev", "metric", "table", "initcwnd", "initrwnd"].contains(&key) {
+            return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
+                details: format!("Unsupported route attribute {key}; refusing a lossy route change") });
+        }
+        index += 2;
+    }
+    Ok(RouteMetricSnapshot { identity, attributes, init_cwnd: metric("initcwnd")?, init_rwnd: metric("initrwnd")? })
 }
 
-fn read_route_metrics(netns: &str) -> std::result::Result<RouteMetricSnapshot, TcpMorphError> {
-    require_active_netns(netns)?;
-    let output = Namespace::open(netns)?.run("ip", &["-o", "-4", "route", "show", "default"])?;
+fn read_pinned_route_metrics(namespace: &Namespace) -> std::result::Result<RouteMetricSnapshot, TcpMorphError> {
+    let netns = namespace.name.as_str();
+    let output = namespace.run("ip", &["-o", "-4", "route", "show", "default"])?;
     if !output.status.success() {
         return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
             details: format!("Cannot read default route: {}", String::from_utf8_lossy(&output.stderr).trim()) });
@@ -507,15 +535,17 @@ fn read_route_metrics(netns: &str) -> std::result::Result<RouteMetricSnapshot, T
 
 fn route_metric_args(saved: &RouteMetricSnapshot) -> Vec<String> {
     let mut args = saved.identity.clone();
+    args.extend(saved.attributes.clone());
     args.extend(["initcwnd".into(), saved.init_cwnd.to_string(), "initrwnd".into(), saved.init_rwnd.to_string()]);
     args
 }
 
-fn set_route_metrics(netns: &str, saved: &RouteMetricSnapshot) -> std::result::Result<(), TcpMorphError> {
-    update_route_metrics(netns, saved, || read_route_metrics(netns), |args| {
+fn set_pinned_route_metrics(namespace: &Namespace, saved: &RouteMetricSnapshot) -> std::result::Result<(), TcpMorphError> {
+    let netns = namespace.name.as_str();
+    update_route_metrics(netns, saved, || read_pinned_route_metrics(namespace), |args| {
         let mut command_args = vec!["-4", "route", "change"];
         command_args.extend(args.iter().map(String::as_str));
-        let output = Namespace::open(netns)?.run("ip", &command_args)?;
+        let output = namespace.run("ip", &command_args)?;
         if !output.status.success() {
             return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
                 details: format!("Route metric write failed: {}", String::from_utf8_lossy(&output.stderr).trim()) });
@@ -529,7 +559,10 @@ fn update_route_metrics<R, W>(netns: &str, saved: &RouteMetricSnapshot, mut read
 where R: FnMut() -> std::result::Result<RouteMetricSnapshot, TcpMorphError>,
       W: FnMut(Vec<String>) -> std::result::Result<(), TcpMorphError> {
     let identity = default_route_identity(netns, &saved.identity.join(" "))?;
-    if identity != saved.identity || read()?.identity != identity {
+    // Validate persisted arguments too, before passing them to iproute2.
+    let parsed = parse_route_metrics(netns, &route_metric_args(saved).join(" "))?;
+    let current = read()?;
+    if parsed != *saved || identity != saved.identity || current.identity != identity || current.attributes != saved.attributes {
         return Err(TcpMorphError::RoutingFailed { namespace: netns.into(), details: "Default route identity changed".into() });
     }
     write(route_metric_args(saved))?;
@@ -572,78 +605,47 @@ fn default_route_identity(netns: &str, routes: &str) -> std::result::Result<Vec<
 ///
 /// ## Rollback Strategy
 /// - Core sysctl failure → rollback of attempted parameters → abort.
-/// - Netfilter/routing failure → warn and continue (fail-open on non-core tiers by default).
+/// - Netfilter/routing failure → restore every tier; abort or explicitly skip after clean rollback.
 /// - `fail_closed`: Requires backups and successful writes for extended parameters too.
 pub fn apply_profile_to_netns(
     netns: &str,
     profile: &TcpFingerprintProfile,
     fail_closed: bool,
 ) -> std::result::Result<NetnsTcpSnapshot, TcpMorphError> {
-    require_active_netns(netns)?;
-
-    info!(
-        "Deploying 3-tier L4 TCP fingerprint normalization '{}' into namespace '{}' [{}]",
-        profile.name,
-        netns,
-        profile.format_summary()
-    );
-
+    let namespace = Namespace::open(netns)?;
     profile.validate()?;
-    let route_snapshot = if profile.requires_route_metrics() { Some(read_route_metrics(netns)?) } else { None };
+    let route_snapshot = if profile.requires_route_metrics() { Some(read_pinned_route_metrics(&namespace)?) } else { None };
     let policy = if fail_closed { SysctlFailurePolicy::FailClosed } else { SysctlFailurePolicy::RestoreAndContinue };
-    let mut snapshot = match apply_sysctl_profile(netns, profile, policy)? {
+    let mut snapshot = match apply_pinned_sysctl_profile(&namespace, profile, policy)? {
         SysctlApplyOutcome::Applied(snapshot) => snapshot,
         SysctlApplyOutcome::Skipped { snapshot, .. } => return Ok(snapshot),
     };
     snapshot.original_route_metrics = route_snapshot;
-
-    // ── Phase 3: Netfilter MSS Clamping (Tier 2) ──────────────────────────
-    if let Some(mss) = profile.syn_mss {
-        match apply_netfilter_mss(netns, mss) {
-            Ok(()) => {
-                snapshot.had_netfilter_mss = true;
-                snapshot.netfilter_mss_value = Some(mss);
-            }
-            Err(e) => {
-                if fail_closed {
-                    restore_after_failure(&snapshot, &e)?;
-                    return Err(e);
-                }
-                snapshot.profile_name = None;
-                warn!("Netfilter TCPMSS clamping failed in [{netns}]: {e}. Continuing without MSS override.");
-            }
+    let result = (|| {
+        if let Some(mss) = profile.syn_mss {
+            install_pinned_mss(&namespace, mss)?;
+            snapshot.had_netfilter_mss = true;
+            snapshot.mss_rule_tagged = true;
+            snapshot.netfilter_mss_value = Some(mss);
         }
-    }
-
-    // ── Phase 4: FIB Routing Metrics (Tier 3) ─────────────────────────────
-    if profile.requires_route_metrics() {
-        match apply_route_metrics(netns, profile) {
-            Ok(()) => {
-                snapshot.had_route_metrics = true;
-            }
-            Err(e) => {
-                if fail_closed {
-                    restore_after_failure(&snapshot, &e)?;
-                    return Err(e);
-                }
-                if matches!(e, TcpMorphError::RollbackFailed { .. }) { return Err(e); }
-                snapshot.profile_name = None;
-                warn!("FIB routing metric morphing failed in [{netns}]: {e}. Continuing with kernel defaults.");
-            }
+        if let Some(original) = &snapshot.original_route_metrics {
+            // Journal before attempting the write, including a failed readback.
+            snapshot.had_route_metrics = true;
+            apply_pinned_route_metrics(&namespace, profile, original)?;
         }
+        Ok::<(), TcpMorphError>(())
+    })();
+    if let Err(error) = result {
+        restore_pinned_tcp_stack(&namespace, &snapshot).map_err(|rollback| TcpMorphError::RollbackFailed {
+            namespace: netns.into(), details: format!("{error}; {rollback}"),
+        })?;
+        if fail_closed || !error.is_fallback_eligible() { return Err(error); }
+        warn!("L4 configuration skipped after complete rollback: {error}");
+        return Ok(NetnsTcpSnapshot { namespace_identity: Some(namespace.identity), ..NetnsTcpSnapshot::new(netns) });
     }
-
-    info!(
-        "L4 configuration finished in namespace '{}': profile [{}], complete={}; wire fingerprint not measured",
-        netns, profile.name, snapshot.profile_name.is_some()
-    );
+    snapshot.applied_profile = Some(profile.clone());
+    info!("L4 profile '{}' applied and read back in {netns}; wire fingerprint not measured", profile.name);
     Ok(snapshot)
-}
-
-fn restore_after_failure(snapshot: &NetnsTcpSnapshot, original: &TcpMorphError) -> std::result::Result<(), TcpMorphError> {
-    restore_netns_tcp_stack(snapshot).map_err(|rollback| TcpMorphError::RollbackFailed {
-        namespace: snapshot.namespace.clone(), details: format!("{original}; {rollback}"),
-    })
 }
 
 /// Restores original TCP stack state from a `NetnsTcpSnapshot`.
@@ -657,6 +659,11 @@ pub fn restore_netns_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Resu
         Err(TcpMorphError::NamespaceNotFound(_)) => return Ok(()),
         Err(error) => return Err(error),
     };
+    restore_pinned_tcp_stack(&namespace, snapshot)
+}
+
+fn restore_pinned_tcp_stack(namespace: &Namespace, snapshot: &NetnsTcpSnapshot) -> std::result::Result<(), TcpMorphError> {
+    let netns = namespace.name.as_str();
     if snapshot.namespace_identity.is_some_and(|identity| identity != namespace.identity) {
         return Err(TcpMorphError::RollbackFailed { namespace: netns.into(), details: "Namespace was replaced; refusing to restore into another lifetime".into() });
     }
@@ -669,14 +676,14 @@ pub fn restore_netns_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Resu
 
     // Tier 1: Restore sysctl values
     for (key, val) in &snapshot.values {
-        if let Err(e) = write_pinned_sysctl(&namespace, key, val) {
+        if let Err(e) = write_pinned_sysctl(namespace, key, val) {
             errors.push(format!("sysctl {key}={val}: {e}"));
         }
     }
 
     // Tier 2: Remove Netfilter MSS rule
     if let Some(mss) = snapshot.netfilter_mss_value {
-        if let Err(e) = remove_netfilter_mss(netns, mss) {
+        if let Err(e) = remove_pinned_mss(namespace, mss, snapshot.mss_rule_tagged) {
             errors.push(format!("netfilter MSS={mss}: {e}"));
         }
     }
@@ -685,7 +692,7 @@ pub fn restore_netns_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Resu
     if snapshot.had_route_metrics {
         match &snapshot.original_route_metrics {
             Some(original) => {
-                if let Err(error) = set_route_metrics(netns, original) { errors.push(format!("route metrics: {error}")); }
+                if let Err(error) = set_pinned_route_metrics(namespace, original) { errors.push(format!("route metrics: {error}")); }
             }
             None => errors.push("Original route metrics missing from legacy snapshot; namespace teardown is required".into()),
         }
@@ -700,6 +707,44 @@ pub fn restore_netns_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Resu
 
     info!("TCP stack rollback complete in namespace '{netns}'");
     Ok(())
+}
+
+/// Fresh kernel observations. These verify configuration, never JA3/JA4 or p0f equivalence.
+#[derive(Debug)]
+pub struct TcpStackTelemetry {
+    pub values: HashMap<String, String>,
+    pub mss_present: Option<bool>,
+    pub route: Option<RouteMetricSnapshot>,
+    pub matches_profile: bool,
+}
+
+pub fn inspect_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Result<TcpStackTelemetry, TcpMorphError> {
+    let namespace = Namespace::open(&snapshot.namespace)?;
+    validate_telemetry_identity(snapshot.namespace_identity, namespace.identity)?;
+    let profile = snapshot.applied_profile.as_ref().ok_or_else(|| TcpMorphError::InvalidValue("Legacy snapshot lacks applied profile; live comparison unavailable".into()))?;
+    profile.validate()?;
+    let mut values = HashMap::new();
+    for (key, _) in profile.sysctl_entries() { values.insert(key.into(), read_pinned_sysctl(&namespace, key)?); }
+    let mss_present = profile.syn_mss.map(|mss| mss_command(&namespace, "-C", mss, snapshot.mss_rule_tagged)).transpose()?;
+    let route = if profile.requires_route_metrics() { Some(read_pinned_route_metrics(&namespace)?) } else { None };
+    let matches_profile = observations_match(profile, &values, mss_present, route.as_ref())
+        && (!profile.requires_route_metrics() || route.as_ref().zip(snapshot.original_route_metrics.as_ref())
+            .is_some_and(|(current, original)| current.identity == original.identity && current.attributes == original.attributes));
+    Ok(TcpStackTelemetry { values, mss_present, route, matches_profile })
+}
+
+fn validate_telemetry_identity(saved: Option<NamespaceIdentity>, current: NamespaceIdentity) -> std::result::Result<(), TcpMorphError> {
+    if saved == Some(current) { return Ok(()); }
+    Err(TcpMorphError::InvalidValue("Namespace lifetime is different or unrecorded; live comparison unavailable".into()))
+}
+
+fn observations_match(profile: &TcpFingerprintProfile, values: &HashMap<String, String>, mss_present: Option<bool>, route: Option<&RouteMetricSnapshot>) -> bool {
+    profile.sysctl_entries().iter().all(|(key, expected)| values.get(*key).is_some_and(|actual|
+        expected.split_whitespace().eq(actual.split_whitespace())))
+        && (profile.syn_mss.is_none() || mss_present == Some(true))
+        && (!profile.requires_route_metrics() || route.is_some_and(|route|
+            profile.init_cwnd.is_none_or(|n| u32::from(n) == route.init_cwnd)
+            && profile.init_rwnd.is_none_or(|n| u32::from(n) == route.init_rwnd)))
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -736,6 +781,77 @@ pub fn write_sysctl(_key: &str, _val: &str) -> CoreResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mss_install_verifies_and_refuses_existing_rule_ownership() {
+        let mut calls = Vec::new();
+        let mut present = false;
+        install_mss_transaction("test", |op| {
+            calls.push(op.to_string());
+            if op == "-A" { present = true; }
+            Ok(present)
+        }).unwrap();
+        assert_eq!(calls, ["-C", "-A", "-C"]);
+        let mut calls = Vec::new();
+        assert!(install_mss_transaction("test", |op| { calls.push(op.to_string()); Ok(true) }).is_err());
+        assert_eq!(calls, ["-C"]);
+    }
+
+    #[test]
+    fn mss_failed_readback_rolls_back_and_failed_rollback_is_fatal() {
+        for fail_delete in [false, true] {
+            let mut count = 0;
+            let mut present = false;
+            let result = install_mss_transaction("test", |op| {
+                count += 1;
+                if count == 3 || (op == "-D" && fail_delete) {
+                    return Err(TcpMorphError::NetfilterFailed { namespace: "test".into(), details: "injected failure".into() });
+                }
+                if op == "-A" { present = true; }
+                if op == "-D" { present = false; }
+                Ok(present)
+            });
+            assert!(result.is_err());
+            assert_eq!(matches!(result, Err(TcpMorphError::RollbackFailed { .. })), fail_delete);
+            assert_eq!(present, fail_delete);
+        }
+    }
+
+    #[test]
+    fn telemetry_detects_sysctl_mss_and_route_drift() {
+        let profile = TcpFingerprintProfile::windows11();
+        let mut values: HashMap<String, String> = profile.sysctl_entries().into_iter().map(|(k, v)| (k.into(), v)).collect();
+        let mut route = parse_route_metrics("test", "default dev eth0 initcwnd 10 initrwnd 44").unwrap();
+        assert!(observations_match(&profile, &values, Some(true), Some(&route)));
+        assert!(!observations_match(&profile, &values, Some(false), Some(&route)));
+        route.init_rwnd = 45;
+        assert!(!observations_match(&profile, &values, Some(true), Some(&route)));
+        route.init_rwnd = 44;
+        values.insert("net.ipv4.ip_default_ttl".into(), "64".into());
+        assert!(!observations_match(&profile, &values, Some(true), Some(&route)));
+        let current = NamespaceIdentity { device: 4, inode: 42 };
+        assert!(validate_telemetry_identity(Some(current), current).is_ok());
+        assert!(validate_telemetry_identity(None, current).is_err());
+        assert!(validate_telemetry_identity(Some(NamespaceIdentity { inode: 43, ..current }), current).is_err());
+    }
+
+    #[test]
+    fn route_attributes_survive_roundtrip_and_unknown_metrics_are_rejected() {
+        let saved = parse_route_metrics("test", "default via 10.0.0.1 dev eth0 proto static src 10.0.0.2 initrwnd 44").unwrap();
+        assert_eq!(parse_route_metrics("test", &route_metric_args(&saved).join(" ")).unwrap(), saved);
+        assert!(parse_route_metrics("test", "default dev eth0 mtu 1400").is_err());
+        assert!(parse_route_metrics("test", "default dev eth0 initrwnd lock 44").is_err());
+    }
+
+    #[test]
+    fn legacy_snapshots_do_not_claim_applied_profile_or_tagged_rules() {
+        let mut json = serde_json::to_value(NetnsTcpSnapshot::new("wraith_ns")).unwrap();
+        for key in ["applied_profile", "mss_rule_tagged", "namespace_identity"] { json.as_object_mut().unwrap().remove(key); }
+        let snapshot: NetnsTcpSnapshot = serde_json::from_value(json).unwrap();
+        assert!(snapshot.applied_profile.is_none());
+        assert!(!snapshot.mss_rule_tagged);
+        assert!(snapshot.namespace_identity.is_none());
+    }
 
     #[test]
     fn global_writer_and_unapproved_sysctls_are_always_rejected() {

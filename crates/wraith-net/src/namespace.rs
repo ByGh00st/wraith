@@ -52,67 +52,67 @@ pub fn preflight_namespace() -> Result<()> {
 /// Constructs an isolated Network Namespace and arms 3-tier L4 TCP stack morphing
 /// with the specified `TcpFingerprintProfile`.
 pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Result<NetnsTcpSnapshot> {
+    create_namespace_with_optional_l4_profile(Some(profile))?
+        .ok_or_else(|| WraithError::Namespace("Missing L4 snapshot".into()))
+}
+
+/// Build isolation even when morphing is explicitly off. Any setup failure tears
+/// down resources owned by this attempt; the caller journals teardown for crash recovery.
+pub fn create_namespace_with_optional_l4_profile(profile: Option<&TcpFingerprintProfile>) -> Result<Option<NetnsTcpSnapshot>> {
+    if let Some(profile) = profile { profile.validate().map_err(crate::tcp_stack::TcpMorphError::from)?; }
     preflight_namespace()?;
-
     info!("Constructing isolated Linux Network Namespace: {}", NAMESPACE_NAME);
-
-    // 1. Create NetNS
+    // Do not tear down anything if acquiring the namespace name itself fails.
     run_cmd("ip", &["netns", "add", NAMESPACE_NAME])?;
+    let result = (|| -> Result<Option<NetnsTcpSnapshot>> {
+        // 2. Create veth interface pair
+        run_cmd("ip", &["link", "add", VETH_HOST, "type", "veth", "peer", "name", VETH_NS])?;
 
-    // 2. Create veth interface pair
-    run_cmd("ip", &["link", "add", VETH_HOST, "type", "veth", "peer", "name", VETH_NS])?;
+        // 3. Move one end into the namespace
+        run_cmd("ip", &["link", "set", VETH_NS, "netns", NAMESPACE_NAME])?;
 
-    // 3. Move one end into the namespace
-    run_cmd("ip", &["link", "set", VETH_NS, "netns", NAMESPACE_NAME])?;
+        // 4. Configure host side
+        run_cmd("ip", &["addr", "add", &format!("{NS_SUBNET}.1/24"), "dev", VETH_HOST])?;
+        run_cmd("ip", &["link", "set", VETH_HOST, "up"])?;
 
-    // 4. Configure host side
-    run_cmd("ip", &["addr", "add", &format!("{NS_SUBNET}.1/24"), "dev", VETH_HOST])?;
-    run_cmd("ip", &["link", "set", VETH_HOST, "up"])?;
+        // 5. Configure namespace side
+        run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "addr", "add", &format!("{NS_SUBNET}.2/24"), "dev", VETH_NS])?;
+        run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "link", "set", VETH_NS, "up"])?;
+        run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "link", "set", "lo", "up"])?;
 
-    // 5. Configure namespace side
-    run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "addr", "add", &format!("{NS_SUBNET}.2/24"), "dev", VETH_NS])?;
-    run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "link", "set", VETH_NS, "up"])?;
-    run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "link", "set", "lo", "up"])?;
+        // 6. Default route inside namespace -> host veth
+        run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "route", "add", "default", "via", &format!("{NS_SUBNET}.1")])?;
 
-    // 6. Default route inside namespace -> host veth
-    run_cmd("ip", &["netns", "exec", NAMESPACE_NAME, "ip", "route", "add", "default", "via", &format!("{NS_SUBNET}.1")])?;
+        // 7. Configure /etc/netns/wraith_ns/resolv.conf for dedicated Tor DNS
+        let netns_etc = format!("/etc/netns/{NAMESPACE_NAME}");
+        fs::create_dir_all("/etc/netns")?;
+        fs::create_dir(&netns_etc)?;
+        fs::write(format!("{netns_etc}/resolv.conf"), format!("nameserver {NS_SUBNET}.1\n"))?;
 
-    // 7. Configure /etc/netns/wraith_ns/resolv.conf for dedicated Tor DNS
-    let netns_etc = format!("/etc/netns/{NAMESPACE_NAME}");
-    fs::create_dir_all("/etc/netns")?;
-    fs::create_dir(&netns_etc)?;
-    fs::write(format!("{netns_etc}/resolv.conf"), format!("nameserver {NS_SUBNET}.1\n"))?;
-
-    // REDIRECT targets the veth address, but Tor listens on loopback only.
-    // DNAT explicitly to loopback, scoped to this veth; never permit forwarding
-    // namespace UDP directly to the physical network.
-    run_cmd("sysctl", &["-w", &format!("net.ipv4.conf.{VETH_HOST}.route_localnet=1")])?;
-    for rule in namespace_rules() {
-        let args: Vec<&str> = rule.iter().map(String::as_str).collect();
-        if let Err(error) = run_cmd("iptables", &args) {
-            let _ = destroy_namespace();
-            return Err(error);
+        // REDIRECT targets the veth address, but Tor listens on loopback only.
+        // DNAT explicitly to loopback, scoped to this veth; never permit forwarding
+        // namespace UDP directly to the physical network.
+        run_cmd("sysctl", &["-w", &format!("net.ipv4.conf.{VETH_HOST}.route_localnet=1")])?;
+        for rule in namespace_rules() {
+            let args: Vec<&str> = rule.iter().map(String::as_str).collect();
+            run_cmd("iptables", &args)?;
         }
-    }
 
-    // 9. Normalize TCP/IP stack inside network namespace (p0f OS Fingerprint Evasion & Anti-Clock Skew)
-    // 3-Tier Execution: Sysctl + Netfilter MSS + FIB Routing
-    let snapshot = match crate::tcp_stack::apply_profile_to_netns(NAMESPACE_NAME, profile, true) {
-        Ok(snap) => {
-            info!(
-                "L4 TCP stack morphing armed in namespace '{}': {} [p0f: {}]",
-                NAMESPACE_NAME,
-                profile.name,
-                profile.expected_p0f_signature()
-            );
-            snap
-        }
-        Err(err) => {
-            let _ = destroy_namespace();
-            return Err(err.into());
+        // Apply all three tiers before the namespace is exposed as ready.
+        let snapshot = profile.map(|profile|
+            crate::tcp_stack::apply_profile_to_netns(NAMESPACE_NAME, profile, true)
+        ).transpose()?;
+        Ok(snapshot)
+    })();
+    let snapshot = match result {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            return match destroy_namespace() {
+                Ok(()) => Err(error),
+                Err(cleanup) => Err(WraithError::Namespace(format!("{error}; cleanup incomplete: {cleanup}"))),
+            };
         }
     };
-
     info!("Network namespace {} successfully isolated and linked to Tor", NAMESPACE_NAME);
     Ok(snapshot)
 }
