@@ -52,3 +52,11 @@ Reset scripts delegate to the installed `wraith stop` implementation. They do no
 A live legacy session without process-lifetime identity cannot be signaled automatically. Stop its original foreground worker with Ctrl+C, or its owning systemd service, then retry recovery. Do not delete the journal as a workaround.
 
 TCP setup errors identify missing backups, readback differences or unsupported routes. Route restoration rejects a changed default-route identity rather than editing a replacement route. Old TCP snapshots without route metrics require namespace teardown for complete restoration.
+
+## TCP foundation checks
+
+- Missing `nsenter`: install the distribution's util-linux package and retry setup.
+- Host alias or unmanaged namespace: use the namespace created by Wraith; arbitrary namespace paths are rejected.
+- Unapproved sysctl or invalid profile value: correct the profile rather than bypassing validation.
+- Namespace replaced during recovery: keep the recovery record and resolve ownership; the engine refuses to write into a different namespace lifetime.
+- Unknown `--morph-l4`: use the current documented `--tcp-profile` interface; the proposed option is not implemented.

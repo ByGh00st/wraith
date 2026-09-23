@@ -101,6 +101,7 @@ sudo wraith -x     # Stop and restore recorded settings
 - [🔒 In-Memory Cryptographic Security Specifications](#memory-security)
 - [🛡️ Fail-Closed Crash Protection & Panic Sentry](#panic-sentry)
 - [🔧 Full-Security Setup & Recovery](#full-security)
+- [🧬 L4 TCP Profiles & Namespace Safety](#l4-tcp-profiles)
 - [⬆️ Official GitHub Updates](#updates)
 - [🧪 Development & Validation](#validation)
 - [⚖️ Legal & Operational Disclaimer](#legal-disclaimer)
@@ -136,9 +137,9 @@ Start a foreground session, inspect its status, and stop it to restore recorded 
 ## 📊 Codebase Metrics & Language Breakdown
 
 <details open>
-<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-12</b></summary>
+<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-24</b></summary>
 
-Measured **2026-09-12** with Tokei 12.1.2. Scope: source crates, manifests, Cargo configuration and the three shell scripts; documentation and build output are excluded.
+Measured **2026-09-24** with Tokei 12.1.2. Scope: source crates, manifests, Cargo configuration and the three shell scripts; standalone documentation and build output are excluded. Embedded Rust documentation is reported by Tokei under Markdown.
 
 ```sh
 tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
@@ -148,15 +149,15 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
- Shell                   3          967          758          100          109
- TOML                    8          228          211            0           17
+ Shell                   3          577          478           45           54
+ TOML                    8          230          213            0           17
  YAML                  342        12239        12236            0            3
 -------------------------------------------------------------------------------
- Rust                   68        19285        16687          596         2002
- |- Markdown            61          395            0          394            1
- (Total)                          19680        16687          990         2003
+ Rust                   72        21688        18822          675         2191
+ |- Markdown            65          748            5          698           45
+ (Total)                          22436        18827         1373         2236
 ===============================================================================
- Total                 421        32719        29892          696         2131
+ Total                 425        34734        31749          720         2265
 ===============================================================================
 ```
 
@@ -687,9 +688,9 @@ Wraith now owns a real TLS client backed by **BoringSSL through [wreq](https://g
 
 | Profile | Pinned emulation | Used by |
 | :--- | :--- | :--- |
-| `chrome` | Chrome 131 | Default `fetch`, DNS-over-HTTPS and cover requests |
-| `firefox` | Firefox 133 | Explicit `fetch` or Rust client integration |
-| `safari` | Safari 18 | Explicit `fetch` or Rust client integration |
+| `chrome` | Chrome 131 / Windows | Default `fetch`, DNS-over-HTTPS and cover requests |
+| `firefox` | Firefox 133 / Linux | Explicit `fetch` or Rust client integration |
+| `safari` | Safari 18 / macOS | Explicit `fetch` or Rust client integration |
 
 These are specific supported profiles, not a promise to impersonate the latest browser release. JA3/JA4 are fingerprinting schemes, not encryption or anonymity shields. Matching a handshake profile does not reproduce JavaScript, cookies, browser behavior or every network fingerprint.
 
@@ -874,7 +875,16 @@ Snapshots preserve regular-file content, mode/ownership, missing-file state and 
 
 Live Linux routing and kernel recovery remain integration work. Keep console access when evaluating network changes.
 
-### Namespace application scope and recovery
+<a id="l4-tcp-profiles"></a>
+### 🧬 L4 TCP profiles, application scope and recovery
+
+| Reference profile | TTL | Window scaling | Timestamps | SACK | MSS target |
+| :--- | ---: | :---: | ---: | :---: | ---: |
+| Windows11 | 128 | On | 0 | On | 1460 |
+| MacOS | 64 | On | 1 | On | 1440 |
+| LinuxDefault | 64 | On | 1 | On | Kernel-selected |
+
+On Linux, timestamp value `1` uses a per-connection random offset; `2` enables timestamps without that offset. These are reference settings, not a guarantee of native OS option ordering or an exact SYN window size.
 
 `--namespace`, `--tcp-mask` and full-security sessions create the isolated application network namespace. Start a new application inside it:
 
@@ -889,6 +899,8 @@ sudo wraith exec -- curl https://example.com
 Strict TCP profile setup requires an original-value backup for every requested sysctl and reads each value back after writing it. Missing settings, mismatched readbacks and absent or ambiguous default routes stop setup; rollback failures are surfaced. Original `initcwnd` and `initrwnd` route metrics are restored and read back even when the namespace stays alive; a changed route identity is rejected. These checks verify configuration, not an exact operating-system fingerprint or TCP option order.
 
 The sysctl engine accepts only the managed namespace and approved TCP keys, rejects host namespace aliases and retains one namespace descriptor throughout the transaction. The legacy host writer is disabled. See the [profile and sysctl architecture](docs/L4-SYSCTL-DESIGN.md) for the typed API, failure policies and timestamp semantics.
+
+`FailClosed` propagates setup errors. The library's `RestoreAndContinue` policy may report a skipped profile only before mutation or after successful rollback; failed rollback remains an error. Configuration is a recoverable sequence, not a kernel-atomic multi-key write. The proposed `--morph-l4` option and expanded inspect display are not yet implemented; use the current `--tcp-profile` interface shown above.
 
 New Linux session records bind the worker to its boot ID, process start ticks and executable device/inode. Shutdown verifies that identity and signals through a pidfd, avoiding name-based matching and recycled-PID signaling. A live legacy record without identity is not automatically signaled: stop its original worker, retain the journal and retry recovery. See the [L4/L7 guide](https://github.com/ByGh00st/wraith/wiki/L4-and-L7).
 

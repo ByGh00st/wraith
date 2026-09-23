@@ -20,6 +20,28 @@ sudo wraith exec -- curl https://example.com
 
 This puts curl in the namespace. Curl still constructs its own TLS handshake. Use `wraith fetch` or `BrowserTlsClient` when Wraith should construct the ClientHello.
 
+## Reference profiles
+
+| Profile | TTL | Window scaling | Timestamps | SACK | MSS target |
+| :--- | ---: | :---: | ---: | :---: | ---: |
+| Windows11 | 128 | On | 0 | On | 1460 |
+| MacOS | 64 | On | 1 | On | 1440 |
+| LinuxDefault | 64 | On | 1 | On | Kernel-selected |
+
+Linux timestamps use `0` for disabled, `1` for enabled with a per-connection random offset, and `2` for enabled without that offset. `LinuxDefault` is a reference baseline, not a read of distribution-specific settings. Sysctl does not guarantee an exact macOS SYN window or native OS TCP option ordering.
+
+## Namespace boundary and API
+
+Only `wraith_ns` and approved per-network-namespace TCP keys are accepted. The engine checks namespace device/inode identity against the host/current namespace, retains an open descriptor, and executes sysctl commands through `nsenter` from util-linux. Renaming or replacing the namespace path does not retarget the sysctl transaction. The Rust caller never enters another namespace, and the legacy global host writer always returns an error.
+
+`apply_sysctl_profile` returns an explicit applied or skipped result. `FailClosed` propagates failures. `RestoreAndContinue` may skip eligible failures only before mutation or after successful rollback; namespace guard failures and failed rollback remain errors. The `syn_mss` field accepts the old serialized `forced_syn_mss` name for compatibility.
+
+These writes form a recoverable sequence, not one kernel-atomic multi-key operation. Application workloads should enter after setup succeeds. A crash cannot run in-memory rollback; recovery depends on the journaled namespace lifecycle.
+
+The current CLI remains `--tcp-profile` with namespace setup. The proposed `--morph-l4` option and expanded inspect display are not implemented yet. This increment completes the profile/sysctl foundation, not those later CLI steps.
+
+[Detailed design and API example](https://github.com/ByGh00st/wraith/blob/main/docs/L4-SYSCTL-DESIGN.md)
+
 ## Strict application and rollback
 
 1. Capture original sysctl values and route metrics before mutation.

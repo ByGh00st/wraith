@@ -14,11 +14,13 @@
 
 The native client uses BoringSSL through wreq and supported emulation profiles. These affect the actual TLS connection, rather than only a displayed fingerprint or User-Agent.
 
-| CLI profile | Pinned emulation | Integration |
+| CLI profile | Pinned emulation / platform | Integration |
 | :--- | :--- | :--- |
-| `chrome` | Chrome 131 | Default fetch, DoH and cover requests |
-| `firefox` | Firefox 133 | Fetch and public Rust client API |
-| `safari` | Safari 18 | Fetch and public Rust client API |
+| `chrome` | Chrome 131 / Windows | Default fetch, DoH and cover requests |
+| `firefox` | Firefox 133 / Linux | Fetch and public Rust client API |
+| `safari` | Safari 18 / macOS | Fetch and public Rust client API |
+
+The platform is explicitly selected in the TLS client configuration. `BrowserProfile::l4_profile()` exposes the matching TCP reference profile; it does not automatically move the TLS connection into a namespace. See [L4 and L7](L4-and-L7.md).
 
 With a Wraith/Tor session already running:
 

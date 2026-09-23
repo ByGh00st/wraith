@@ -33,6 +33,8 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 | Area | Current behavior |
 | :--- | :--- |
 | Worker ownership | Boot/start-time/executable identity and pidfd-bound shutdown |
+| Namespace safety | One pinned descriptor, approved TCP keys and host-alias rejection |
+| Profile pairing | Explicit Chrome/Windows, Firefox/Linux and Safari/macOS metadata |
 | TCP restoration | Original route metrics restored and read back without deleting the namespace |
 | HTTP privacy | Initial-request address headers removed while preserving binary bodies |
 | Proxy availability | 10-second setup-write deadline; 120-second relay inactivity limit |
@@ -43,6 +45,6 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 **6 Rust crates · 17 locales · GPL-3.0 · x86_64 Linux runtime**
 
-The latest recorded checks include **163 portable tests**, Linux-target test compilation and production Clippy with warnings denied. Live Linux routing and installed-system updates remain outside that validation. See [the validation guide](Development.md).
+The latest recorded checks include **174 portable tests**, Linux-target test compilation and production Clippy with warnings denied. Live Linux routing and installed-system updates remain outside that validation. See [the validation guide](Development.md).
 
 <p align="center"><a href="https://github.com/ByGh00st/wraith">Repository</a> · <a href="https://github.com/ByGh00st/wraith#privacy-matrix">Tool comparison</a> · <a href="https://github.com/ByGh00st/wraith/issues">Issues</a></p>

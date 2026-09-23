@@ -2,20 +2,20 @@
 
 > **08 / CONTRIBUTE** · Separate executed tests from unmeasured properties.
 
-## Recorded checks — 2026-09-21
+## Recorded checks — 2026-09-24
 
-Implementation baseline: [`3836e3b`](https://github.com/ByGh00st/wraith/commit/3836e3b).
+Implementation baseline: [`ac13528`](https://github.com/ByGh00st/wraith/commit/ac13528).
 
 | Check | Result |
 | :--- | :--- |
-| Portable workspace tests | **163 passed** |
+| Portable workspace tests | **174 passed** |
 | Linux-target production Clippy | Passed with warnings denied |
 | Linux-target test compilation | Passed; Linux tests were not executed on the Windows host |
 | Privileged live Linux networking | Not performed |
 | Same-flow SYN and ClientHello capture | Not performed |
 | Complete installed-system update | Not exercised |
 
-Coverage includes local real TLS handshakes, certificate/hostname rejection, response limits, CONNECT framing, half-close responses, stalled writes, HTTP address-header removal, DNSSEC validation failures, state preservation, process-stat parsing, route-metric restoration and firewall construction.
+Coverage includes local real TLS handshakes, certificate/hostname rejection, response limits, CONNECT framing, half-close responses, stalled writes, HTTP address-header removal, DNSSEC validation failures, state preservation, process-stat parsing, route-metric restoration, profile validation, legacy MSS-field compatibility, sysctl encoding, host-write rejection, namespace name/identity guards and firewall construction. The local TLS exchange also checks the selected platform in HTTP headers.
 
 Linux pidfd identity tests compile with the Linux target; that is not a claim that they ran on Linux. No new dependency audit was performed in this change.
 

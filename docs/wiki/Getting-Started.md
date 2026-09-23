@@ -13,6 +13,7 @@ The installed runtime targets **x86_64 Linux**, primarily Debian, Ubuntu, Kali a
 | Tor with a dedicated non-root account | Tor transport |
 | iptables/ip6tables and save/restore tools | Session policy and recovery |
 | iproute2 | Interfaces, namespaces and optional shaping |
+| util-linux (`nsenter`) | TCP settings through a pinned namespace descriptor |
 | fontconfig | Font controls |
 
 Install Rust under your ordinary account before using the helper. Optional WireGuard and virtual-display features also require their corresponding system tools.
