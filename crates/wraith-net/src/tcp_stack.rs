@@ -7,7 +7,7 @@
 //!
 //! ```text
 //! apply_profile_to_netns()
-//! ├── 1. Sysctl Tier     → write_netns_sysctl()    [atomic, fail-closed]
+//! ├── 1. Sysctl Tier     → apply_sysctl_profile() [snapshot, readback, rollback]
 //! ├── 2. Netfilter Tier  → apply_netfilter_mss()    [iptables mangle, rollback-capable]
 //! └── 3. FIB Routing Tier→ apply_route_metrics()    [ip route change, rollback-capable]
 //! ```
@@ -15,9 +15,9 @@
 //! ### OPSEC & Kernel Architecture Guards:
 //! 1. **Zero Host Contamination**: Host root network parameters are NEVER modified globally.
 //! 2. **Tokio Thread-Safety (Anti-setns Contamination)**: All namespace operations execute
-//!    via `ip netns exec` sub-processes, ensuring Tokio async worker threads never permanently
+//!    via pinned namespace descriptors and `nsenter` subprocesses, ensuring worker threads never
 //!    inherit a foreign namespace.
-//! 3. **Layer Separation**: `forced_syn_mss` and `init_cwnd`/`init_rwnd` are decoupled from sysctl
+//! 3. **Layer Separation**: `syn_mss` and `init_cwnd`/`init_rwnd` are decoupled from sysctl
 //!    and routed to Netfilter (iptables) and Routing (FIB) layers respectively.
 //! 4. **Graceful Kernel Fallback**: Differentiates between core per-netns parameters (atomic fail-closed)
 //!    and extended parameters (required in strict mode).
@@ -25,7 +25,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
+use crate::tcp_namespace::Namespace;
+pub use crate::tcp_namespace::NamespaceIdentity;
 use tracing::{debug, info, warn};
 use wraith_core::error::{Result as CoreResult, WraithError};
 use wraith_core::tcp_fingerprint::TcpFingerprintProfile;
@@ -44,14 +45,11 @@ pub const CORE_SYSCTL_KEYS: &[&str] = &[
     "net.ipv4.tcp_syn_retries",
 ];
 
-/// Extended sysctl keys for deep p0f / Nmap OS fingerprint evasion (subject to kernel capability fallback).
+/// Optional profile settings known to be per-network-namespace.
 pub const EXTENDED_SYSCTL_KEYS: &[&str] = &[
     "net.ipv4.ip_local_port_range",
     "net.ipv4.tcp_ecn",
     "net.ipv4.tcp_rfc1337",
-    "net.ipv4.icmp_echo_ignore_broadcasts",
-    "net.ipv4.icmp_ignore_bogus_error_responses",
-    "net.ipv4.tcp_challenge_ack_limit",
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -61,6 +59,21 @@ pub const EXTENDED_SYSCTL_KEYS: &[&str] = &[
 /// Precision error taxonomy for L4 TCP stack morphing operations.
 #[derive(Debug, thiserror::Error)]
 pub enum TcpMorphError {
+    #[error("Only the Wraith-owned namespace can be changed, got '{0}'")]
+    UnmanagedNamespace(String),
+
+    #[error("Namespace TCP configuration requires Linux")]
+    UnsupportedPlatform,
+
+    #[error("Sysctl key '{0}' is not an allowed per-network-namespace TCP setting")]
+    InvalidSysctl(String),
+
+    #[error("Invalid value for sysctl '{0}'")]
+    InvalidValue(String),
+
+    #[error(transparent)]
+    InvalidProfile(#[from] wraith_core::tcp_fingerprint::TcpProfileError),
+
     #[error("Network namespace '{0}' not found or inactive")]
     NamespaceNotFound(String),
 
@@ -115,6 +128,7 @@ impl TcpMorphError {
         matches!(
             self,
             Self::SysctlNotFound { .. }
+                | Self::ExecutionFailed { .. }
                 | Self::PermissionDenied { .. }
                 | Self::NetfilterFailed { .. }
                 | Self::RoutingFailed { .. }
@@ -138,7 +152,9 @@ impl From<TcpMorphError> for WraithError {
 pub struct NetnsTcpSnapshot {
     /// Associated network namespace name.
     pub namespace: String,
-    /// Applied profile name, if active.
+    #[serde(default)]
+    pub namespace_identity: Option<NamespaceIdentity>,
+    /// Applied profile name; absent when safely skipped.
     pub profile_name: Option<String>,
     /// Key-value mappings of backed-up sysctl parameters.
     pub values: HashMap<String, String>,
@@ -156,6 +172,7 @@ impl NetnsTcpSnapshot {
     pub fn new(namespace: impl Into<String>) -> Self {
         Self {
             namespace: namespace.into(),
+            namespace_identity: None,
             profile_name: None,
             values: HashMap::new(),
             had_netfilter_mss: false,
@@ -172,41 +189,21 @@ impl NetnsTcpSnapshot {
 
 /// Guard: validates that the target is not the host namespace.
 fn guard_not_host(netns: &str) -> std::result::Result<(), TcpMorphError> {
-    if netns.trim().is_empty() || netns == "host" || netns == "/" {
-        return Err(TcpMorphError::HostMutationForbidden);
-    }
-    Ok(())
+    crate::tcp_namespace::validate_name(netns)
 }
 
-/// Validates whether a target network namespace exists on the system.
 pub fn is_netns_active(netns: &str) -> bool {
-    if netns.trim().is_empty() || netns == "host" || netns == "/" {
-        return false;
-    }
-
-    let run_path = format!("/run/netns/{netns}");
-    let var_run_path = format!("/var/run/netns/{netns}");
-    if Path::new(&run_path).exists() || Path::new(&var_run_path).exists() {
-        return true;
-    }
-
-    Command::new("ip")
-        .args(["netns", "list"])
-        .output()
-        .map(|out| {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            stdout.lines().any(|l| l.split_whitespace().next() == Some(netns))
-        })
-        .unwrap_or(false)
+    Namespace::open(netns).is_ok()
 }
 
-/// Validates namespace is active, returns typed error otherwise.
 fn require_active_netns(netns: &str) -> std::result::Result<(), TcpMorphError> {
-    guard_not_host(netns)?;
-    if !is_netns_active(netns) {
-        return Err(TcpMorphError::NamespaceNotFound(netns.to_string()));
-    }
-    Ok(())
+    Namespace::open(netns).map(|_| ())
+}
+
+fn validate_sysctl_key(key: &str) -> std::result::Result<(), TcpMorphError> {
+    if CORE_SYSCTL_KEYS.contains(&key) || ["net.ipv4.ip_local_port_range", "net.ipv4.tcp_ecn", "net.ipv4.tcp_rfc1337"].contains(&key) {
+        Ok(())
+    } else { Err(TcpMorphError::InvalidSysctl(key.into())) }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -215,86 +212,95 @@ fn require_active_netns(netns: &str) -> std::result::Result<(), TcpMorphError> {
 
 /// Reads a sysctl parameter value strictly within an isolated network namespace.
 ///
-/// **OPSEC Note**: Executes in an isolated sub-process via `ip netns exec`.
+/// Executes through a pinned namespace handle in a separate `nsenter` process.
 /// Tokio worker threads are completely immune to namespace contamination.
 pub fn read_netns_sysctl(netns: &str, key: &str) -> std::result::Result<String, TcpMorphError> {
-    require_active_netns(netns)?;
-
-    let output = Command::new("ip")
-        .args(["netns", "exec", netns, "sysctl", "-n", key])
-        .output()
-        .map_err(|e| TcpMorphError::ExecutionFailed {
-            parameter: key.to_string(),
-            namespace: netns.to_string(),
-            details: e.to_string(),
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
-            return Err(TcpMorphError::PermissionDenied {
-                parameter: key.to_string(),
-                namespace: netns.to_string(),
-                details: stderr.trim().to_string(),
-            });
-        }
-        if stderr.contains("No such file or directory") || stderr.contains("cannot stat") {
-            return Err(TcpMorphError::SysctlNotFound {
-                parameter: key.to_string(),
-                namespace: netns.to_string(),
-            });
-        }
-        return Err(TcpMorphError::ExecutionFailed {
-            parameter: key.to_string(),
-            namespace: netns.to_string(),
-            details: stderr.trim().to_string(),
-        });
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    validate_sysctl_key(key)?;
+    read_pinned_sysctl(&Namespace::open(netns)?, key)
 }
 
-/// Writes a sysctl parameter value strictly within an isolated network namespace.
-///
-/// **OPSEC Note**: Executes in an isolated sub-process to protect Tokio runtime integrity.
-pub fn write_netns_sysctl(netns: &str, key: &str, val: &str) -> std::result::Result<(), TcpMorphError> {
-    require_active_netns(netns)?;
-
-    let output = Command::new("ip")
-        .args(["netns", "exec", netns, "sysctl", "-w", &format!("{key}={val}")])
-        .output()
-        .map_err(|e| TcpMorphError::ExecutionFailed {
-            parameter: key.to_string(),
-            namespace: netns.to_string(),
-            details: e.to_string(),
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
-            return Err(TcpMorphError::PermissionDenied {
-                parameter: key.to_string(),
-                namespace: netns.to_string(),
-                details: stderr.trim().to_string(),
-            });
-        }
-        if stderr.contains("No such file or directory") || stderr.contains("cannot stat") {
-            return Err(TcpMorphError::SysctlNotFound {
-                parameter: key.to_string(),
-                namespace: netns.to_string(),
-            });
-        }
-        return Err(TcpMorphError::ExecutionFailed {
-            parameter: key.to_string(),
-            namespace: netns.to_string(),
-            details: stderr.trim().to_string(),
-        });
+fn checked_sysctl(ns: &Namespace, key: &str, args: &[&str]) -> std::result::Result<String, TcpMorphError> {
+    validate_sysctl_key(key)?;
+    let output = ns.run("sysctl", args)?;
+    if output.status.success() { return Ok(String::from_utf8_lossy(&output.stdout).trim().into()); }
+    let details = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if details.contains("Permission denied") || details.contains("Operation not permitted") {
+        return Err(TcpMorphError::PermissionDenied { parameter: key.into(), namespace: ns.name.clone(), details });
     }
+    if details.contains("No such file or directory") || details.contains("cannot stat") {
+        return Err(TcpMorphError::SysctlNotFound { parameter: key.into(), namespace: ns.name.clone() });
+    }
+    Err(TcpMorphError::ExecutionFailed { parameter: key.into(), namespace: ns.name.clone(), details })
+}
 
-    let observed = read_netns_sysctl(netns, key)?;
-    verify_sysctl_value(netns, key, val, &observed)?;
-    debug!("Namespace [{netns}] sysctl set and read back: {key}={val}");
+fn read_pinned_sysctl(ns: &Namespace, key: &str) -> std::result::Result<String, TcpMorphError> {
+    checked_sysctl(ns, key, &["-n", key])
+}
+
+fn write_pinned_sysctl(ns: &Namespace, key: &str, val: &str) -> std::result::Result<(), TcpMorphError> {
+    validate_sysctl_key(key)?;
+    if !val.bytes().any(|b| b.is_ascii_digit()) || !val.bytes().all(|b| b.is_ascii_digit() || b == b' ' || b == b'\t') {
+        return Err(TcpMorphError::InvalidValue(key.into()));
+    }
+    checked_sysctl(ns, key, &["-w", &format!("{key}={val}")])?;
+    let observed = read_pinned_sysctl(ns, key)?;
+    verify_sysctl_value(&ns.name, key, val, &observed)?;
+    debug!("Namespace [{}] sysctl set and read back: {key}={val}", ns.name);
     Ok(())
+}
+
+/// Low-level single setting update. Use apply_sysctl_profile for transactional rollback.
+pub fn write_netns_sysctl(netns: &str, key: &str, val: &str) -> std::result::Result<(), TcpMorphError> {
+    validate_sysctl_key(key)?;
+    write_pinned_sysctl(&Namespace::open(netns)?, key, val)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SysctlFailurePolicy {
+    #[default]
+    FailClosed,
+    /// Continue only after no change was made or every attempted write was restored.
+    RestoreAndContinue,
+}
+
+#[derive(Debug)]
+pub enum SysctlApplyOutcome {
+    Applied(NetnsTcpSnapshot),
+    Skipped { snapshot: NetnsTcpSnapshot, cause: TcpMorphError },
+}
+
+/// Snapshot -> write/readback -> reverse rollback in one pinned namespace.
+/// This is a recoverable transaction, not a kernel-wide atomic multi-key update.
+pub fn apply_sysctl_profile(netns: &str, profile: &TcpFingerprintProfile, policy: SysctlFailurePolicy)
+    -> std::result::Result<SysctlApplyOutcome, TcpMorphError> {
+    profile.validate()?;
+    let namespace = Namespace::open(netns)?;
+    let mut snapshot = NetnsTcpSnapshot::new(netns);
+    snapshot.namespace_identity = Some(namespace.identity);
+    let entries = profile.sysctl_entries();
+    match apply_sysctl_transaction(&mut snapshot, &entries,
+        |key| read_pinned_sysctl(&namespace, key),
+        |key, value| write_pinned_sysctl(&namespace, key, value)) {
+        Ok(()) => {
+            snapshot.profile_name = Some(profile.name.clone());
+            info!("TCP sysctl profile '{}' applied and read back in {netns}", profile.name);
+            Ok(SysctlApplyOutcome::Applied(snapshot))
+        }
+        Err(cause) if policy == SysctlFailurePolicy::RestoreAndContinue && cause.is_fallback_eligible() => {
+            warn!("TCP sysctl profile skipped after safe rollback: {cause}");
+            Ok(SysctlApplyOutcome::Skipped { snapshot, cause })
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn apply_sysctl_transaction<R, W>(snapshot: &mut NetnsTcpSnapshot, entries: &[(&str, String)], mut read: R, write: W)
+    -> std::result::Result<(), TcpMorphError>
+where R: FnMut(&str) -> std::result::Result<String, TcpMorphError>,
+      W: FnMut(&str, &str) -> std::result::Result<(), TcpMorphError> {
+    for (key, _) in entries { validate_sysctl_key(key)?; }
+    for (key, _) in entries { snapshot.values.insert((*key).into(), read(key)?); }
+    apply_sysctl_entries(snapshot, entries, true, write).map(|_| ())
 }
 
 fn verify_sysctl_value(netns: &str, key: &str, expected: &str, observed: &str) -> std::result::Result<(), TcpMorphError> {
@@ -346,28 +352,12 @@ where F: FnMut(&str, &str) -> std::result::Result<(), TcpMorphError> {
 }
 
 /// Captures a snapshot of target sysctl parameters inside the specified namespace.
-pub fn snapshot_netns_tcp_stack(
-    netns: &str,
-    keys: &[&str],
-) -> std::result::Result<NetnsTcpSnapshot, TcpMorphError> {
-    require_active_netns(netns)?;
-
+pub fn snapshot_netns_tcp_stack(netns: &str, keys: &[&str]) -> std::result::Result<NetnsTcpSnapshot, TcpMorphError> {
+    for key in keys { validate_sysctl_key(key)?; }
+    let namespace = Namespace::open(netns)?;
     let mut snapshot = NetnsTcpSnapshot::new(netns);
-
-    for &key in keys {
-        match read_netns_sysctl(netns, key) {
-            Ok(val) => {
-                snapshot.values.insert(key.to_string(), val);
-            }
-            Err(TcpMorphError::SysctlNotFound { .. }) => {
-                debug!("Optional sysctl parameter '{key}' not present in netns '{netns}' (kernel variance)");
-            }
-            Err(e) => {
-                warn!("Warning: Failed reading sysctl '{key}' in netns '{netns}': {e}");
-            }
-        }
-    }
-
+    snapshot.namespace_identity = Some(namespace.identity);
+    for key in keys { snapshot.values.insert((*key).into(), read_pinned_sysctl(&namespace, key)?); }
     Ok(snapshot)
 }
 
@@ -391,17 +381,14 @@ pub fn apply_netfilter_mss(
 ) -> std::result::Result<(), TcpMorphError> {
     require_active_netns(netns)?;
 
-    let output = Command::new("ip")
-        .args([
-            "netns", "exec", netns,
-            "iptables", "-t", "mangle",
+    let output = Namespace::open(netns)?.run("iptables", &[
+            "-t", "mangle",
             "-A", "POSTROUTING",
             "-p", "tcp",
             "--tcp-flags", "SYN,RST", "SYN",
             "-j", "TCPMSS",
             "--set-mss", &mss.to_string(),
         ])
-        .output()
         .map_err(|e| TcpMorphError::NetfilterFailed {
             namespace: netns.to_string(),
             details: format!("iptables execution error: {e}"),
@@ -426,17 +413,14 @@ pub fn remove_netfilter_mss(
 ) -> std::result::Result<(), TcpMorphError> {
     require_active_netns(netns)?;
 
-    let output = Command::new("ip")
-        .args([
-            "netns", "exec", netns,
-            "iptables", "-t", "mangle",
+    let output = Namespace::open(netns)?.run("iptables", &[
+            "-t", "mangle",
             "-D", "POSTROUTING",
             "-p", "tcp",
             "--tcp-flags", "SYN,RST", "SYN",
             "-j", "TCPMSS",
             "--set-mss", &mss.to_string(),
         ])
-        .output()
         .map_err(|e| TcpMorphError::NetfilterFailed {
             namespace: netns.to_string(),
             details: format!("iptables deletion error: {e}"),
@@ -513,7 +497,7 @@ fn parse_route_metrics(netns: &str, route: &str) -> std::result::Result<RouteMet
 
 fn read_route_metrics(netns: &str) -> std::result::Result<RouteMetricSnapshot, TcpMorphError> {
     require_active_netns(netns)?;
-    let output = Command::new("ip").args(["netns", "exec", netns, "ip", "-o", "-4", "route", "show", "default"]).output()?;
+    let output = Namespace::open(netns)?.run("ip", &["-o", "-4", "route", "show", "default"])?;
     if !output.status.success() {
         return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
             details: format!("Cannot read default route: {}", String::from_utf8_lossy(&output.stderr).trim()) });
@@ -529,8 +513,9 @@ fn route_metric_args(saved: &RouteMetricSnapshot) -> Vec<String> {
 
 fn set_route_metrics(netns: &str, saved: &RouteMetricSnapshot) -> std::result::Result<(), TcpMorphError> {
     update_route_metrics(netns, saved, || read_route_metrics(netns), |args| {
-        let output = Command::new("ip").args(["netns", "exec", netns, "ip", "-4", "route", "change"])
-            .args(args).output()?;
+        let mut command_args = vec!["-4", "route", "change"];
+        command_args.extend(args.iter().map(String::as_str));
+        let output = Namespace::open(netns)?.run("ip", &command_args)?;
         if !output.status.success() {
             return Err(TcpMorphError::RoutingFailed { namespace: netns.into(),
                 details: format!("Route metric write failed: {}", String::from_utf8_lossy(&output.stderr).trim()) });
@@ -603,26 +588,17 @@ pub fn apply_profile_to_netns(
         profile.format_summary()
     );
 
-    let core_entries = profile.core_sysctl_entries();
-    let extended_entries = profile.extended_sysctl_entries();
-
-    let mut all_keys: Vec<&str> = core_entries.iter().map(|(k, _)| *k).collect();
-    all_keys.extend(extended_entries.iter().map(|(k, _)| *k));
-
-    // ── Phase 0: Pre-Mutation Snapshot ──────────────────────────────────────
-    let mut snapshot = snapshot_netns_tcp_stack(netns, &all_keys)?;
-    snapshot.profile_name = Some(profile.name.clone());
-    if profile.requires_route_metrics() {
-        snapshot.original_route_metrics = Some(read_route_metrics(netns)?);
-    }
-
-    let entries = profile.sysctl_entries();
-    let complete = apply_sysctl_entries(&snapshot, &entries, fail_closed,
-        |key, value| write_netns_sysctl(netns, key, value))?;
-    if !complete { snapshot.profile_name = None; }
+    profile.validate()?;
+    let route_snapshot = if profile.requires_route_metrics() { Some(read_route_metrics(netns)?) } else { None };
+    let policy = if fail_closed { SysctlFailurePolicy::FailClosed } else { SysctlFailurePolicy::RestoreAndContinue };
+    let mut snapshot = match apply_sysctl_profile(netns, profile, policy)? {
+        SysctlApplyOutcome::Applied(snapshot) => snapshot,
+        SysctlApplyOutcome::Skipped { snapshot, .. } => return Ok(snapshot),
+    };
+    snapshot.original_route_metrics = route_snapshot;
 
     // ── Phase 3: Netfilter MSS Clamping (Tier 2) ──────────────────────────
-    if let Some(mss) = profile.forced_syn_mss {
+    if let Some(mss) = profile.syn_mss {
         match apply_netfilter_mss(netns, mss) {
             Ok(()) => {
                 snapshot.had_netfilter_mss = true;
@@ -676,10 +652,16 @@ pub fn restore_netns_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Resu
     let netns = &snapshot.namespace;
     guard_not_host(netns)?;
 
-    if !is_netns_active(netns) {
-        debug!("Namespace '{netns}' already purged; skipping TCP stack rollback");
-        return Ok(());
+    let namespace = match Namespace::open(netns) {
+        Ok(namespace) => namespace,
+        Err(TcpMorphError::NamespaceNotFound(_)) => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if snapshot.namespace_identity.is_some_and(|identity| identity != namespace.identity) {
+        return Err(TcpMorphError::RollbackFailed { namespace: netns.into(), details: "Namespace was replaced; refusing to restore into another lifetime".into() });
     }
+    // Check all persisted keys before any rollback write, including legacy snapshots.
+    for key in snapshot.values.keys() { validate_sysctl_key(key)?; }
 
     info!("Rolling back TCP stack parameters in namespace '{netns}' (3-tier restore)");
 
@@ -687,7 +669,7 @@ pub fn restore_netns_tcp_stack(snapshot: &NetnsTcpSnapshot) -> std::result::Resu
 
     // Tier 1: Restore sysctl values
     for (key, val) in &snapshot.values {
-        if let Err(e) = write_netns_sysctl(netns, key, val) {
+        if let Err(e) = write_pinned_sysctl(&namespace, key, val) {
             errors.push(format!("sysctl {key}={val}: {e}"));
         }
     }
@@ -742,19 +724,9 @@ pub fn read_sysctl(key: &str) -> CoreResult<String> {
     }
 }
 
-/// Legacy write function.
-/// IMPORTANT: Host mutation is warned to prevent system instability.
-pub fn write_sysctl(key: &str, val: &str) -> CoreResult<()> {
-    warn!("Legacy write_sysctl invoked on host for {key}={val}. Prefer apply_profile_to_netns().");
-    let proc_path = sysctl_key_to_proc_path(key);
-    let path = Path::new(&proc_path);
-    if !path.exists() {
-        return Err(WraithError::Firewall(format!("Missing sysctl: {key}")));
-    }
-    std::fs::write(path, val).map_err(|e| {
-        WraithError::Firewall(format!("Failed writing {val} to sysctl {key}: {e}"))
-    })?;
-    Ok(())
+/// Kept for source compatibility; global TCP mutations are always rejected.
+pub fn write_sysctl(_key: &str, _val: &str) -> CoreResult<()> {
+    Err(TcpMorphError::HostMutationForbidden.into())
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -764,6 +736,42 @@ pub fn write_sysctl(key: &str, val: &str) -> CoreResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn global_writer_and_unapproved_sysctls_are_always_rejected() {
+        assert!(write_sysctl("net.ipv4.ip_default_ttl", "128").is_err());
+        for key in ["kernel.hostname", "vm.drop_caches", "net.ipv4.conf.all.forwarding", "-a", "net/ipv4/tcp_sack", "net.ipv4.tcp_sack=0"] {
+            assert!(matches!(write_netns_sysctl(crate::namespace::NAMESPACE_NAME, key, "1"), Err(TcpMorphError::InvalidSysctl(_))));
+        }
+    }
+
+    #[test]
+    fn snapshot_failure_never_starts_mutation() {
+        let mut snapshot = NetnsTcpSnapshot::new("test");
+        let entries = vec![("net.ipv4.ip_default_ttl", "128".into()), ("net.ipv4.tcp_sack", "1".into())];
+        let result = apply_sysctl_transaction(&mut snapshot, &entries, |key| {
+            if key.ends_with("tcp_sack") {
+                Err(TcpMorphError::SysctlNotFound { parameter: key.into(), namespace: "test".into() })
+            } else { Ok("64".into()) }
+        }, |_, _| panic!("writes must wait for all backups"));
+        assert!(matches!(result, Err(TcpMorphError::SysctlNotFound { .. })));
+        assert!(snapshot.profile_name.is_none());
+    }
+
+    #[test]
+    fn transaction_prevalidates_all_keys_before_reading() {
+        let mut snapshot = NetnsTcpSnapshot::new("test");
+        assert!(apply_sysctl_transaction(&mut snapshot,
+            &[("net.ipv4.tcp_sack", "1".into()), ("kernel.hostname", "1".into())],
+            |_| panic!("must validate first"), |_, _| panic!("must validate first")).is_err());
+    }
+
+    #[test]
+    fn namespace_and_rollback_failures_are_not_fallback_eligible() {
+        assert!(!TcpMorphError::HostMutationForbidden.is_fallback_eligible());
+        assert!(!TcpMorphError::UnmanagedNamespace("other".into()).is_fallback_eligible());
+        assert!(!TcpMorphError::RollbackFailed { namespace: "test".into(), details: "failed".into() }.is_fallback_eligible());
+    }
 
     #[test]
     fn route_metrics_capture_explicit_and_default_values() {
@@ -911,7 +919,7 @@ mod tests {
     fn test_missing_namespace_returns_error() {
         let win = TcpFingerprintProfile::windows11();
         let res = apply_profile_to_netns("non_existent_wraith_ns_test_9999", &win, true);
-        assert!(matches!(res, Err(TcpMorphError::NamespaceNotFound(_))));
+        assert!(matches!(res, Err(TcpMorphError::UnmanagedNamespace(_))));
     }
 
     #[test]

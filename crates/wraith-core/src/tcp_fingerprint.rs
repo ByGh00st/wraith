@@ -2,7 +2,7 @@
 //!
 //! This module defines the complete Layer 4 TCP/IP fingerprint specification and provides
 //! the intelligence layer that bridges L4 (TCP SYN parameters) with L7 (TLS JA3/JA4)
-//! emulation profiles to eliminate the passive OS fingerprinting paradox.
+//! reference profiles. Sysctl changes cannot reproduce a complete operating-system fingerprint.
 //!
 //! ## Architecture
 //!
@@ -33,9 +33,8 @@
 //! - **L7 signal**: TLS ClientHello → JA3 hash → "Chrome on Windows 11"
 //! - **L4 signal**: TCP SYN → TTL=64, TS=1, MSS=1460, WS=7 → "Linux 6.x"
 //!
-//! This contradiction (L7 says Windows, L4 says Linux) is a high-confidence
-//! deanonymisation vector. This module eliminates it by morphing the L4 stack
-//! to match the OS implied by the L7 TLS profile.
+//! These are reference targets, not measurements. Browser families can run on multiple
+//! operating systems; explicit platform metadata takes precedence over browser-name heuristics.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -65,7 +64,7 @@ impl fmt::Display for TcpProfileKind {
 }
 
 impl FromStr for TcpProfileKind {
-    type Err = String;
+    type Err = TcpProfileError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let normalized = s.trim().to_ascii_lowercase();
@@ -73,9 +72,7 @@ impl FromStr for TcpProfileKind {
             "windows" | "windows11" | "win" | "win11" => Ok(Self::Windows11),
             "macos" | "mac" | "darwin" | "apple" | "osx" => Ok(Self::MacOS),
             "linux" | "linuxdefault" | "default" | "canonical" => Ok(Self::LinuxDefault),
-            other => Err(format!(
-                "Unknown TCP fingerprint profile: '{other}'. Supported: windows11, macos, linux"
-            )),
+            other => Err(TcpProfileError::UnknownKind(other.into())),
         }
     }
 }
@@ -246,7 +243,7 @@ pub struct TcpFingerprintProfile {
     pub default_ttl: u8,
     /// RFC 7323 TCP Window Scale option (`net.ipv4.tcp_window_scaling`).
     pub tcp_window_scaling: bool,
-    /// RFC 7323 TCP Timestamps option (`net.ipv4.tcp_timestamps`: 0=off, 1=on, 2=randomized).
+    /// RFC 7323 TCP Timestamps option (`net.ipv4.tcp_timestamps`: 0=off, 1=on with per-connection random offset, 2=on without offset).
     /// Windows=0 (absent from SYN), Linux/macOS=1.
     /// **OPSEC**: Timestamps leak kernel uptime via monotonic clock. Windows omission is intentional.
     pub tcp_timestamps: u8,
@@ -268,7 +265,8 @@ pub struct TcpFingerprintProfile {
     /// Forced SYN Maximum Segment Size via `iptables -t mangle -j TCPMSS --set-mss <mss>`.
     /// **WARNING**: This is NOT a sysctl parameter. `tcp_mss` does not exist as a sysctl.
     /// Must be enforced through Netfilter's TCPMSS target in the mangle table.
-    pub forced_syn_mss: Option<u16>,
+    #[serde(alias = "forced_syn_mss")]
+    pub syn_mss: Option<u16>,
 
     // ─── Tier 3: Routing (FIB) Metrics ───────────────────────────────────────
     /// Initial Congestion Window in segments (`ip route ... initcwnd <N>`).
@@ -279,12 +277,41 @@ pub struct TcpFingerprintProfile {
     pub init_rwnd: Option<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum TcpProfileError {
+    #[error("Unknown TCP profile: {0}; expected windows11, macos or linux")]
+    UnknownKind(String),
+    #[error("Invalid TCP profile field {field}: {reason}")]
+    Invalid { field: &'static str, reason: &'static str },
+}
+
 impl TcpFingerprintProfile {
+    /// Validate a deserialized/custom profile before any command is executed.
+    pub fn validate(&self) -> Result<(), TcpProfileError> {
+        let invalid = |field, reason| TcpProfileError::Invalid { field, reason };
+        if self.default_ttl == 0 { return Err(invalid("default_ttl", "must be 1..=255")); }
+        if self.tcp_timestamps > 2 { return Err(invalid("tcp_timestamps", "must be 0, 1 or 2")); }
+        if self.tcp_fin_timeout == 0 { return Err(invalid("tcp_fin_timeout", "must be nonzero")); }
+        if self.tcp_syn_retries > 127 { return Err(invalid("tcp_syn_retries", "must be at most 127")); }
+        if self.syn_mss.is_some_and(|mss| mss < 536) { return Err(invalid("syn_mss", "must be at least 536")); }
+        if self.local_port_range.is_some_and(|(start, end)| start == 0 || start >= end) {
+            return Err(invalid("local_port_range", "must be a nonempty ascending nonzero range"));
+        }
+        if self.tcp_ecn.is_some_and(|value| value > 2) { return Err(invalid("tcp_ecn", "supported profile values are 0..=2")); }
+        if self.tcp_rfc1337.is_some_and(|value| value > 1) { return Err(invalid("tcp_rfc1337", "must be 0 or 1")); }
+        Ok(())
+    }
+
+    /// Explicit L7 platform metadata avoids guessing an OS from a TLS hash.
+    pub fn for_browser(browser: L7BrowserHint) -> Self {
+        Self::from_kind(browser.implied_os())
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // PROFILE CONSTRUCTORS
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// Authentic Windows 11 (23H2/24H2) TCP/IP stack configuration.
+    /// Windows-oriented reference settings; does not reproduce native TCP option ordering.
     ///
     /// ## p0f Wire Signature
     /// ```text
@@ -312,13 +339,13 @@ impl TcpFingerprintProfile {
             local_port_range: Some((49152, 65535)),
             tcp_ecn: Some(0),
             tcp_rfc1337: Some(1),
-            forced_syn_mss: Some(1460),
+            syn_mss: Some(1460),
             init_cwnd: Some(10),
             init_rwnd: Some(44),
         }
     }
 
-    /// Authentic macOS Sonoma / Sequoia (Darwin 23.x / 24.x) TCP/IP stack configuration.
+    /// macOS-oriented reference settings; a 65535-byte SYN window is not guaranteed by sysctl.
     ///
     /// ## p0f Wire Signature
     /// ```text
@@ -345,7 +372,7 @@ impl TcpFingerprintProfile {
             local_port_range: Some((49152, 65535)),
             tcp_ecn: Some(0),
             tcp_rfc1337: Some(0),
-            forced_syn_mss: Some(1440),
+            syn_mss: Some(1440),
             init_cwnd: Some(10),
             init_rwnd: Some(45),
         }
@@ -373,7 +400,7 @@ impl TcpFingerprintProfile {
             local_port_range: Some((32768, 60999)),
             tcp_ecn: Some(2),
             tcp_rfc1337: Some(0),
-            forced_syn_mss: None,
+            syn_mss: None,
             init_cwnd: None,
             init_rwnd: None,
         }
@@ -403,14 +430,15 @@ impl TcpFingerprintProfile {
     /// | Safari | macOS | TTL=64, TS=1, MSS=1440 |
     /// | Firefox (Linux UA) | Linux | TTL=64, TS=1, MSS=auto |
     ///
-    /// ## Why Chrome → Windows?
-    /// Chrome on Windows is the dominant browser/OS combination globally (~65% market share).
-    /// An observer seeing a Chrome JA3 hash statistically expects Windows TCP parameters.
-    /// If they see Chrome JA3 + Linux TTL=64, the probability of "privacy tool" increases
-    /// by approximately 40× compared to seeing Chrome JA3 + Windows TTL=128.
+    /// Compatibility heuristic for descriptive labels. It does not infer an OS
+    /// from a JA3/JA4 hash; new integrations should pass an explicit L7BrowserHint.
     pub fn from_tls_profile(tls_profile: &str) -> Self {
         let p = tls_profile.to_ascii_lowercase();
-        if p.contains("chrome") || p.contains("win") || p.contains("edge") || p.contains("brave") {
+        if p.contains("macos") || p.contains("macintosh") || p.contains("darwin") {
+            Self::macos()
+        } else if p.contains("linux") {
+            Self::linux_default()
+        } else if p.contains("chrome") || p.contains("win") || p.contains("edge") || p.contains("brave") {
             Self::windows11()
         } else if p.contains("safari") || p.contains("mac") || p.contains("darwin") || p.contains("apple") {
             Self::macos()
@@ -438,7 +466,7 @@ impl TcpFingerprintProfile {
 
     /// Alias for backwards compatibility with earlier draft.
     pub fn syn_mss(&self) -> Option<u16> {
-        self.forced_syn_mss
+        self.syn_mss
     }
 
     /// Core sysctl parameters strictly present in `struct netns_ipv4` across modern kernels.
@@ -500,7 +528,7 @@ impl TcpFingerprintProfile {
     ///
     /// Returns `None` if no MSS override is needed (Linux default auto-calculates from MTU).
     pub fn netfilter_mss_rule(&self, interface: &str) -> Option<Vec<String>> {
-        self.forced_syn_mss.map(|mss| {
+        self.syn_mss.map(|mss| {
             vec![
                 "-t".into(), "mangle".into(),
                 "-A".into(), "POSTROUTING".into(),
@@ -515,7 +543,7 @@ impl TcpFingerprintProfile {
 
     /// Generates the deletion counterpart of the Netfilter MSS rule for rollback.
     pub fn netfilter_mss_delete_rule(&self, interface: &str) -> Option<Vec<String>> {
-        self.forced_syn_mss.map(|mss| {
+        self.syn_mss.map(|mss| {
             vec![
                 "-t".into(), "mangle".into(),
                 "-D".into(), "POSTROUTING".into(),
@@ -560,7 +588,7 @@ impl TcpFingerprintProfile {
 
     /// Returns true if this profile requires Netfilter MSS clamping.
     pub fn requires_netfilter_mss(&self) -> bool {
-        self.forced_syn_mss.is_some()
+        self.syn_mss.is_some()
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -570,7 +598,7 @@ impl TcpFingerprintProfile {
     /// Technical operational summary of the profile.
     pub fn format_summary(&self) -> String {
         let mss_str = self
-            .forced_syn_mss
+            .syn_mss
             .map(|m| m.to_string())
             .unwrap_or_else(|| "auto".to_string());
         let rwnd_str = self
@@ -604,7 +632,7 @@ impl TcpFingerprintProfile {
         }
         lines.push("║".to_string());
         lines.push("║ ── Tier 2: Netfilter ──".to_string());
-        if let Some(mss) = self.forced_syn_mss {
+        if let Some(mss) = self.syn_mss {
             lines.push(format!("║   TCPMSS --set-mss {mss}"));
         } else {
             lines.push("║   (kernel auto-MSS from MTU)".to_string());
@@ -639,7 +667,7 @@ impl From<TcpProfileKind> for TcpFingerprintProfile {
 }
 
 impl FromStr for TcpFingerprintProfile {
-    type Err = String;
+    type Err = TcpProfileError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let kind = TcpProfileKind::from_str(s)?;
@@ -823,13 +851,13 @@ impl CrossLayerProfile {
         }
 
         // MSS check
-        if self.l4_profile.forced_syn_mss != expected_profile.forced_syn_mss {
+        if self.l4_profile.syn_mss != expected_profile.syn_mss {
             anomalies.push(CrossLayerAnomaly {
-                parameter: "forced_syn_mss".into(),
-                expected: expected_profile.forced_syn_mss
+                parameter: "syn_mss".into(),
+                expected: expected_profile.syn_mss
                     .map(|m| m.to_string())
                     .unwrap_or_else(|| "auto".into()),
-                actual: self.l4_profile.forced_syn_mss
+                actual: self.l4_profile.syn_mss
                     .map(|m| m.to_string())
                     .unwrap_or_else(|| "auto".into()),
                 severity: AnomalySeverity::High,
@@ -913,6 +941,52 @@ mod tests {
     // ── Profile Invariant Tests ──────────────────────────────────────────────
 
     #[test]
+    fn supported_profiles_validate_and_preserve_legacy_mss_json() {
+        for kind in [TcpProfileKind::Windows11, TcpProfileKind::MacOS, TcpProfileKind::LinuxDefault] {
+            let profile = TcpFingerprintProfile::from_kind(kind);
+            profile.validate().unwrap();
+            let json = serde_json::to_string(&profile).unwrap();
+            assert!(json.contains("\"syn_mss\""));
+            let old = json.replace("\"syn_mss\"", "\"forced_syn_mss\"");
+            assert_eq!(serde_json::from_str::<TcpFingerprintProfile>(&old).unwrap(), profile);
+        }
+    }
+
+    #[test]
+    fn invalid_custom_values_are_rejected_before_application() {
+        let mut profile = TcpFingerprintProfile::windows11();
+        profile.tcp_timestamps = 3;
+        assert!(profile.validate().is_err());
+        profile.tcp_timestamps = 2;
+        profile.validate().unwrap();
+        profile.default_ttl = 0;
+        assert!(profile.validate().is_err());
+        profile.default_ttl = 128;
+        profile.local_port_range = Some((60000, 40000));
+        assert!(profile.validate().is_err());
+    }
+
+    #[test]
+    fn bool_and_timestamp_values_use_kernel_numeric_encoding() {
+        let mut profile = TcpFingerprintProfile::linux_default();
+        profile.tcp_window_scaling = false;
+        profile.tcp_sack = false;
+        profile.tcp_timestamps = 2;
+        let entries = profile.core_sysctl_entries();
+        for (key, expected) in [("net.ipv4.tcp_window_scaling", "0"), ("net.ipv4.tcp_sack", "0"), ("net.ipv4.tcp_timestamps", "2")] {
+            assert_eq!(entries.iter().find(|(k, _)| *k == key).unwrap().1, expected);
+        }
+    }
+
+    #[test]
+    fn explicit_os_metadata_precedes_browser_family_guess() {
+        assert_eq!(TcpFingerprintProfile::from_tls_profile("Chrome on macOS").kind, TcpProfileKind::MacOS);
+        assert_eq!(TcpFingerprintProfile::from_tls_profile("Chrome Linux").kind, TcpProfileKind::LinuxDefault);
+        assert_eq!(TcpFingerprintProfile::from_tls_profile("Darwin").kind, TcpProfileKind::MacOS);
+        assert_eq!(TcpFingerprintProfile::for_browser(L7BrowserHint::SafariMacOS).kind, TcpProfileKind::MacOS);
+    }
+
+    #[test]
     fn test_windows11_profile_invariants() {
         let win = TcpFingerprintProfile::windows11();
         assert_eq!(win.kind, TcpProfileKind::Windows11);
@@ -922,7 +996,7 @@ mod tests {
         assert!(win.tcp_sack);
         assert_eq!(win.tcp_fin_timeout, 30);
         assert_eq!(win.tcp_syn_retries, 2);
-        assert_eq!(win.forced_syn_mss, Some(1460));
+        assert_eq!(win.syn_mss, Some(1460));
         assert_eq!(win.init_cwnd, Some(10));
         assert_eq!(win.init_rwnd, Some(44));
 
@@ -945,7 +1019,7 @@ mod tests {
         assert!(mac.tcp_sack);
         assert_eq!(mac.tcp_fin_timeout, 30);
         assert_eq!(mac.tcp_syn_retries, 3);
-        assert_eq!(mac.forced_syn_mss, Some(1440));
+        assert_eq!(mac.syn_mss, Some(1440));
         assert_eq!(mac.init_rwnd, Some(45));
 
         let entries = mac.sysctl_entries();
@@ -963,7 +1037,7 @@ mod tests {
         assert!(linux.tcp_sack);
         assert_eq!(linux.tcp_fin_timeout, 60);
         assert_eq!(linux.tcp_syn_retries, 6);
-        assert_eq!(linux.forced_syn_mss, None);
+        assert_eq!(linux.syn_mss, None);
         assert_eq!(linux.init_rwnd, None);
     }
 
@@ -1164,7 +1238,7 @@ mod tests {
         };
 
         let anomalies = paradox.validate();
-        let mss_anomaly = anomalies.iter().find(|a| a.parameter == "forced_syn_mss");
+        let mss_anomaly = anomalies.iter().find(|a| a.parameter == "syn_mss");
         assert!(mss_anomaly.is_some());
         assert_eq!(mss_anomaly.unwrap().severity, AnomalySeverity::High);
     }

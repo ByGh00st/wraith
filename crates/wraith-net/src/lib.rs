@@ -12,6 +12,7 @@ pub mod netlink;
 pub mod nftables;
 pub mod stun;
 pub mod tcp_stack;
+mod tcp_namespace;
 pub mod traffic_shaper;
 
 pub use cgroup_jail::*;
