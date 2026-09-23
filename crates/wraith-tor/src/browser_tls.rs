@@ -3,7 +3,7 @@
 use futures_util::StreamExt;
 use std::{str::FromStr, time::Duration};
 use wraith_core::error::{Result, WraithError};
-use wreq_util::Emulation;
+use wreq_util::{Emulation, Platform, Profile};
 
 #[derive(Debug, Clone, Copy)]
 pub enum BrowserProfile {
@@ -11,6 +11,26 @@ pub enum BrowserProfile {
     Firefox,
     Safari,
 }
+impl BrowserProfile {
+    pub fn l4_profile(self) -> wraith_core::tcp_fingerprint::TcpFingerprintProfile {
+        use wraith_core::tcp_fingerprint::{L7BrowserHint, TcpFingerprintProfile};
+        TcpFingerprintProfile::for_browser(match self {
+            Self::Chrome => L7BrowserHint::ChromeWindows,
+            Self::Firefox => L7BrowserHint::FirefoxLinux,
+            Self::Safari => L7BrowserHint::SafariMacOS,
+        })
+    }
+
+    fn emulation(self) -> Emulation {
+        let (profile, platform) = match self {
+            Self::Chrome => (Profile::Chrome131, Platform::Windows),
+            Self::Firefox => (Profile::Firefox133, Platform::Linux),
+            Self::Safari => (Profile::Safari18, Platform::MacOS),
+        };
+        Emulation::builder().profile(profile).platform(platform).build()
+    }
+}
+
 impl FromStr for BrowserProfile {
     type Err = WraithError;
     fn from_str(value: &str) -> Result<Self> {
@@ -66,13 +86,8 @@ impl BrowserTlsClient {
     }
 
     fn builder(profile: BrowserProfile, socks_port: u16) -> Result<wreq::ClientBuilder> {
-        let profile = match profile {
-            BrowserProfile::Chrome => Emulation::Chrome131,
-            BrowserProfile::Firefox => Emulation::Firefox133,
-            BrowserProfile::Safari => Emulation::Safari18,
-        };
         Ok(wreq::Client::builder()
-            .emulation(profile)
+            .emulation(profile.emulation())
             .no_proxy()
             .proxy(wreq::Proxy::all(format!("socks5h://127.0.0.1:{socks_port}")).map_err(network)?)
             .https_only(true)
@@ -158,6 +173,16 @@ mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    #[test]
+    fn browser_platforms_map_to_explicit_l4_profiles() {
+        use wraith_core::tcp_fingerprint::TcpProfileKind;
+        for (browser, kind) in [(BrowserProfile::Chrome, TcpProfileKind::Windows11),
+            (BrowserProfile::Firefox, TcpProfileKind::LinuxDefault), (BrowserProfile::Safari, TcpProfileKind::MacOS)] {
+            assert_eq!(browser.l4_profile().kind, kind);
+            browser.l4_profile().validate().unwrap();
+        }
+    }
+
     // A local SOCKS endpoint terminates TLS with a generated certificate. No Tor,
     // Internet access, system trust changes or privileged networking is involved.
     async fn exchange(
@@ -234,6 +259,12 @@ mod tests {
                     }
                 }
                 assert!(request.starts_with(b"GET / HTTP/1.1\r\n"));
+                let expected_os = match profile {
+                    BrowserProfile::Chrome => "Windows NT",
+                    BrowserProfile::Firefox => "Linux",
+                    BrowserProfile::Safari => "Macintosh",
+                };
+                assert!(String::from_utf8_lossy(&request).contains(expected_os));
                 let _ = tls
                     .write_all(
                         b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK",
