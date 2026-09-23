@@ -17,10 +17,12 @@ The native client uses BoringSSL through wreq and supported emulation profiles. 
 | CLI profile | Pinned emulation / platform | Integration |
 | :--- | :--- | :--- |
 | `chrome` | Chrome 131 / Windows | Default fetch, DoH and cover requests |
-| `firefox` | Firefox 133 / Linux | Fetch and public Rust client API |
-| `safari` | Safari 18 / macOS | Fetch and public Rust client API |
+| `firefox` | Firefox 133 / Linux | Fetch, session DoH/cover requests and public Rust client API |
+| `safari` | Safari 18 / macOS | Fetch, session DoH/cover requests and public Rust client API |
 
 The platform is explicitly selected in the TLS client configuration. `BrowserProfile::l4_profile()` exposes the matching TCP reference profile; it does not automatically move the TLS connection into a namespace. See [L4 and L7](L4-and-L7.md).
+
+`wraith start --tls-profile safari --morph-l4 auto` selects Safari for session DoH and cover requests and the macOS namespace TCP reference. `fetch` remains a separate per-request selection.
 
 With a Wraith/Tor session already running:
 

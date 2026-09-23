@@ -51,7 +51,7 @@ A clone predating a history rewrite may be refused as divergent. Preserve your l
 ## Namespace applications
 
 ```bash
-sudo wraith start --namespace --tcp-profile windows11
+sudo wraith start --morph-l4 auto --tls-profile chrome
 # In another terminal, from your normal sudo account:
 sudo wraith exec -- curl https://example.com
 ```

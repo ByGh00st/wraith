@@ -153,11 +153,11 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
  TOML                    8          230          213            0           17
  YAML                  342        12239        12236            0            3
 -------------------------------------------------------------------------------
- Rust                   72        21688        18822          675         2191
- |- Markdown            65          748            5          698           45
- (Total)                          22436        18827         1373         2236
+ Rust                   72        21917        19051          674         2192
+ |- Markdown            65          744            3          698           43
+ (Total)                          22661        19054         1372         2235
 ===============================================================================
- Total                 425        34734        31749          720         2265
+ Total                 425        34963        31978          719         2266
 ===============================================================================
 ```
 
@@ -609,7 +609,9 @@ System Hardening & Anti-Fingerprinting:
                                    [aliases: --shield, --canvas-shield]
       --font-sandbox               Restrict OS-level font discovery via Fontconfig sandbox
                                    [alias: --font-jail]
-      --tcp-mask                   Normalize selected TCP/IP stack parameters (TTL=128, timestamps disabled) to reduce selected passive fingerprint signals
+      --tcp-mask                   Enable namespace TCP normalization (auto profile unless overridden)
+      --morph-l4 <PROFILE>          auto | windows | windows11 | macos | linux | off
+      --tls-profile <BROWSER>       Session DoH and cover-request TLS profile: chrome | firefox | safari
       --machine-id                 Rotate unique OS /etc/machine-id and system hardware identifiers
                                    [alias: --cloaking]
   -F, --full-security              Require strict session controls; reject missing prerequisites
@@ -878,29 +880,41 @@ Live Linux routing and kernel recovery remain integration work. Keep console acc
 <a id="l4-tcp-profiles"></a>
 ### 🧬 L4 TCP profiles, application scope and recovery
 
-| Reference profile | TTL | Window scaling | Timestamps | SACK | MSS target |
-| :--- | ---: | :---: | ---: | :---: | ---: |
-| Windows11 | 128 | On | 0 | On | 1460 |
-| MacOS | 64 | On | 1 | On | 1440 |
-| LinuxDefault | 64 | On | 1 | On | Kernel-selected |
+| Reference profile | TTL | Window scaling | Timestamps | SACK | MSS cap | FIB `initcwnd / initrwnd` |
+| :--- | ---: | :---: | ---: | :---: | ---: | :---: |
+| Windows11 | 128 | On | 0 | On | 1460 | 10 / 44 |
+| MacOS | 64 | On | 1 | On | 1440 | 10 / 45 |
+| LinuxDefault | 64 | On | 1 | On | Kernel-selected | Unchanged |
 
 On Linux, timestamp value `1` uses a per-connection random offset; `2` enables timestamps without that offset. These are reference settings, not a guarantee of native OS option ordering or an exact SYN window size.
 
-`--namespace`, `--tcp-mask` and full-security sessions create the isolated application network namespace. Start a new application inside it:
+`--morph-l4 auto` creates the application namespace and selects the L4 reference from the session's TLS platform: **Chrome → Windows11**, **Firefox → LinuxDefault**, **Safari → MacOS**. Chrome is the session default. `--namespace`, `--tcp-mask` and full-security sessions also enable automatic L4 selection unless explicitly overridden.
 
 ```bash
-sudo wraith start --namespace --tcp-profile windows11
+sudo wraith start --morph-l4 auto --tls-profile safari
 # From another terminal, as your normal user:
 sudo wraith exec -- curl https://example.com
+sudo wraith -i
 ```
+
+| Selection | Result |
+| :--- | :--- |
+| `--morph-l4 windows` / `windows11` | Explicit Windows reference; independent of TLS selection |
+| `--morph-l4 macos` / `linux` | Explicit macOS or Linux reference |
+| `--namespace --morph-l4 off` | Keep namespace isolation and kernel TCP defaults |
+| `--tcp-profile`, `--l4-profile`, `--os-profile` | Compatible aliases for `--morph-l4` |
+
+`off` conflicts with full-security and `--tcp-mask`; it cannot silently weaken either request. Without a namespace-enabling option, `off` alone does not create one. Session `--tls-profile` selects the TLS client for DoH (including DNSSEC validation queries) and optional cover requests. `wraith fetch --tls-profile …` retains its own per-request selection; applications launched through `exec` retain their own TLS implementation.
 
 `exec` enters the existing protected namespace and runs the application as the invoking sudo user. Existing applications are not moved into it. TCP normalization applies to the namespace stack; it does not rewrite the host Tor daemon's connections or Tor exit-node TCP fingerprints. ClientHello profiles apply to Wraith TLS clients; tunneling an application's encrypted TLS bytes does not change its fingerprint. Diagnostics distinguish reference profiles from measurements and do not certify unobserved p0f or cross-layer coherence.
 
-Strict TCP profile setup requires an original-value backup for every requested sysctl and reads each value back after writing it. Missing settings, mismatched readbacks and absent or ambiguous default routes stop setup; rollback failures are surfaced. Original `initcwnd` and `initrwnd` route metrics are restored and read back even when the namespace stays alive; a changed route identity is rejected. These checks verify configuration, not an exact operating-system fingerprint or TCP option order.
+Before namespace startup completes, Wraith snapshots and applies sysctls, installs an owned IPv4 SYN `TCPMSS --set-mss` rule, and changes the default route's `initcwnd` / `initrwnd` metrics. Every tier has readback checks. Duplicate owned MSS rules, missing settings, readback differences and absent or ambiguous default routes stop setup. Failed setup rolls back; cleanup errors remain visible. Route restoration preserves recorded protocol/scope/source attributes and rejects changed identities or unsupported attributes instead of silently dropping them.
 
-The sysctl engine accepts only the managed namespace and approved TCP keys, rejects host namespace aliases and retains one namespace descriptor throughout the transaction. The legacy host writer is disabled. See the [profile and sysctl architecture](docs/L4-SYSCTL-DESIGN.md) for the typed API, failure policies and timestamp semantics.
+`sudo wraith -i` reads **TTL, window scaling, timestamps, SACK, MSS rule presence and FIB window metrics** from the recorded namespace lifetime. It reports matching configuration, drift or unavailable observations. An old snapshot never becomes a fabricated Windows profile. The display explicitly keeps **wire fingerprint: not measured** separate from configuration readback.
 
-`FailClosed` propagates setup errors. The library's `RestoreAndContinue` policy may report a skipped profile only before mutation or after successful rollback; failed rollback remains an error. Configuration is a recoverable sequence, not a kernel-atomic multi-key write. The proposed `--morph-l4` option and expanded inspect display are not yet implemented; use the current `--tcp-profile` interface shown above.
+The L4 engine accepts only the managed namespace and approved TCP keys, rejects host namespace aliases and retains one namespace descriptor across sysctl, MSS, FIB and rollback operations. The legacy host writer is disabled. See the [L4 architecture](docs/L4-SYSCTL-DESIGN.md) for the API and failure policies. These checks verify configuration, not an exact operating-system fingerprint, option order or receive-window byte count.
+
+CLI startup uses fail-closed L4 setup. The library's `RestoreAndContinue` policy may report a skipped profile only before mutation or after successful rollback; failed rollback remains an error. Configuration is a recoverable sequence, not a kernel-atomic multi-key write. `wraith -x` recovers the journaled namespace lifecycle, including an interrupted setup.
 
 New Linux session records bind the worker to its boot ID, process start ticks and executable device/inode. Shutdown verifies that identity and signals through a pidfd, avoiding name-based matching and recycled-PID signaling. A live legacy record without identity is not automatically signaled: stop its original worker, retain the journal and retry recovery. See the [L4/L7 guide](https://github.com/ByGh00st/wraith/wiki/L4-and-L7).
 
@@ -930,7 +944,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-24**: **174 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
+Checks recorded **2026-09-24**: **183 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
 
 ```bash
 cargo test --workspace --locked

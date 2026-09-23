@@ -59,4 +59,8 @@ TCP setup errors identify missing backups, readback differences or unsupported r
 - Host alias or unmanaged namespace: use the namespace created by Wraith; arbitrary namespace paths are rejected.
 - Unapproved sysctl or invalid profile value: correct the profile rather than bypassing validation.
 - Namespace replaced during recovery: keep the recovery record and resolve ownership; the engine refuses to write into a different namespace lifetime.
-- Unknown `--morph-l4`: use the current documented `--tcp-profile` interface; the proposed option is not implemented.
+- Unknown `--morph-l4`: update the source and rebuild/install the binary. `--tcp-profile` remains a compatible alias.
+- `--morph-l4 off` conflicts with full-security or `--tcp-mask`: choose an explicit profile, or remove those enabling options. Use `--namespace --morph-l4 off` for isolation with untouched TCP defaults.
+- L4 readback unavailable: run `sudo wraith -i`; inspect its error for a missing/replaced namespace, insufficient permissions or a legacy snapshot. Recover the old session before starting a new one.
+- MSS rule readback or FIB setup failure: startup aborts and attempts rollback. Ensure iptables supports TCPMSS/comment and the namespace has its single managed default route. Do not insert duplicate `wraith-l4` rules.
+- Unsupported route attributes: Wraith refuses a lossy FIB rewrite; recover and create a fresh managed namespace rather than deleting unrelated route metrics.

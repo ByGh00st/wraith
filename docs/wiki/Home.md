@@ -45,6 +45,6 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 **6 Rust crates · 17 locales · GPL-3.0 · x86_64 Linux runtime**
 
-The latest recorded checks include **174 portable tests**, Linux-target test compilation and production Clippy with warnings denied. Live Linux routing and installed-system updates remain outside that validation. See [the validation guide](Development.md).
+The latest recorded checks include **183 portable tests**, Linux-target test compilation and production Clippy with warnings denied. Live Linux routing and installed-system updates remain outside that validation. See [the validation guide](Development.md).
 
 <p align="center"><a href="https://github.com/ByGh00st/wraith">Repository</a> · <a href="https://github.com/ByGh00st/wraith#privacy-matrix">Tool comparison</a> · <a href="https://github.com/ByGh00st/wraith/issues">Issues</a></p>

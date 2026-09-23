@@ -20,6 +20,25 @@ Required startup controls must succeed before activation. This preset requires t
 
 These irreversible settings must already be configured by the host administrator. Wraith checks them rather than enabling them irreversibly for a temporary session. Reversible controls are recorded for restoration.
 
+## L4 and TLS profiles
+
+```bash
+sudo wraith start --morph-l4 auto --tls-profile safari
+sudo wraith -i
+```
+
+`auto` maps Chrome/Windows, Firefox/Linux and Safari/macOS. Manual L4 choices are `windows` (or `windows11`), `macos` and `linux`. Use `--namespace --morph-l4 off` to keep isolation without changing TCP settings; `off` conflicts with full-security and `--tcp-mask`.
+
+Persist defaults with `wraith config set hardening.morph_l4 auto` and `wraith config set hardening.tls_profile safari`, or add to your existing configuration:
+
+```toml
+[hardening]
+morph_l4 = "auto"
+tls_profile = "safari"
+```
+
+Explicit CLI profile values override these defaults. Session TLS selection covers DoH and optional cover requests; arbitrary applications and the `fetch` command keep their own selection. See [L4 and L7](L4-and-L7.md) for live configuration telemetry and scope.
+
 ## Optional routes and services
 
 | Option | Purpose | Requirement or boundary |

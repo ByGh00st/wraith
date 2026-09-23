@@ -13,7 +13,7 @@
 | HTTP normalization | Initial cleartext request through port 9055 | Later requests on a persistent stream are not reparsed |
 
 ```bash
-sudo wraith start --namespace --tcp-profile windows11
+sudo wraith start --morph-l4 auto --tls-profile safari
 # In another terminal, from your normal sudo account:
 sudo wraith exec -- curl https://example.com
 ```
@@ -38,7 +38,20 @@ Only `wraith_ns` and approved per-network-namespace TCP keys are accepted. The e
 
 These writes form a recoverable sequence, not one kernel-atomic multi-key operation. Application workloads should enter after setup succeeds. A crash cannot run in-memory rollback; recovery depends on the journaled namespace lifecycle.
 
-The current CLI remains `--tcp-profile` with namespace setup. The proposed `--morph-l4` option and expanded inspect display are not implemented yet. This increment completes the profile/sysctl foundation, not those later CLI steps.
+## CLI selection and inspect
+
+`--morph-l4 auto` creates the namespace and follows the session TLS platform. `--tls-profile chrome` (the default) maps to Windows11, `firefox` to LinuxDefault, and `safari` to MacOS. The selected TLS profile is used by DoH, DNSSEC validation queries and optional cover requests. It does not change the TLS implementation of an application launched with `exec`; `fetch` has its own TLS selection.
+
+| CLI mode | Namespace behavior |
+| :--- | :--- |
+| `--morph-l4 windows` / `windows11` | Windows reference: TTL 128, MSS cap 1460, initcwnd 10 / initrwnd 44 |
+| `--morph-l4 macos` | macOS reference: TTL 64, MSS cap 1440, initcwnd 10 / initrwnd 45 |
+| `--morph-l4 linux` | Linux reference sysctls, no MSS or FIB override |
+| `--namespace --morph-l4 off` | Namespace routing remains active; TCP settings stay at kernel defaults |
+
+The old `--tcp-profile`, `--l4-profile` and `--os-profile` spellings remain aliases. Explicit `auto` enables namespace setup, as do `--namespace`, `--tcp-mask` and full-security. `off` alone does not create a namespace and conflicts with full-security or `--tcp-mask`. CLI values override persistent `hardening.morph_l4` / `hardening.tls_profile` settings.
+
+`sudo wraith -i` reads the namespace's live TTL, window scaling, timestamps, SACK, MSS rule presence and FIB metrics. It reports configuration match, drift or unavailable readback. The namespace device/inode must match the recorded lifetime; legacy snapshots without sufficient data cannot claim successful verification. The profile shown is the saved selection, not a hard-coded Windows result. Matching configuration is explicitly separate from an unmeasured wire fingerprint.
 
 [Detailed design and API example](https://github.com/ByGh00st/wraith/blob/main/docs/L4-SYSCTL-DESIGN.md)
 
@@ -46,17 +59,17 @@ The current CLI remains `--tcp-profile` with namespace setup. The proposed `--mo
 
 1. Capture original sysctl values and route metrics before mutation.
 2. Write each requested sysctl and verify its readback.
-3. Abort incomplete strict setup and attempt restoration, including the attempted setting.
+3. Install and verify the owned `wraith-l4` IPv4 SYN MSS rule, then apply and read back FIB metrics. Abort incomplete setup and attempt restoration, including the attempted setting.
 4. Surface rollback errors instead of reporting success.
 5. Require one unicast default route with a device; reject absent, ambiguous, multipath or unsupported locked metrics.
 6. Restore saved `initcwnd` and `initrwnd` values and verify them, even when the namespace remains alive. Zero removes the explicit override in favor of the kernel default.
 
-Route restoration refuses a changed route identity. Older snapshots without the original metrics require namespace teardown for full restoration. Session cleanup normally deletes its namespace; the explicit restore helper can also restore new snapshots without deletion.
+All three tiers and their rollback share one pinned namespace descriptor. MSS rules are checked with `iptables -C`, use a bounded xtables lock wait, and reject duplicate ownership. An MSS readback failure triggers rule cleanup. FIB route changes preserve recorded `proto`, `scope` and `src` attributes; unfamiliar or locked metrics are rejected before mutation to avoid losing route settings. Route restoration refuses a changed route identity or recorded attributes. Older snapshots without the original metrics require namespace teardown for full restoration. Session cleanup normally deletes its namespace; the explicit restore helper can also restore new snapshots without deletion.
 
 ## What remains unmeasured?
 
 The host Tor daemon and remote Tor exit have separate TCP stacks. Namespace normalization does not control either stack. A matching reference profile does not prove that the SYN and ClientHello observed by a destination form a consistent browser/OS identity.
 
-Portable tests inject missing backups, failed writes, rollback failures, readback differences and replaced routes. Linux-specific process and network code is cross-compiled. Live privileged Linux integration and a same-flow SYN/ClientHello capture have not been performed.
+Portable tests cover CLI aliases, explicit auto/off, L7-to-L4 mapping, missing backups, failed writes, MSS installation/readback/rollback, telemetry drift and replaced namespaces/routes. Linux-specific process and network code is cross-compiled. Live privileged Linux integration and a same-flow SYN/ClientHello capture have not been performed.
 
 **Related:** [TLS and HTTP](TLS-and-HTTP.md) · [Development](Development.md)
