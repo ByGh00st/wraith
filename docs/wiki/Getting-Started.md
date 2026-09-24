@@ -22,7 +22,7 @@ Install Rust under your ordinary account before using the helper. Optional WireG
 
 ## Install an official release
 
-Get the packages and checksums from the **[v1.4.1 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.1)**, configure the signed APT repository once, or let the installer select the latest stable version for your system.
+Get the packages and checksums from the **[v1.4.2 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.2)**, configure the signed APT repository once, or let the installer select the latest stable version for your system.
 
 For Debian, Ubuntu and Kali, add the signed repository once and then use normal APT commands:
 
@@ -49,13 +49,13 @@ wraith --version
 
 Both x86_64 and ARM64 are selected automatically. The installer requires Bash, curl and Python 3.8+ (`apk add bash curl python3` on Alpine). When already root, replace `sudo bash` with `bash`. It verifies SHA-256, package identity or archive/ELF structure, and the installed version. Archives do not install Tor, Netfilter or other runtime tools; install those through your distribution. GNU artifacts are built on Ubuntu 22.04 and need compatible glibc/libstdc++ versions. The current Debian packages require `libc6 >= 2.34`; older systems can build from source.
 
-Manual Debian installation for v1.4.1:
+Manual Debian installation for v1.4.2:
 
 ```bash
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.1/wraith_1.4.1_amd64.deb
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.1/SHA256SUMS.txt
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.2/wraith_1.4.2_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.2/SHA256SUMS.txt
 sha256sum --ignore-missing --check SHA256SUMS.txt
-sudo apt install ./wraith_1.4.1_amd64.deb
+sudo apt install ./wraith_1.4.2_amd64.deb
 wraith --version
 ```
 

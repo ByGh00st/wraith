@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.2] - 2026-09-24
+
+### Fixed
+- Root-owned legacy recovery directories with group or other write access are narrowed before a new namespace or egress lease is written. Foreign-owned paths and symlinks remain rejected, and the tightened mode is read back before use.
+
 ## [1.4.1] - 2026-09-24
 
 ### Fixed

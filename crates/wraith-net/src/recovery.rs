@@ -87,9 +87,20 @@ fn write_new_lease(path: &str, value: &impl Serialize) -> Result<()> {
     }
     #[cfg(unix)]
     {
-        use std::os::unix::fs::MetadataExt;
-        if metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        if metadata.uid() != 0 {
             return Err(failure("Unsafe recovery directory owner/mode"));
+        }
+        // Older Wraith packages created this root-owned directory with group
+        // write access. It is safe to narrow permissions after verifying that
+        // root owns the real directory; never repair a foreign-owned path.
+        if metadata.mode() & 0o022 != 0 {
+            let mode = tighten_directory_mode(metadata.mode());
+            fs::set_permissions(parent, fs::Permissions::from_mode(mode))?;
+            let verified = fs::symlink_metadata(parent)?;
+            if !verified.is_dir() || verified.uid() != 0 || verified.mode() & 0o022 != 0 {
+                return Err(failure("Unsafe recovery directory owner/mode"));
+            }
         }
     }
     let mut bytes = Zeroizing::new(Vec::new());
@@ -101,6 +112,11 @@ fn write_new_lease(path: &str, value: &impl Serialize) -> Result<()> {
     #[cfg(unix)]
     fs::File::open(parent)?.sync_all()?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn tighten_directory_mode(mode: u32) -> u32 {
+    mode & !0o022
 }
 
 pub(crate) fn begin_namespace(identity: NamespaceIdentity, mac: String) -> Result<NamespaceLease> {
@@ -350,6 +366,15 @@ pub fn inspect_namespace_mac() -> Result<(String, String, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn root_owned_recovery_directory_repairs_only_writable_group_bits() {
+        assert_eq!(tighten_directory_mode(0o777), 0o755);
+        assert_eq!(tighten_directory_mode(0o775), 0o755);
+        assert_eq!(tighten_directory_mode(0o700), 0o700);
+    }
+
     #[test]
     fn prefixes_never_authorize_physical_or_unmarked_link_deletion() {
         for (kind, alias) in [("ether", "owner"), ("veth", ""), ("veth", "someone-else")] {
