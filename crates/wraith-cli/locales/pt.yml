@@ -298,6 +298,8 @@ help:
   commands_header: 'Commands:'
   cmd_start: Start Wraith network anonymization & kernel protection
   cmd_stop: Stop Wraith and restore normal network
+  cmd_reset: 'Redefinição de emergência e restauração de interfaces de rede, firewall, DNS e rotas'
+  cmd_network: 'Operações de rede e recuperação de emergência'
   cmd_switch: Request new Tor exit identity (Newnym)
   cmd_test: Run comprehensive DNS, WebRTC, and IPv6 leak tests
   cmd_info: Display telemetry dashboard and active circuits

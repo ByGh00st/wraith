@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.5] - 2026-09-24
+
+### Added
+- Dedicated emergency network recovery engine accessible via `wraith reset`, `wraith network reset`, `--reset`, `--reset-network`, `--net-reset`, and `--ressert`.
+- 5-tier systematic host recovery teardown:
+  - Shuts down active/interrupted Wraith sessions, systemd services, and background Tor daemons.
+  - Purges `wraith-ns` namespace, orphan veth links (`veth-host`, `veth-ns`), and WireGuard tunnels.
+  - Flushes all iptables, ip6tables, and nftables rules back to clean default `ACCEPT` policies, removing lingering killswitches and tc qdisc traffic shapers.
+  - Restores `/etc/resolv.conf` from backup or clean fallback resolvers (1.1.1.1, 9.9.9.9, 8.8.8.8) and restarts `systemd-resolved` / `NetworkManager`.
+  - Normalizes kernel routing, re-enables IP forwarding, flushes ARP table, and brings physical interfaces back up.
+- Added multilingual localization keys `cmd_reset` and `cmd_network` across all 17 supported locales.
+
 ## [1.4.4] - 2026-09-24
 
 ### Security & Hardening

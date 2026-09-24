@@ -11,6 +11,7 @@
 | `sudo wraith -i` | Inspect status and Tor circuit information |
 | `sudo wraith -r` | Request a new identity for eligible new Tor streams |
 | `sudo wraith -x` | Stop and restore recorded settings |
+| `sudo wraith reset` | Force emergency network/firewall reset and namespace purge (`--reset`) |
 | `sudo wraith doctor` | Run diagnostics |
 | `sudo wraith -t` | Run the network-check suite |
 | `sudo wraith -u` | Update from the official GitHub repository |

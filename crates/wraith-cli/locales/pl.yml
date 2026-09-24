@@ -297,6 +297,8 @@ help:
   commands_header: 'Команды:'
   cmd_start: Запустить анонимизацию сети и защиту ядра
   cmd_stop: Остановить Wraith и восстановить сеть
+  cmd_reset: 'Awaryjny reset i przywrócenie interfejsów sieciowych, zapory, DNS i tras'
+  cmd_network: 'Operacje sieciowe i awaryjne odzyskiwanie'
   cmd_switch: Запросить новую личность выхода Tor (Newnym)
   cmd_test: Запустить тесты утечек DNS, WebRTC и IPv6
   cmd_info: Показать панель телеметрии и активные цепочки

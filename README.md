@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.3-8172b3?style=flat-square" alt="Workspace version 1.4.3">
+  <img src="https://img.shields.io/badge/version-1.4.5-8172b3?style=flat-square" alt="Workspace version 1.4.5">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
   <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-238_passed-547d85?style=flat-square" alt="238 portable tests passed"></a>
@@ -307,7 +307,7 @@ Wraith is cleanly architected into 6 Rust crates with separate responsibilities:
 
 ```
 wraith/
-├── Cargo.toml                              # Workspace Root Manifest (v1.4.3)
+├── Cargo.toml                              # Workspace Root Manifest (v1.4.5)
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
 ├── SECURITY.md                             # Private Vulnerability Reporting Policy
@@ -411,7 +411,7 @@ wraith/
 
 ### Quick install · signed APT repository and official release assets
 
-> **[Wraith v1.4.3](https://github.com/ByGh00st/wraith/releases/tag/v1.4.3)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
+> **[Wraith v1.4.5](https://github.com/ByGh00st/wraith/releases/tag/v1.4.5)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
 
 ```bash
 # Debian / Ubuntu / Kali: configure the signed Wraith APT repository once.
@@ -441,10 +441,10 @@ The installer needs **Bash, curl and Python 3.8+**; Alpine users can install the
 
 ```bash
 # x86_64 / amd64; use arm64 in the package filename on ARM64
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.3/wraith_1.4.3_amd64.deb
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.3/SHA256SUMS.txt
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.5/wraith_1.4.5_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.5/SHA256SUMS.txt
 sha256sum --ignore-missing --check SHA256SUMS.txt
-sudo apt install ./wraith_1.4.3_amd64.deb
+sudo apt install ./wraith_1.4.5_amd64.deb
 wraith --version
 ```
 
@@ -530,6 +530,7 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | :--- | :--- | :--- |
 | `-s` | `sudo wraith -s [OPTIONS]` / `wraith start` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
 | `-x` | `sudo wraith -x [-d]` / `wraith stop` | **Stop Wraith**: Restores normal network, netfilter rules, and DNS. (`-d` self-destructs binary). |
+| — | `sudo wraith --reset` / `wraith reset` / `wraith network reset` | **Emergency Network Reset**: Flushes iptables/nftables, purges namespaces/veth, restores DNS and default routes. |
 | `-r` | `sudo wraith -r` / `wraith switch` | **Circuit Rotation**: Issues `SIGNAL NEWNYM` to request a fresh Tor exit node identity. |
 | `-t` | `sudo wraith -t` / `wraith test` | **Multi-Vector Leak Audit**: Evaluates IPv4/IPv6, DNS integrity, and RFC 5389 Dual-Stack (UDP + TCP) WebRTC STUN coverage. |
 | `-i` | `sudo wraith -i` / `wraith info` | **Status Telemetry**: Displays live connection status, active exit IP, and circuit topology. |

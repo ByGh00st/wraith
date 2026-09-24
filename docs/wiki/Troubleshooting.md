@@ -70,6 +70,23 @@ Include the command, distribution, selected interface, expected result, actual r
 
 Reset scripts delegate to the installed `wraith stop` implementation when recorded recovery is available. They do not flush arbitrary firewall rules or invent fallback DNS. `wraith stop` also checks durable owned network leases when the main session journal is absent; with neither a journal nor leases, it changes nothing. Script-level missing-record handling remains separate from this CLI preflight.
 
+### Emergency Network Reset (`wraith reset` / `wraith --reset`)
+
+When external network failures, dropped connections, ungraceful kills, or conflicting firewall managers leave the host in an unreachable state, use the dedicated emergency reset engine:
+
+```bash
+sudo wraith --reset
+sudo wraith reset [network|dns|firewall|all]
+sudo wraith network reset
+```
+
+This procedure performs a 5-tier teardown:
+1. Shuts down any active or orphaned Wraith workers and Tor daemons.
+2. Purges the `wraith-ns` namespace, orphan veth links, and WireGuard tunnels.
+3. Flushes iptables, ip6tables, and nftables rules back to clean `ACCEPT` policies.
+4. Restores `/etc/resolv.conf` from backup or installs clean default resolvers, restarting `systemd-resolved` / `NetworkManager`.
+5. Re-enables IP forwarding, flushes ARP cache, and brings physical interfaces UP.
+
 A live legacy session without process-lifetime identity cannot be signaled automatically. Stop its original foreground worker with Ctrl+C, or its owning systemd service, then retry recovery. Do not delete the journal as a workaround.
 
 TCP setup errors identify missing backups, readback differences or unsupported routes. Route restoration rejects a changed default-route identity rather than editing a replacement route. Old TCP snapshots without route metrics require namespace teardown for complete restoration.

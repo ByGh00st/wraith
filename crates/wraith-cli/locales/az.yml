@@ -297,6 +297,8 @@ help:
   commands_header: 'Komutlar:'
   cmd_start: Anonimleştirmeyi ve çekirdek korumasını başlatır
   cmd_stop: Anonimleştirmeyi durdurur ve normal ağı geri yükler
+  cmd_reset: 'Şəbəkə interfeyslərini, təhlükəsizlik divarını, DNS və marşrutları təcili sıfırlayır'
+  cmd_network: 'Şəbəkə idarəetməsi və təcili bərpa əməliyyatları'
   cmd_switch: Yeni bir Tor çıkış kimliği (Newnym) talep eder
   cmd_test: Kapsamlı DNS, WebRTC ve IPv6 sızıntı testlerini çalıştırır
   cmd_info: Canlı telemetri paneli ve aktif devre durumunu gösterir

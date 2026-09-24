@@ -33,7 +33,7 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 | Area | Current behavior |
 | :--- | :--- |
-| Release distribution | [v1.4.4 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.4): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
+| Release distribution | [v1.4.5 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.5): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
 | Full-security preset | Automatic namespace + Tor access-link L4/TLS pairing, required setup checks and recorded policy telemetry |
 | Local ISP / firewall scope | Tor UID TCP TTL, SYN option order and MSS normalization; shared Tor exits preserved |
 | Worker ownership | Boot/start-time/executable identity and pidfd-bound shutdown |
