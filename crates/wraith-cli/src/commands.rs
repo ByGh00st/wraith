@@ -31,7 +31,6 @@ use wraith_tor::{
     write_torrc, OnionServiceConfig, TlsCamouflageServer, TorControlClient,
 };
 
-use crate::display;
 use crate::display::{
     print_banner, print_error, print_identity_rotated, print_reset_report, print_step, print_success, print_system_restored,
     show_circuit_telemetry, show_leak_report, show_status_dashboard, render_box, render_box_top,
