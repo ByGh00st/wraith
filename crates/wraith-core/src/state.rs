@@ -77,6 +77,9 @@ pub struct StateData {
     /// Serialized NetnsTcpSnapshot for 3-tier rollback
     #[serde(default)]
     pub tcp_snapshot_json: Option<String>,
+    /// Host Tor UID-scoped packet policy; separate from namespace sysctls.
+    #[serde(default)]
+    pub tcp_egress_snapshot_json: Option<String>,
     pub multihop_enabled: bool,
     pub wireguard_config: Option<String>,
     pub onion_service_active: bool,

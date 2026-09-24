@@ -589,6 +589,33 @@ fn l4_status_rows(state: &StateData) -> Vec<(String, String)> {
     rows
 }
 
+fn tor_egress_rows(state: &StateData) -> Vec<(String, String)> {
+    let Some(json) = &state.tcp_egress_snapshot_json else {
+        return vec![("Tor access-link L4".into(), "Not armed / legacy session".into())];
+    };
+    let snapshot: wraith_net::tcp_egress::TcpEgressSnapshot = match serde_json::from_str(json) {
+        Ok(snapshot) => snapshot,
+        Err(error) => return vec![("Tor access-link L4".into(), format!("Unavailable: {error}"))],
+    };
+    let mut rows = vec![("Tor access-link L4".into(), snapshot.profile.name.clone()),
+        ("Egress TTL / SYN MSS cap".into(), format!("{} / {}", snapshot.profile.default_ttl,
+            snapshot.profile.syn_mss.map(|mss| mss.to_string()).unwrap_or_else(|| "kernel MSS".into())))];
+    match wraith_net::tcp_egress::inspect_tor_egress(&snapshot) {
+        Ok(live) => {
+            rows.push(("Tor L4 policy / worker".into(), format!("{} / {}",
+                if live.policy_present { "Rules present" } else { "Rules MISSING" },
+                if live.queue.is_some() { "Owned queue bound" } else { "Queue unavailable — new SYNs blocked if rule remains" })));
+            if let Some(queue) = live.queue {
+                rows.push(("SYNs queued / pending".into(), format!("{} / {}", queue.queued_syns, queue.pending)));
+                rows.push(("Queue drops: kernel / user".into(), format!("{} / {}", queue.kernel_dropped, queue.userspace_dropped)));
+            }
+        }
+        Err(error) => rows.push(("Tor L4 readback".into(), format!("Unavailable: {error}"))),
+    }
+    rows.push(("Tor L4 scope".into(), "Tor UID IPv4 TCP; window/scale preserved; remote Tor exit unchanged".into()));
+    rows
+}
+
 pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize) {
     let mut table = Table::new();
     table
@@ -720,6 +747,9 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         }
 
         for (label, value) in l4_status_rows(state) {
+            table.add_row(vec![Cell::new(label).fg(Color::Yellow), Cell::new(value).fg(Color::Cyan)]);
+        }
+        for (label, value) in tor_egress_rows(state) {
             table.add_row(vec![Cell::new(label).fg(Color::Yellow), Cell::new(value).fg(Color::Cyan)]);
         }
 
@@ -948,7 +978,7 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("wireguard", |a| a.help(t!("help.opt_wg").into_owned()))
         .mut_arg("browser_shield", |a| a.help(t!("help.opt_browser_shield").into_owned()))
         .mut_arg("font_sandbox", |a| a.help(t!("help.opt_font_sandbox").into_owned()))
-        .mut_arg("tcp_mask", |a| a.help("Enable namespace TCP profile normalization (auto unless explicitly selected)"))
+        .mut_arg("tcp_mask", |a| a.help("Normalize namespace TCP and Tor access-link SYNs (auto unless explicitly selected)"))
         .mut_arg("machine_id_rotation", |a| a.help(t!("help.opt_machine_id").into_owned()))
         .mut_arg("strict_hardening", |a| a.help(t!("help.opt_full_security").into_owned()))
         .mut_arg("monitor_window", |a| a.help(t!("help.opt_spawn_monitor").into_owned()))
@@ -1045,6 +1075,12 @@ pub fn print_demo_showcase() {
 #[cfg(test)]
 mod l4_display_tests {
     use super::*;
+    #[test]
+    fn absent_or_malformed_egress_state_never_claims_active_morphing() {
+        assert!(tor_egress_rows(&StateData::default())[0].1.contains("Not armed"));
+        let state = StateData { tcp_egress_snapshot_json: Some("not json".into()), ..Default::default() };
+        assert!(tor_egress_rows(&state)[0].1.contains("Unavailable"));
+    }
     #[test]
     fn dashboard_distinguishes_recorded_strict_policy_from_legacy_state() {
         assert!(session_policy_label(&StateData::default()).contains("not recorded"));

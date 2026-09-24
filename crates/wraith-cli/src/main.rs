@@ -177,11 +177,11 @@ pub struct StartArgs {
     )]
     pub honey_lan: bool,
 
-    /// Enable namespace TCP profile normalization (auto unless explicitly selected)
+    /// Normalize namespace TCP and Tor access-link SYNs (auto unless explicitly selected)
     #[arg(long = "tcp-mask", help_heading = "System Hardening")]
     pub tcp_mask: bool,
 
-    /// Namespace L4 profile: auto follows --tls-profile; off keeps kernel defaults
+    /// Namespace + Tor access-link L4 profile: auto follows --tls-profile; off disables morphing
     #[arg(long = "morph-l4", visible_aliases = ["tcp-profile", "l4-profile", "os-profile"],
         value_name = "PROFILE", value_parser = ["auto", "windows", "windows11", "macos", "linux", "off"],
         help_heading = "System Hardening")]

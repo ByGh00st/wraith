@@ -12,6 +12,10 @@ pub mod netlink;
 pub mod nftables;
 pub mod stun;
 pub mod tcp_stack;
+pub mod tcp_wire;
+pub mod tcp_egress;
+#[cfg(any(target_os = "linux", test))]
+mod nfqueue;
 mod tcp_namespace;
 pub mod traffic_shaper;
 
@@ -28,4 +32,3 @@ pub use nftables::*;
 pub use stun::*;
 pub use tcp_stack::*;
 pub use traffic_shaper::*;
-

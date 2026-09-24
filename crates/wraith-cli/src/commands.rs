@@ -46,6 +46,7 @@ struct BackgroundServices {
     tls: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
     dns: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
     ids: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
+    tcp_egress: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
     killswitch: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
     rotator: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
     honeypot: Option<(CancellationToken, tokio::task::JoinHandle<()>)>,
@@ -66,6 +67,9 @@ impl BackgroundServices {
             ct.cancel();
         }
         if let Some((ct, _)) = &self.ids {
+            ct.cancel();
+        }
+        if let Some((ct, _)) = &self.tcp_egress {
             ct.cancel();
         }
         if let Some((ct, _)) = &self.killswitch {
@@ -109,6 +113,9 @@ impl BackgroundServices {
         if let Some((_, h)) = self.ids.take() {
             join_task("IDS Sniffer", h).await;
         }
+        if let Some((_, h)) = self.tcp_egress.take() {
+            join_task("Tor TCP Morphing", h).await;
+        }
         if let Some((_, h)) = self.killswitch.take() {
             join_task("KillSwitch Watchdog", h).await;
         }
@@ -123,7 +130,7 @@ impl BackgroundServices {
 
 impl Drop for BackgroundServices {
     fn drop(&mut self) {
-        for task in [&self.jitter, &self.tls, &self.dns, &self.ids, &self.killswitch, &self.rotator, &self.honeypot].into_iter().flatten() {
+        for task in [&self.jitter, &self.tls, &self.dns, &self.ids, &self.tcp_egress, &self.killswitch, &self.rotator, &self.honeypot].into_iter().flatten() {
             task.0.cancel();
             task.1.abort();
         }
@@ -572,6 +579,17 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     state_mgr.activate(state_data.clone())?;
     wraith_tor::set_system_tor_services(&state_data.stopped_tor_services, false)?;
 
+    // Protect the actual Tor-to-guard access link before Tor opens any sockets.
+    // Namespace sysctls continue to govern separately launched applications.
+    if let Some(profile) = tcp_profile.as_ref().filter(|_| args.namespace) {
+        let worker = wraith_net::tcp_egress::start_tor_egress(profile, wraith_net::get_tor_uid()?, |snapshot| {
+            state_data.tcp_egress_snapshot_json = Some(serde_json::to_string(snapshot)?);
+            state_mgr.activate(state_data.clone())
+        })?;
+        bg_services.tcp_egress = Some((worker.cancel, worker.handle));
+        print_step(&format!("Tor access-link TCP morphing armed: {} (TTL + SYN options/MSS)", worker.snapshot.profile.name), "ok");
+    }
+
     // 6. Bootstrap only after the egress and optional tunnel policy is armed.
     print_step(&t!("commands.cmd_step_5"), "info");
     state_data.tor_started = true;
@@ -903,6 +921,16 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     // 22. KillSwitch Daemon & State Activation (Strictly enforced in ALL modes)
     verify_strict_l4_activation(&state_data, |snapshot|
         Ok(wraith_net::inspect_tcp_stack(snapshot)?.matches_profile))?;
+    if args.namespace && tcp_profile.is_some() {
+        let json = state_data.tcp_egress_snapshot_json.as_deref()
+            .ok_or_else(|| WraithError::Network("Tor access-link L4 snapshot missing; activation refused".into()))?;
+        let snapshot = serde_json::from_str(json)?;
+        let live = wraith_net::tcp_egress::inspect_tor_egress(&snapshot)?;
+        if !live.policy_present || live.queue.is_none()
+            || bg_services.tcp_egress.as_ref().is_none_or(|worker| worker.1.is_finished()) {
+            return Err(WraithError::Network("Tor access-link L4 worker or policy unavailable; activation refused".into()));
+        }
+    }
     print_step(&t!("commands.cmd_step_21"), "info");
     let (ks, cancel_token) = KillSwitch::new_with_mode(is_strict);
     let ks_handle = ks.spawn_monitor();
@@ -932,8 +960,16 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
             let _ = crossterm::terminal::enable_raw_mode();
         }
 
+        let mut egress_health = tokio::time::interval(Duration::from_secs(2));
+        let mut egress_failure_reported = false;
         loop {
             tokio::select! {
+                _ = egress_health.tick(), if bg_services.tcp_egress.is_some() && !egress_failure_reported => {
+                    if bg_services.tcp_egress.as_ref().is_some_and(|worker| worker.1.is_finished()) {
+                        egress_failure_reported = true;
+                        print_step("Tor L4 worker stopped: new guard SYNs remain blocked by NFQUEUE. Stop/recover before restarting.", "error");
+                    }
+                }
                 _ = tokio::signal::ctrl_c() => {
                     if !args.daemon_worker {
                         let _ = crossterm::terminal::disable_raw_mode();
@@ -1129,8 +1165,20 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     if !state_info.physical_fastpath_disabled {
         record_cleanup("legacy packet filter", EgressFastpath::new(iface).and_then(|mut filter| filter.detach()), &mut errors);
     }
-    if state_info.tor_started || state_info.active {
-        record_cleanup("Tor daemon", stop_tor_daemon(), &mut errors);
+    let tor_stopped = if state_info.tor_started || state_info.active {
+        let stopped = stop_tor_daemon();
+        let confirmed = stopped.is_ok();
+        record_cleanup("Tor daemon", stopped, &mut errors);
+        confirmed
+    } else { true };
+    // Do not detach the fail-closed queue while a managed Tor process may still
+    // be running. Whole-firewall restoration remains the final recovery owner.
+    if tor_stopped {
+        if let Some(json) = &state_info.tcp_egress_snapshot_json {
+            let result = serde_json::from_str(json).map_err(WraithError::from)
+                .and_then(|snapshot| wraith_net::tcp_egress::remove_tor_egress(&snapshot));
+            record_cleanup("Tor TCP morphing", result, &mut errors);
+        }
     }
     if state_info.multihop_enabled {
         record_cleanup("WireGuard", MultiHopTunnelEngine::teardown_wireguard(state_info.wireguard_config.as_deref()), &mut errors);
@@ -1184,12 +1232,8 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     if state_info.saved_files.contains_key(wraith_forensic::FONT_CONFIG_PATH) {
         record_cleanup("font cache", wraith_forensic::font_jail::refresh_font_cache(), &mut errors);
     }
-    if let Some(saved) = &state_info.saved_rules {
-        record_cleanup("IPv4 firewall", wraith_net::restore_rules(saved), &mut errors);
-    }
-    if let Some(saved) = &state_info.saved_ipv6_rules {
-        record_cleanup("IPv6 firewall", wraith_net::restore_ipv6_rules(saved), &mut errors);
-    }
+    restore_firewalls_after_tor_stop(&state_info, tor_stopped,
+        wraith_net::restore_rules, wraith_net::restore_ipv6_rules, &mut errors);
     if errors.is_empty() {
         record_cleanup("original Tor services", wraith_tor::set_system_tor_services(&state_info.stopped_tor_services, true), &mut errors);
     }
@@ -1703,6 +1747,23 @@ fn journal_file(manager: &StateManager, state: &mut StateData, path: &str, allow
     manager.activate(state.clone())
 }
 
+fn restore_firewalls_after_tor_stop(
+    state: &StateData, tor_stopped: bool,
+    restore_ipv4: impl FnOnce(&str) -> Result<()>,
+    restore_ipv6: impl FnOnce(&str) -> Result<()>, errors: &mut Vec<String>,
+) {
+    if !tor_stopped {
+        errors.push("Firewall retained because managed Tor could not be stopped; retry recovery".into());
+        return;
+    }
+    if let Some(saved) = &state.saved_rules {
+        record_cleanup("IPv4 firewall", restore_ipv4(saved), errors);
+    }
+    if let Some(saved) = &state.saved_ipv6_rules {
+        record_cleanup("IPv6 firewall", restore_ipv6(saved), errors);
+    }
+}
+
 fn record_cleanup(label: &str, result: Result<()>, errors: &mut Vec<String>) {
     if let Err(error) = result {
         let detail = format!("{label}: {error}");
@@ -1762,6 +1823,32 @@ fn resolve_tcp_profile(args: &crate::StartArgs) -> Result<Option<TcpFingerprintP
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
+    #[test]
+    fn failed_tor_shutdown_never_restores_firewalls_or_swallows_restore_errors() {
+        let state = StateData { saved_rules: Some("v4".into()), saved_ipv6_rules: Some("v6".into()), ..Default::default() };
+        let mut errors = Vec::new();
+        restore_firewalls_after_tor_stop(&state, false, |_| panic!("Tor still running"), |_| panic!("Tor still running"), &mut errors);
+        assert_eq!(errors.len(), 1);
+        errors.clear();
+        let restored_v6 = std::cell::Cell::new(false);
+        restore_firewalls_after_tor_stop(&state, true,
+            |saved| { assert_eq!(saved, "v4"); Err(WraithError::PermissionDenied) },
+            |saved| { assert_eq!(saved, "v6"); restored_v6.set(true); Ok(()) }, &mut errors);
+        assert!(restored_v6.get());
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("IPv4 firewall"));
+    }
+    #[test]
+    fn applications_cannot_enter_a_namespace_while_l4_is_still_arming() {
+        let mut state = StateData { active: true, namespace_active: true,
+            state: Some(wraith_core::State::Arming), ..Default::default() };
+        assert!(!namespace_exec_ready(&state, true));
+        state.state = Some(wraith_core::State::Active);
+        assert!(namespace_exec_ready(&state, true));
+        assert!(!namespace_exec_ready(&state, false));
+        state.state = Some(wraith_core::State::Cleanup);
+        assert!(!namespace_exec_ready(&state, true));
+    }
     #[test]
     fn full_security_resolves_required_controls_for_cli_and_config() {
         for from_config in [false, true] {
@@ -1898,12 +1985,17 @@ mod lifecycle_tests {
 
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn namespace_exec_ready(state: &StateData, running: bool) -> bool {
+    state.active && state.state == Some(wraith_core::State::Active) && state.namespace_active && running
+}
+
 /// Join the already protected namespace, then drop privileges before exec.
 pub async fn cmd_exec(command: Vec<String>) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         let state = StateManager::default().read_checked()?;
-        if !state.active || !state.namespace_active || !StateManager::default().is_running() {
+        if !namespace_exec_ready(&state, StateManager::default().is_running()) {
             return Err(WraithError::Configuration("Start Wraith with --namespace first".into()));
         }
         let uid = std::env::var("SUDO_UID").ok().and_then(|s| s.parse::<u32>().ok())
