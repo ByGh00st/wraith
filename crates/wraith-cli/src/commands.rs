@@ -1645,46 +1645,83 @@ pub fn cmd_pentest() -> Result<()> {
 }
 
 pub fn spawn_monitor_terminal() -> bool {
-    let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".into());
-    #[cfg(target_os = "linux")]
-    {
-        let _ = std::process::Command::new("xhost")
-            .arg("+local:")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-    }
-    let xauth = if let Ok(xa) = std::env::var("XAUTHORITY") {
-        xa
-    } else if let Ok(sudo_user) = std::env::var("SUDO_USER") {
-        let user_xauth = format!("/home/{sudo_user}/.Xauthority");
-        if Path::new(&user_xauth).exists() {
-            user_xauth
-        } else {
-            "/root/.Xauthority".into()
+    let display = std::env::var("DISPLAY").unwrap_or_else(|_| {
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(entries) = std::fs::read_dir("/tmp/.X11-unix") {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if let Some(num) = name.strip_prefix('X') {
+                        return format!(":{num}");
+                    }
+                }
+            }
         }
-    } else {
-        let mut found = "/root/.Xauthority".to_string();
+        ":0".into()
+    });
+
+    let mut desktop_user: Option<String> = std::env::var("SUDO_USER").ok();
+    let mut xauth = std::env::var("XAUTHORITY").unwrap_or_default();
+
+    if xauth.is_empty() || !Path::new(&xauth).exists() {
+        if let Some(ref sudo_user) = desktop_user {
+            let user_xauth = format!("/home/{sudo_user}/.Xauthority");
+            if Path::new(&user_xauth).exists() {
+                xauth = user_xauth;
+            }
+        }
+    }
+
+    if xauth.is_empty() || !Path::new(&xauth).exists() {
         if let Ok(entries) = std::fs::read_dir("/home") {
             for entry in entries.flatten() {
+                let user_name = entry.file_name().to_string_lossy().to_string();
                 let candidate = entry.path().join(".Xauthority");
                 if candidate.exists() {
-                    found = candidate.to_string_lossy().to_string();
+                    xauth = candidate.to_string_lossy().to_string();
+                    if desktop_user.is_none() {
+                        desktop_user = Some(user_name);
+                    }
                     break;
                 }
             }
         }
-        found
-    };
-    // Recover DBUS_SESSION_BUS_ADDRESS for GUI terminals running under sudo
+    }
+
+    if xauth.is_empty() {
+        xauth = "/root/.Xauthority".into();
+    }
+
+    // Bridge authorization for pure root shells (root@kali / root@byghost)
+    #[cfg(target_os = "linux")]
+    {
+        if xauth != "/root/.Xauthority" && Path::new(&xauth).exists() {
+            if let Ok(cookie_bytes) = std::fs::read(&xauth) {
+                let _ = std::fs::write("/root/.Xauthority", cookie_bytes);
+            }
+        }
+
+        for auth_candidate in [&xauth, &"/root/.Xauthority".to_string()] {
+            if Path::new(auth_candidate).exists() {
+                let _ = std::process::Command::new("xhost")
+                    .args(["+SI:localuser:root", "+local:"])
+                    .env("DISPLAY", &display)
+                    .env("XAUTHORITY", auth_candidate)
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status();
+            }
+        }
+    }
+
     let dbus_addr = std::env::var("DBUS_SESSION_BUS_ADDRESS").unwrap_or_else(|_| {
-        if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+        if let Some(ref user) = desktop_user {
             let uid = std::process::Command::new("id")
-                .args(["-u", &sudo_user])
+                .args(["-u", user])
                 .output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_else(|_| "1000".into());
-            format!("unix:path=/run/user/{}/bus", uid)
+            format!("unix:path=/run/user/{uid}/bus")
         } else {
             "unix:path=/run/user/1000/bus".into()
         }
@@ -1694,16 +1731,81 @@ pub fn spawn_monitor_terminal() -> bool {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| "/usr/local/bin/wraith".into());
 
-    let term_cmds: [(&str, Vec<String>); 7] = [
-        ("xfce4-terminal", vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-x".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
-        ("x-terminal-emulator", vec!["-e".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
-        ("qterminal", vec!["-e".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
-        ("gnome-terminal", vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "--".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
-        ("xterm", vec!["-title".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
-        ("kitty", vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
-        ("alacritty", vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), "sudo".into(), exe_path, "monitor".into()]),
+    #[cfg(unix)]
+    let is_root = nix::unistd::geteuid().is_root();
+    #[cfg(not(unix))]
+    let is_root = false;
+
+    let runner_prefix = if is_root { vec![] } else { vec!["sudo".to_string()] };
+
+    let term_cmds: Vec<(&str, Vec<String>)> = vec![
+        ("xfce4-terminal", {
+            let mut v = vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-x".into()];
+            v.extend(runner_prefix.clone());
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
+        ("qterminal", {
+            let mut v = vec!["-e".into()];
+            v.extend(runner_prefix.clone());
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
+        ("x-terminal-emulator", {
+            let mut v = vec!["-e".into()];
+            v.extend(runner_prefix.clone());
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
+        ("mate-terminal", {
+            let cmd_str = if is_root { format!("{exe_path} monitor") } else { format!("sudo {exe_path} monitor") };
+            vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), cmd_str]
+        }),
+        ("konsole", {
+            let mut v = vec!["--title".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into()];
+            v.extend(runner_prefix.clone());
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
+        ("tilix", {
+            let cmd_str = if is_root { format!("{exe_path} monitor") } else { format!("sudo {exe_path} monitor") };
+            vec!["-t".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), cmd_str]
+        }),
+        ("xterm", {
+            let mut v = vec!["-title".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into()];
+            v.extend(runner_prefix.clone());
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
+        ("kitty", {
+            let mut v = vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into()];
+            v.extend(runner_prefix.clone());
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
+        ("alacritty", {
+            let mut v = vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into()];
+            v.extend(runner_prefix.clone());
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
+        ("gnome-terminal", {
+            let mut v = vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "--".into()];
+            v.extend(runner_prefix);
+            v.push(exe_path.clone());
+            v.push("monitor".into());
+            v
+        }),
     ];
 
+    // Method 1: Direct terminal launch with synchronized X11 authority & display
     for (term, args) in &term_cmds {
         if std::process::Command::new("which")
             .arg(term)
@@ -1727,6 +1829,38 @@ pub fn spawn_monitor_terminal() -> bool {
             return true;
         }
     }
+
+    // Method 2: If root and desktop user exists, launch terminal via runuser so the desktop user owns the window
+    if is_root {
+        if let Some(ref user) = desktop_user {
+            let fallback_terms = ["xfce4-terminal", "qterminal", "x-terminal-emulator", "mate-terminal", "xterm"];
+            for term in fallback_terms {
+                if std::process::Command::new("which")
+                    .arg(term)
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false)
+                {
+                    let cmd_to_run = format!("sudo {exe_path} monitor");
+                    if std::process::Command::new("runuser")
+                        .args(["-u", user, "--", term, "-e", &cmd_to_run])
+                        .env("DISPLAY", &display)
+                        .env("XAUTHORITY", &xauth)
+                        .env("DBUS_SESSION_BUS_ADDRESS", &dbus_addr)
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()
+                        .is_ok()
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
     false
 }
 
