@@ -44,6 +44,32 @@ pub const REQUIRED_CONTROLS: &[(&str, &str)] = &[
 
 ];
 
+/// Administrator-owned settings that Wraith observes but must never raise.
+pub const STRICT_PREREQUISITES: &[(&str, &str)] = &[
+    ("/proc/sys/kernel/kexec_load_disabled", "1"),
+    ("/proc/sys/kernel/yama/ptrace_scope", "3"),
+];
+
+fn verify_strict_prerequisites(
+    state: &LockdownState,
+    mut read: impl FnMut(&str) -> Result<String>,
+) -> Result<()> {
+    if *state != LockdownState::Confidentiality {
+        return Err(WraithError::Configuration(format!(
+            "Full-security requires preconfigured kernel lockdown=confidentiality; observed {state:?}"
+        )));
+    }
+    for (path, expected) in STRICT_PREREQUISITES {
+        let observed = read(path)?;
+        if observed.trim() != *expected {
+            return Err(WraithError::Configuration(format!(
+                "Full-security requires preconfigured {path}={expected}; observed {}", observed.trim()
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn backup_reversible_controls() -> Result<std::collections::HashMap<String, String>> {
     REQUIRED_CONTROLS.iter().map(|(path, _)| Ok((path.to_string(), fs::read_to_string(path)?))).collect()
 }
@@ -79,6 +105,7 @@ pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
 
     // Lockdown, kexec_load_disabled and ptrace_scope=3 can be irreversible
     // until reboot. Observe the administrator's policy; never raise it here.
+    verify_strict_prerequisites(&state, |path| Ok(fs::read_to_string(path)?))?;
 
     // 2. Enforce required reversible controls (SysRq=0, core_pattern=|/bin/false)
     enforce_controls(|path| Ok(fs::read_to_string(path)?), |path, value| Ok(fs::write(path, value)?))?;
@@ -96,13 +123,32 @@ pub fn enforce_kernel_lockdown() -> Result<LockdownState> {
         warn!("IOMMU not discovered in sysfs; ensure VT-d/IOMMU is active in BIOS for hardware DMA defense");
     }
 
-    let final_state = get_lockdown_status();
-    Ok(final_state)
+    Ok(state)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn strict_prerequisites_never_accept_missing_or_weaker_lockdown() {
+        for state in [LockdownState::None, LockdownState::Integrity, LockdownState::Unavailable] {
+            assert!(verify_strict_prerequisites(&state, |_| panic!("must fail before reading controls")).is_err());
+        }
+    }
+
+    #[test]
+    fn strict_prerequisites_require_both_exact_admin_settings() {
+        for bad in STRICT_PREREQUISITES.iter().map(|(path, _)| path) {
+            assert!(verify_strict_prerequisites(&LockdownState::Confidentiality, |path| {
+                if path == *bad { Ok("0".into()) }
+                else { Ok(STRICT_PREREQUISITES.iter().find(|(p, _)| *p == path).unwrap().1.into()) }
+            }).is_err());
+        }
+        assert!(verify_strict_prerequisites(&LockdownState::Confidentiality, |_| Err(WraithError::PermissionDenied)).is_err());
+        verify_strict_prerequisites(&LockdownState::Confidentiality, |path|
+            Ok(format!("{}\n", STRICT_PREREQUISITES.iter().find(|(p, _)| *p == path).unwrap().1))).unwrap();
+    }
+
     #[test]
     fn missing_control_prevents_all_writes() {
         let mut writes = 0;
