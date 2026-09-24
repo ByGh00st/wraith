@@ -1,0 +1,109 @@
+name: Publish APT repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published release tag to publish (for example v1.4.0); blank selects latest
+        required: false
+        type: string
+  schedule:
+    # Refresh the signed Release metadata before its Valid-Until value expires.
+    - cron: '17 3 1 * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: wraith-apt-repository
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APT_SIGNING_KEY: ${{ secrets.WRAITH_APT_SIGNING_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Select a published stable release
+        id: release
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED_TAG:-}"
+          if [[ -z $tag ]]; then
+            tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          fi
+          [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag")
+          [[ $(jq -r .draft <<<"$release") == false ]]
+          [[ $(jq -r .prerelease <<<"$release") == false ]]
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Download and verify native Debian packages
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir incoming
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir incoming \
+            --pattern 'wraith_*.deb' --pattern SHA256SUMS.txt
+          (cd incoming && sha256sum --ignore-missing --check SHA256SUMS.txt)
+          test -f "incoming/wraith_${VERSION}_amd64.deb"
+          test -f "incoming/wraith_${VERSION}_arm64.deb"
+      - name: Build repository indexes and Release manifest
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends apt-utils dpkg-dev gnupg
+          bash scripts/build-apt-repository.sh --input incoming --output repository --version "$VERSION"
+          install -m 0644 packaging/apt/wraith-archive-keyring.asc repository/wraith-archive-keyring.asc
+          install -m 0644 packaging/apt/index.html repository/index.html
+      - name: Sign repository metadata
+        env:
+          EXPECTED_FINGERPRINT: 8B71B4C422EF0171633845565D6B16E4201C32FB
+        run: |
+          set -euo pipefail
+          test -n "$APT_SIGNING_KEY"
+          keyhome=$(mktemp -d)
+          chmod 700 "$keyhome"
+          trap 'rm -rf -- "$keyhome"' EXIT
+          printf '%s' "$APT_SIGNING_KEY" | gpg --batch --homedir "$keyhome" --import
+          fingerprint=$(gpg --batch --homedir "$keyhome" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')
+          test "$fingerprint" = "$EXPECTED_FINGERPRINT"
+          gpg --batch --yes --homedir "$keyhome" --local-user "$fingerprint" --clearsign \
+            --output repository/dists/stable/InRelease repository/dists/stable/Release
+          gpg --batch --yes --homedir "$keyhome" --local-user "$fingerprint" --detach-sign \
+            --output repository/dists/stable/Release.gpg repository/dists/stable/Release
+          verify_home=$(mktemp -d)
+          chmod 700 "$verify_home"
+          trap 'rm -rf -- "$keyhome" "$verify_home"' EXIT
+          gpg --batch --homedir "$verify_home" --import packaging/apt/wraith-archive-keyring.asc
+          gpgv --keyring "$verify_home/pubring.kbx" repository/dists/stable/InRelease
+      - name: Validate signed APT installation path
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          bash scripts/verify-apt-repository.sh --repository repository \
+            --keyring packaging/apt/wraith-archive-keyring.asc --version "$VERSION"
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Upload repository artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: repository
+      - name: Deploy repository
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

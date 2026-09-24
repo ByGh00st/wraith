@@ -9,7 +9,7 @@ pub fn parse(args: impl IntoIterator<Item = impl Into<OsString> + Clone>) -> Res
         .map(|arg| {
             let os_str: OsString = arg.into();
             if let Some(s) = os_str.to_str() {
-                if s == "-rN" || s == "-rn" || s == "--rN" || s == "--rn" {
+                if s == "-rN" || s == "-rn" || s == "--rN" || s == "--rn" || s == "rn" || s == "rN" {
                     return OsString::from("--reset");
                 }
             }
@@ -24,11 +24,7 @@ pub fn parse(args: impl IntoIterator<Item = impl Into<OsString> + Clone>) -> Res
 }
 
 fn validate(cli: &Cli) -> Result<(), &'static str> {
-    let mut is_switch = cli.switch;
-    if cli.reset && is_switch {
-        is_switch = false;
-    }
-    let actions = [cli.command.is_some(), cli.start, cli.stop, cli.reset, cli.monitor, is_switch,
+    let actions = [cli.command.is_some(), cli.start, cli.stop, cli.reset, cli.monitor, cli.switch,
         cli.test, cli.info, cli.doctor, cli.bench, cli.pentest, cli.update,
         cli.cleanup || cli.cleanup_full, cli.shred.is_some(), cli.select_lang,
         cli.completions.is_some(), cli.demo, cli.interfaces];

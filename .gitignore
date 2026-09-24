@@ -77,7 +77,6 @@ vgcore.*
 .gemini/
 .agents/
 .system_generated/
-.github/
 
 # 7. OS Metadata & Filesystem Artifacts
 .DS_Store
