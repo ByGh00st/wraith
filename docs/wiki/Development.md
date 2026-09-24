@@ -45,7 +45,7 @@ Cross-compilation needs the Linux Rust target, compatible C/C++ tools and header
 
 ## Release packaging
 
-Follow the [release guide](https://github.com/ByGh00st/wraith/blob/main/docs/RELEASING.md) for version checks, native Debian packaging, musl builders and tag publication. The manual GitHub workflow builds artifacts without publishing a release. The [v1.4.2 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.2) uses the matching version tag and the same artifact validation steps.
+Follow the [release guide](https://github.com/ByGh00st/wraith/blob/main/docs/RELEASING.md) for version checks, native Debian packaging, musl builders and tag publication. The manual GitHub workflow builds artifacts without publishing a release. The [v1.4.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.3) uses the matching version tag and the same artifact validation steps.
 
 ```bash
 bash -n install.sh build.sh scripts/package-release.sh .github/musl-rustc-wrapper.sh

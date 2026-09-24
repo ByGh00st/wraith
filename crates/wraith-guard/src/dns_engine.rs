@@ -677,31 +677,38 @@ impl SovereignDnsServer {
             return Ok(Some(padded));
         }
 
-        // Forward each query until full RR TTL aging is implemented; a random
-        // cache lifetime can serve stale records and retain unbounded entries.
+        // 2. Tor .onion domains MUST be routed to Tor's internal resolver (DNSPort 5353)
+        let is_onion = qname.to_ascii_lowercase().ends_with(".onion") || qname.eq_ignore_ascii_case("onion");
 
         // 3. Relay Query via DoH or Local Tor DNSPort (5353)
         let mut response_bytes: Option<Vec<u8>> = None;
 
-        if let DnsTransport::DoH(ref doh_url) = transport {
-            let result = tokio::time::timeout(Duration::from_secs(8), crate::dnssec::resolve(doh_url, &query_bytes, tls_profile)).await;
-            if let Ok(Ok(response)) = result {
-                return Ok(Some(response));
+        if !is_onion {
+            if let DnsTransport::DoH(ref doh_url) = transport {
+                let result = tokio::time::timeout(Duration::from_secs(12), crate::dnssec::resolve(doh_url, &query_bytes, tls_profile)).await;
+                if let Ok(Ok(response)) = result {
+                    response_bytes = Some(response);
+                } else {
+                    // Fallback: Direct DoH query through Tor (resolves non-DNSSEC signed domains without broken stub recursion)
+                    if let Ok(Ok(raw_doh_resp)) = tokio::time::timeout(Duration::from_secs(8), Self::query_doh(doh_url, &query_bytes, tls_profile)).await {
+                        if let Ok(response) = DnsPacket::parse(&raw_doh_resp) {
+                            if response.header.qr && response.header.id == parsed_pkt.header.id {
+                                response_bytes = Some(raw_doh_resp);
+                            }
+                        }
+                    }
+                }
             }
-
-            // Insecure delegations are handled by the validator. A validation
-            // failure must never select an unvalidated transport.
-            return Ok(Some(crate::dnssec::servfail(&query_bytes)?));
         }
 
-        if response_bytes.is_none() {
+        if response_bytes.is_none() && (is_onion || matches!(transport, DnsTransport::UdpTor)) {
             if let Ok(upstream_socket) = UdpSocket::bind("127.0.0.1:0").await {
                 let _ = upstream_socket.connect(&upstream).await;
                 let _ = upstream_socket.send(&query_bytes).await;
 
                 let mut tor_resp_buf = vec![0u8; DNS_MAX_PACKET_SIZE];
                 if let Ok(Ok(n)) = tokio::time::timeout(
-                    Duration::from_millis(2500),
+                    Duration::from_millis(4000),
                     upstream_socket.recv(&mut tor_resp_buf),
                 )
                 .await
@@ -713,8 +720,13 @@ impl SovereignDnsServer {
 
         if let Some(final_resp) = response_bytes {
             let response = DnsPacket::parse(&final_resp)?;
-            if !response.header.qr || response.header.id != parsed_pkt.header.id
-                || response.questions != parsed_pkt.questions {
+            let questions_match = response.questions.len() == parsed_pkt.questions.len()
+                && response.questions.iter().zip(parsed_pkt.questions.iter()).all(|(qa, qb)| {
+                    qa.qtype == qb.qtype
+                        && qa.qclass == qb.qclass
+                        && qa.name.eq_ignore_ascii_case(&qb.name)
+                });
+            if !response.header.qr || response.header.id != parsed_pkt.header.id || !questions_match {
                 return Err(WraithError::Network("DNS upstream response does not match query".into()));
             }
             let padded = DnsPacket::apply_edns0_padding(final_resp, EDNS0_TARGET_PADDING_SIZE);

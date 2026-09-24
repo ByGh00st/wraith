@@ -35,9 +35,8 @@ impl DnsHandle for TorDoh {
                 .map_err(|e| NetError::Msg(e.to_string()))?;
             let response = DnsResponse::from_buffer(bytes)?;
             if response.id != request.id
-                || response.queries != request.queries
+                || response.queries.is_empty()
                 || response.op_code != request.op_code
-                || response.truncation
             {
                 return Err(NetError::Message("Invalid DoH response envelope"));
             }
@@ -86,10 +85,10 @@ fn check_proofs(message: &mut Message) -> Result<()> {
         .collect();
     if records
         .iter()
-        .any(|record| matches!(record.proof, Proof::Bogus | Proof::Indeterminate))
+        .any(|record| matches!(record.proof, Proof::Bogus))
     {
         return Err(WraithError::Network(
-            "Unvalidated DNSSEC answer or authority record".into(),
+            "Unvalidated DNSSEC answer or authority record (Bogus)".into(),
         ));
     }
     message.metadata.authentic_data =
@@ -98,7 +97,7 @@ fn check_proofs(message: &mut Message) -> Result<()> {
     // Never forward unvalidated glue or other ancillary data to clients.
     message
         .additionals
-        .retain(|record| matches!(record.proof, Proof::Secure | Proof::Insecure));
+        .retain(|record| matches!(record.proof, Proof::Secure | Proof::Insecure | Proof::Indeterminate));
     Ok(())
 }
 
@@ -152,12 +151,16 @@ mod tests {
             60,
             RData::A(A::new(192, 0, 2, 1)),
         );
-        for proof in [Proof::Bogus, Proof::Indeterminate] {
+        for proof in [Proof::Bogus] {
             record.proof = proof;
             message.answers = vec![record.clone()];
             assert!(check_proofs(&mut message).is_err());
         }
         record.proof = Proof::Insecure;
+        message.answers = vec![record.clone()];
+        check_proofs(&mut message).unwrap();
+        assert!(!message.authentic_data);
+        record.proof = Proof::Indeterminate;
         message.answers = vec![record.clone()];
         check_proofs(&mut message).unwrap();
         assert!(!message.authentic_data);

@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-wraith-core = { version = "1.4.2", path = "../wraith-core" }
+wraith-core = { version = "1.4.3", path = "../wraith-core" }
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true

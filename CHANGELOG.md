@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.3] - 2026-09-24
+
+### Fixed
+- DNSSEC resolution accepts `Proof::Indeterminate` records for unsigned domains over DoH forwarders (e.g., Quad9/Cloudflare) without incorrectly marking them bogus, restoring network reachability for Kali Linux repos and general internet traffic.
+- Direct DoH query fallback implemented over Tor to prevent total resolution blackouts if upstream recursive DNSSEC queries fail or time out.
+- Tor `.onion` domain lookups are strictly isolated and routed to Tor's internal DNSPort (`127.0.0.1:5353`).
+- DNS response question validation now uses case-insensitive ASCII comparison to handle 0x20-bit case randomization.
+
 ## [1.4.2] - 2026-09-24
 
 ### Fixed
