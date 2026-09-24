@@ -51,7 +51,9 @@ These writes form a recoverable sequence, not one kernel-atomic multi-key operat
 
 The old `--tcp-profile`, `--l4-profile` and `--os-profile` spellings remain aliases. Explicit `auto` enables namespace setup, as do `--namespace`, `--tcp-mask` and full-security. `off` alone does not create a namespace and conflicts with full-security or `--tcp-mask`. CLI values override persistent `hardening.morph_l4` / `hardening.tls_profile` settings.
 
-`sudo wraith -i` reads the namespace's live TTL, window scaling, timestamps, SACK, MSS rule presence and FIB metrics. It reports configuration match, drift or unavailable readback. The namespace device/inode must match the recorded lifetime; legacy snapshots without sufficient data cannot claim successful verification. The profile shown is the saved selection, not a hard-coded Windows result. Matching configuration is explicitly separate from an unmeasured wire fingerprint.
+`-Fs` includes namespace + L4 `auto`, with Chrome TLS unless another session TLS profile is selected. Strict mode accepts only matching L4/TLS platforms; ordinary sessions may select them independently. A missing or incompatible L4 snapshot, configuration drift or failed final readback prevents strict activation. See the [full-security guide](Advanced-Configuration.md#full-security-preset) for the complete required bundle.
+
+`sudo wraith -i` displays the recorded strict/standard policy and reads the namespace's live TTL, window scaling, timestamps, SACK, MSS rule presence and FIB metrics. It reports configuration match, drift or unavailable readback. The namespace device/inode must match the recorded lifetime; legacy snapshots without sufficient data cannot claim successful verification. The profile shown is the saved selection, not a hard-coded Windows result. Matching configuration is explicitly separate from an unmeasured wire fingerprint.
 
 [Detailed design and API example](https://github.com/ByGh00st/wraith/blob/main/docs/L4-SYSCTL-DESIGN.md)
 

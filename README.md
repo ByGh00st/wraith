@@ -153,11 +153,11 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
  TOML                    8          230          213            0           17
  YAML                  342        12239        12236            0            3
 -------------------------------------------------------------------------------
- Rust                   73        22180        19281          672         2227
- |- Markdown            66          741            3          696           42
- (Total)                          22921        19284         1368         2269
+ Rust                   73        22345        19444          669         2232
+ |- Markdown            66          748            3          703           42
+ (Total)                          23093        19447         1372         2274
 ===============================================================================
- Total                 426        35246        32228          717         2301
+ Total                 426        35411        32391          714         2306
 ===============================================================================
 ```
 
@@ -630,9 +630,9 @@ System Hardening & Anti-Fingerprinting:
       --tls-profile <BROWSER>       Session DoH and cover-request TLS profile: chrome | firefox | safari
       --machine-id                 Rotate unique OS /etc/machine-id and system hardware identifiers
                                    [alias: --cloaking]
-  -F, --full-security              Require strict session controls; reject missing prerequisites
+  -F, --full-security              Require Tor/DNSSEC, L4 auto + TLS, browser/font and memory controls
                                    [-Fs combines -F and -s; aliases: --full, --strict, --harden, --full-defense, --strict-hardening, --max-hardening]
-High-Risk & Forensic Operations (Explicit Opt-In Only):
+Destructive Opt-In & Local Runtime Controls:
   -L, --forensic-wipe-logs         ⚠ IRREVERSIBLE: Purge system authentication logs, event logs, and shell history
                                    [aliases: --destructive-cleanup, --wipe-logs]
   -d, --forensic-self-destruct     ⚠ IRREVERSIBLE: Cryptographically shred binary from disk and wipe memory on exit
@@ -850,7 +850,63 @@ Use `sudo wraith -x` to retry recovery. The troubleshooting table below explains
 <a id="full-security"></a>
 ## 🔧 Full-Security Setup & Recovery
 
-`-Fs` combines full-security (`-F`) with start (`-s`). Strict mode requires the watchdog and rejects `--no-killswitch`.
+`-Fs` combines full-security (`-F`) with start (`-s`): one foreground session with a required privacy and hardening bundle. **L4 auto-selection is included — no extra `--tcp-mask` or `--morph-l4` flag is needed.**
+
+<table>
+<tr><td width="50%" valign="top"><h3>🌐 Route &amp; resolve</h3><p>Strict Tor egress, IPv6/STUN restrictions, a mandatory kill switch and DNSSEC-validating DoH.</p></td>
+<td width="50%" valign="top"><h3>🧬 Align the profiles</h3><p>Namespace TCP sysctls, SYN MSS and initial route windows follow the selected Wraith TLS platform.</p></td></tr>
+<tr><td valign="top"><h3>🛡️ Reduce local identifiers</h3><p>MAC/hostname and machine-id rotation, managed browser preferences and Fontconfig restrictions.</p></td>
+<td valign="top"><h3>↩️ Verify &amp; recover</h3><p>Required setup checks, fresh L4 readback before activation, inspect telemetry and journaled restoration.</p></td></tr>
+</table>
+
+### One command, explicit controls
+
+| Included in `-Fs` | Applied behavior | Scope |
+| :--- | :--- | :--- |
+| ✅ Tor egress + kill switch | Strict firewall policy and Tor-health watchdog; IPv6 and STUN restrictions | Session routing; arbitrary UDP/QUIC is unsupported |
+| ✅ DNSSEC + DoH | Validate DNSSEC locally; encrypted upstream requests use the selected TLS client | Wraith DNS service; failed validation returns an error |
+| ✅ L4 TCP morphing | `auto` selects Chrome → Windows11, Firefox → LinuxDefault, Safari → MacOS | Only TCP sockets opened inside `wraith_ns` |
+| ✅ SYN MSS + FIB | Apply the profile's MSS cap and `initcwnd`/`initrwnd` during namespace creation | Windows/macOS profiles; Linux keeps kernel-selected MSS and FIB defaults |
+| ✅ TLS platform check | Reject incompatible manual L4/TLS pairs and `--morph-l4 off` | Wraith profile configuration; no same-flow fingerprint guarantee |
+| ✅ HTTP privacy relay | Remove address metadata from the first cleartext HTTP request | CONNECT preserves the application TLS stream |
+| ✅ Local identity controls | Journal and rotate MAC, hostname and machine-id | Host changes; MAC rotation may require Wi-Fi/DHCP reconnection |
+| ✅ Browser + font controls | Apply managed browser preferences and Fontconfig restrictions | Supported discovered profiles; applications must use those profiles |
+| ✅ Process + memory controls | Require memory lockdown, seccomp setup and an encrypted RAM session copy | Wraith process; recovery metadata also remains on disk |
+| ✅ Local process checks | Apply the existing anti-debug probe and process label | Local hardening; neither changes a remote fingerprint |
+| ✅ Host policy + observers | Check kernel prerequisites; start the packet observer and loopback decoys | IDS observes packets; netfilter enforces egress; no automatic LAN decoys |
+| ✅ Exit selection | Use the `stealth` exit-selection profile unless another profile is configured | Geographic selection policy, not an anonymity score |
+
+The preset is resolved **after configuration defaults and before host changes**. Saved `false` values for included boolean controls cannot weaken `-Fs`. Explicit L4/TLS selections are checked rather than silently replaced. A required setup error refuses activation and starts recorded cleanup; incomplete cleanup retains recovery state.
+
+```bash
+# Prepared Linux host; keep this terminal running
+sudo wraith -Fs -I eth0
+
+# Alternative session: Firefox TLS + Linux L4 selected together
+sudo wraith -Fs -I eth0 --tls-profile firefox
+
+# From another terminal, as your normal sudo user
+sudo wraith exec -- curl https://example.com
+sudo wraith -i
+# Finish the session and restore recorded settings
+sudo wraith -x
+```
+
+Run one session at a time. Replace `eth0` with your interface. `exec` puts the new application in the namespace; existing applications stay where they are. Curl still uses curl's TLS implementation. Session `--tls-profile` selects Wraith's DoH/DNSSEC and optional cover-request TLS, while `fetch` has its own profile option.
+
+`wraith -i` displays the **recorded session policy** alongside live L4 readback: TTL, scaling, timestamps, SACK, MSS rule presence and FIB metrics. An active session alone does not label an exit IP as verified. Old recovery records without the preset field remain readable and are identified as standard/legacy.
+
+### Optional additions with your own inputs
+
+| Addition | Example | Why it needs an explicit choice |
+| :--- | :--- | :--- |
+| Bridge transport | `-Fs --bridge-type snowflake` | Availability and access-network requirements differ |
+| WireGuard outer hop | `-Fs -W /path/to/wg.conf` | Requires your tunnel configuration and endpoint |
+| Private X11 display | `-Fs --display-sandbox` | Requires Xvfb/xauth and applications configured for its display/authority |
+| Cover requests | `-Fs --jitter --jitter-endpoint https://your-domain.example/cover` | Contacts an endpoint you control or may use; no proven correlation resistance |
+| Circuit rotation | `-Fs --rotate-interval 300` | NEWNYM affects eligible new streams; existing streams remain |
+
+Traffic shaping, onion-service publication, LAN decoys, log wiping and self-destruction are not part of the default bundle. Adding `--jitter` to strict mode also enables its TC shaper. Full-security names a required control bundle; it does not promise complete anonymity, universal browser protection or avoidance of destination blocklists.
 
 ### Host prerequisites
 
@@ -915,12 +971,12 @@ sudo wraith -i
 
 | Selection | Result |
 | :--- | :--- |
-| `--morph-l4 windows` / `windows11` | Explicit Windows reference; independent of TLS selection |
-| `--morph-l4 macos` / `linux` | Explicit macOS or Linux reference |
+| `--morph-l4 windows` / `windows11` | Explicit Windows reference; strict mode requires Chrome TLS |
+| `--morph-l4 macos` / `linux` | Explicit reference; strict mode requires Safari or Firefox TLS respectively |
 | `--namespace --morph-l4 off` | Keep namespace isolation and kernel TCP defaults |
 | `--tcp-profile`, `--l4-profile`, `--os-profile` | Compatible aliases for `--morph-l4` |
 
-`off` conflicts with full-security and `--tcp-mask`; it cannot silently weaken either request. Without a namespace-enabling option, `off` alone does not create one. Session `--tls-profile` selects the TLS client for DoH (including DNSSEC validation queries) and optional cover requests. `wraith fetch --tls-profile …` retains its own per-request selection; applications launched through `exec` retain their own TLS implementation.
+`off` conflicts with full-security and `--tcp-mask`; it cannot silently weaken either request. Full-security also rejects mismatched manual L4/TLS platforms, including mismatches inherited from configuration; select `--morph-l4 auto` to follow the TLS choice. Without a namespace-enabling option, `off` alone does not create one. Session `--tls-profile` selects the TLS client for DoH (including DNSSEC validation queries) and optional cover requests. `wraith fetch --tls-profile …` retains its own per-request selection; applications launched through `exec` retain their own TLS implementation.
 
 `exec` enters the existing protected namespace and runs the application as the invoking sudo user. Existing applications are not moved into it. TCP normalization applies to the namespace stack; it does not rewrite the host Tor daemon's connections or Tor exit-node TCP fingerprints. ClientHello profiles apply to Wraith TLS clients; tunneling an application's encrypted TLS bytes does not change its fingerprint. Diagnostics distinguish reference profiles from measurements and do not certify unobserved p0f or cross-layer coherence.
 
@@ -960,7 +1016,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-24**: **199 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
+Checks recorded **2026-09-24**: **208 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
 
 ```bash
 cargo test --workspace --locked

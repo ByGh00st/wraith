@@ -21,6 +21,7 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 | Your goal | Read next |
 | :--- | :--- |
+| Configure the required privacy bundle and automatic L4 profiles | [Full-security setup](Advanced-Configuration.md#full-security-preset) |
 | Install Wraith on an existing Linux host | [Getting started](Getting-Started.md) |
 | Make HTTPS requests using a supported browser TLS profile | [TLS & HTTP](TLS-and-HTTP.md) |
 | Understand how DNS queries travel and are validated | [DNS & routing](DNS-and-Routing.md) |
@@ -32,6 +33,7 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 | Area | Current behavior |
 | :--- | :--- |
+| Full-security preset | Automatic namespace L4/TLS pairing, strict setup checks and recorded policy telemetry |
 | Worker ownership | Boot/start-time/executable identity and pidfd-bound shutdown |
 | Namespace safety | One pinned descriptor, approved TCP keys and host-alias rejection |
 | Profile pairing | Explicit Chrome/Windows, Firefox/Linux and Safari/macOS metadata |
@@ -45,6 +47,6 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 **6 Rust crates · 17 locales · GPL-3.0 · x86_64 Linux runtime**
 
-The latest recorded checks include **199 portable tests**, Linux-target test compilation and production Clippy with warnings denied. Live Linux routing and installed-system updates remain outside that validation. See [the validation guide](Development.md).
+The latest recorded checks include **208 portable tests**, Linux-target test compilation and production Clippy with warnings denied. Live Linux routing and installed-system updates remain outside that validation. See [the validation guide](Development.md).
 
 <p align="center"><a href="https://github.com/ByGh00st/wraith">Repository</a> · <a href="https://github.com/ByGh00st/wraith#privacy-matrix">Tool comparison</a> · <a href="https://github.com/ByGh00st/wraith/issues">Issues</a></p>

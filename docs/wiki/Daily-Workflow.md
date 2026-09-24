@@ -7,6 +7,7 @@
 | Command | What it does |
 | :--- | :--- |
 | `sudo wraith -s` | Start a background session (strict/interactive sessions stay foreground) |
+| `sudo wraith -Fs` | Start the foreground strict bundle with namespace L4 auto and matching TLS policy |
 | `sudo wraith -i` | Inspect status and Tor circuit information |
 | `sudo wraith -r` | Request a new identity for eligible new Tor streams |
 | `sudo wraith -x` | Stop and restore recorded settings |
@@ -23,6 +24,8 @@ Choose one operation. Use `sudo wraith -Fs` or `sudo wraith start -F`; session f
 `-v` and `--lang` are global: `sudo wraith info -v --lang tr` is valid. `exec -- PROGRAM ...` preserves the application's own `--help`, `--lang` and other flags. Help and completions come from the same parser; aliases such as `wraith nics --help` show their own command options.
 
 Interactive selection runs in the foreground. Without a terminal, provide `--interface` and `--doh` values instead. `--no-killswitch` / `--no-ks` is rejected in every mode because the watchdog is mandatory.
+
+For the required controls, host prerequisites and optional additions to `-Fs`, see the [full-security setup guide](Advanced-Configuration.md#full-security-preset). Change the matched pair with `sudo wraith -Fs --tls-profile safari`; L4 follows automatically.
 
 ## Choose an interface
 
