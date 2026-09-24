@@ -411,7 +411,7 @@ wraith/
 
 ### Quick install · official release assets
 
-> **v1.4.0 packaging is prepared; the release is not published yet.** These binary installation commands require a completed release with matching assets and `SHA256SUMS.txt`. [Source installation](#1-clone--automated-system-deployment) is available now.
+> **[Wraith v1.4.0](https://github.com/ByGh00st/wraith/releases/tag/v1.4.0)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
 
 ```bash
 # Automatically select APT or a binary archive for your Linux platform

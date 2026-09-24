@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.4.0] - Unreleased
+## [1.4.0] - 2026-09-24
 
 ### Release engineering
 - One workspace version for all six crates, versioned internal dependencies and localized banners derived from Cargo metadata.

@@ -1,6 +1,6 @@
 # Building and releasing Wraith
 
-The workspace is prepared for **1.4.0**. Preparation and CI artifacts do not publish a GitHub release; publication requires an explicit version tag.
+The workspace version is **1.4.0**. Manual CI runs validate artifacts; pushing the matching version tag triggers GitHub release publication.
 
 ## Build policy
 

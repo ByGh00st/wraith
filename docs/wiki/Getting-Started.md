@@ -22,7 +22,7 @@ Install Rust under your ordinary account before using the helper. Optional WireG
 
 ## Install an official release
 
-**The v1.4.0 package pipeline is prepared; its release has not yet been published.** Use the source path below until a completed release contains the packages and checksums.
+Get the packages and checksums from the **[v1.4.0 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.0)**, or let the installer select the latest stable version for your system.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ByGh00st/wraith/main/install.sh | sudo bash
@@ -37,7 +37,7 @@ wraith --version
 
 Both x86_64 and ARM64 are selected automatically. The installer requires Bash, curl and Python 3.8+ (`apk add bash curl python3` on Alpine). When already root, replace `sudo bash` with `bash`. It verifies SHA-256, package identity or archive/ELF structure, and the installed version. Archives do not install Tor, Netfilter or other runtime tools; install those through your distribution. GNU artifacts are built on Ubuntu 22.04 and need compatible glibc/libstdc++ versions. The current Debian packages require `libc6 >= 2.34`; older systems can build from source.
 
-Manual Debian installation, once v1.4.0 is published:
+Manual Debian installation for v1.4.0:
 
 ```bash
 wget https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith_1.4.0_amd64.deb
