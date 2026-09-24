@@ -1355,10 +1355,8 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
     if full_or_core {
         #[cfg(target_os = "linux")]
         {
-            if let Ok(has_orphans) = wraith_net::recovery::has_orphan_leases() {
-                if has_orphans {
-                    let _ = wraith_net::recovery::recover_orphaned_state();
-                }
+            if let Ok(true) = wraith_net::recovery::has_orphan_leases() {
+                let _ = wraith_net::recovery::recover_orphaned_state();
             }
 
             // Force destroy wraith-ns namespace if lingering
@@ -1435,10 +1433,8 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
                 .status();
 
             let mut restored_from_backup = false;
-            if backup_path.exists() {
-                if std::fs::copy(backup_path, resolv_path).is_ok() {
-                    restored_from_backup = true;
-                }
+            if backup_path.exists() && std::fs::copy(backup_path, resolv_path).is_ok() {
+                restored_from_backup = true;
             }
 
             if !restored_from_backup {
