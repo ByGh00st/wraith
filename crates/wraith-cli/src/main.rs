@@ -323,7 +323,7 @@ struct Cli {
         short = 'R',
         short_alias = 'N',
         long = "reset",
-        visible_aliases = ["reset-network", "network-reset", "net-reset", "ressert"]
+        visible_aliases = ["reset-network", "network-reset", "net-reset", "ressert", "rn", "rN"]
     )]
     reset: bool,
 
@@ -413,7 +413,7 @@ enum Commands {
         self_destruct: bool,
     },
     /// Emergency reset and restore host network interfaces, firewall, DNS, and routes to clean default state
-    #[command(name = "reset", visible_aliases = ["reset-network", "net-reset", "network-reset", "ressert"])]
+    #[command(name = "reset", visible_aliases = ["reset-network", "net-reset", "network-reset", "ressert", "rn", "rN"])]
     Reset {
         /// Target component to reset: network (default), dns, firewall, or all
         #[arg(default_value = "network", value_parser = ["network", "net", "dns", "firewall", "all"])]
@@ -510,7 +510,7 @@ enum Commands {
 #[derive(Subcommand, Clone, Debug, PartialEq, Eq)]
 pub enum NetworkAction {
     /// Emergency reset and restore host network interfaces, firewall, DNS, and routes
-    #[command(name = "reset", visible_aliases = ["restore", "clean", "ressert"])]
+    #[command(name = "reset", visible_aliases = ["restore", "clean", "ressert", "rn", "rN"])]
     Reset {
         /// Target component to reset: network (default), dns, firewall, or all
         #[arg(default_value = "network", value_parser = ["network", "net", "dns", "firewall", "all"])]
@@ -1304,6 +1304,9 @@ mod tests {
         assert_eq!(resolve_command(&cli_ifaces), Some(Commands::Interfaces { all: false }));
 
         // Network reset shortcuts & subcommands
+
+        let cli_reset_rn = Cli::try_parse_from(["wraith", "-rN"]).unwrap();
+        assert_eq!(resolve_command(&cli_reset_rn), Some(Commands::Reset { target: "network".to_string() }));
         let cli_reset_cap_r = Cli::try_parse_from(["wraith", "-R"]).unwrap();
         assert_eq!(resolve_command(&cli_reset_cap_r), Some(Commands::Reset { target: "network".to_string() }));
 

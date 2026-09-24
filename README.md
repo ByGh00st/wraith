@@ -530,7 +530,7 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | :--- | :--- | :--- |
 | `-s` | `sudo wraith -s [OPTIONS]` / `wraith start` | **Start Wraith Engine**: Initializes fail-closed routing and selected hardening layers. |
 | `-x` | `sudo wraith -x [-d]` / `wraith stop` | **Stop Wraith**: Restores normal network, netfilter rules, and DNS. (`-d` self-destructs binary). |
-| `-R` / `-N` | `sudo wraith -R` / `-N` / `--reset` / `wraith reset` | **Emergency Network Reset**: Cyberpunk HUD telemetry, flushes iptables/nftables, purges namespaces/veth (`veth-wr-*`), restores DNS and default routes. |
+| `-rN` / `-R` | `sudo wraith -rN` / `-R` / `-N` / `reset` | **Emergency Network Reset**: Cyberpunk HUD telemetry, flushes iptables/nftables, purges namespaces/veth (`veth-wr-*`), restores DNS and default routes. |
 | `-r` | `sudo wraith -r` / `wraith switch` | **Circuit Rotation**: Issues `SIGNAL NEWNYM` to request a fresh Tor exit node identity. |
 | `-t` | `sudo wraith -t` / `wraith test` | **Multi-Vector Leak Audit**: Evaluates IPv4/IPv6, DNS integrity, and RFC 5389 Dual-Stack (UDP + TCP) WebRTC STUN coverage. |
 | `-i` | `sudo wraith -i` / `wraith info` | **Status Telemetry**: Displays live connection status, active exit IP, and circuit topology. |

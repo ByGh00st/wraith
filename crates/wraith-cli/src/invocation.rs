@@ -4,15 +4,31 @@ use clap::{error::ErrorKind, CommandFactory, FromArgMatches};
 use std::ffi::OsString;
 
 pub fn parse(args: impl IntoIterator<Item = impl Into<OsString> + Clone>) -> Result<Cli, clap::Error> {
+    let normalized_args: Vec<OsString> = args
+        .into_iter()
+        .map(|arg| {
+            let os_str: OsString = arg.into();
+            if let Some(s) = os_str.to_str() {
+                if s == "-rN" || s == "-rn" || s == "--rN" || s == "--rn" {
+                    return OsString::from("--reset");
+                }
+            }
+            os_str
+        })
+        .collect();
     let mut command = crate::display::build_localized_command();
-    let matches = command.try_get_matches_from_mut(args)?;
+    let matches = command.try_get_matches_from_mut(normalized_args)?;
     let cli = Cli::from_arg_matches(&matches)?;
     validate(&cli).map_err(|message| command.error(ErrorKind::ArgumentConflict, message))?;
     Ok(cli)
 }
 
 fn validate(cli: &Cli) -> Result<(), &'static str> {
-    let actions = [cli.command.is_some(), cli.start, cli.stop, cli.reset, cli.monitor, cli.switch,
+    let mut is_switch = cli.switch;
+    if cli.reset && is_switch {
+        is_switch = false;
+    }
+    let actions = [cli.command.is_some(), cli.start, cli.stop, cli.reset, cli.monitor, is_switch,
         cli.test, cli.info, cli.doctor, cli.bench, cli.pentest, cli.update,
         cli.cleanup || cli.cleanup_full, cli.shred.is_some(), cli.select_lang,
         cli.completions.is_some(), cli.demo, cli.interfaces];
@@ -151,6 +167,16 @@ mod tests {
         assert!(!worker_is_ready(&state, 10, false));
         state.state = Some(wraith_core::State::Arming);
         assert!(!worker_is_ready(&state, 10, true));
+    }
+
+
+    #[test]
+    fn test_rn_bundled_shortcut_resolves_to_reset() {
+        for flag in ["-rN", "-rn", "--rN", "--rn", "rn", "rN"] {
+            let cli = parse(["wraith", flag]).unwrap();
+            assert!(cli.reset, "Expected reset for flag: {}", flag);
+            assert_eq!(crate::resolve_command(&cli), Some(Commands::Reset { target: "network".to_string() }));
+        }
     }
 
     #[test]
