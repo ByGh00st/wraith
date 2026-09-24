@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# WRAITH-PRIME // SOVEREIGN KERNEL FORGE & AUTOMATED BUILD ENGINE v1.3.0
+# WRAITH-PRIME // SOVEREIGN KERNEL FORGE & AUTOMATED BUILD ENGINE v1.4.0
 # High-Assurance Ring-0/Ring-3 Defense & Anonymization Engine
 # Absolute Precision. Zero Telemetry. Pure Technical Execution.
 # ==============================================================================
@@ -48,7 +48,7 @@ print_box_line() {
     echo -e "  ${CLR_AMBER}│${CLR_RESET}  ${CLR_SLATE}${prefix}${CLR_RESET} ${color}${value}${CLR_RESET}${pad} ${CLR_AMBER}│${CLR_RESET}"
 }
 
-print_box_line "CORE ENGINE :" "WRAITH v1.3.0 // KERNEL ANONYMIZATION GATE" "${CLR_RED}${CLR_BOLD}"
+print_box_line "CORE ENGINE :" "WRAITH v1.4.0 // KERNEL ANONYMIZATION GATE" "${CLR_RED}${CLR_BOLD}"
 print_box_line "TARGET HOST :" "${TARGET_OS} [${ARCH}]" "${CLR_EMERALD}"
 print_box_line "KERNEL SPEC :" "Linux ${KERNEL_REL}" "${CLR_WHITE}"
 print_box_line "FORGE MODE  :" "LOCKED RELEASE BUILD // SYSTEM COMPILATION" "${CLR_RED}${CLR_BOLD}"
@@ -88,8 +88,8 @@ apt-get install -y build-essential cmake perl libclang-dev pkg-config git tor ip
 echo -e "${CLR_CYAN}[2/3] Building locked release as $BUILD_USER${CLR_RESET}"
 cd -- "$REPO_DIR"
 TARGET_TRIPLE=$(as_builder rustc -vV | sed -n 's/^host: //p')
-[[ $TARGET_TRIPLE == x86_64-unknown-linux-gnu ]] || {
-    echo "Supported installed target is x86_64-unknown-linux-gnu." >&2; exit 1;
+[[ $TARGET_TRIPLE == x86_64-unknown-linux-gnu || $TARGET_TRIPLE == aarch64-unknown-linux-gnu ]] || {
+    echo "Supported source-install targets are x86_64/aarch64 Linux GNU." >&2; exit 1;
 }
 BUILD_DIR=$(as_builder mktemp -d /var/tmp/wraith-build.XXXXXXXXXX)
 INSTALL_TMP=''
@@ -99,7 +99,7 @@ cleanup() {
     [[ $BUILD_DIR == /var/tmp/wraith-build.* ]] && as_builder rm -rf -- "$BUILD_DIR"
 }
 trap cleanup EXIT
-as_builder cargo build --release --workspace --locked --target "$TARGET_TRIPLE" --target-dir "$BUILD_DIR"
+as_builder env CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 cargo build --release -j 2 -p wraith-cli --locked --target "$TARGET_TRIPLE" --target-dir "$BUILD_DIR"
 
 echo -e "${CLR_CYAN}[3/3] Installing /usr/local/bin/wraith${CLR_RESET}"
 install -d -m 755 /usr/local/bin

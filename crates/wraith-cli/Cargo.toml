@@ -4,17 +4,18 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+description.workspace = true
 
 [[bin]]
 name = "wraith"
 path = "src/main.rs"
 
 [dependencies]
-wraith-core = { path = "../wraith-core" }
-wraith-net = { path = "../wraith-net" }
-wraith-tor = { path = "../wraith-tor" }
-wraith-guard = { path = "../wraith-guard" }
-wraith-forensic = { path = "../wraith-forensic" }
+wraith-core = { version = "1.4.0", path = "../wraith-core" }
+wraith-net = { version = "1.4.0", path = "../wraith-net" }
+wraith-tor = { version = "1.4.0", path = "../wraith-tor" }
+wraith-guard = { version = "1.4.0", path = "../wraith-guard" }
+wraith-forensic = { version = "1.4.0", path = "../wraith-forensic" }
 tokio.workspace = true
 tokio-util.workspace = true
 clap.workspace = true
@@ -36,3 +37,18 @@ sys-locale = "0.3.2"
 unicode-width.workspace = true
 toml.workspace = true
 tempfile.workspace = true
+
+[package.metadata.deb]
+maintainer = "ByGh00st <https://github.com/ByGh00st/wraith>"
+name = "wraith"
+section = "net"
+priority = "optional"
+revision = ""
+depends = "$auto, iptables, iproute2, tor, util-linux, procps, psmisc, ca-certificates"
+recommends = "obfs4proxy, fontconfig, e2fsprogs, curl"
+extended-description = "Kernel-Level Network Anonymization & Anti-Forensics Engine in Pure Rust"
+assets = [
+    ["target/release/wraith", "usr/bin/wraith", "0755"],
+    ["../../LICENSE", "usr/share/doc/wraith/copyright", "0644"],
+    ["../../README.md", "usr/share/doc/wraith/README.md", "0644"],
+]

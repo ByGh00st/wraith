@@ -163,28 +163,14 @@ pub fn print_banner(is_strict: bool) {
     let target = detect_target_os();
     let pkg_ver = env!("CARGO_PKG_VERSION");
     let (title, r1_val, r3_val) = if is_strict {
-        let raw_r1 = t!("banner.engine_val_strict");
-        let desc = if raw_r1.contains("v1.2.0") {
-            raw_r1.replace("v1.2.0", &format!("v{pkg_ver}"))
-        } else if !raw_r1.contains(&format!("v{pkg_ver}")) {
-            format!("WRAITH v{pkg_ver} ({raw_r1})")
-        } else {
-            raw_r1.to_string()
-        };
+        let desc = t!("banner.engine_val_strict", version = pkg_ver);
         (
             t!("banner.max_defense"),
             desc.bold().bright_red().to_string(),
             t!("banner.gate_val_strict").bold().bright_red().to_string(),
         )
     } else {
-        let raw_r1 = t!("banner.engine_val_normal");
-        let desc = if raw_r1.contains("v1.2.0") {
-            raw_r1.replace("v1.2.0", &format!("v{pkg_ver}"))
-        } else if !raw_r1.contains(&format!("v{pkg_ver}")) {
-            format!("WRAITH v{pkg_ver} ({raw_r1})")
-        } else {
-            raw_r1.to_string()
-        };
+        let desc = t!("banner.engine_val_normal", version = pkg_ver);
         (
             t!("banner.telemetry"),
             desc.bold().bright_cyan().to_string(),

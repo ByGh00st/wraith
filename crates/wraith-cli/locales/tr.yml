@@ -2,8 +2,8 @@ banner:
   max_defense: ╭── [ 🛡️ WRAITH-PRIME // MAKSİMUM SAVUNMA DEVREDE ] ────────────────────────╮
   telemetry: ╭── [ 🛡️ WRAITH-PRIME // ÇEKİRDEK TELEMETRİ VE GEÇİT ] ────────────────────╮
   engine_spec: 'MOTOR ÖZELLİĞİ:'
-  engine_val_strict: WRAITH v1.3.0 (CYBERPUNK SIKI YÖNETİM MODU)
-  engine_val_normal: WRAITH v1.3.0 (Ring-0 Netfilter & Seccomp Geçidi)
+  engine_val_strict: WRAITH v%{version} (CYBERPUNK SIKI YÖNETİM MODU)
+  engine_val_normal: WRAITH v%{version} (Ring-0 Netfilter & Seccomp Geçidi)
   target_host: 'HEDEF SUNUCU  :'
   gate_status: 'GEÇİT DURUMU  :'
   gate_val_strict: "-Fs → Tor / Netfilter / DNSSEC / Seccomp"
