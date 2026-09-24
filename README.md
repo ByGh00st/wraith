@@ -409,14 +409,17 @@ wraith/
 
 <a id="quick-install"></a>
 
-### Quick install · official release assets
+### Quick install · signed APT repository and official release assets
 
 > **[Wraith v1.4.0](https://github.com/ByGh00st/wraith/releases/tag/v1.4.0)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
 
 ```bash
-# Automatically select APT or a binary archive for your Linux platform
-curl -fsSL https://raw.githubusercontent.com/ByGh00st/wraith/main/install.sh | sudo bash
-wraith --version
+# Debian / Ubuntu / Kali: configure the signed Wraith APT repository once.
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://bygh00st.github.io/wraith/wraith-archive-keyring.asc | sudo tee /etc/apt/keyrings/wraith.asc >/dev/null
+echo 'deb [signed-by=/etc/apt/keyrings/wraith.asc] https://bygh00st.github.io/wraith stable main' | sudo tee /etc/apt/sources.list.d/wraith.list >/dev/null
+sudo apt update
+sudo apt install wraith
 ```
 
 | Your system | Selected package | Global executable |
@@ -424,6 +427,12 @@ wraith --version
 | Debian / Ubuntu / Kali · x86_64 or ARM64 | Native `.deb`, installed with APT | `/usr/bin/wraith` |
 | Arch / Fedora and other glibc systems | GNU `.tar.gz` | `/usr/local/bin/wraith` |
 | Alpine / musl · x86_64 or ARM64 | Static musl `.tar.gz` | `/usr/local/bin/wraith` |
+
+APT verifies Wraith's signed repository metadata before accepting packages. Confirm the archive-key fingerprint before adding it: `8B71 B4C4 22EF 0171 6338 4556 5D6B 16E4 201C 32FB`. Afterwards, `sudo apt upgrade` updates Wraith with the rest of the system. The installer remains available for automatic direct-release installation and for non-Debian systems:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ByGh00st/wraith/main/install.sh | sudo bash
+```
 
 The installer needs **Bash, curl and Python 3.8+**; Alpine users can install them with `apk add bash curl python3`. Already running as root? Use `bash` instead of `sudo bash` in the installer command. It detects CPU and libc, selects assets from the official GitHub release, verifies SHA-256 and checks the installed version. Archive installs still need the runtime tools listed below. GNU artifacts are built on Ubuntu 22.04 and require compatible glibc/libstdc++ versions; APT checks Debian library dependencies (the current packages require `libc6 >= 2.34`).
 
@@ -439,7 +448,7 @@ sudo apt install ./wraith_1.4.0_amd64.deb
 wraith --version
 ```
 
-APT owns `/usr/bin/wraith`; no external APT repository is added. Install a newer `.deb` or rerun the installer for package upgrades. To remove an APT installation, finish session cleanup with `sudo wraith -x`, then run `sudo apt remove wraith`. If an older `/usr/local/bin/wraith` shadows it, inspect `type -a wraith` and explicitly resolve that previous installation. The installer reports the conflict.
+APT owns `/usr/bin/wraith`. The signed Wraith repository supports `sudo apt install wraith` and normal APT upgrades after the one-time setup above. To remove an APT installation, finish session cleanup with `sudo wraith -x`, then run `sudo apt remove wraith`. If an older `/usr/local/bin/wraith` shadows it, inspect `type -a wraith` and explicitly resolve that previous installation. The installer reports the conflict.
 
 To inspect and verify without installing:
 

@@ -22,7 +22,19 @@ Install Rust under your ordinary account before using the helper. Optional WireG
 
 ## Install an official release
 
-Get the packages and checksums from the **[v1.4.0 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.0)**, or let the installer select the latest stable version for your system.
+Get the packages and checksums from the **[v1.4.0 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.0)**, configure the signed APT repository once, or let the installer select the latest stable version for your system.
+
+For Debian, Ubuntu and Kali, add the signed repository once and then use normal APT commands:
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://bygh00st.github.io/wraith/wraith-archive-keyring.asc | sudo tee /etc/apt/keyrings/wraith.asc >/dev/null
+echo 'deb [signed-by=/etc/apt/keyrings/wraith.asc] https://bygh00st.github.io/wraith stable main' | sudo tee /etc/apt/sources.list.d/wraith.list >/dev/null
+sudo apt update
+sudo apt install wraith
+```
+
+Verify the key's fingerprint before trusting it: `8B71 B4C4 22EF 0171 6338 4556 5D6B 16E4 201C 32FB`. Later releases arrive through `sudo apt upgrade`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ByGh00st/wraith/main/install.sh | sudo bash
@@ -47,7 +59,7 @@ sudo apt install ./wraith_1.4.0_amd64.deb
 wraith --version
 ```
 
-Use `arm64` in the filename on ARM64. APT owns the installed package; no external APT repository is configured. Rerun the installer or install the newer package to upgrade. To remove the APT package, complete `sudo wraith -x` first, then run `sudo apt remove wraith`. `wraith -u` only updates a source checkout.
+Use `arm64` in the filename on ARM64. APT owns the installed package. The signed Wraith repository above enables `apt install wraith` and upgrades after its one-time setup. To remove the APT package, complete `sudo wraith -x` first, then run `sudo apt remove wraith`. `wraith -u` only updates a source checkout.
 
 For an installation preview, download `install.sh`, inspect it, then run `bash install.sh --dry-run`. This fetches and validates the assets without executing the binary or changing system files. Checksums use the same GitHub trust boundary as the release. A PATH conflict is reported rather than silently deleting a previous installation; inspect `type -a wraith` if necessary.
 
