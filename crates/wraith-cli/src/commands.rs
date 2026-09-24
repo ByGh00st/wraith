@@ -31,8 +31,9 @@ use wraith_tor::{
     write_torrc, OnionServiceConfig, TlsCamouflageServer, TorControlClient,
 };
 
+use crate::display;
 use crate::display::{
-    print_banner, print_error, print_identity_rotated, print_step, print_success, print_system_restored,
+    print_banner, print_error, print_identity_rotated, print_reset_report, print_step, print_success, print_system_restored,
     show_circuit_telemetry, show_leak_report, show_status_dashboard, render_box, render_box_top,
     render_box_bottom, render_box_row, BoxCorner,
 };
@@ -1494,7 +1495,7 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
     report_rows.push(("Clearnet Stack", "All fail-closed barriers dropped & traffic normalized".to_string(), "OPERATIONAL"));
 
     let slice_rows: Vec<(&str, &str, &str)> = report_rows.iter().map(|(a, b, c)| (*a, b.as_str(), *c)).collect();
-    display::print_reset_report(&slice_rows);
+    print_reset_report(&slice_rows);
     print_step("Host network stack successfully restored to default clearnet state.", "ok");
     Ok(())
 }
