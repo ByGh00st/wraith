@@ -188,8 +188,8 @@ pub fn generate_font_config_xml(config: Option<&FontsSection>) -> String {
 }
 
 pub fn enforce_font_jail() -> Result<()> {
-    let cfg = wraith_core::WraithConfig::load().ok().map(|c| c.fonts);
-    enforce_font_jail_with_config(cfg.as_ref())
+    let cfg = wraith_core::WraithConfig::load()?;
+    enforce_font_jail_with_config(Some(&cfg.fonts))
 }
 
 pub fn enforce_font_jail_with_config(config: Option<&FontsSection>) -> Result<()> {
