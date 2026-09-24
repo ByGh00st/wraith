@@ -6,7 +6,7 @@
 
 | Command | What it does |
 | :--- | :--- |
-| `sudo wraith -s` | Start a foreground session |
+| `sudo wraith -s` | Start a background session (strict/interactive sessions stay foreground) |
 | `sudo wraith -i` | Inspect status and Tor circuit information |
 | `sudo wraith -r` | Request a new identity for eligible new Tor streams |
 | `sudo wraith -x` | Stop and restore recorded settings |
@@ -15,6 +15,14 @@
 | `sudo wraith -u` | Update from the official GitHub repository |
 
 NEWNYM does not move existing connections or erase cookies and logins. A successful exit-IP check describes that request, not every application or interface.
+
+## Flags and shortcuts
+
+Choose one operation. Use `sudo wraith -Fs` or `sudo wraith start -F`; session flags written before a subcommand, such as `wraith -F start`, are rejected. Combining `-s -i`, or attaching session flags to update/status/stop, no longer silently drops options. The explicit `-x -d` and `-c --cleanup-full` combinations remain supported.
+
+`-v` and `--lang` are global: `sudo wraith info -v --lang tr` is valid. `exec -- PROGRAM ...` preserves the application's own `--help`, `--lang` and other flags. Help and completions come from the same parser; aliases such as `wraith nics --help` show their own command options.
+
+Interactive selection runs in the foreground. Without a terminal, provide `--interface` and `--doh` values instead. `--no-killswitch` / `--no-ks` is rejected in every mode because the watchdog is mandatory.
 
 ## Choose an interface
 

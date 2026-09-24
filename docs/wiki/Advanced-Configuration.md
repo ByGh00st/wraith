@@ -39,6 +39,16 @@ tls_profile = "safari"
 
 Explicit CLI profile values override these defaults. Session TLS selection covers DoH and optional cover requests; arbitrary applications and the `fetch` command keep their own selection. See [L4 and L7](L4-and-L7.md) for live configuration telemetry and scope.
 
+## Persistent settings and validation
+
+`config get` and `config set` share the same key aliases, including `hardening.morph_l4`, `hardening.tls_profile`, `hardening.tcp_mask`, `hardening.browser_shield`, `hardening.honey_ports` and `network.wireguard_config`. Unknown keys return an error. `config set general.lang tr` and the language selector use the same persistent configuration.
+
+Loading is read-only, in this order: `/etc/wraith/config.toml`, `$HOME/.config/wraith/config.toml`, then the legacy `/etc/wraith/config.json`. Malformed files, unknown fields and invalid supported-profile values are errors; they never select empty defaults. Repair a malformed file before using `config set`. A valid legacy configuration is converted to TOML only on an explicit save.
+
+Saving preserves the selected system/user location. A new configuration can fall back to the user path if the system location is not writable; an existing system policy is never hidden by an ignored user copy. Use `sudo` when intentionally modifying the system configuration.
+
+Rotation accepts 1..4294967295 seconds; omit it to disable rotation. The service installer accepts `--rotate 0` as its own disabled setting. Strict defaults are loaded before selecting foreground/background execution. Unsupported bridge transports and invalid onion/DoH arguments are rejected before session setup.
+
 ## Optional routes and services
 
 | Option | Purpose | Requirement or boundary |

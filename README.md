@@ -149,15 +149,15 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
- Shell                   3          577          478           45           54
+ Shell                   3          597          498           45           54
  TOML                    8          230          213            0           17
  YAML                  342        12239        12236            0            3
 -------------------------------------------------------------------------------
- Rust                   72        21917        19051          674         2192
- |- Markdown            65          744            3          698           43
- (Total)                          22661        19054         1372         2235
+ Rust                   73        22180        19281          672         2227
+ |- Markdown            66          741            3          696           42
+ (Total)                          22921        19284         1368         2269
 ===============================================================================
- Total                 425        34963        31978          719         2266
+ Total                 426        35246        32228          717         2301
 ===============================================================================
 ```
 
@@ -473,11 +473,27 @@ sudo wraith [SHORTCUTS | OPTIONS] [COMMAND]
 | — | `sudo wraith shred <FILE>` | **DoD 7-Pass Shredder**: Overwrites and zeroizes files using DoD 5220.22-M specification. |
 | — | `sudo wraith interfaces` | **Hardware Interface Selector**: Inspects and binds to physical network interfaces. |
 | — | `sudo wraith doh` | **Encrypted DoH**: Selects or configures DNS-over-HTTPS providers (Cloudflare, Quad9, Google, AdGuard, Mullvad, Custom). |
-| — | `sudo wraith bridge` | **Tor Moat & Bridge Discovery**: Fetches bridges via Moat API or sets up obfs4/snowflake/webtunnel. |
+| — | `wraith bridge` | **Bridge discovery**: Lists pools; `sudo wraith bridge moat` discovers and configures supported obfs4/snowflake/meek-azure transports. |
 | — | `sudo wraith --select-lang` | **17-Language Selector**: Launches interactive Unicode terminal UI to change system language. |
 | — | `sudo wraith --lang <CODE>` | **Runtime Language Override**: Dynamically executes any command in any of the 17 supported locales. |
 
 ---
+
+### Command selection and option scope
+
+Choose one operation per invocation. Both forms below are supported:
+
+```bash
+sudo wraith -Fs --morph-l4 auto
+sudo wraith start -F --morph-l4 auto
+sudo wraith info -v --lang tr
+```
+
+Session options belong after `start`, or alongside `-s` at the root. `wraith -F start`, competing shortcuts such as `-s -i`, and session options attached to status/update/stop are rejected rather than ignored. `-x -d` remains the explicit self-destruct stop form; `-c --cleanup-full` remains a single cleanup operation. Global `-v` and `--lang` also work after subcommands. Use `exec -- PROGRAM ...` to keep application options outside Wraith's parser.
+
+Ordinary `-s` sessions start a background worker. Full-security settings are resolved from configuration before this decision. Interactive interface/DoH selection stays in the foreground and requires a terminal; a daemon worker must receive explicit values. Help and completion output use the actual parser schema, including L4/TLS options and subcommand aliases.
+
+Rotation accepts **1..4294967295 seconds**; omit the setting to disable it. The service installer separately accepts `--rotate 0` as disabled. Shred passes must be **1..255**. Unsupported bridge transports, invalid onion ports and conflicting selection flags fail before session changes begin.
 
 <a id="hardware-interface-selector"></a>
 ### 🖧 Hardware Interface Selector (`wraith interfaces`)
@@ -528,15 +544,15 @@ Resolver bootstrap/availability still depend on Tor. DNSSEC does not make unsign
 
 ```bash
 wraith bridge list
-wraith bridge moat --transport obfs4
-wraith bridge moat --transport webtunnel
+sudo wraith bridge moat --transport obfs4
+sudo wraith bridge moat --transport snowflake
 sudo wraith -s --bridge --bridge-type obfs4
 sudo wraith -s --bridge --bridge-type snowflake
 ```
 
 Discovery and transport launch are separate steps. A listed bridge is not proof of present reachability. Install the selected transport executable and inspect Tor startup results. Captcha-assisted Moat discovery and fallback pools depend on upstream availability.
 
-Use `wraith bridge --help` and `wraith bridge moat --help` for supported forms; old examples such as `bridge --test` are not valid CLI commands.
+Use `wraith bridge --help` and `wraith bridge moat --help` for supported forms. Unsupported transports, including WebTunnel, return an error; they do not silently select another transport. Old examples such as `bridge --test` are not valid CLI commands.
 
 ---
 
@@ -591,7 +607,7 @@ Network Isolation & Tunneling:
                                    [aliases: --interval, --rotate, --auto-rotate]
       --jitter                     Enable bounded HTTPS cover requests over Tor
       --jitter-endpoint <HTTPS_URL> Required endpoint you control or are authorized to use
-      --no-killswitch [--no-ks]    Disable the Fail-Closed KillSwitch watchdog monitor
+      --no-killswitch [--no-ks]    Unsupported legacy option: rejected; kill switch is mandatory
   -W, --wireguard <CONF>           Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP bypass)
       --onion <VIRT:TARGET>        Provision an Ephemeral v3 Onion Hidden Service (e.g. --onion 80:8080)
                                    [aliases: --onion-service, --hidden-service]
@@ -944,7 +960,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-24**: **183 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
+Checks recorded **2026-09-24**: **199 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
 
 ```bash
 cargo test --workspace --locked

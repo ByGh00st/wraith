@@ -64,3 +64,12 @@ TCP setup errors identify missing backups, readback differences or unsupported r
 - L4 readback unavailable: run `sudo wraith -i`; inspect its error for a missing/replaced namespace, insufficient permissions or a legacy snapshot. Recover the old session before starting a new one.
 - MSS rule readback or FIB setup failure: startup aborts and attempts rollback. Ensure iptables supports TCPMSS/comment and the namespace has its single managed default route. Do not insert duplicate `wraith-l4` rules.
 - Unsupported route attributes: Wraith refuses a lossy FIB rewrite; recover and create a fresh managed namespace rather than deleting unrelated route metrics.
+
+## CLI and configuration errors
+
+- **Choose one operation:** run status, update, cleanup and start as separate invocations. Use `start -F`, not `-F start`.
+- **Interactive selection requires a terminal:** keep selection in the foreground or supply explicit interface/DoH values to the daemon.
+- **Unknown configuration field / invalid TOML:** repair the named file. Failed loads do not overwrite it with defaults; stop/recovery remains available independently of startup configuration.
+- **Unknown bridge transport:** supported launch transports are obfs4, snowflake and meek-azure; `moat` selects discovery. WebTunnel is not implemented.
+- **Rotation interval out of range:** use 1..4294967295 seconds, or omit it. Only the service installer treats 0 as disabled.
+- **Missing shred target / invalid pass count:** the command returns an error; it does not report successful deletion.
