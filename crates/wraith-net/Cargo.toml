@@ -18,4 +18,9 @@ tempfile.workspace = true
 libc.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+zeroize.workspace = true
 rust-i18n = "4.2.1"
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+socket2 = { version = "0.6", features = ["all"] }
+etherparse = "0.20"

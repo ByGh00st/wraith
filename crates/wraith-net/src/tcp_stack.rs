@@ -30,6 +30,7 @@ pub use crate::tcp_namespace::NamespaceIdentity;
 use tracing::{debug, info, warn};
 use wraith_core::error::{Result as CoreResult, WraithError};
 use wraith_core::tcp_fingerprint::TcpFingerprintProfile;
+use wraith_core::sensitive::SensitiveMap;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SYSCTL KEY REGISTRIES
@@ -148,7 +149,7 @@ impl From<TcpMorphError> for WraithError {
 
 /// Point-in-time snapshot of all L4 parameters within an isolated network namespace.
 /// Captures sysctl values, Netfilter MSS state, and FIB routing metrics for rollback.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct NetnsTcpSnapshot {
     /// Associated network namespace name.
     pub namespace: String,
@@ -157,7 +158,7 @@ pub struct NetnsTcpSnapshot {
     /// Applied profile name; absent when safely skipped.
     pub profile_name: Option<String>,
     /// Key-value mappings of backed-up sysctl parameters.
-    pub values: HashMap<String, String>,
+    pub values: SensitiveMap<String>,
     /// Profile applied by the complete three-tier transaction (not a wire measurement).
     #[serde(default)]
     pub applied_profile: Option<TcpFingerprintProfile>,
@@ -182,7 +183,7 @@ impl NetnsTcpSnapshot {
             applied_profile: None,
             mss_rule_tagged: false,
             profile_name: None,
-            values: HashMap::new(),
+            values: SensitiveMap::default(),
             had_netfilter_mss: false,
             netfilter_mss_value: None,
             had_route_metrics: false,
@@ -486,7 +487,7 @@ fn apply_pinned_route_metrics(namespace: &Namespace, profile: &TcpFingerprintPro
 }
 
 /// Only the metrics changed by Wraith; zero means use the kernel default.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct RouteMetricSnapshot {
     pub identity: Vec<String>,
     #[serde(default)]
@@ -641,7 +642,9 @@ pub fn apply_profile_to_netns(
         })?;
         if fail_closed || !error.is_fallback_eligible() { return Err(error); }
         warn!("L4 configuration skipped after complete rollback: {error}");
-        return Ok(NetnsTcpSnapshot { namespace_identity: Some(namespace.identity), ..NetnsTcpSnapshot::new(netns) });
+        let mut skipped = NetnsTcpSnapshot::new(netns);
+        skipped.namespace_identity = Some(namespace.identity);
+        return Ok(skipped);
     }
     snapshot.applied_profile = Some(profile.clone());
     info!("L4 profile '{}' applied and read back in {netns}; wire fingerprint not measured", profile.name);
@@ -781,6 +784,22 @@ pub fn write_sysctl(_key: &str, _val: &str) -> CoreResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn snapshot_zeroization_clears_routes_profile_and_backup_buffers() {
+        use zeroize::Zeroize;
+        fn requires_drop<T: zeroize::ZeroizeOnDrop>() {}
+        requires_drop::<NetnsTcpSnapshot>();
+        let mut snapshot = NetnsTcpSnapshot::new("wraith_ns");
+        snapshot.values.insert("setting".into(), "original".into());
+        snapshot.applied_profile = Some(TcpFingerprintProfile::windows11());
+        snapshot.original_route_metrics = Some(RouteMetricSnapshot {
+            identity: vec!["default".into(), "via".into(), "10.200.1.1".into()],
+            attributes: vec!["src".into(), "10.200.1.2".into()], init_cwnd: 10, init_rwnd: 44,
+        });
+        snapshot.zeroize();
+        assert!(snapshot.namespace.is_empty() && snapshot.values.is_empty());
+        assert!(snapshot.applied_profile.is_none() && snapshot.original_route_metrics.is_none());
+    }
 
     #[test]
     fn mss_install_verifies_and_refuses_existing_rule_ownership() {

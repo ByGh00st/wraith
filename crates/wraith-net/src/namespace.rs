@@ -61,15 +61,30 @@ pub fn create_namespace_with_l4_profile(profile: &TcpFingerprintProfile) -> Resu
 pub fn create_namespace_with_optional_l4_profile(profile: Option<&TcpFingerprintProfile>) -> Result<Option<NetnsTcpSnapshot>> {
     if let Some(profile) = profile { profile.validate().map_err(crate::tcp_stack::TcpMorphError::from)?; }
     preflight_namespace()?;
+    let namespace_mac = crate::mac::generate_namespace_mac()?;
     info!("Constructing isolated Linux Network Namespace: {}", NAMESPACE_NAME);
     // Do not tear down anything if acquiring the namespace name itself fails.
     run_cmd("ip", &["netns", "add", NAMESPACE_NAME])?;
+    let namespace = crate::tcp_namespace::Namespace::open(NAMESPACE_NAME)?;
+    let lease = match crate::recovery::begin_namespace(namespace.identity, namespace_mac) {
+        Ok(lease) => lease,
+        Err(error) => {
+            if crate::tcp_namespace::Namespace::open(NAMESPACE_NAME)?.identity == namespace.identity {
+                run_cmd("ip", &["netns", "delete", NAMESPACE_NAME])?;
+            }
+            return Err(error);
+        },
+    };
     let result = (|| -> Result<Option<NetnsTcpSnapshot>> {
         // 2. Create veth interface pair
-        run_cmd("ip", &["link", "add", VETH_HOST, "type", "veth", "peer", "name", VETH_NS])?;
+        run_cmd("ip", &["link", "add", VETH_HOST, "alias", &lease.tag,
+            "type", "veth", "peer", "name", VETH_NS, "alias", &lease.tag])?;
 
         // 3. Move one end into the namespace
         run_cmd("ip", &["link", "set", VETH_NS, "netns", NAMESPACE_NAME])?;
+
+        // Set and read back the local-unicast address before either veth is UP.
+        configure_namespace_mac(&lease.mac, |args| run_cmd("ip", args))?;
 
         // 4. Configure host side
         run_cmd("ip", &["addr", "add", &format!("{NS_SUBNET}.1/24"), "dev", VETH_HOST])?;
@@ -85,15 +100,13 @@ pub fn create_namespace_with_optional_l4_profile(profile: Option<&TcpFingerprint
 
         // 7. Configure /etc/netns/wraith_ns/resolv.conf for dedicated Tor DNS
         let netns_etc = format!("/etc/netns/{NAMESPACE_NAME}");
-        fs::create_dir_all("/etc/netns")?;
-        fs::create_dir(&netns_etc)?;
         fs::write(format!("{netns_etc}/resolv.conf"), format!("nameserver {NS_SUBNET}.1\n"))?;
 
         // REDIRECT targets the veth address, but Tor listens on loopback only.
         // DNAT explicitly to loopback, scoped to this veth; never permit forwarding
         // namespace UDP directly to the physical network.
         run_cmd("sysctl", &["-w", &format!("net.ipv4.conf.{VETH_HOST}.route_localnet=1")])?;
-        for rule in namespace_rules() {
+        for rule in tagged_namespace_rules(Some(&lease.tag)) {
             let args: Vec<&str> = rule.iter().map(String::as_str).collect();
             run_cmd("iptables", &args)?;
         }
@@ -124,20 +137,54 @@ pub fn create_namespace() -> Result<()> {
 }
 
 pub fn destroy_namespace() -> Result<()> {
-    info!("Demolishing network namespace: {}", NAMESPACE_NAME);
+    destroy_namespace_with_identity(None)
+}
 
-    let _ = run_cmd("ip", &["netns", "delete", NAMESPACE_NAME]);
-    let _ = run_cmd("ip", &["link", "delete", VETH_HOST]);
-    for mut rule in namespace_rules() {
-        if let Some(index) = rule.iter().position(|s| s == "-I") {
-            rule[index] = "-D".into();
-            rule.remove(index + 2); // insertion position is not part of deletion
+pub fn destroy_namespace_with_identity(expected: Option<crate::tcp_stack::NamespaceIdentity>) -> Result<()> {
+    if crate::recovery::cleanup_owned_namespace()? { return Ok(()); }
+    // Legacy teardown is used only by a recorded pre-existing session. Refuse
+    // host aliases and busy namespaces even when no newer lease exists.
+    let namespaces = run_cmd("ip", &["netns", "list"])?;
+    let exists = namespaces.lines().any(|line| line.split_whitespace().next() == Some(NAMESPACE_NAME));
+    let links: serde_json::Value = serde_json::from_str(&run_cmd("ip", &["-j", "-d", "link", "show"])?)?;
+    let host = links.as_array().and_then(|links| links.iter().find(|link| link["ifname"] == VETH_HOST));
+    if exists {
+        let namespace = crate::tcp_namespace::Namespace::open(NAMESPACE_NAME)?;
+        if expected != Some(namespace.identity) {
+            return Err(WraithError::Namespace("Legacy namespace lifetime is unproven; teardown refused".into()));
         }
-        let args: Vec<&str> = rule.iter().map(String::as_str).collect();
-        let _ = run_cmd("iptables", &args);
+        if !run_cmd("ip", &["netns", "pids", NAMESPACE_NAME])?.trim().is_empty() {
+            return Err(WraithError::Namespace("Close namespace applications before recovery".into()));
+        }
+        let inside: serde_json::Value = serde_json::from_str(&run_cmd("ip", &["-n", NAMESPACE_NAME, "-j", "-d", "link", "show"])?)?;
+        let inside = inside.as_array().ok_or_else(|| WraithError::Namespace("Invalid namespace link inspection".into()))?;
+        if inside.iter().any(|link| link["ifname"] != "lo" && link["ifname"] != VETH_NS) {
+            return Err(WraithError::Namespace("Legacy namespace contains unowned interfaces".into()));
+        }
+        let peer = inside.iter().find(|link| link["ifname"] == VETH_NS);
+        if !legacy_pair_matches(host, peer) {
+            return Err(WraithError::Namespace("Legacy veth peer ownership is unproven".into()));
+        }
+    } else if host.is_some() {
+        return Err(WraithError::Namespace("Unmarked veth has no namespace lifetime proof".into()));
     }
-
     let netns_dir = format!("/etc/netns/{NAMESPACE_NAME}");
+    if fs::symlink_metadata(&netns_dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(WraithError::Namespace("Namespace configuration is a symlink".into()));
+    }
+    if Path::new(&netns_dir).exists() {
+        for entry in fs::read_dir(&netns_dir)? {
+            let entry = entry?;
+            if entry.file_name() != "resolv.conf" || !entry.file_type()?.is_file()
+                || fs::read_to_string(entry.path())? != format!("nameserver {NS_SUBNET}.1\n") {
+                return Err(WraithError::Namespace("Unowned legacy namespace configuration".into()));
+            }
+        }
+    }
+    info!("Demolishing recorded legacy namespace: {}", NAMESPACE_NAME);
+    if exists { run_cmd("ip", &["netns", "delete", NAMESPACE_NAME])?; }
+    // The peer normally disappears with its namespace; do not delete by name.
+    remove_namespace_rules(None)?;
     if Path::new(&netns_dir).exists() {
         let resolver = Path::new(&netns_dir).join("resolv.conf");
         match fs::remove_file(resolver) {
@@ -145,17 +192,68 @@ pub fn destroy_namespace() -> Result<()> {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {},
             Err(e) => return Err(e.into()),
         }
-        // Unexpected files must be reviewed, never recursively discarded.
         fs::remove_dir(&netns_dir)?;
     }
-
-    let remaining = run_cmd("ip", &["netns", "list"])?;
-    let links = run_cmd("ip", &["-o", "link", "show"])?;
-    if remaining.lines().any(|line| line.split_whitespace().next() == Some(NAMESPACE_NAME))
-        || links.lines().any(|line| line.split_whitespace().nth(1).is_some_and(|name| name.trim_end_matches(':').split('@').next() == Some(VETH_HOST))) {
-        return Err(WraithError::Namespace("Namespace or veth still present after cleanup".into()));
-    }
+    preflight_namespace()?;
     info!("Namespace purged");
+    Ok(())
+}
+
+fn legacy_pair_matches(host: Option<&serde_json::Value>, peer: Option<&serde_json::Value>) -> bool {
+    match (host, peer) {
+        (None, None) => true,
+        (Some(host), Some(peer)) => host["linkinfo"]["info_kind"] == "veth"
+            && peer["linkinfo"]["info_kind"] == "veth"
+            && host["ifindex"].as_u64().is_some_and(|index| index > 0 && peer["link_index"].as_u64() == Some(index))
+            && peer["ifindex"].as_u64().is_some_and(|index| index > 0 && host["link_index"].as_u64() == Some(index)),
+        _ => false,
+    }
+}
+
+pub(crate) fn remove_namespace_rules(tag: Option<&str>) -> Result<()> {
+    for mut rule in tagged_namespace_rules(tag) {
+        if let Some(index) = rule.iter().position(|s| s == "-I") {
+            rule[index] = "-D".into();
+            rule.remove(index + 2); // insertion position is not part of deletion
+        }
+        let mut check = rule.clone();
+        let operation = check.iter().position(|value| value == "-D").expect("owned deletion rule");
+        check[operation] = "-C".into();
+        // Bounded retries also clean duplicate owned rules left by old attempts.
+        for attempt in 0..=32 {
+            let status = Command::new("iptables").args(["-w", "5"]).args(&check).status()?;
+            match status.code() {
+                Some(1) => break,
+                Some(0) if attempt < 32 => {
+                    let args: Vec<&str> = rule.iter().map(String::as_str).collect();
+                    run_cmd("iptables", &[&["-w", "5"][..], &args].concat())?;
+                },
+                _ => return Err(WraithError::Namespace("Namespace rule removal/readback failed".into())),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn tagged_namespace_rules(tag: Option<&str>) -> Vec<Vec<String>> {
+    let mut rules = namespace_rules();
+    if let Some(tag) = tag {
+        for rule in &mut rules {
+            let position = rule.iter().position(|arg| arg == "-j").expect("owned rule target");
+            rule.splice(position..position, ["-m", "comment", "--comment", tag].map(String::from));
+        }
+    }
+    rules
+}
+
+fn configure_namespace_mac(mac: &str, mut execute: impl FnMut(&[&str]) -> Result<String>) -> Result<()> {
+    execute(&["-n", NAMESPACE_NAME, "link", "set", "dev", VETH_NS, "address", mac])?;
+    let output = execute(&["-n", NAMESPACE_NAME, "-j", "link", "show", "dev", VETH_NS])?;
+    let links: serde_json::Value = serde_json::from_str(&output)?;
+    if links.as_array().is_none_or(|links| links.len() != 1)
+        || links[0]["address"].as_str() != Some(mac) {
+        return Err(WraithError::Namespace("Namespace MAC readback mismatch".into()));
+    }
     Ok(())
 }
 
@@ -199,6 +297,30 @@ pub fn spawn_in_namespace(command: &str, args: &[&str]) -> Result<Child> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn legacy_cleanup_requires_veth_kind_and_reciprocal_peer_indices() {
+        let host = serde_json::json!({"ifindex":10,"link_index":11,"linkinfo":{"info_kind":"veth"}});
+        let peer = serde_json::json!({"ifindex":11,"link_index":10,"linkinfo":{"info_kind":"veth"}});
+        assert!(legacy_pair_matches(Some(&host), Some(&peer)));
+        assert!(legacy_pair_matches(None, None));
+        assert!(!legacy_pair_matches(Some(&host), None));
+        assert!(!legacy_pair_matches(Some(&host), Some(&host)));
+        let physical = serde_json::json!({"ifindex":11,"link_index":10,"linkinfo":{"info_kind":"ether"}});
+        assert!(!legacy_pair_matches(Some(&host), Some(&physical)));
+    }
+    #[test]
+    fn mac_write_is_checked_and_never_brings_a_link_up_on_failure() {
+        let mut calls = Vec::new();
+        configure_namespace_mac("02:11:22:33:44:55", |args| {
+            calls.push(args.join(" "));
+            Ok(r#"[{"address":"02:11:22:33:44:55"}]"#.into())
+        }).unwrap();
+        assert!(calls[0].contains("address 02:11:22:33:44:55"));
+        assert!(calls.iter().all(|call| !call.contains(" up")));
+        assert!(configure_namespace_mac("02:11:22:33:44:55", |_| Ok("[]".into())).is_err());
+        assert!(configure_namespace_mac("02:11:22:33:44:55", |_| Err(WraithError::PermissionDenied)).is_err());
+        assert!(tagged_namespace_rules(Some("owner")).iter().all(|r| r.windows(2).any(|p| p == ["--comment", "owner"])));
+    }
     #[test]
     fn namespace_has_no_direct_forwarding_allow_rule() {
         let rules: Vec<String> = namespace_rules().iter().map(|r| r.join(" ")).collect();

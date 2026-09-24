@@ -1,6 +1,7 @@
 //! Retryable snapshots for root-managed session configuration files.
 use crate::error::{Result, WraithError};
 use serde::{Deserialize, Serialize};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 use std::{
     fs,
     io::Write,
@@ -20,6 +21,23 @@ pub enum FileSnapshot {
         target: PathBuf,
     },
 }
+
+impl Zeroize for FileSnapshot {
+    fn zeroize(&mut self) {
+        match self {
+            Self::Missing => {},
+            Self::File { bytes, mode, uid, gid } => {
+                bytes.zeroize(); mode.zeroize(); uid.zeroize(); gid.zeroize();
+            },
+            Self::Symlink { target } => {
+                let mut bytes = std::mem::take(target).into_os_string().into_encoded_bytes();
+                bytes.zeroize();
+            },
+        }
+    }
+}
+impl Drop for FileSnapshot { fn drop(&mut self) { self.zeroize(); } }
+impl ZeroizeOnDrop for FileSnapshot {}
 
 impl FileSnapshot {
     pub fn capture(path: &Path) -> Result<Self> {

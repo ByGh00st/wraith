@@ -7,6 +7,7 @@ use std::path::Path;
 use std::process::Command;
 use tracing::{debug, info};
 use wraith_core::error::{Result, WraithError};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 fn checked_status(command: &str, args: &[&str]) -> Result<()> {
     let output = Command::new(command).args(args).output()?;
@@ -26,7 +27,7 @@ pub const WRAITH_WG_RULE_PRIO: u32 = 1000;
 pub const WRAITH_WG_DEFAULT_IFACE: &str = "wraith-wg0";
 
 /// WireGuard Interface and Peer Configuration
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct WireGuardConfig {
     pub interface_name: String,
     pub address: String,
@@ -40,12 +41,19 @@ pub struct WireGuardConfig {
     pub mtu: Option<u16>,
 }
 
+impl std::fmt::Debug for WireGuardConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WireGuardConfig").field("interface", &self.interface_name)
+            .field("keys", &"[redacted]").finish_non_exhaustive()
+    }
+}
+
 impl WireGuardConfig {
     /// Parse a standard WireGuard .conf file
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let p = path.as_ref();
-        let content = fs::read_to_string(p)
-            .map_err(|e| WraithError::Custom(format!("Failed reading WireGuard config '{}': {e}", p.display())))?;
+        let content = Zeroizing::new(fs::read_to_string(p)
+            .map_err(|e| WraithError::Custom(format!("Failed reading WireGuard config '{}': {e}", p.display())))?);
 
         let inferred_iface = p
             .file_stem()
@@ -53,11 +61,7 @@ impl WireGuardConfig {
             .unwrap_or(WRAITH_WG_DEFAULT_IFACE)
             .to_string();
 
-        let mut config = WireGuardConfig {
-            interface_name: inferred_iface,
-            allowed_ips: "0.0.0.0/0".to_string(),
-            ..Default::default()
-        };
+        let mut config = Self::new_with_interface(inferred_iface);
 
         let mut peers = 0;
         for line in content.lines() {
@@ -72,15 +76,15 @@ impl WireGuardConfig {
 
             if let Some((key, val)) = line.split_once('=') {
                 let key = key.trim().to_lowercase();
-                let val = val.trim().to_string();
+                let val = val.trim();
 
                 match key.as_str() {
-                    "address" => config.address = val,
-                    "privatekey" => config.private_key = val,
-                    "publickey" => config.peer_public_key = val,
-                    "endpoint" => config.peer_endpoint = val,
-                    "allowedips" => config.allowed_ips = val,
-                    "presharedkey" => config.preshared_key = Some(val),
+                    "address" => { config.address.zeroize(); config.address = val.into(); },
+                    "privatekey" => { config.private_key.zeroize(); config.private_key = val.into(); },
+                    "publickey" => { config.peer_public_key.zeroize(); config.peer_public_key = val.into(); },
+                    "endpoint" => { config.peer_endpoint.zeroize(); config.peer_endpoint = val.into(); },
+                    "allowedips" => { config.allowed_ips.zeroize(); config.allowed_ips = val.into(); },
+                    "presharedkey" => { config.preshared_key.zeroize(); config.preshared_key = Some(val.into()); },
                     "persistentkeepalive" => config.persistent_keepalive = Some(val.parse().map_err(|_| WraithError::Configuration("Invalid WireGuard keepalive".into()))?),
                     "listenport" => config.listen_port = Some(val.parse().map_err(|_| WraithError::Configuration("Invalid WireGuard listen port".into()))?),
                     "mtu" => config.mtu = Some(val.parse().map_err(|_| WraithError::Configuration("Invalid WireGuard MTU".into()))?),
@@ -112,8 +116,14 @@ impl WireGuardConfig {
             peer_public_key: "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=".to_string(),
             peer_endpoint: "198.51.100.1:51820".to_string(),
             allowed_ips: "0.0.0.0/0".to_string(),
-            ..Default::default()
+            preshared_key: None, persistent_keepalive: None, listen_port: None, mtu: None,
         }
+    }
+
+    fn new_with_interface(interface_name: String) -> Self {
+        Self { interface_name, allowed_ips: "0.0.0.0/0".into(), address: String::new(),
+            private_key: String::new(), peer_public_key: String::new(), peer_endpoint: String::new(),
+            preshared_key: None, persistent_keepalive: None, listen_port: None, mtu: None }
     }
 }
 
@@ -374,6 +384,16 @@ fn link_details(iface: &str) -> Result<Option<serde_json::Value>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn wireguard_keys_are_redacted_and_zeroized_with_configuration() {
+        let mut config = WireGuardConfig::mock_ephemeral();
+        config.preshared_key = Some("private-preshared-value".into());
+        let debug = format!("{config:?}");
+        assert!(!debug.contains(&config.private_key) && !debug.contains("private-preshared-value"));
+        config.zeroize();
+        assert!(config.private_key.is_empty() && config.preshared_key.is_none());
+        assert!(config.peer_endpoint.is_empty() && config.allowed_ips.is_empty());
+    }
 
     #[test]
     fn invalid_tunnel_configuration_is_rejected_before_commands() {

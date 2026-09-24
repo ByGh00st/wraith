@@ -18,7 +18,7 @@ use wraith_guard::{
 };
 use wraith_net::{
     apply_ipv6_block, apply_tor_rules_with_journal, block_stun_ports,
-    create_cgroup_jail, create_namespace_with_optional_l4_profile, destroy_cgroup_jail, destroy_namespace,
+    create_cgroup_jail, create_namespace_with_optional_l4_profile, destroy_cgroup_jail,
     restore_mac,
     EgressFastpath, EgressIntrusionDetector, MultiHopTunnelEngine, TrafficShaper,
     TrafficShapingProfile,
@@ -264,7 +264,8 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     print_banner(args.strict_hardening);
     let state_mgr = StateManager::default();
 
-    if state_mgr.is_running() {
+    let preflight_lock = wraith_core::session_lock::SessionLock::acquire()?;
+    if state_mgr.owner_is_running_checked()? {
         let current_state = state_mgr.read();
         if current_state.active {
             print_error(&t!("runtime.already_running"));
@@ -273,6 +274,15 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
         }
         return Ok(());
     }
+
+    if state_mgr.exists() {
+        print_step("Recovering the recorded interrupted session before startup...", "info");
+        cmd_stop_inner(false, true).await?;
+    }
+    if wraith_net::recovery::has_orphan_leases()? {
+        stop_tor_daemon()?;
+    }
+    wraith_net::recovery::recover_orphaned_state()?;
 
     let tls_profile: wraith_tor::BrowserProfile = args.tls_profile.as_deref().unwrap_or("chrome").parse()?;
     let tcp_profile = resolve_tcp_profile(&args)?;
@@ -294,15 +304,9 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
         }
     }
 
-    let mut state_data = StateData {
-        active: false,
-        state: Some(wraith_core::State::Arming),
-        strict_hardening: is_strict,
-        tls_profile: Some(args.tls_profile.clone().unwrap_or_else(|| "chrome".into())),
-        physical_fastpath_disabled: true,
-        ..Default::default()
-    };
+    let mut state_data = StateData::configured(|data| { data.active = false; data.state = Some(wraith_core::State::Arming); data.strict_hardening = is_strict; data.tls_profile = Some(args.tls_profile.clone().unwrap_or_else(|| "chrome".into())); data.physical_fastpath_disabled = true; });
     state_mgr.claim(state_data.clone())?;
+    preflight_lock.release();
     let mut bg_services = BackgroundServices::default();
 
     // 0. Kernel Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)
@@ -315,7 +319,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
 
     if is_strict {
         print_step(&t!("commands.cmd_step_67"), "info");
-        state_data.kernel_sysctl_backup = wraith_core::kernel_lockdown::backup_reversible_controls()?;
+        state_data.kernel_sysctl_backup = wraith_core::kernel_lockdown::backup_reversible_controls()?.into();
         state_mgr.activate(state_data.clone())?;
         match enforce_kernel_lockdown() {
             Ok(lockdown) => print_step(
@@ -456,7 +460,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     if args.machine_id_rotation {
         print_step(&t!("commands.cmd_step_73"), "info");
         match wraith_forensic::hardware_cloaker::rotate_machine_id_with_journal(|backup| {
-            state_data.machine_id_backup = backup.clone();
+            state_data.machine_id_backup = backup.clone().into();
             state_mgr.activate(state_data.clone())
         }) {
             Ok((old_mid, new_mid)) => {
@@ -872,7 +876,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
             Ok(mut vault) => {
                 state_data.vault_path = Some(vault.path().to_string_lossy().into_owned());
                 // Strict activation requires the encrypted copy to be written.
-                let secret_payload = serde_json::to_vec(&state_data)?;
+                let secret_payload = wraith_core::state::serialize_state(&state_data)?;
                 vault.write_secret("session.state", &secret_payload)?;
                 print_step(&t!("commands.cmd_step_87"), "ok");
                 Some(vault)
@@ -1099,13 +1103,25 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
 }
 
 pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
+    cmd_stop_inner(self_destruct, false).await
+}
+
+async fn cmd_stop_inner(self_destruct: bool, lifecycle_lock_held: bool) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
     print_banner(false);
 
     let state_mgr = StateManager::default();
     if !state_mgr.exists() {
-        print_step("No recorded Wraith session; no system settings changed.", "info");
-        return Ok(());
+        let _orphan_lock = if lifecycle_lock_held { None }
+            else { Some(wraith_core::session_lock::SessionLock::acquire()?) };
+        if !state_mgr.exists() {
+            if wraith_net::recovery::has_orphan_leases()? {
+                stop_tor_daemon()?;
+                wraith_net::recovery::recover_orphaned_state()?;
+                print_step("Recovered owned orphan network resources.", "ok");
+            } else { print_step("No recorded Wraith session; no system settings changed.", "info"); }
+            return Ok(());
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -1126,6 +1142,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         }
     }
 
+    #[cfg(target_os = "linux")]
     let state_info = state_mgr.read_checked()?;
 
     #[cfg(target_os = "linux")]
@@ -1133,6 +1150,9 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
         if let Some(process) = wraith_core::process_identity::SessionProcess::open(
             pid, state_info.process_identity.as_ref(),
         )? {
+            if state_info.state == Some(wraith_core::State::Cleanup) {
+                return Err(WraithError::Configuration("Another worker is still performing cleanup".into()));
+            }
             print_step(&format!("Stopping verified session worker (PID: {pid})..."), "info");
             process.terminate()?;
             let mut exited = false;
@@ -1149,6 +1169,15 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
 
     // The worker may have completed restoration while this caller waited.
     if !state_mgr.exists() { return Ok(()); }
+    let _cleanup_lock = if lifecycle_lock_held { None }
+        else { Some(wraith_core::session_lock::SessionLock::acquire()?) };
+    if !state_mgr.exists() { return Ok(()); }
+    let mut state_info = state_mgr.read_checked()?;
+    if state_info.pid != Some(std::process::id()) && state_mgr.owner_is_running_checked()? {
+        return Err(WraithError::Configuration("Session ownership changed during cleanup".into()));
+    }
+    state_info.state = Some(wraith_core::State::Cleanup);
+    state_mgr.activate(state_info.clone())?;
     let mut errors = Vec::new();
     if (state_info.dns_configured || state_info.active) && !state_info.saved_files.contains_key(wraith_core::config::RESOLV_PATH) {
         let restored = match &state_info.saved_resolver {
@@ -1207,16 +1236,24 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
             let restored = match &state_info.tcp_snapshot_json {
                 Some(json) => serde_json::from_str::<NetnsTcpSnapshot>(json).map_err(WraithError::from)
                     .and_then(|snapshot| restore_netns_tcp_stack(&snapshot).map_err(Into::into)),
-                None => restore_netns_tcp_stack(&NetnsTcpSnapshot {
-                    namespace: wraith_net::namespace::NAMESPACE_NAME.to_string(),
-                    values: state_info.tcp_stack_backup.clone(),
-                    ..Default::default()
-                }).map_err(Into::into),
+                None => {
+                    let mut snapshot = NetnsTcpSnapshot::new(wraith_net::namespace::NAMESPACE_NAME);
+                    snapshot.values = state_info.tcp_stack_backup.clone();
+                    restore_netns_tcp_stack(&snapshot).map_err(Into::into)
+                },
             };
             record_cleanup("TCP stack (3-tier rollback)", restored, &mut errors);
         }
     }
-    if state_info.namespace_active { record_cleanup("namespace", destroy_namespace(), &mut errors); }
+    let namespace_stopped = if state_info.namespace_active {
+        let result = state_info.tcp_snapshot_json.as_deref()
+            .map(serde_json::from_str::<NetnsTcpSnapshot>).transpose().map_err(WraithError::from)
+            .and_then(|snapshot| wraith_net::namespace::destroy_namespace_with_identity(
+                snapshot.as_ref().and_then(|snapshot| snapshot.namespace_identity)));
+        let stopped = result.is_ok();
+        record_cleanup("namespace", result, &mut errors);
+        stopped
+    } else { true };
     if state_info.browser_configured || state_info.browser_hardened > 0 {
         record_cleanup("browser preferences", remove_hardware_and_font_shield().map(|_| ()), &mut errors);
     }
@@ -1232,7 +1269,7 @@ pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
     if state_info.saved_files.contains_key(wraith_forensic::FONT_CONFIG_PATH) {
         record_cleanup("font cache", wraith_forensic::font_jail::refresh_font_cache(), &mut errors);
     }
-    restore_firewalls_after_tor_stop(&state_info, tor_stopped,
+    restore_firewalls_after_tor_stop(&state_info, tor_stopped && namespace_stopped,
         wraith_net::restore_rules, wraith_net::restore_ipv6_rules, &mut errors);
     if errors.is_empty() {
         record_cleanup("original Tor services", wraith_tor::set_system_tor_services(&state_info.stopped_tor_services, true), &mut errors);
@@ -1753,7 +1790,7 @@ fn restore_firewalls_after_tor_stop(
     restore_ipv6: impl FnOnce(&str) -> Result<()>, errors: &mut Vec<String>,
 ) {
     if !tor_stopped {
-        errors.push("Firewall retained because managed Tor could not be stopped; retry recovery".into());
+        errors.push("Firewall retained because Tor or namespace cleanup is incomplete; retry recovery".into());
         return;
     }
     if let Some(saved) = &state.saved_rules {
@@ -1820,12 +1857,42 @@ fn resolve_tcp_profile(args: &crate::StartArgs) -> Result<Option<TcpFingerprintP
     Ok(Some(profile))
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn namespace_exec_ready(state: &StateData, running: bool) -> bool {
+    state.active && state.state == Some(wraith_core::State::Active) && state.namespace_active && running
+}
+
+/// Join the already protected namespace, then drop privileges before exec.
+pub async fn cmd_exec(command: Vec<String>) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let state = StateManager::default().read_checked()?;
+        if !namespace_exec_ready(&state, StateManager::default().is_running()) {
+            return Err(WraithError::Configuration("Start Wraith with --namespace first".into()));
+        }
+        let uid = std::env::var("SUDO_UID").ok().and_then(|s| s.parse::<u32>().ok())
+            .filter(|uid| *uid != 0).ok_or_else(|| WraithError::Configuration("Run sudo wraith exec -- PROGRAM from your normal user account".into()))?;
+        let user = nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid)).map_err(|e| WraithError::Configuration(e.to_string()))?
+            .ok_or_else(|| WraithError::Configuration("Invoking user does not exist".into()))?;
+        let mut args = vec!["-u".to_owned(), user.name, "--".to_owned(), "/usr/bin/env".to_owned(), "-u".to_owned(), "LD_PRELOAD".to_owned(), "-u".to_owned(), "LD_LIBRARY_PATH".to_owned()];
+        args.extend(command);
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut child = wraith_net::spawn_in_namespace("/usr/sbin/runuser", &refs)?;
+        let status = tokio::task::spawn_blocking(move || child.wait()).await
+            .map_err(|e| WraithError::Configuration(e.to_string()))??;
+        if !status.success() { return Err(WraithError::Configuration(format!("Application exited with {status}"))); }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    { let _ = command; Err(WraithError::Configuration("Network namespaces require Linux".into())) }
+}
+
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
     #[test]
     fn failed_tor_shutdown_never_restores_firewalls_or_swallows_restore_errors() {
-        let state = StateData { saved_rules: Some("v4".into()), saved_ipv6_rules: Some("v6".into()), ..Default::default() };
+        let state = StateData::configured(|data| { data.saved_rules = Some("v4".into()); data.saved_ipv6_rules = Some("v6".into()); });
         let mut errors = Vec::new();
         restore_firewalls_after_tor_stop(&state, false, |_| panic!("Tor still running"), |_| panic!("Tor still running"), &mut errors);
         assert_eq!(errors.len(), 1);
@@ -1840,8 +1907,7 @@ mod lifecycle_tests {
     }
     #[test]
     fn applications_cannot_enter_a_namespace_while_l4_is_still_arming() {
-        let mut state = StateData { active: true, namespace_active: true,
-            state: Some(wraith_core::State::Arming), ..Default::default() };
+        let mut state = StateData::configured(|data| { data.active = true; data.namespace_active = true; data.state = Some(wraith_core::State::Arming); });
         assert!(!namespace_exec_ready(&state, true));
         state.state = Some(wraith_core::State::Active);
         assert!(namespace_exec_ready(&state, true));
@@ -1897,7 +1963,7 @@ mod lifecycle_tests {
     #[test]
     fn strict_activation_requires_a_matching_snapshot_and_fresh_readback() {
         assert!(verify_strict_l4_activation(&StateData::default(), |_| panic!("standard mode")).is_ok());
-        let mut state = StateData { strict_hardening: true, ..Default::default() };
+        let mut state = StateData::configured(|data| { data.strict_hardening = true; });
         assert!(verify_strict_l4_activation(&state, |_| panic!("missing namespace")).is_err());
         state.namespace_active = true;
         state.tcp_stack_masked = true;
@@ -1983,34 +2049,4 @@ mod lifecycle_tests {
         assert!(resolve_tcp_profile(&args).is_err());
     }
 
-}
-
-#[cfg(any(target_os = "linux", test))]
-fn namespace_exec_ready(state: &StateData, running: bool) -> bool {
-    state.active && state.state == Some(wraith_core::State::Active) && state.namespace_active && running
-}
-
-/// Join the already protected namespace, then drop privileges before exec.
-pub async fn cmd_exec(command: Vec<String>) -> Result<()> {
-    #[cfg(target_os = "linux")]
-    {
-        let state = StateManager::default().read_checked()?;
-        if !namespace_exec_ready(&state, StateManager::default().is_running()) {
-            return Err(WraithError::Configuration("Start Wraith with --namespace first".into()));
-        }
-        let uid = std::env::var("SUDO_UID").ok().and_then(|s| s.parse::<u32>().ok())
-            .filter(|uid| *uid != 0).ok_or_else(|| WraithError::Configuration("Run sudo wraith exec -- PROGRAM from your normal user account".into()))?;
-        let user = nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid)).map_err(|e| WraithError::Configuration(e.to_string()))?
-            .ok_or_else(|| WraithError::Configuration("Invoking user does not exist".into()))?;
-        let mut args = vec!["-u".to_owned(), user.name, "--".to_owned(), "/usr/bin/env".to_owned(), "-u".to_owned(), "LD_PRELOAD".to_owned(), "-u".to_owned(), "LD_LIBRARY_PATH".to_owned()];
-        args.extend(command);
-        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let mut child = wraith_net::spawn_in_namespace("/usr/sbin/runuser", &refs)?;
-        let status = tokio::task::spawn_blocking(move || child.wait()).await
-            .map_err(|e| WraithError::Configuration(e.to_string()))??;
-        if !status.success() { return Err(WraithError::Configuration(format!("Application exited with {status}"))); }
-        Ok(())
-    }
-    #[cfg(not(target_os = "linux"))]
-    { let _ = command; Err(WraithError::Configuration("Network namespaces require Linux".into())) }
 }

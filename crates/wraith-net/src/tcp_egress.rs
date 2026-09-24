@@ -12,7 +12,7 @@ pub const EGRESS_QUEUE: u16 = 41884;
 pub const EGRESS_CHAIN: &str = "WRAITH_L4_EGRESS";
 const EGRESS_TAG: &str = "wraith-l4-egress";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct TcpEgressSnapshot {
     pub profile: TcpFingerprintProfile,
     pub tor_uid: u32,
@@ -212,20 +212,34 @@ pub fn remove_tor_egress(snapshot: &TcpEgressSnapshot) -> Result<()> {
     snapshot.validate()?;
     let all = run(&["-w", "5", "-t", "mangle", "-S"].map(Into::into))?;
     if !all.lines().any(|line| line == format!("-N {EGRESS_CHAIN}")) {
-        return Ok(());
+        return crate::recovery::forget_egress(snapshot);
+    }
+    let chain = run(&["-w", "5", "-t", "mangle", "-S", EGRESS_CHAIN].map(Into::into))?;
+    let mut known_rules = 0;
+    for rule in chain_rules(snapshot) { known_rules += usize::from(rule_present(EGRESS_CHAIN, &rule)?); }
+    if chain.lines().filter(|line| line.starts_with("-A ")).count() != known_rules {
+        return Err(WraithError::Firewall("Egress chain contains unknown or duplicated rules; cleanup refused".into()));
     }
     if rule_present("OUTPUT", &jump_rule(snapshot))? {
         run(&iptables_args("-D", "OUTPUT", &jump_rule(snapshot)))?;
     }
     run(&iptables_args("-F", EGRESS_CHAIN, &[]))?;
     run(&iptables_args("-X", EGRESS_CHAIN, &[]))?;
-    Ok(())
+    crate::recovery::forget_egress(snapshot)
 }
 
 pub struct TcpEgressWorker {
     pub snapshot: TcpEgressSnapshot,
     pub cancel: CancellationToken,
     pub handle: tokio::task::JoinHandle<()>,
+}
+
+pub(crate) fn ensure_no_orphan_policy() -> Result<()> {
+    let all = run(&["-w", "5", "-t", "mangle", "-S"].map(Into::into))?;
+    if all.contains(EGRESS_CHAIN) || all.contains(EGRESS_TAG) {
+        return Err(WraithError::Firewall("Unowned Tor egress policy remains; automatic chain flush refused".into()));
+    }
+    Ok(())
 }
 
 /// Bind/configure the queue and journal ownership before attaching its rules.
@@ -279,6 +293,7 @@ pub fn start_tor_egress(
         };
         snapshot.validate()?;
         journal(&snapshot)?;
+        crate::recovery::record_egress(&snapshot)?;
         install_policy_with(&snapshot, run)?;
         let cancel = CancellationToken::new();
         let cancelled = cancel.clone();

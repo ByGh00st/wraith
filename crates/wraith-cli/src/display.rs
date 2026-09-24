@@ -585,8 +585,34 @@ fn l4_status_rows(state: &StateData) -> Vec<(String, String)> {
         Err(error) => rows.push(("L4 live readback".into(), format!("Unavailable: {error}"))),
     }
     if let Some(tls) = &state.tls_profile { rows.push(("Session TLS profile".into(), tls.clone())); }
+    rows.push(("L4↔L7 configured pairing".into(), configured_pairing(state)));
+    match wraith_net::recovery::inspect_namespace_mac() {
+        Ok((expected, actual, matches)) => rows.push(("Namespace L2 MAC".into(),
+            if matches { format!("{actual} — local unicast; matches lease") }
+            else { format!("DRIFT: {actual}; expected {expected}") })),
+        Err(error) => rows.push(("Namespace L2 MAC".into(), format!("Unavailable: {error}"))),
+    }
+    rows.push(("State buffer handling".into(), "Zeroize on drop in this process; abrupt exit excluded".into()));
     rows.push(("L4 scope / wire proof".into(), "Namespace TCP only; p0f / L4↔L7 not measured".into()));
     rows
+}
+
+fn configured_pairing(state: &StateData) -> String {
+    let check = || -> std::result::Result<bool, String> {
+        let tls = state.tls_profile.as_deref().ok_or("Missing TLS selection")?
+            .parse::<wraith_tor::BrowserProfile>().map_err(|e| e.to_string())?;
+        let ns: wraith_net::NetnsTcpSnapshot = serde_json::from_str(
+            state.tcp_snapshot_json.as_deref().ok_or("Missing namespace L4 snapshot")?).map_err(|e| e.to_string())?;
+        let egress: wraith_net::tcp_egress::TcpEgressSnapshot = serde_json::from_str(
+            state.tcp_egress_snapshot_json.as_deref().ok_or("Missing egress L4 snapshot")?).map_err(|e| e.to_string())?;
+        Ok(ns.applied_profile.as_ref().ok_or("Missing applied L4 profile")?.kind == tls.l4_profile().kind
+            && egress.profile.kind == tls.l4_profile().kind)
+    };
+    match check() {
+        Ok(true) => "Compatible reference platforms; wire coherence unmeasured".into(),
+        Ok(false) => "ANOMALY: configured namespace / Tor L4 and TLS platforms differ".into(),
+        Err(error) => format!("Unavailable: {error}"),
+    }
 }
 
 fn tor_egress_rows(state: &StateData) -> Vec<(String, String)> {
@@ -1076,15 +1102,31 @@ pub fn print_demo_showcase() {
 mod l4_display_tests {
     use super::*;
     #[test]
+    fn pairing_reports_configuration_anomalies_without_claiming_wire_evidence() {
+        let mut state = StateData::default();
+        assert!(configured_pairing(&state).starts_with("Unavailable"));
+        state.tls_profile = Some("chrome".into());
+        let mut ns = wraith_net::NetnsTcpSnapshot::new("wraith_ns");
+        ns.applied_profile = Some(wraith_core::TcpFingerprintProfile::windows11());
+        state.tcp_snapshot_json = Some(serde_json::to_string(&ns).unwrap());
+        let mut egress = wraith_net::tcp_egress::TcpEgressSnapshot { profile: wraith_core::TcpFingerprintProfile::windows11(),
+            tor_uid: 109, queue_num: wraith_net::tcp_egress::EGRESS_QUEUE, peer_portid: 42 };
+        state.tcp_egress_snapshot_json = Some(serde_json::to_string(&egress).unwrap());
+        assert!(configured_pairing(&state).contains("unmeasured"));
+        egress.profile = wraith_core::TcpFingerprintProfile::macos();
+        state.tcp_egress_snapshot_json = Some(serde_json::to_string(&egress).unwrap());
+        assert!(configured_pairing(&state).starts_with("ANOMALY"));
+    }
+    #[test]
     fn absent_or_malformed_egress_state_never_claims_active_morphing() {
         assert!(tor_egress_rows(&StateData::default())[0].1.contains("Not armed"));
-        let state = StateData { tcp_egress_snapshot_json: Some("not json".into()), ..Default::default() };
+        let state = StateData::configured(|data| { data.tcp_egress_snapshot_json = Some("not json".into()); });
         assert!(tor_egress_rows(&state)[0].1.contains("Unavailable"));
     }
     #[test]
     fn dashboard_distinguishes_recorded_strict_policy_from_legacy_state() {
         assert!(session_policy_label(&StateData::default()).contains("not recorded"));
-        let state = StateData { strict_hardening: true, ..Default::default() };
+        let state = StateData::configured(|data| { data.strict_hardening = true; });
         assert!(session_policy_label(&state).contains("Full-security"));
     }
 

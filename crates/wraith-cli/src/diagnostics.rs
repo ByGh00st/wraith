@@ -234,8 +234,8 @@ impl DiagnosticsRunner {
 
     fn check_ram_vault_status() -> DiagnosticCheck {
         let state = wraith_core::StateManager::default().read();
-        let (passed, detail) = match state.vault_path {
-            Some(path) if Path::new(&path).is_dir() => {
+        let (passed, detail) = match &state.vault_path {
+            Some(path) if Path::new(path).is_dir() => {
                 (true, format!("Session vault directory exists at {path}"))
             }
             _ => (false, "No current session vault directory recorded".into()),

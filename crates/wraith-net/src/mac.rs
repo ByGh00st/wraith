@@ -3,6 +3,7 @@
 
 use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::RngCore;
 use std::process::Command;
 use tracing::info;
 use wraith_core::error::{Result, WraithError};
@@ -21,6 +22,16 @@ pub const VENDOR_OUIS: &[&str] = &[
     "08:00:27", // VirtualBox
     "52:54:00", // QEMU
 ];
+
+/// OS entropy with the IEEE locally-administered unicast bits, no vendor OUI.
+pub fn generate_namespace_mac() -> Result<String> {
+    let mut bytes = [0u8; 6];
+    rand::rngs::OsRng.try_fill_bytes(&mut bytes)
+        .map_err(|e| WraithError::Hardware(format!("Namespace MAC entropy unavailable: {e}")))?;
+    bytes[0] = (bytes[0] | 0x02) & 0xfe;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join(":"))
+}
+
 
 fn run_cmd(cmd: &str, args: &[&str]) -> Result<String> {
     let output = Command::new(cmd)
@@ -175,4 +186,19 @@ pub fn randomize_hostname_with_journal(journal: impl FnOnce(&str) -> Result<()>)
     run_cmd("hostname", &[&new_host])?;
     info!("Hostname randomized: {old_host} -> {new_host}");
     Ok((old_host, new_host))
+}
+
+#[cfg(test)]
+mod namespace_mac_tests {
+    #[test]
+    fn generated_addresses_are_local_unicast_and_use_fresh_entropy() {
+        let values: std::collections::HashSet<_> = (0..128)
+            .map(|_| super::generate_namespace_mac().unwrap()).collect();
+        assert_eq!(values.len(), 128);
+        for value in values {
+            let bytes: Vec<_> = value.split(':').map(|v| u8::from_str_radix(v, 16).unwrap()).collect();
+            assert_eq!(bytes.len(), 6);
+            assert_eq!(bytes[0] & 3, 2);
+        }
+    }
 }

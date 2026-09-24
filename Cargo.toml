@@ -51,9 +51,8 @@ toml = "0.8"
 opt-level = 2
 codegen-units = 4
 lto = "off"
-panic = "abort"
+panic = "unwind"
 strip = true
 debug = false
 incremental = false
-
 

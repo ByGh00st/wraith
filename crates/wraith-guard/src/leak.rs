@@ -488,9 +488,7 @@ mod tests {
 
     #[test]
     fn test_leak_report_serde_roundtrip_with_l4() {
-        let mut report = LeakReport::default();
-        report.l4_coherent = true;
-        report.l4_anomalies = vec!["None".into()];
+        let report = LeakReport { l4_coherent: true, l4_anomalies: vec!["None".into()], ..Default::default() };
         let json = serde_json::to_string(&report).expect("Serialize LeakReport");
         let decoded: LeakReport = serde_json::from_str(&json).expect("Deserialize LeakReport");
         assert!(decoded.l4_coherent);

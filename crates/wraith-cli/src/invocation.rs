@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn background_readiness_requires_our_childs_active_record() {
-        let mut state = wraith_core::StateData { active: true, state: Some(wraith_core::State::Active), pid: Some(10), ..Default::default() };
+        let mut state = wraith_core::StateData::configured(|data| { data.active = true; data.state = Some(wraith_core::State::Active); data.pid = Some(10); });
         assert!(worker_is_ready(&state, 10, true));
         assert!(!worker_is_ready(&state, 11, true));
         assert!(!worker_is_ready(&state, 10, false));

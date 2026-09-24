@@ -53,6 +53,10 @@ pub enum TcpProfileKind {
     LinuxDefault,
 }
 
+impl zeroize::Zeroize for TcpProfileKind {
+    fn zeroize(&mut self) { *self = Self::LinuxDefault; }
+}
+
 impl fmt::Display for TcpProfileKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -230,7 +234,7 @@ impl fmt::Display for P0fSynSignature {
 /// | 1 | sysctl | TTL, TS, WS, SACK, FIN, SYN-R | `/proc/sys/net/ipv4/` |
 /// | 2 | Netfilter | MSS clamping | `iptables -t mangle -j TCPMSS` |
 /// | 3 | FIB Routing | initcwnd, initrwnd | `ip route change ... initcwnd N initrwnd N` |
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct TcpFingerprintProfile {
     /// Human-readable profile label.
     pub name: String,

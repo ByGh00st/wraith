@@ -3,12 +3,12 @@
 //! kernel `mlock` page locking, and zeroize-on-drop memory sanitization.
 
 use rand::RngCore;
-use std::collections::HashMap;
+use crate::sensitive::SensitiveMap;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use tracing::{debug, info, warn};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
     ChaCha20Poly1305, Key, Nonce,
@@ -138,7 +138,7 @@ pub type ScrambledSecret = ProtectedMemorySecret;
 pub struct EncryptedRamVault {
     vault_path: PathBuf,
     master_key: VaultKey,
-    key_ring: HashMap<String, ProtectedMemorySecret>,
+    key_ring: SensitiveMap<ProtectedMemorySecret>,
 }
 
 impl EncryptedRamVault {
@@ -172,7 +172,7 @@ impl EncryptedRamVault {
         Ok(Self {
             vault_path: path,
             master_key,
-            key_ring: HashMap::new(),
+            key_ring: SensitiveMap::default(),
         })
     }
 
@@ -223,7 +223,7 @@ impl EncryptedRamVault {
         Ok(())
     }
 
-    pub fn read_secret(&self, secret_name: &str) -> Result<Vec<u8>> {
+    pub fn read_secret(&self, secret_name: &str) -> Result<Zeroizing<Vec<u8>>> {
         // Path Traversal & Symlink Defense
         if secret_name.contains('/') || secret_name.contains('\\')
             || secret_name.contains("..")
@@ -236,7 +236,7 @@ impl EncryptedRamVault {
 
         // Fast path: In-memory protected key ring
         if let Some(protected) = self.key_ring.get(secret_name) {
-            return Ok(protected.with_unmasked(|bytes| bytes.to_vec()));
+            return Ok(protected.with_unmasked(|bytes| Zeroizing::new(bytes.to_vec())));
         }
 
         let target_file = self.vault_path.join(format!("{secret_name}.enc"));
@@ -269,7 +269,7 @@ impl EncryptedRamVault {
             &tag,
         )?;
 
-        Ok(plaintext)
+        Ok(Zeroizing::new(plaintext))
     }
 
     pub fn destroy(mut self) -> Result<()> {
@@ -347,7 +347,7 @@ mod tests {
         let mut vault = EncryptedRamVault {
             vault_path: temp_dir.path().to_path_buf(),
             master_key: VaultKey::generate(),
-            key_ring: HashMap::new(),
+            key_ring: SensitiveMap::default(),
         };
 
         // Attempting path traversal in write_secret must fail

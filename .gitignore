@@ -20,6 +20,9 @@
 tests/
 **/tests/
 crates/**/tests/
+!crates/wraith-net/tests/
+crates/wraith-net/tests/*
+!crates/wraith-net/tests/live_wire_syn_audit.rs
 *_test.rs
 *tests.rs
 wraith_test_*

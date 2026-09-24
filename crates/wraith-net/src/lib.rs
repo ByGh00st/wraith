@@ -8,6 +8,7 @@ pub mod ipv6;
 pub mod mac;
 pub mod multihop;
 pub mod namespace;
+pub mod recovery;
 pub mod netlink;
 pub mod nftables;
 pub mod stun;

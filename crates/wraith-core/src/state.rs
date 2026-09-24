@@ -2,12 +2,16 @@
 //! Thread-safe state tracking with atomic disk transactions.
 
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File};
+use std::fs;
+#[cfg(unix)]
+use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::config::STATE_FILE;
 use crate::error::Result;
+use crate::sensitive::SensitiveMap;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum State {
@@ -18,14 +22,18 @@ pub enum State {
     Cleanup,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Zeroize for State {
+    fn zeroize(&mut self) { *self = Self::Idle; }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Zeroize, ZeroizeOnDrop)]
 pub struct StateData {
     pub active: bool,
     /// Recorded session policy; older recovery records did not contain it.
     #[serde(default)]
     pub strict_hardening: bool,
     #[serde(default)]
-    pub saved_files: std::collections::HashMap<String, crate::file_snapshot::FileSnapshot>,
+    pub saved_files: SensitiveMap<crate::file_snapshot::FileSnapshot>,
     #[serde(default)]
     pub dns_configured: bool,
     #[serde(default)]
@@ -52,7 +60,7 @@ pub struct StateData {
     pub exit_profile: Option<String>,
     pub namespace_active: bool,
     #[serde(default)]
-    pub kernel_sysctl_backup: std::collections::HashMap<String, String>,
+    pub kernel_sysctl_backup: SensitiveMap<String>,
     #[serde(default)]
     pub browser_configured: bool,
     #[serde(default)]
@@ -64,10 +72,10 @@ pub struct StateData {
     #[serde(default)]
     pub saved_ipv6_rules: Option<String>,
     #[serde(default)]
-    pub tcp_stack_backup: std::collections::HashMap<String, String>,
+    pub tcp_stack_backup: SensitiveMap<String>,
     pub machine_id_old: Option<String>,
     #[serde(default)]
-    pub machine_id_backup: std::collections::HashMap<String, String>,
+    pub machine_id_backup: SensitiveMap<String>,
     pub tcp_stack_masked: bool,
     /// Active L4 TCP profile kind name (e.g. "Windows 11", "macOS")
     #[serde(default)]
@@ -90,6 +98,15 @@ pub struct StateData {
     pub display_jail_active: bool,
     #[serde(default)]
     pub vault_path: Option<String>,
+}
+
+impl StateData {
+    /// Construct without moving fields out of a zeroize-on-drop temporary.
+    pub fn configured(configure: impl FnOnce(&mut Self)) -> Self {
+        let mut data = Self::default();
+        configure(&mut data);
+        data
+    }
 }
 
 pub struct StateManager {
@@ -129,6 +146,17 @@ impl StateManager {
         { pid == std::process::id() }
     }
 
+    /// Recovery must not turn a corrupt/legacy ownership error into "dead".
+    pub fn owner_is_running_checked(&self) -> Result<bool> {
+        if !self.exists() { return Ok(false); }
+        let data = self.read_checked()?;
+        let pid = data.pid.ok_or_else(|| crate::error::WraithError::Configuration("Recovery record lacks its owner PID".into()))?;
+        #[cfg(target_os = "linux")]
+        { Ok(crate::process_identity::SessionProcess::open(pid, data.process_identity.as_ref())?.is_some()) }
+        #[cfg(not(target_os = "linux"))]
+        { Ok(pid == std::process::id()) }
+    }
+
     pub fn is_active(&self) -> bool {
         let data = self.read();
         if !data.active {
@@ -151,7 +179,7 @@ impl StateManager {
         #[cfg(target_os = "linux")]
         { data.process_identity = Some(crate::process_identity::capture(std::process::id())?); }
         let mut temp = tempfile::NamedTempFile::new_in(parent)?;
-        temp.write_all(serde_json::to_string_pretty(&data)?.as_bytes())?;
+        temp.write_all(&serialize_state(&data)?)?;
         temp.as_file().sync_all()?;
         temp.persist_noclobber(&self.path).map_err(|e| e.error)?;
         #[cfg(unix)] File::open(parent)?.sync_all()?;
@@ -170,12 +198,12 @@ impl StateManager {
         #[cfg(target_os = "linux")]
         { payload.process_identity = Some(crate::process_identity::capture(std::process::id())?); }
 
-        let serialized = serde_json::to_string_pretty(&payload)?;
+        let serialized = serialize_state(&payload)?;
 
         // Atomic write via tempfile in same directory
         let parent = self.path.parent().unwrap_or_else(|| Path::new("/var/run"));
         let mut temp = tempfile::NamedTempFile::new_in(parent)?;
-        temp.write_all(serialized.as_bytes())?;
+        temp.write_all(&serialized)?;
         temp.as_file().sync_all()?;
         temp.persist(&self.path).map_err(|e| e.error)?;
         #[cfg(unix)] File::open(parent)?.sync_all()?;
@@ -202,7 +230,8 @@ impl StateManager {
     }
 
     pub fn read_checked(&self) -> Result<StateData> {
-        Ok(serde_json::from_str(&fs::read_to_string(&self.path)?)?)
+        let bytes = Zeroizing::new(fs::read(&self.path)?);
+        Ok(serde_json::from_slice(&bytes)?)
     }
 
     pub fn read(&self) -> StateData {
@@ -210,8 +239,8 @@ impl StateManager {
             return StateData::default();
         }
 
-        match fs::read_to_string(&self.path) {
-            Ok(content) => match serde_json::from_str(&content) {
+        match fs::read(&self.path).map(Zeroizing::new) {
+            Ok(content) => match serde_json::from_slice(&content) {
                 Ok(data) => data,
                 Err(e) => {
                     tracing::warn!("Failed deserializing state from {}: {e}", self.path.display());
@@ -229,15 +258,13 @@ impl StateManager {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let serialized = serde_json::to_string_pretty(data)?;
-        let mut file = File::create(path)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
-        }
-        file.write_all(serialized.as_bytes())?;
-        file.sync_all()?;
+        let serialized = serialize_state(data)?;
+        let parent = path.parent().unwrap_or_else(|| Path::new("."));
+        let mut file = tempfile::NamedTempFile::new_in(parent)?;
+        file.write_all(&serialized)?;
+        file.as_file().sync_all()?;
+        file.persist(path).map_err(|e| e.error)?;
+        #[cfg(unix)] File::open(parent)?.sync_all()?;
         Ok(())
     }
 
@@ -245,8 +272,8 @@ impl StateManager {
         if !path.exists() {
             return StateData::default();
         }
-        match fs::read_to_string(path) {
-            Ok(content) => match serde_json::from_str(&content) {
+        match fs::read(path).map(Zeroizing::new) {
+            Ok(content) => match serde_json::from_slice(&content) {
                 Ok(data) => data,
                 Err(e) => {
                     tracing::warn!("Failed deserializing state from {}: {e}", path.display());
@@ -261,12 +288,39 @@ impl StateManager {
     }
 }
 
+/// Keep the temporary JSON protected even if serialization or a later write fails.
+pub fn serialize_state(data: &StateData) -> Result<Zeroizing<Vec<u8>>> {
+    let mut bytes = Zeroizing::new(Vec::new());
+    serde_json::to_writer_pretty(&mut *bytes, data)?;
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
+    fn zeroization_erases_nested_buffers_without_deleting_the_recovery_record() {
+        fn requires_drop<T: ZeroizeOnDrop>() {}
+        requires_drop::<StateData>();
+        let directory = tempfile::tempdir().unwrap();
+        let manager = StateManager { path: directory.path().join("state") };
+        let mut state = StateData::configured(|data| {
+            data.ip = Some("192.0.2.1".into());
+            data.saved_resolver = Some("private-resolver".into());
+            data.kernel_sysctl_backup.insert("sysctl".into(), "secret value".into());
+            data.saved_files.insert("config".into(), crate::file_snapshot::FileSnapshot::File {
+                bytes: b"secret configuration".to_vec(), mode: 0o600, uid: 0, gid: 0,
+            });
+        });
+        manager.claim(state.clone()).unwrap();
+        state.zeroize();
+        assert!(state.ip.is_none() && state.saved_resolver.is_none());
+        assert!(state.saved_files.is_empty() && state.kernel_sysctl_backup.is_empty());
+        assert_eq!(manager.read_checked().unwrap().saved_resolver.as_deref(), Some("private-resolver"));
+    }
+    #[test]
     fn strict_policy_roundtrips_and_legacy_records_remain_recoverable() {
-        let state = StateData { strict_hardening: true, ..Default::default() };
+        let state = StateData::configured(|data| { data.strict_hardening = true; });
         let mut json = serde_json::to_value(&state).unwrap();
         assert!(serde_json::from_value::<StateData>(json.clone()).unwrap().strict_hardening);
         json.as_object_mut().unwrap().remove("strict_hardening");

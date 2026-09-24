@@ -4,7 +4,7 @@ use crate::tcp_stack::TcpMorphError;
 use serde::{Deserialize, Serialize};
 use std::process::Output;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, zeroize::Zeroize)]
 pub struct NamespaceIdentity {
     pub device: u64,
     pub inode: u64,

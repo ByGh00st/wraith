@@ -7,6 +7,8 @@ pub mod error;
 pub mod kernel_lockdown;
 pub mod process_lockdown;
 pub mod state;
+pub mod sensitive;
+pub mod session_lock;
 pub mod process_identity;
 pub mod vault;
 
