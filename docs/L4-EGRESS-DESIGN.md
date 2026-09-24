@@ -62,7 +62,11 @@ Netlink fields are decoded from bounded slices. Socket ownership, kernel-sender 
 
 `wraith -i` shows the saved profile, live rules, owned queue binding, sequence counter, pending packets and kernel/netlink delivery drop counters. These counters do not count successful rewrites, explicit DROP verdicts or completed handshakes. They are control-plane observations, not packet-capture proof.
 
-Shutdown cancels the worker and stops managed Tor before removing the owned chain and restoring the original firewall snapshot. A failed Tor stop withholds firewall restoration. Other failures retain the journal for `wraith -x` recovery. A panic preserves the policy and journal; process exit closes the queue, so new SYNs stay blocked until recovery. The namespace's separate sysctl/MSS/FIB cleanup remains unchanged.
+Shutdown cancels the worker and stops managed Tor before removing the owned chain and restoring the original firewall snapshot. A failed Tor stop or namespace teardown withholds firewall restoration. Other failures retain the journal for `wraith -x` recovery. A panic preserves the policy and journal; process exit closes the queue, so new SYNs stay blocked until recovery.
+
+Before attaching rules, startup persists the egress snapshot in `/var/lib/wraith/egress-owner.json` as well as the session journal. Orphan preflight runs under the CLI lifecycle lock after excluding live workers and stopping managed Tor. Removal validates the snapshot, refuses unknown/duplicate chain rules, removes the exact owned jump and deletes the matching lease last. Missing chains are safe to retry; an unowned fixed chain prevents a new start rather than authorizing a whole-table flush.
+
+The snapshot implements zeroization on drop. Configured L4↔L7 inspect telemetry compares its profile with both namespace and TLS selections; this is separate from actual queue/rule readback and from an unmeasured wire identity. The native ignored SYN audit exercises the namespace path only, not this NFQUEUE runtime.
 
 ## Limits and validation
 

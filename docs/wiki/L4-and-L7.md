@@ -11,6 +11,7 @@ Wraith's local L4 target is the **ISP, enterprise firewall or DPI observer betwe
 | TCP sysctl profile | Wraith application namespace | Does not reproduce every OS TCP option or ordering |
 | SYN MSS rule | Namespace netfilter | Does not control Tor exit-node TCP |
 | Initial window metrics | Namespace default route | Configuration is not a captured wire signature |
+| Random local-unicast MAC | Namespace-side veth before either endpoint is UP | Physical adapter and remote Tor exit identity are separate |
 | Tor TCP TTL | Tor UID's IPv4 output outside loopback | Host TCP sysctls remain unchanged |
 | SYN option/MSS normalization | Tor UID's initial IPv4 SYNs, before Guard connections | Preserve native window/scale; shared exit TCP is unchanged |
 | Browser ClientHello | Wraith TLS client and its public API | Does not rewrite arbitrary tunneled HTTPS |
@@ -59,6 +60,31 @@ The old `--tcp-profile`, `--l4-profile` and `--os-profile` spellings remain alia
 
 `sudo wraith -i` displays the recorded strict/standard policy and reads the namespace's live TTL, window scaling, timestamps, SACK, MSS rule presence and FIB metrics. It reports configuration match, drift or unavailable readback. The namespace device/inode must match the recorded lifetime; legacy snapshots without sufficient data cannot claim successful verification. The profile shown is the saved selection, not a hard-coded Windows result. Matching configuration is explicitly separate from an unmeasured wire fingerprint.
 
+### Cross-layer pairing and drift
+
+The `L4↔L7 configured pairing` row compares the selected Wraith TLS platform with **both** namespace and Tor egress reference profiles. Matching platforms report compatibility with wire coherence unmeasured; a mismatch reports `ANOMALY`. Missing or malformed snapshots remain unavailable. This does not inspect application ClientHellos or certify that Tor's outer TLS looks like a browser.
+
+Illustrative excerpt with shortened labels, not a recorded live run:
+
+```text
+L4 TCP profile           Windows 11
+L4 live readback         ✔ Matches configured profile
+TTL / WS / TS / SACK     128 / 1 / 0 / 1
+SYN MSS cap              1460 bytes — rule present
+FIB initcwnd / initrwnd   10 / 44 segments
+Session TLS profile      chrome
+L4↔L7 configured pairing Compatible reference platforms; wire unmeasured
+Namespace L2 MAC         02:11:22:33:44:55 — local unicast; matches lease
+Tor L4 policy / worker   Rules present / Owned queue bound
+State buffer handling    Zeroize on drop; abrupt exit excluded
+```
+
+Namespace MAC inspection checks the actual address and ownership alias against its lease. It reports `DRIFT` on a mismatch. The buffer-handling row describes the inspecting process's implementation; it cannot verify erasure in a terminated worker.
+
+### L2 before L4
+
+Every new Wraith namespace receives a fresh OS-CSPRNG MAC on its veth peer, including `--namespace --morph-l4 off`. The generator sets the local bit and clears multicast. Setup verifies the address before raising either veth endpoint; failures prevent activation. Host `--mac` remains a separate physical-interface operation. Ethernet addresses stay on their link and do not traverse Tor circuits.
+
 [Detailed design and API example](https://github.com/ByGh00st/wraith/blob/main/docs/L4-SYSCTL-DESIGN.md)
 
 ## Tor → Guard: actual packet normalization
@@ -81,7 +107,7 @@ The dedicated Tor UID's non-loopback IPv4 TCP enters the owned `WRAITH_L4_EGRESS
 
 `sudo wraith -i` adds the egress profile, policy presence, owned queue binding, queued/pending SYNs and kernel/netlink delivery drop counters. Counters do not establish successful rewriting, completed connections or a p0f match. A failed worker leaves new SYNs blocked; existing established connections can continue. There is no unmodified fallback or queue-bypass.
 
-Shutdown stops managed Tor before removing the rules and restoring the pre-session firewall. A failed Tor stop withholds firewall restoration and retains recovery state. A panic leaves policy and the journal for recovery. `exec` refuses application entry during Arming.
+Shutdown stops managed Tor before removing the rules and restoring the pre-session firewall. A failed Tor stop or namespace teardown withholds firewall restoration and retains recovery state. A panic leaves policy and the journal for recovery. `exec` refuses application entry during Arming.
 
 Session IPv6 remains blocked. UDP bridge paths are outside this TCP engine. With WireGuard, the ISP sees outer tunnel packets; the normalized Tor TCP remains inside. Tor's own Guard TLS handshake is unchanged, so this feature does not make Tor indistinguishable from Chrome or guarantee DPI non-detection.
 
@@ -97,6 +123,14 @@ Session IPv6 remains blocked. UDP bridge paths are outside this TCP engine. With
 6. Restore saved `initcwnd` and `initrwnd` values and verify them, even when the namespace remains alive. Zero removes the explicit override in favor of the kernel default.
 
 All three tiers and their rollback share one pinned namespace descriptor. MSS rules are checked with `iptables -C`, use a bounded xtables lock wait, and reject duplicate ownership. An MSS readback failure triggers rule cleanup. FIB route changes preserve recorded `proto`, `scope` and `src` attributes; unfamiliar or locked metrics are rejected before mutation to avoid losing route settings. Route restoration refuses a changed route identity or recorded attributes. Older snapshots without the original metrics require namespace teardown for full restoration. Session cleanup normally deletes its namespace; the explicit restore helper can also restore new snapshots without deletion.
+
+Before a new session, the lifecycle lock serializes ownership checks and recovery. Durable namespace/egress leases allow cleanup of verified orphan resources, while ambiguous names or live namespace applications block deletion. Removing an owned namespace discards its MSS, FIB and sysctl overrides; no global host TCP reset is needed. See [orphan preflight](Troubleshooting.md#automatic-orphan-preflight).
+
+## Native SYN audit
+
+The ignored [`live_wire_syn_audit.rs`](https://github.com/ByGh00st/wraith/blob/main/crates/wraith-net/tests/live_wire_syn_audit.rs) creates the production Windows-profile namespace in a private mount/network sandbox. AF_PACKET plus `etherparse` checks TTL 128, initial SYN flags, MSS 1460, absent timestamps, the controlled receive window 64240 and the generated source MAC. It also reads back `initrwnd 44` and repeats orphan preflight after teardown.
+
+Window 64240 is asserted for this fixture's MTU 1500, MSS 1460 and adequate receive buffer. It is not a universal Windows fingerprint or a change to the preserved native window in the Tor egress engine. The audit is cross-compiled but has not been executed live here. See [execution requirements](Development.md#native-linux-wire-audit).
 
 ## What remains unmeasured?
 

@@ -62,6 +62,33 @@ See [L4 and L7](L4-and-L7.md) for profile targets, CLI selection and failure pol
 
 L4-enabled sessions arm a separate Tor UID-scoped IPv4 mangle policy before managed Tor starts. TTL applies to non-loopback Tor TCP packets; initial SYNs enter an owned NFQUEUE for option reordering, MSS reduction and Windows timestamp-off negotiation. The worker preserves window/scale, sequence numbers, flags and payload, with fresh checksums. No host TCP sysctl writes or replacement TCP stack are involved.
 
-Queue ownership is journaled before rule attachment and checked again before activation. A dead/full queue drops new SYNs without bypass; established connections can continue. Shutdown stops managed Tor before removing the policy and restoring the original tables. A failed Tor stop retains enforcement and recovery state. See the [packet-engine design](https://github.com/ByGh00st/wraith/blob/main/docs/L4-EGRESS-DESIGN.md).
+Queue ownership is journaled and persisted in a private egress lease before rule attachment, then checked again before activation. A dead/full queue drops new SYNs without bypass; established connections can continue. Shutdown stops managed Tor before removing the policy and restoring the original tables. A failed Tor stop or namespace teardown withholds firewall restoration and retains recovery state. See the [packet-engine design](https://github.com/ByGh00st/wraith/blob/main/docs/L4-EGRESS-DESIGN.md).
+
+## Ownership-checked orphan recovery
+
+Startup acquires `/run/wraith.lifecycle.lock`, checks the recorded worker identity and restores an interrupted session before claiming a new one. The lock is released after the claim; cleanup does not hold it while asking a live worker to stop, so the worker can acquire it for its own restoration.
+
+`recover_orphaned_state()` uses private durable leases in `/var/lib/wraith/`:
+
+| Lease | Ownership evidence | Cleanup scope |
+| :--- | :--- | :--- |
+| `netns-owner.json` | Boot ID, namespace device/inode, random veth/rule tag, expected MAC | Owned namespace, veth peers, exact tagged rules and expected resolver entry |
+| `egress-owner.json` | Recorded Tor egress snapshot and exact policy rules | Owned Tor access-link chain after managed Tor stops |
+
+Namespace removal discards its sysctl, MSS and FIB overrides without writing global host TCP settings. Cleanup refuses busy namespaces, changed lifetimes, unowned links and unexpected resolver files. A `veth_wraith*` prefix alone never authorizes deletion. Legacy journaled namespaces require identity and reciprocal veth-peer evidence.
+
+Leases are removed last, making partial cleanup retryable. Empty repeat preflight succeeds; an unknown fixed egress chain blocks startup instead of triggering a broad flush. After reboot, old leases can clean stale files but cannot authorize deletion of new network objects. Durable network leases do not replace the full host journal in `/var/run/wraith.state`, which may be lost across reboot.
+
+## Namespace L2 initialization
+
+The namespace-side veth gets an OS-CSPRNG MAC with `(first_byte & 0x03) == 0x02`: locally administered and unicast. Wraith writes and reads it back before either veth endpoint is UP. Entropy or readback failure aborts setup. The lease ties subsequent MAC drift inspection to that namespace lifetime.
+
+This applies to namespace creation even with L4 morphing off. Physical-adapter MAC rotation is a separate host control; a veth MAC is not a new identity at a remote Tor destination.
+
+## Owned memory and destruction
+
+`StateData`, TCP/route/egress snapshots and process identity implement zeroization on drop. `SensitiveMap` drains and wipes owned keys/values on replacement, clear and destruction. Protected buffers also cover state JSON, vault plaintext and WireGuard configuration input; WireGuard debug formatting redacts secret fields.
+
+Release builds use panic unwinding so destructors can run on ordinary error returns and unwound scopes. A panic does not synchronously restore network state: restrictive policy and records remain for recovery. SIGKILL, abort and power loss skip destructors. This is not whole-process erasure, a guarantee about third-party TLS allocations, or protection from cold-boot inspection. The disk recovery journal is intentionally retained until cleanup succeeds.
 
 **Next:** [Development and project information →](Development.md)

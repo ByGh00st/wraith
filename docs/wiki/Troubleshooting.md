@@ -15,6 +15,8 @@
 | Source update is refused | Origin, branch, dirty checkout or divergent history | Preserve local work; use a fresh clone if history was rewritten |
 | Build fails | Rust and native compiler dependencies | Correct the dependency; source synchronization is a separate step |
 | Cleanup is incomplete | The resource named in the error | Resolve the cause and retry the recorded cleanup |
+| Namespace still contains processes | Applications launched through `wraith exec` | Close them, then retry `sudo wraith -x` |
+| Ownership is ambiguous | Namespace lifetime, veth alias, lease or chain conflict | Preserve the evidence; do not flush tables or delete links by prefix |
 
 ## Retry cleanup
 
@@ -47,11 +49,25 @@ Include the command, distribution, selected interface, expected result, actual r
 
 ## Recovery details
 
-Reset scripts delegate to the installed `wraith stop` implementation. They do not flush arbitrary firewall rules or invent fallback DNS. Without a recovery record they are a no-op; with a record but no executable they report an error.
+Reset scripts delegate to the installed `wraith stop` implementation when recorded recovery is available. They do not flush arbitrary firewall rules or invent fallback DNS. `wraith stop` also checks durable owned network leases when the main session journal is absent; with neither a journal nor leases, it changes nothing. Script-level missing-record handling remains separate from this CLI preflight.
 
 A live legacy session without process-lifetime identity cannot be signaled automatically. Stop its original foreground worker with Ctrl+C, or its owning systemd service, then retry recovery. Do not delete the journal as a workaround.
 
 TCP setup errors identify missing backups, readback differences or unsupported routes. Route restoration rejects a changed default-route identity rather than editing a replacement route. Old TCP snapshots without route metrics require namespace teardown for complete restoration.
+
+## Automatic orphan preflight
+
+New starts first recover a dead recorded session, then run ownership-checked orphan cleanup under the lifecycle lock. Leases live in `/var/lib/wraith/netns-owner.json` and `egress-owner.json`; keep them while resolving a failure. Namespace ownership includes the boot ID, namespace device/inode and matching random veth/rule tags.
+
+| Reported condition | Expected behavior |
+| :--- | :--- |
+| Owned namespace and links, no applications inside | Remove scoped resources; repeat cleanup is safe |
+| Namespace replaced or old-boot lease points at current objects | Refuse deletion; current object ownership needs resolution |
+| Unmarked `veth_wraith*`, unknown egress rule or unexpected resolver entry | Refuse deletion; a name match is insufficient |
+| Another lifecycle operation is running | Retry after that operation finishes |
+| Managed Tor or namespace cannot stop | Keep firewall enforcement and recovery state |
+
+A reboot may discard `/var/run/wraith.state`; network ownership leases do not restore every prior host setting. SIGKILL also prevents in-memory destructors from running. Neither event can be described as guaranteed clean shutdown or guaranteed memory erasure.
 
 ## TCP foundation checks
 
@@ -74,6 +90,8 @@ TCP setup errors identify missing backups, readback differences or unsupported r
 | `-i` reports an unavailable queue | New SYNs remain blocked if the queue rule is present. Stop/recover before starting a fresh session. |
 | Drop counters rise | Kernel queue saturation or netlink delivery loss; these counters do not establish successful handshakes. |
 | Tor cannot be stopped during recovery | Firewall restoration is withheld. Retain the journal, resolve the managed-process failure and retry `sudo wraith -x`. |
+| `L4↔L7 configured pairing` reports `ANOMALY` | Recorded TLS, namespace L4 and Tor egress reference platforms differ. Restart with a matching selection; this alert is not a captured JA3/JA4 result. |
+| Namespace MAC reports `DRIFT` | The live address or ownership alias differs from its lease; recover the session and resolve the writer that changed it. |
 | A remote website still sees another TCP stack | Expected: the shared Tor exit opens that connection. Local access-link normalization targets the ISP/Guard path. |
 
 Native window/scale, IP ID behavior, TCP timing and Tor's outer TLS are preserved. UDP bridge paths and outer WireGuard packets are outside this TCP rewriting scope. See [L4 and L7](L4-and-L7.md) for field-level behavior.

@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/version-1.3.0-8172b3?style=flat-square" alt="Version 1.3.0">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
-  <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-227_passed-547d85?style=flat-square" alt="227 portable tests passed"></a>
+  <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-238_passed-547d85?style=flat-square" alt="238 portable tests passed"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-547d85?style=flat-square" alt="GPL 3.0"></a>
   <a href="https://github.com/ByGh00st/wraith/stargazers"><img src="https://img.shields.io/github/stars/ByGh00st/wraith?style=flat-square&amp;color=8172b3" alt="GitHub stars"></a>
 </p>
@@ -140,10 +140,10 @@ Start a session, inspect its status, and stop it to restore recorded settings. A
 <details open>
 <summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-24</b></summary>
 
-Measured **2026-09-24** with Tokei 12.1.2. Scope: source crates, manifests, Cargo configuration and the three shell scripts; standalone documentation and build output are excluded. Embedded Rust documentation is reported by Tokei under Markdown.
+Measured **2026-09-24** with Tokei 12.1.2. Scope: source crates, the native wire audit, manifests, Cargo configuration and the three shell scripts; standalone documentation and build output are excluded. The test path is explicit because of directory-ignore handling in this Tokei version. Embedded Rust documentation is reported under Markdown.
 
 ```sh
-tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
+tokei crates crates/wraith-net/tests/live_wire_syn_audit.rs Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
 ```
 
 ```text
@@ -151,14 +151,14 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
  Shell                   3          597          498           45           54
- TOML                    8          230          213            0           17
+ TOML                    8          235          218            0           17
  YAML                  342        12239        12236            0            3
 -------------------------------------------------------------------------------
- Rust                   76        23759        20771          686         2302
- |- Markdown            69          765            3          720           42
- (Total)                          24524        20774         1406         2344
+ Rust                   80        24932        21882          701         2349
+ |- Markdown            73          783            3          738           42
+ (Total)                          25715        21885         1439         2391
 ===============================================================================
- Total                 429        36825        33718          731         2376
+ Total                 433        38003        34834          746         2423
 ===============================================================================
 ```
 
@@ -284,9 +284,9 @@ Additional sources: [AnonSurf routing and restoration](https://github.com/Parrot
 | Cover traffic | Real HTTPS requests over Tor every 15–45 seconds | Explicit endpoint; no proven correlation resistance |
 | Browser hardening | Managed preferences preserving user.js | Verify the profile actually used |
 | Font controls | Fontconfig restrictions and saved-file restoration | No universal fixed font-count guarantee |
-| Memory controls | AEAD vault, zeroization and process locking | Does not isolate from a compromised kernel |
+| Memory controls | AEAD vault, owned state/snapshot zeroization and process locking | Destructors cannot run after SIGKILL, abort or power loss |
 | Optional netem | Owned qdisc and guarded cleanup | No demonstrated traffic-correlation resistance |
-| Recovery | Pre-mutation journals and retryable cleanup | Unrelated privileged writers are not coordinated |
+| Recovery | Lifecycle lock, journals, durable ownership leases and retryable cleanup | Ambiguous resources are refused; unrelated privileged writers are not coordinated |
 
 </details>
 
@@ -324,6 +324,8 @@ wraith/
     │   ├── src/kernel_lockdown.rs          # Strict Prerequisites & Reversible Sysctl Controls
     │   ├── src/process_lockdown.rs         # Process Memory Lockdown (PR_SET_DUMPABLE=0, PR_SET_NO_NEW_PRIVS)
     │   ├── src/file_snapshot.rs            # Retryable Configuration Snapshots
+    │   ├── src/sensitive.rs                # Zeroize-on-drop maps and owned recovery buffers
+    │   ├── src/session_lock.rs             # Exclusive startup and cleanup lifecycle lock
     │   ├── src/signed_update.rs            # Optional Minisign Release Verification
     │   ├── src/config.rs                   # Runtime Paths, Socket Addresses & Security Defaults
     │   └── src/state.rs                    # Atomic State Lifecycle & Safe Persistence
@@ -338,6 +340,8 @@ wraith/
     │   ├── src/ipv6.rs                     # IPv6 Dual-Stack Blackout & Leak Guard
     │   ├── src/mac.rs                      # IEEE 802.3 Hardware MAC Address & Hostname Randomizer
     │   ├── src/namespace.rs                # Isolated Kernel Network Namespace (veth jail)
+    │   ├── src/recovery.rs                 # Durable ownership leases and orphan preflight
+    │   ├── tests/live_wire_syn_audit.rs     # Ignored AF_PACKET SYN audit in an isolated sandbox
     │   ├── src/tcp_egress.rs                # Tor UID policy, queue ownership and telemetry
     │   ├── src/tcp_wire.rs                  # Checked SYN option/MSS rewrite and checksums
     │   ├── src/nfqueue.rs                   # Owned netlink queue transport (safe Rust)
@@ -830,12 +834,14 @@ A successful exit-IP probe describes that request, not every interface, protocol
 | Mechanism | Purpose |
 | :--- | :--- |
 | ChaCha20-Poly1305 | Authenticated vault encryption |
-| Zeroization on drop | Clear managed buffers during normal destruction |
+| Zeroization on drop | Clear owned session, snapshot, vault and WireGuard secret buffers during destruction |
 | Memory locking | Request resident memory; strict mode propagates failure |
 | Dump restrictions | Process controls and reversible core-pattern setting |
 | Seccomp TSYNC | Apply the ptrace restriction to existing threads |
 
-Seccomp is not a general syscall allowlist. Abnormal termination can skip destructors; memory locking does not defeat a compromised kernel. File overwrites cannot establish erasure from SSD firmware, snapshots or backups.
+`StateData`, namespace TCP snapshots, route snapshots and Tor egress snapshots implement zeroization on drop. Sensitive maps wipe their keys and values on replacement, clear and destruction. State JSON buffers, vault plaintext and WireGuard configuration input use `Zeroizing`; WireGuard debug output redacts its keys. The on-disk recovery journal remains available for restoration.
+
+Release builds use panic unwinding so ordinary error returns and unwound scopes run destructors. **SIGKILL, abort and power loss do not run Rust destructors.** This does not erase allocator copies, third-party TLS internals, kernel buffers or every process allocation, and is not a cold-boot resistance guarantee. Memory locking does not defeat a compromised kernel. Seccomp is not a general syscall allowlist; file overwrites cannot establish erasure from SSD firmware, snapshots or backups.
 
 ---
 
@@ -847,13 +853,13 @@ The panic handler restores terminal presentation while preserving restrictive po
 > [!TIP]
 > **Kernel-Safety Boundary:** Wraith operates entirely in **user space** and does not load custom kernel modules (LKMs) or experimental eBPF/XDP hooks for HTTP rewriting. A failure in Wraith's L7 proxy is therefore contained to the user-space process and normally results in dropped connections rather than direct kernel execution failure. As with any privileged software interacting with kernel networking interfaces, Wraith does not claim that underlying kernel, driver, or platform defects can never cause host instability.
 
-1. Claim the session exclusively before setup.
+1. Lock the lifecycle, verify worker identity, recover an interrupted recorded session and check owned orphan leases before claiming a new session.
 2. Journal settings and setup intent before mutation.
 3. Abort activation and attempt cleanup on required setup failure.
 4. Retain state and report failures when cleanup is incomplete.
 5. Restore saved firewall settings and release state after successful cleanup.
 
-Use `sudo wraith -x` to retry recovery. The troubleshooting table below explains the main recovery conditions.
+Use `sudo wraith -x` to retry recovery. A panic preserves enforcement and recovery records; it does not promise synchronous network teardown. The [orphan recovery flow](#orphan-recovery) below explains the ownership checks.
 
 <a id="full-security"></a>
 ## 🔧 Full-Security Setup & Recovery
@@ -879,6 +885,7 @@ Use `sudo wraith -x` to retry recovery. The troubleshooting table below explains
 | ✅ TLS platform check | Reject incompatible manual L4/TLS pairs and `--morph-l4 off` | Wraith profile configuration; no same-flow fingerprint guarantee |
 | ✅ HTTP privacy relay | Remove address metadata from the first cleartext HTTP request | CONNECT preserves the application TLS stream |
 | ✅ Local identity controls | Journal and rotate MAC, hostname and machine-id | Host changes; MAC rotation may require Wi-Fi/DHCP reconnection |
+| ✅ Namespace L2 identity | Generate and verify a fresh local-unicast veth MAC before link activation | Every created Wraith namespace; separate from physical-adapter MAC rotation |
 | ✅ Browser + font controls | Apply managed browser preferences and Fontconfig restrictions | Supported discovered profiles; applications must use those profiles |
 | ✅ Process + memory controls | Require memory lockdown, seccomp setup and an encrypted RAM session copy | Wraith process; recovery metadata also remains on disk |
 | ✅ Local process checks | Apply the existing anti-debug probe and process label | Local hardening; neither changes a remote fingerprint |
@@ -904,6 +911,30 @@ sudo wraith -x
 Run one session at a time. Replace `eth0` with your interface. `exec` puts the new application in the namespace; existing applications stay where they are. Curl still uses curl's TLS implementation. Session `--tls-profile` selects Wraith's DoH/DNSSEC and optional cover-request TLS, while `fetch` has its own profile option.
 
 `wraith -i` displays the **recorded session policy** alongside live namespace L4 readback: TTL, scaling, timestamps, SACK, MSS rule presence and FIB metrics. Separate Tor access-link rows show policy presence, owned queue binding and queue counters. An active session alone does not label an exit IP as verified. Old recovery records without the preset field remain readable and are identified as standard/legacy.
+
+<details>
+<summary><b>Inspect preview · L2 identity, L4 readback and L4↔L7 pairing</b></summary>
+
+Illustrative excerpt for a successfully configured Chrome/Windows session; **this is not a captured run**. The MAC below is an example, and labels are shortened to fit.
+
+```text
+┌──────────────────────────┬──────────────────────────────────────────────────┐
+│ L4 TCP profile           │ Windows 11                                       │
+│ L4 live readback         │ ✔ Matches configured profile                     │
+│ TTL / WS / TS / SACK     │ 128 / 1 / 0 / 1                                  │
+│ SYN MSS cap              │ 1460 bytes — rule present                        │
+│ FIB initcwnd / initrwnd  │ 10 / 44 segments                                 │
+│ Session TLS profile      │ chrome                                           │
+│ L4↔L7 configured pairing │ Compatible reference platforms; wire unmeasured  │
+│ Namespace L2 MAC         │ 02:11:22:33:44:55 — local unicast; matches lease │
+│ Tor L4 policy / worker   │ Rules present / Owned queue bound                │
+│ State buffer handling    │ Zeroize on drop; abrupt exit excluded            │
+└──────────────────────────┴──────────────────────────────────────────────────┘
+```
+
+Profile pairing compares the recorded TLS platform with both namespace and Tor egress profiles. A mismatch reports `ANOMALY`; sysctl/MSS/FIB or namespace MAC differences report drift, while failed reads remain unavailable. These are configuration checks. They do not measure a same-flow JA3/JA4/p0f identity or prove that a previous worker's memory was erased.
+
+</details>
 
 ### Optional additions with your own inputs
 
@@ -945,6 +976,23 @@ Wraith checks them instead of irreversibly enabling them for a temporary session
 
 Snapshots preserve regular-file content, mode/ownership, missing-file state and resolver symlink targets. They do not capture ACLs/xattrs, Tor working data or independent changes by other programs. New sessions do not change resolver immutable flags or recursively chown Tor runtime directories.
 
+<a id="orphan-recovery"></a>
+### Crash recovery before the next session
+
+Startup runs ownership-checked `recover_orphaned_state()` under `/run/wraith.lifecycle.lock`. Durable, private leases in `/var/lib/wraith/netns-owner.json` and `egress-owner.json` complement the session journal. Namespace ownership binds the boot ID, namespace device/inode and random veth/rule tag; cleanup verifies these before deletion.
+
+| Found during preflight | Action |
+| :--- | :--- |
+| Verified live Wraith worker | Refuse a competing start |
+| Interrupted session journal | Retry recorded restoration before arming |
+| Owned orphan namespace / veth | Remove verified resources and their scoped rules; namespace removal discards its TCPMSS/FIB/sysctl overrides |
+| Owned orphan Tor egress policy | Stop managed Tor, then remove the recorded policy |
+| Busy namespace, changed identity or unmarked `veth_wraith*` | Refuse automatic deletion and report the conflict |
+
+Successful cleanup removes its lease last; a repeated preflight is safe. A failed Tor stop or namespace teardown withholds firewall restoration and retains recovery state. Close namespace applications before retrying `sudo wraith -x`. No cleanup path flushes an entire host table merely because state is missing.
+
+After a reboot, persistent leases can clean stale owned files, but an old boot ID cannot authorize deletion of current network objects. These network leases are not a complete persistent host backup: the `/var/run/wraith.state` journal may disappear across reboot.
+
 ### Connection troubleshooting
 
 | Symptom | First check |
@@ -954,6 +1002,7 @@ Snapshots preserve regular-file content, mode/ownership, missing-file state and 
 | UDP/QUIC fails | Tor carries TCP, not arbitrary UDP |
 | DNS returns SERVFAIL | Tor/DoH availability, proofs and system clock |
 | Cleanup reports errors | Resolve reported failure, retain state and retry `sudo wraith -x` |
+| Namespace still contains processes | Close applications launched through `wraith exec`, then retry recovery |
 | Another firewall manager writes rules | Coordinate ownership; writers are not one transaction |
 
 Live Linux routing and kernel recovery remain integration work. Keep console access when evaluating network changes.
@@ -1012,6 +1061,8 @@ This is selective TCP normalization, not a replacement TCP stack. IP ID behavior
 
 Before namespace startup completes, Wraith snapshots and applies sysctls, installs an owned IPv4 SYN `TCPMSS --set-mss` rule, and changes the default route's `initcwnd` / `initrwnd` metrics. Every tier has readback checks. Duplicate owned MSS rules, missing settings, readback differences and absent or ambiguous default routes stop setup. Failed setup rolls back; cleanup errors remain visible. Route restoration preserves recorded protocol/scope/source attributes and rejects changed identities or unsupported attributes instead of silently dropping them.
 
+**L2 initialization:** the namespace-side veth receives six bytes from the OS CSPRNG, with the locally administered bit set and the multicast bit cleared. Wraith writes and reads back the MAC **before either veth endpoint is brought UP**. Entropy, write or readback failure stops setup. This changes the virtual link's local identity; it does not change the physical adapter's MAC unless host MAC rotation is separately enabled, and MAC addresses are not carried through routed Tor connections.
+
 `sudo wraith -i` reads **TTL, window scaling, timestamps, SACK, MSS rule presence and FIB window metrics** from the recorded namespace lifetime. It reports matching configuration, drift or unavailable observations. An old snapshot never becomes a fabricated Windows profile. The display explicitly keeps **wire fingerprint: not measured** separate from configuration readback.
 
 The namespace L4 engine accepts only the managed namespace and approved TCP keys, rejects host namespace aliases and retains one namespace descriptor across sysctl, MSS, FIB and rollback operations. The legacy host sysctl writer is disabled. See the [L4 architecture](docs/L4-SYSCTL-DESIGN.md) for the API and failure policies. Namespace readback verifies configuration, not an exact operating-system fingerprint or receive-window byte count. The separate egress engine rewrites SYN option layout; live capture is still required to measure the resulting wire signature.
@@ -1022,7 +1073,7 @@ New Linux session records bind the worker to its boot ID, process start ticks an
 
 Honeypot startup must reserve every configured port before adding LAN firewall exceptions. LAN mode requires a private address on the selected interface; connections have a shared limit and a deadline. A port already used by a real service aborts startup.
 
-`wraith stop` restores recorded settings. Missing state never triggers a firewall flush, and failed restoration retains its recovery record for retry. Reset and uninstall use the same restoration path. Sessions leave irreversible kernel lockdown, kexec-disable and ptrace policies under the administrator's control. File overwrites cannot guarantee erasure from SSD remapping, snapshots or backups.
+`wraith stop` restores recorded settings and can recover owned network leases when the main journal is absent. Missing state never triggers a firewall flush, and failed restoration retains its recovery record for retry. Reset and uninstall delegate to the recorded restoration path. Sessions leave irreversible kernel lockdown, kexec-disable and ptrace policies under the administrator's control. File overwrites cannot guarantee erasure from SSD remapping, snapshots or backups.
 
 <a id="updates"></a>
 ## ⬆️ Official GitHub Updates
@@ -1046,16 +1097,29 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-24**: **227 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
+Checks recorded **2026-09-24**, implementation [`5a04818`](https://github.com/ByGh00st/wraith/commit/5a04818): **238 portable tests passed, 0 failed, 1 ignored**. Workspace checking passed on Windows; **all-target Clippy with warnings denied passed on Windows and for the Linux target**. Linux-specific code, including the native wire audit, was cross-compiled; privileged Linux tests and a complete installed-system update were not executed.
 
 ```bash
+cargo check --workspace --all-targets --locked
 cargo test --workspace --locked
-cargo check --workspace --tests --target x86_64-unknown-linux-gnu --locked
-cargo clippy --workspace --target x86_64-unknown-linux-gnu --locked -- -D warnings
+cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo audit --deny warnings
+# When cross-checking from another platform:
+cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu --locked -- -D warnings
 ```
 
-Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers, CMake, Perl and libclang for ring and BoringSSL. Portable regressions cover real browser-profile TLS handshakes against a local test server, certificate and hostname rejection, response limits, CONNECT framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. Tor access-link regressions also cover fixed SYN layouts/checksums, extension and payload preservation, malformed packets, netlink framing/ownership, fail-closed policy construction and withheld firewall restoration after a failed Tor stop. They do not execute Linux firewall/kernel-hardening commands.
+Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers, CMake, Perl and libclang for ring and BoringSSL. Portable regressions cover real browser-profile TLS handshakes against a local test server, certificate and hostname rejection, response limits, CONNECT framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. Tor access-link regressions cover SYN layouts/checksums, malformed packets, netlink framing/ownership and fail-closed policy handling. New checks cover sensitive-map replacement/error/unwind drops, state/snapshot erasure, MAC bits/readback, ownership rejection and configured cross-layer mismatches. The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). This checks published advisories, not every possible defect.
+
+### Native Linux wire audit · opt in
+
+[`live_wire_syn_audit.rs`](crates/wraith-net/tests/live_wire_syn_audit.rs) uses `socket2` AF_PACKET and `etherparse` to inspect a real kernel SYN in an isolated mount/network sandbox. It creates a Windows-profile namespace, checks **TTL 128, SYN without ACK, MSS 1460, no timestamp option, window 64240**, and verifies the namespace MAC. It also checks `initrwnd 44` and repeated orphan preflight. The window assertion uses a controlled MTU/MSS/receive-buffer fixture, not a universal Windows signature.
+
+```bash
+# Linux, with build dependencies, util-linux, iproute2 and Netfilter tools:
+sudo -E cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocapture
+```
+
+The test is `#[ignore]` by default. It needs root/CAP_NET_ADMIN, CAP_NET_RAW and mount-namespace privileges. Its own `/etc`, `/run` and `/var/lib` bind mounts isolate fixed Wraith paths; traffic stays on the private veth. It does **not** exercise Tor Guard connectivity, the host egress NFQUEUE worker, PMTU over a real path or a same-flow SYN/ClientHello capture. It has been compiled, **not run live**, in the recorded validation.
 
 Report failures with the command, distribution, interface and sanitized logs; omit passwords, private keys and tokens. Include the expected behavior and the exact failing step so an issue can be reproduced.
 

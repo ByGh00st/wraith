@@ -27,6 +27,7 @@ sudo wraith -Fs -I eth0 --tls-profile firefox
 | MSS / route windows | Windows: 1460 / 10 / 44; macOS: 1440 / 10 / 45; Linux: kernel MSS/FIB defaults |
 | HTTP privacy relay | Sanitize address headers on the first cleartext request; preserve CONNECT TLS |
 | Identity controls | Journal and rotate host MAC, hostname and machine-id |
+| Namespace L2 | Fresh CSPRNG local-unicast veth MAC, verified before link activation |
 | Browser / fonts | Apply supported discovered browser profiles and Fontconfig restrictions |
 | Process / RAM | Require memory lockdown, seccomp and successful encrypted session-copy storage |
 | Local process checks | Existing anti-debug probe and process label; no remote fingerprint protection |
@@ -86,7 +87,9 @@ sudo wraith -i
 sudo wraith -x
 ```
 
-`-i` shows the recorded strict/standard policy and reads live L4 settings, MSS rules and route metrics. Separate Tor access-link rows show rules, owned queue binding and queue counters. Legacy records are not presented as confirmed strict sessions. An active record alone does not verify a Tor exit IP.
+`-i` shows the recorded strict/standard policy and reads live L4 settings, MSS rules and route metrics. L4 telemetry also reports namespace MAC drift, configured L4↔L7 platform mismatches and the scope of state-buffer zeroization. Separate Tor access-link rows show rules, owned queue binding and queue counters. Legacy records are not presented as confirmed strict sessions. An active record alone does not verify a Tor exit IP.
+
+Startup checks worker ownership and runs orphan recovery under a lifecycle lock before arming. Private durable leases authorize only the recorded namespace, tagged veth/rules and Tor egress policy. Busy or ambiguous resources stop startup; close namespace applications before recovery. See [recovery details](Troubleshooting.md#automatic-orphan-preflight).
 
 Only newly launched namespace applications get its sysctl/FIB settings. Tor's outer IPv4 TCP receives the separate egress policy before bootstrap. Missing NFQUEUE/TTL support refuses startup; worker failure blocks new SYNs while established connections may continue. The public Tor exit and Tor's outer TLS handshake remain unchanged. Applications keep their own TLS implementations; the session TLS selection applies to Wraith's DNS and optional cover clients. Managed browser settings require the application to use a supported profile. The RAM vault protects a session copy; the recovery journal remains on disk. See [L4 and L7](L4-and-L7.md) for the complete field and observer boundaries.
 

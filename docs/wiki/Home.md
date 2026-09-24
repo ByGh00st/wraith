@@ -37,7 +37,10 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 | Local ISP / firewall scope | Tor UID TCP TTL, SYN option order and MSS normalization; shared Tor exits preserved |
 | Worker ownership | Boot/start-time/executable identity and pidfd-bound shutdown |
 | Namespace safety | One pinned descriptor, approved TCP keys and host-alias rejection |
-| Profile pairing | Explicit Chrome/Windows, Firefox/Linux and Safari/macOS metadata |
+| Orphan recovery | Lifecycle lock, durable ownership leases and refusal to delete ambiguous resources |
+| L2 identity | CSPRNG local-unicast veth MAC, verified before activation |
+| Owned memory | Zeroization of session/snapshot buffers on drop; abrupt termination excluded |
+| Profile pairing | Configured L4↔L7 mismatch alerts, live TCP/MAC drift and explicit unmeasured wire scope |
 | TCP restoration | Original route metrics restored and read back without deleting the namespace |
 | HTTP privacy | Initial-request address headers removed while preserving binary bodies |
 | Proxy availability | 10-second setup-write deadline; 120-second relay inactivity limit |
@@ -48,6 +51,6 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 **6 Rust crates · 17 locales · GPL-3.0 · x86_64 Linux runtime**
 
-The latest recorded checks include **227 portable tests**, Linux-target test compilation and production Clippy with warnings denied. Live Linux routing, NFQUEUE/Guard integration and installed-system updates remain outside that validation. See [the validation guide](Development.md).
+The latest recorded checks include **238 passing portable tests**, one ignored native wire audit, and **all-target Clippy with warnings denied** on Windows and for the Linux target. The Linux wire audit is compiled, not executed; live routing, NFQUEUE/Guard integration and installed-system updates remain outside that validation. See [the validation guide](Development.md).
 
 <p align="center"><a href="https://github.com/ByGh00st/wraith">Repository</a> · <a href="https://github.com/ByGh00st/wraith#privacy-matrix">Tool comparison</a> · <a href="https://github.com/ByGh00st/wraith/issues">Issues</a></p>

@@ -17,7 +17,9 @@ The project aims to protect intended Tor routing, DNS integrity, sensitive runti
 | Local ISP/firewall TCP fingerprint observation | Namespace profiles plus Tor UID TTL and SYN option/MSS normalization | Preserve native window/scale and Tor Guard TLS; shared exit stack unchanged; live wire validation pending |
 | HTTP client header & Tool exposure | Real-time L7 Proxy Deep Packet Inspection (DPI) & wire-level UA rewriting | Does not decrypt HTTPS. Modifies cleartext HTTP headers. |
 | Unsafe setup or interrupted cleanup | Pre-mutation state, snapshots and retryable restoration | Snapshots do not capture all metadata or independent external changes |
-| Process inspection and buffer exposure | Ptrace restrictions, memory locking, authenticated vault and zeroization | Does not defend against a compromised kernel; crashes may skip destructors |
+| Process inspection and buffer exposure | Ptrace restrictions, memory locking, authenticated vault and owned state/snapshot zeroization | SIGKILL/abort/power loss skip destructors; allocator copies, third-party TLS and compromised kernels remain outside the guarantee |
+| Orphaned network resources | Lifecycle lock, durable namespace/egress leases and ownership-checked teardown | Ambiguous resources are refused; network leases do not replace a persistent full host backup |
+| Virtual-link identifiers | OS-CSPRNG local-unicast namespace MAC before activation | Does not change the physical MAC or identity at a remote Tor exit |
 | Traffic timing observation | Optional netem and bounded cover requests | No demonstrated traffic-correlation resistance |
 
 ## Explicit non-goals

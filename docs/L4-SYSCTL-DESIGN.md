@@ -58,13 +58,17 @@ match apply_sysctl_profile("wraith_ns", &profile, SysctlFailurePolicy::FailClose
 
 `FailClosed` propagates errors. `RestoreAndContinue` may return `Skipped` for eligible sysctl failures only when no writes occurred or rollback completed. Host/namespace guard failures and failed rollback always remain errors. Errors retain `thiserror` variants; application callers can add `anyhow::Context` without replacing the library's typed API.
 
-This is a recoverable sequence, not a kernel-atomic multi-key transaction: intermediate values exist while it runs. The namespace should not accept application workloads until setup succeeds. A process crash cannot execute an in-memory rollback; the existing journaled namespace teardown is the recovery boundary. The session records namespace ownership before setup; `wraith -x` and the existing sentry cleanup use that journal for teardown.
+This is a recoverable sequence, not a kernel-atomic multi-key transaction: intermediate values exist while it runs. The namespace should not accept application workloads until setup succeeds. A process crash cannot execute an in-memory rollback; the journal and durable ownership lease support later teardown. `wraith -x` and startup preflight validate ownership before cleanup. The panic sentry preserves restrictive policy and recovery records rather than promising synchronous teardown.
 
 ## CLI, MSS and route integration
 
 `--morph-l4 auto|windows|windows11|macos|linux|off` replaces the displayed `--tcp-profile` name while retaining its aliases. Explicit `auto` enables a namespace and follows the session `--tls-profile chrome|firefox|safari` platform. Off preserves namespace isolation if requested but conflicts with full-security or `--tcp-mask`. Persisted settings live under `hardening.morph_l4` and `hardening.tls_profile`; explicit CLI values win.
 
 The namespace creator applies `apply_profile_to_netns(..., true)` after creating the default route. `create_namespace_with_optional_l4_profile(None)` builds the same isolation without changing TCP parameters. Startup errors trigger owned-resource teardown, and cleanup errors remain visible for recovery.
+
+Creation also persists a private namespace lease before veth/rule setup, tags both peers and host rules, and assigns an OS-CSPRNG local-unicast MAC to the namespace peer before either endpoint is UP. Teardown checks the namespace lifetime, boot, ownership tags, resolver contents and absence of namespace applications. Removing the owned namespace discards its TCP overrides; ambiguous legacy resources are refused. The lifecycle lock serializes CLI preflight and final cleanup.
+
+`NetnsTcpSnapshot` and `RouteMetricSnapshot` zeroize on drop; snapshot maps wipe their owned keys and values. This does not replace the on-disk recovery record or run destructors after SIGKILL/abort. The ignored [native wire audit](../crates/wraith-net/tests/live_wire_syn_audit.rs) cross-compiles and can check a real Windows-profile SYN in a private Linux sandbox. Its controlled window-64240 fixture has not been executed in the recorded Windows-host validation.
 
 1. Read the required route snapshot before sysctl mutation.
 2. Apply and read back every requested sysctl.

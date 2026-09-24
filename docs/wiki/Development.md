@@ -4,32 +4,61 @@
 
 ## Recorded checks — 2026-09-24
 
-Implementation baseline: [`67e744f`](https://github.com/ByGh00st/wraith/commit/67e744f).
+Implementation baseline: [`5a04818`](https://github.com/ByGh00st/wraith/commit/5a04818).
 
 | Check | Result |
 | :--- | :--- |
-| Portable workspace tests | **227 passed** |
-| Linux-target production Clippy | Passed with warnings denied |
-| Linux-target test compilation | Passed; Linux tests were not executed on the Windows host |
+| Workspace check, all targets | Passed on the Windows build host |
+| Portable workspace tests | **238 passed, 0 failed, 1 ignored** |
+| Windows all-target Clippy | Passed with warnings denied |
+| Linux-target all-target Clippy | Passed with warnings denied; includes test compilation |
+| Dependency audit | Passed with warnings denied; 351 locked dependencies |
+| Native Linux SYN audit | Compiled; ignored and not executed |
 | Privileged live Linux networking | Not performed |
 | Same-flow SYN and ClientHello capture | Not performed |
 | Complete installed-system update | Not exercised |
 
 Coverage includes local real TLS handshakes, certificate/hostname rejection, response limits, CONNECT framing, half-close responses, stalled writes, HTTP address-header removal, DNSSEC validation failures, state preservation, process-stat parsing, route-metric restoration, profile validation, legacy MSS-field compatibility, sysctl encoding, host-write rejection, namespace name/identity guards firewall construction, CLI auto/off and aliases, MSS ownership/readback/rollback, and live-telemetry drift detection. Additional regressions cover competing shortcuts, subcommand option scope, child argument boundaries, invalid configuration without data loss, legacy read-only loading, configuration path precedence, and background worker ownership. Installer shell syntax was checked without installing a service. Strict-preset regressions cover configuration/CLI parity, disabled defaults, the full L4/TLS compatibility matrix, refused activation on absent snapshots or failed readback, host prerequisite validation, legacy-state compatibility and unsupported packet capture. The local TLS exchange also checks the selected platform in HTTP headers.
 
-Access-link regressions cover fixed SYN layouts and independently calculated checksums, extension/payload preservation, malformed and truncated packets, netlink framing and ACKs, queue ownership metadata, policy setup failures, activation boundaries and withheld firewall restoration after a failed Tor stop. The engine adds no dependencies or unsafe blocks.
+Access-link regressions cover fixed SYN layouts and independently calculated checksums, extension/payload preservation, malformed and truncated packets, netlink framing and ACKs, queue ownership metadata, policy setup failures, activation boundaries and withheld firewall restoration after a failed Tor stop. The NFQUEUE engine uses the existing safe Rust netlink dependency. The new native wire audit adds Linux-only development dependencies on `socket2` and `etherparse`.
 
-Linux pidfd identity tests and the NFQUEUE runtime compile with the Linux target; that is not a claim that they ran on Linux. Live Guard connectivity, PMTU/retransmission behavior and p0f captures remain unmeasured. No new dependency audit was performed in this change.
+Hardening regressions cover sensitive-map replacement/clear/error/unwind drops, serialized map compatibility, state and TCP snapshot zeroization, redacted WireGuard keys, MAC bit layout and readback failures, refusal of unmarked/non-veth resources, reciprocal legacy veth ownership and configured L4↔L7 mismatches. Repeated actual orphan preflight is exercised by the ignored live test, not the portable suite.
+
+Linux pidfd identity tests and the NFQUEUE runtime compile with the Linux target; that is not a claim that they ran on Linux. Live Guard connectivity, PMTU/retransmission behavior and p0f captures remain unmeasured. The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). Advisory scanning does not establish absence of all defects.
 
 ## Reproduce
 
 ```bash
+cargo check --workspace --all-targets --locked
 cargo test --workspace --locked
-cargo check --workspace --tests --target x86_64-unknown-linux-gnu --locked
-cargo clippy --workspace --target x86_64-unknown-linux-gnu --locked -- -D warnings
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo audit --deny warnings
+# Cross-check Linux-specific production and test code:
+cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu --locked -- -D warnings
 ```
 
-Cross-compilation needs the Linux Rust target, compatible C/C++ tools and headers, CMake, Perl and libclang. The Clippy result above covers production targets; pre-existing test lints are not included in that claim. Portable tests do not execute privileged Linux firewall operations.
+Cross-compilation needs the Linux Rust target, compatible C/C++ tools and headers, CMake, Perl and libclang. All-target Clippy includes test targets; the earlier test-module-order warnings have been corrected. Portable tests do not execute privileged Linux firewall operations.
+
+## Native Linux wire audit
+
+```bash
+sudo -E cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocapture
+```
+
+The [`live_wire_syn_audit.rs`](https://github.com/ByGh00st/wraith/blob/main/crates/wraith-net/tests/live_wire_syn_audit.rs) integration test is intentionally `#[ignore]`. Run it on Linux with build dependencies, util-linux (`unshare`, `mount`, `nsenter`), iproute2, iptables/ip6tables and their save tools. The kernel must support namespaces, veth and the required Netfilter targets. It needs root with network administration, raw socket and mount-namespace privileges; a restricted container can still refuse it.
+
+| Phase | What it checks |
+| :--- | :--- |
+| Isolation | Re-execute under private mount/network namespaces; verify their identities differ from the parent |
+| Filesystem scope | Privately bind `/etc`, `/run` and `/var/lib` so fixed Wraith paths do not reach the host |
+| Production setup | Apply the same Windows profile as `--morph-l4 windows`, with owned namespace, MAC, MSS rule and FIB metrics |
+| Native capture | Use `socket2` AF_PACKET and `etherparse` on the private host-side veth |
+| SYN invariants | TTL 128, SYN without ACK, MSS 1460, no timestamps, window 64240 and the expected local-unicast source MAC |
+| Cleanup | Teardown and run orphan preflight twice |
+
+The trigger is a nonblocking TCP connect to the benchmark range `198.18.0.1:443` inside the isolated namespace. It never uses a real external route. A bounded capture waits for the initial SYN. Window 64240 is a controlled MTU 1500 / MSS 1460 / adequate receive-buffer / `initrwnd 44` fixture; a different kernel result fails the audit rather than being labeled a native Windows signature.
+
+This audit has **not been run live** in the recorded checks. It does not validate the host NFQUEUE worker, Guard connectivity, real-path PMTU/retransmission behavior or a same-flow SYN/ClientHello identity. Packet-capture success would establish only the listed fixture invariants.
 
 ## Contributions
 
