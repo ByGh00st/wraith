@@ -107,5 +107,18 @@ INSTALL_TMP=$(mktemp /usr/local/bin/.wraith-install.XXXXXXXXXX)
 install -m 755 -- "$BUILD_DIR/$TARGET_TRIPLE/release/wraith" "$INSTALL_TMP"
 mv -fT -- "$INSTALL_TMP" /usr/local/bin/wraith
 INSTALL_TMP=''
+
+# Automatically install shell completions for bash and zsh
+if [[ -d /usr/share/bash-completion/completions ]]; then
+    /usr/local/bin/wraith --completions bash > /usr/share/bash-completion/completions/wraith 2>/dev/null || true
+elif [[ -d /etc/bash_completion.d ]]; then
+    /usr/local/bin/wraith --completions bash > /etc/bash_completion.d/wraith 2>/dev/null || true
+fi
+if [[ -d /usr/share/zsh/vendor-completions ]]; then
+    /usr/local/bin/wraith --completions zsh > /usr/share/zsh/vendor-completions/_wraith 2>/dev/null || true
+elif [[ -d /usr/local/share/zsh/site-functions ]]; then
+    /usr/local/bin/wraith --completions zsh > /usr/local/share/zsh/site-functions/_wraith 2>/dev/null || true
+fi
+
 echo -e "${CLR_EMERALD}Installed. Existing sessions keep running their current executable.${CLR_RESET}"
 echo "Run wraith --help. Start a new session after stopping any existing session normally."

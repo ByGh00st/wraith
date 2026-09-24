@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.6] - 2026-09-25
+
+### Added & Improved
+- Added single-letter emergency reset shortcuts `-R` and `-N` (`sudo wraith -R` / `sudo wraith -N`).
+- Upgraded emergency reset interface to high-tech cybersec HUD telemetry:
+  - Real-time step-by-step progress logging during subsystem teardown.
+  - Detailed recovery table with UTF8 rounded corners, cyan headers, and green status badges.
+  - Explicit purge of orphaned `veth-wr-host` and `veth-wr-ns` interfaces.
+- Hardened X11 authentication detection in `spawn_monitor_terminal` for direct root shells (`xhost +local:` and fallback to `/home/*/.Xauthority`), enabling `[M]` pop-up monitor in Kali Linux desktop sessions.
+- Added automatic shell completion generation and installation for both Bash and Zsh in `build.sh`.
+
 ## [1.4.5] - 2026-09-24
 
 ### Added

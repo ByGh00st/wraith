@@ -1317,27 +1317,32 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
         "DNS SUBSYSTEM"
     } else if target == "firewall" {
         "FIREWALL & NETFILTER SUBSYSTEM"
+    print_banner(false);
+    let scope_display = if target == "dns" {
+        "DNS SUBSYSTEM"
+    } else if target == "firewall" {
+        "NETFILTER / FIREWALL"
     } else {
-        "NETWORK SUBSYSTEM"
+        "FULL NETWORK STACK & NAMESPACES"
     };
 
     print_step(
-        &format!("Initiating emergency host network reset [Target: {scope_display}]..."),
-        "info",
+        &format!("Initiating emergency host network teardown [Scope: {scope_display}]..."),
+        "warn",
     );
 
-    let mut report_rows = Vec::new();
+    let mut report_rows: Vec<(&'static str, String, &'static str)> = Vec::new();
     let full_or_core = target.is_empty() || target == "network" || target == "net" || target == "all";
 
     // 1. Terminate any active or recorded Wraith sessions
     if full_or_core {
+        print_step("Terminating active Tor daemons & releasing session locks...", "info");
         let state_mgr = StateManager::default();
         if state_mgr.exists() {
-            print_step("Terminating active/interrupted Wraith session and releasing locks...", "info");
             let _ = cmd_stop_inner(false, false, false).await;
-            report_rows.push("Wraith Session State : Terminated & Disarmed".to_string());
+            report_rows.push(("Wraith Session State", "Active session stopped & journals disarmed".to_string(), "DISARMED"));
         } else {
-            report_rows.push("Wraith Session State : Clean (No active sessions)".to_string());
+            report_rows.push(("Wraith Session State", "No active sessions; state clean".to_string(), "CLEAN"));
         }
 
         #[cfg(target_os = "linux")]
@@ -1348,13 +1353,14 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
         }
 
         let _ = stop_tor_daemon();
-        report_rows.push("Tor Core Daemons     : Stopped & Detached".to_string());
+        report_rows.push(("Tor Core Daemons", "Killed & IPC control sockets detached".to_string(), "TERMINATED"));
     }
 
     // 2. Namespaces and Virtual Links Purge
     if full_or_core {
         #[cfg(target_os = "linux")]
         {
+            print_step("Obliterating network namespaces (wraith-ns) and virtual interfaces...", "info");
             if let Ok(true) = wraith_net::recovery::has_orphan_leases() {
                 let _ = wraith_net::recovery::recover_orphaned_state();
             }
@@ -1364,8 +1370,8 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
                 .args(["netns", "del", wraith_net::namespace::NAMESPACE_NAME])
                 .status();
 
-            // Force destroy veth interfaces
-            for veth in &[wraith_net::namespace::VETH_HOST, wraith_net::namespace::VETH_NS, "veth-host", "veth-ns"] {
+            // Force destroy veth interfaces including veth-wr
+            for veth in &[wraith_net::namespace::VETH_HOST, wraith_net::namespace::VETH_NS, "veth-host", "veth-ns", "veth-wr-host", "veth-wr-ns"] {
                 let _ = Command::new("ip").args(["link", "del", veth]).status();
             }
 
@@ -1374,7 +1380,7 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
                 let _ = Command::new("ip").args(["link", "del", wg]).status();
             }
 
-            report_rows.push("Network Namespaces   : Purged (wraith-ns & veth detached)".to_string());
+            report_rows.push(("Kernel Namespaces", "wraith-ns destroyed & veth-wr unlinked".to_string(), "PURGED"));
         }
     }
 
@@ -1382,6 +1388,7 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
     if full_or_core || target == "firewall" {
         #[cfg(target_os = "linux")]
         {
+            print_step("Flushing Netfilter tables & restoring default ACCEPT policy...", "info");
             // Reset iptables policies to ACCEPT and flush all tables
             for table in &["filter", "nat", "mangle", "raw"] {
                 let _ = Command::new("iptables").args(["-t", table, "-F"]).status();
@@ -1416,7 +1423,7 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
                 }
             }
 
-            report_rows.push("Firewall & Killswitch: Flushed & Reset (iptables/nftables clean)".to_string());
+            report_rows.push(("Netfilter Firewall", "iptables/ip6tables/nftables reset to ACCEPT".to_string(), "NEUTRALIZED"));
         }
     }
 
@@ -1424,6 +1431,7 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
     if full_or_core || target == "dns" {
         #[cfg(target_os = "linux")]
         {
+            print_step("Unlocking /etc/resolv.conf and setting clearnet Anycast DNS...", "info");
             let resolv_path = Path::new(wraith_core::config::RESOLV_PATH);
             let backup_path = Path::new(wraith_core::config::RESOLV_BACKUP);
 
@@ -1457,7 +1465,7 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
             let _ = Command::new("systemctl").args(["restart", "systemd-resolved"]).status();
             let _ = Command::new("systemctl").args(["restart", "NetworkManager"]).status();
 
-            report_rows.push("DNS Resolution       : Restored (/etc/resolv.conf clearnet)".to_string());
+            report_rows.push(("DNS Resolvers", "/etc/resolv.conf restored to Anycast upstream".to_string(), "RESOLVED"));
         }
     }
 
@@ -1465,6 +1473,7 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
     if full_or_core {
         #[cfg(target_os = "linux")]
         {
+            print_step("Flushing routing table 100, ARP cache and elevating links...", "info");
             // Flush policy routing table 100
             let _ = Command::new("ip").args(["rule", "del", "table", "100"]).status();
             let _ = Command::new("ip").args(["route", "flush", "table", "100"]).status();
@@ -1480,28 +1489,19 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
                 }
             }
 
-            report_rows.push("Interface Links & FIB: Brought UP & Routing Tables Normalized".to_string());
+            report_rows.push(("Routing & FIB State", "Default route UP & physical interfaces linked".to_string(), "ONLINE"));
         }
     }
 
     #[cfg(not(target_os = "linux"))]
     {
-        report_rows.push("Platform Layer       : Non-Linux Host (Commands Simulated)".to_string());
+        report_rows.push(("Platform Compatibility", "Non-Linux Host Environment".to_string(), "SIMULATED"));
     }
 
-    report_rows.push("Clearnet Connectivity: Verified & Ready for Standard Traffic".to_string());
+    report_rows.push(("Clearnet Stack", "All fail-closed barriers dropped & traffic normalized".to_string(), "OPERATIONAL"));
 
-    println!();
-    let reset_box = render_box(
-        "🔄 WRAITH-PRIME // EMERGENCY NETWORK RESET COMPLETE",
-        &report_rows,
-        BoxCorner::Rounded,
-        78,
-    );
-    for line in reset_box {
-        println!("{line}");
-    }
-    println!();
+    let slice_rows: Vec<(&str, &str, &str)> = report_rows.iter().map(|(a, b, c)| (*a, b.as_str(), *c)).collect();
+    display::print_reset_report(&slice_rows);
     print_step("Host network stack successfully restored to default clearnet state.", "ok");
     Ok(())
 }
@@ -1652,6 +1652,14 @@ pub fn cmd_pentest() -> Result<()> {
 
 pub fn spawn_monitor_terminal() -> bool {
     let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".into());
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xhost")
+            .arg("+local:")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
     let xauth = if let Ok(xa) = std::env::var("XAUTHORITY") {
         xa
     } else if let Ok(sudo_user) = std::env::var("SUDO_USER") {
@@ -1662,7 +1670,17 @@ pub fn spawn_monitor_terminal() -> bool {
             "/root/.Xauthority".into()
         }
     } else {
-        "/root/.Xauthority".into()
+        let mut found = "/root/.Xauthority".to_string();
+        if let Ok(entries) = std::fs::read_dir("/home") {
+            for entry in entries.flatten() {
+                let candidate = entry.path().join(".Xauthority");
+                if candidate.exists() {
+                    found = candidate.to_string_lossy().to_string();
+                    break;
+                }
+            }
+        }
+        found
     };
     // Recover DBUS_SESSION_BUS_ADDRESS for GUI terminals running under sudo
     let dbus_addr = std::env::var("DBUS_SESSION_BUS_ADDRESS").unwrap_or_else(|_| {
