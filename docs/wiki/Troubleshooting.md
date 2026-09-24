@@ -65,6 +65,19 @@ TCP setup errors identify missing backups, readback differences or unsupported r
 - MSS rule readback or FIB setup failure: startup aborts and attempts rollback. Ensure iptables supports TCPMSS/comment and the namespace has its single managed default route. Do not insert duplicate `wraith-l4` rules.
 - Unsupported route attributes: Wraith refuses a lossy FIB rewrite; recover and create a fresh managed namespace rather than deleting unrelated route metrics.
 
+## Tor access-link L4 checks
+
+| Symptom | Meaning / action |
+| :--- | :--- |
+| Queue bind or TTL/NFQUEUE setup fails | Verify kernel Netfilter support and permissions. L4 startup fails instead of silently using unmodified SYNs. |
+| Queue 41884 or owned chain already exists | Recover the previous Wraith session; do not delete another process's queue or firewall rules. |
+| `-i` reports an unavailable queue | New SYNs remain blocked if the queue rule is present. Stop/recover before starting a fresh session. |
+| Drop counters rise | Kernel queue saturation or netlink delivery loss; these counters do not establish successful handshakes. |
+| Tor cannot be stopped during recovery | Firewall restoration is withheld. Retain the journal, resolve the managed-process failure and retry `sudo wraith -x`. |
+| A remote website still sees another TCP stack | Expected: the shared Tor exit opens that connection. Local access-link normalization targets the ISP/Guard path. |
+
+Native window/scale, IP ID behavior, TCP timing and Tor's outer TLS are preserved. UDP bridge paths and outer WireGuard packets are outside this TCP rewriting scope. See [L4 and L7](L4-and-L7.md) for field-level behavior.
+
 ## CLI and configuration errors
 
 - **Choose one operation:** run status, update, cleanup and start as separate invocations. Use `start -F`, not `-F start`.

@@ -43,6 +43,8 @@ The DoH connection uses Wraith's certificate-verified Chrome TLS profile through
 
 Strict policy uses a dedicated Tor UID and netfilter enforcement. Optional namespaces provide another routing boundary. Other root processes can change host policy.
 
+L4-enabled sessions also normalize the Tor UID's outgoing IPv4 TCP TTL and initial SYN options/MSS before Guard connections. Shared Tor exits are preserved. This packet policy does not alter Tor TLS or application TLS; see [L4 and L7](L4-and-L7.md).
+
 **Next:** [Advanced configuration →](Advanced-Configuration.md)
 
 ## Failure handling and optional WireGuard

@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/version-1.3.0-8172b3?style=flat-square" alt="Version 1.3.0">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
-  <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-92_passed-547d85?style=flat-square" alt="92 portable tests passed"></a>
+  <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-227_passed-547d85?style=flat-square" alt="227 portable tests passed"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-547d85?style=flat-square" alt="GPL 3.0"></a>
   <a href="https://github.com/ByGh00st/wraith/stargazers"><img src="https://img.shields.io/github/stars/ByGh00st/wraith?style=flat-square&amp;color=8172b3" alt="GitHub stars"></a>
 </p>
@@ -58,10 +58,10 @@
 
 ### A session in three commands
 
-After [installation](#installation), keep the session running in its terminal. Use another terminal to inspect or stop it.
+After [installation](#installation), start a session and inspect or stop it from the terminal.
 
 ```bash
-sudo wraith -s     # Start a foreground session
+sudo wraith -s     # Start the background session worker
 sudo wraith -i     # Inspect status and Tor circuits
 sudo wraith -x     # Stop and restore recorded settings
 ```
@@ -101,7 +101,7 @@ sudo wraith -x     # Stop and restore recorded settings
 - [🔒 In-Memory Cryptographic Security Specifications](#memory-security)
 - [🛡️ Fail-Closed Crash Protection & Panic Sentry](#panic-sentry)
 - [🔧 Full-Security Setup & Recovery](#full-security)
-- [🧬 L4 TCP Profiles & Namespace Safety](#l4-tcp-profiles)
+- [🧬 L4 TCP Profiles & Tor Access-Link Normalization](#l4-tcp-profiles)
 - [⬆️ Official GitHub Updates](#updates)
 - [🧪 Development & Validation](#validation)
 - [⚖️ Legal & Operational Disclaimer](#legal-disclaimer)
@@ -118,11 +118,12 @@ sudo wraith -x     # Stop and restore recorded settings
 
 **Wraith** brings Tor routing, DNS policy, host settings and a localized terminal interface into one Linux session manager. Its six-crate Rust workspace combines netfilter rules, network namespaces, a local HTTP relay and optional browser controls.
 
-Start a foreground session, inspect its status, and stop it to restore recorded settings. Advanced presets and their host prerequisites are covered in [setup and recovery](#full-security).
+Start a session, inspect its status, and stop it to restore recorded settings. Advanced presets and their host prerequisites are covered in [setup and recovery](#full-security).
 
 | Layer | Role |
 | :--- | :--- |
 | 🌐 Network | Tor TCP routing, dedicated Tor UID, IPv6 firewall rules and optional namespace/WireGuard |
+| 🧬 Transport | Namespace TCP profiles and Tor-to-Guard TTL, SYN option order and MSS normalization |
 | 🔒 DNS | UDP/TCP local relay, Tor DoH transport and local DNSSEC proof validation |
 | 🎭 Application | Initial cleartext HTTP header normalization and managed browser preferences |
 | 🧠 Host | Reversible sysctl/configuration snapshots, memory controls and strict prerequisites |
@@ -153,11 +154,11 @@ tokei crates Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
  TOML                    8          230          213            0           17
  YAML                  342        12239        12236            0            3
 -------------------------------------------------------------------------------
- Rust                   73        22345        19444          669         2232
- |- Markdown            66          748            3          703           42
- (Total)                          23093        19447         1372         2274
+ Rust                   76        23759        20771          686         2302
+ |- Markdown            69          765            3          720           42
+ (Total)                          24524        20774         1406         2344
 ===============================================================================
- Total                 426        35411        32391          714         2306
+ Total                 429        36825        33718          731         2376
 ===============================================================================
 ```
 
@@ -179,10 +180,13 @@ graph LR
     A --> E["🎭 Explicit HTTP relay :9055<br/>Initial cleartext headers"]:::gBox
     C --> F["Tor SOCKS :9050"]:::tBox
     E --> F
-    D --> G["Tor network"]:::tBox
-    F --> G
+    D --> L["🧬 Optional Tor UID L4 policy<br/>TTL + SYN normalization"]:::kBox
+    F --> L
+    L --> G["Tor Guard → Tor network"]:::tBox
     G --> H["Destination / DoH resolver"]:::tBox
 ```
+
+L4-enabled sessions normalize the Tor access link before the first Guard connection, targeting the TCP fields visible to a local ISP or firewall. Shared Tor exits are unchanged; no VPS is required.
 
 The watchdog preserves application egress restrictions when Tor becomes unhealthy. WireGuard, when selected, carries Tor's outer connection. The packet monitor supplies observations, while netfilter and namespace rules enforce egress policy.
 
@@ -271,6 +275,7 @@ Additional sources: [AnonSurf routing and restoration](https://github.com/Parrot
 | :--- | :--- | :--- |
 | Tor routing | IPv4 TCP redirection and dedicated Tor UID | Arbitrary UDP/QUIC is not carried by Tor |
 | Strict kill switch | Preserves scoped policy on Tor failure | No measured sub-millisecond response guarantee |
+| Tor access-link L4 | UID-scoped TTL and NFQUEUE SYN option/MSS normalization | Native window/scale and Tor TLS remain unchanged; live wire validation pending |
 | DNSSEC | Local chain/proof validation over Tor DoH | Authenticated unsigned delegations remain unsigned |
 | DNS interception | UDP/TCP port 53 reaches the local relay | Application-selected encrypted DNS is a separate flow |
 | IPv6 control | Session firewall blocking | Live route and teardown validation remains required |
@@ -333,6 +338,9 @@ wraith/
     │   ├── src/ipv6.rs                     # IPv6 Dual-Stack Blackout & Leak Guard
     │   ├── src/mac.rs                      # IEEE 802.3 Hardware MAC Address & Hostname Randomizer
     │   ├── src/namespace.rs                # Isolated Kernel Network Namespace (veth jail)
+    │   ├── src/tcp_egress.rs                # Tor UID policy, queue ownership and telemetry
+    │   ├── src/tcp_wire.rs                  # Checked SYN option/MSS rewrite and checksums
+    │   ├── src/nfqueue.rs                   # Owned netlink queue transport (safe Rust)
     │   ├── src/nftables.rs                 # Journaled iptables Rule Manager
     │   ├── src/cgroup_jail.rs              # Cgroup Membership Management
     │   └── src/traffic_shaper.rs           # Kernel TC/Netem Traffic Shaping (Jitter & Latency Obfuscation)
@@ -625,7 +633,7 @@ System Hardening & Anti-Fingerprinting:
                                    [aliases: --shield, --canvas-shield]
       --font-sandbox               Restrict OS-level font discovery via Fontconfig sandbox
                                    [alias: --font-jail]
-      --tcp-mask                   Enable namespace TCP normalization (auto profile unless overridden)
+      --tcp-mask                   Normalize namespace TCP and Tor access-link SYNs (auto unless overridden)
       --morph-l4 <PROFILE>          auto | windows | windows11 | macos | linux | off
       --tls-profile <BROWSER>       Session DoH and cover-request TLS profile: chrome | firefox | safari
       --machine-id                 Rotate unique OS /etc/machine-id and system hardware identifiers
@@ -854,7 +862,7 @@ Use `sudo wraith -x` to retry recovery. The troubleshooting table below explains
 
 <table>
 <tr><td width="50%" valign="top"><h3>🌐 Route &amp; resolve</h3><p>Strict Tor egress, IPv6/STUN restrictions, a mandatory kill switch and DNSSEC-validating DoH.</p></td>
-<td width="50%" valign="top"><h3>🧬 Align the profiles</h3><p>Namespace TCP sysctls, SYN MSS and initial route windows follow the selected Wraith TLS platform.</p></td></tr>
+<td width="50%" valign="top"><h3>🧬 Align the profiles</h3><p>Namespace TCP controls and Tor access-link TTL/SYN normalization follow the selected Wraith TLS platform.</p></td></tr>
 <tr><td valign="top"><h3>🛡️ Reduce local identifiers</h3><p>MAC/hostname and machine-id rotation, managed browser preferences and Fontconfig restrictions.</p></td>
 <td valign="top"><h3>↩️ Verify &amp; recover</h3><p>Required setup checks, fresh L4 readback before activation, inspect telemetry and journaled restoration.</p></td></tr>
 </table>
@@ -865,7 +873,8 @@ Use `sudo wraith -x` to retry recovery. The troubleshooting table below explains
 | :--- | :--- | :--- |
 | ✅ Tor egress + kill switch | Strict firewall policy and Tor-health watchdog; IPv6 and STUN restrictions | Session routing; arbitrary UDP/QUIC is unsupported |
 | ✅ DNSSEC + DoH | Validate DNSSEC locally; encrypted upstream requests use the selected TLS client | Wraith DNS service; failed validation returns an error |
-| ✅ L4 TCP morphing | `auto` selects Chrome → Windows11, Firefox → LinuxDefault, Safari → MacOS | Only TCP sockets opened inside `wraith_ns` |
+| ✅ L4 TCP morphing | `auto` selects Chrome → Windows11, Firefox → LinuxDefault, Safari → MacOS | Namespace stack + Tor UID access-link IPv4 TCP |
+| ✅ Tor → Guard SYN policy | Reorder existing options, cap MSS, remove the Windows timestamp offer; normalize TCP TTL | Queue armed before Tor bootstrap; window/scale remain kernel-generated |
 | ✅ SYN MSS + FIB | Apply the profile's MSS cap and `initcwnd`/`initrwnd` during namespace creation | Windows/macOS profiles; Linux keeps kernel-selected MSS and FIB defaults |
 | ✅ TLS platform check | Reject incompatible manual L4/TLS pairs and `--morph-l4 off` | Wraith profile configuration; no same-flow fingerprint guarantee |
 | ✅ HTTP privacy relay | Remove address metadata from the first cleartext HTTP request | CONNECT preserves the application TLS stream |
@@ -894,7 +903,7 @@ sudo wraith -x
 
 Run one session at a time. Replace `eth0` with your interface. `exec` puts the new application in the namespace; existing applications stay where they are. Curl still uses curl's TLS implementation. Session `--tls-profile` selects Wraith's DoH/DNSSEC and optional cover-request TLS, while `fetch` has its own profile option.
 
-`wraith -i` displays the **recorded session policy** alongside live L4 readback: TTL, scaling, timestamps, SACK, MSS rule presence and FIB metrics. An active session alone does not label an exit IP as verified. Old recovery records without the preset field remain readable and are identified as standard/legacy.
+`wraith -i` displays the **recorded session policy** alongside live namespace L4 readback: TTL, scaling, timestamps, SACK, MSS rule presence and FIB metrics. Separate Tor access-link rows show policy presence, owned queue binding and queue counters. An active session alone does not label an exit IP as verified. Old recovery records without the preset field remain readable and are identified as standard/legacy.
 
 ### Optional additions with your own inputs
 
@@ -950,7 +959,7 @@ Snapshots preserve regular-file content, mode/ownership, missing-file state and 
 Live Linux routing and kernel recovery remain integration work. Keep console access when evaluating network changes.
 
 <a id="l4-tcp-profiles"></a>
-### 🧬 L4 TCP profiles, application scope and recovery
+### 🧬 L4 TCP profiles: namespace + Tor access link
 
 | Reference profile | TTL | Window scaling | Timestamps | SACK | MSS cap | FIB `initcwnd / initrwnd` |
 | :--- | ---: | :---: | ---: | :---: | ---: | :---: |
@@ -973,18 +982,39 @@ sudo wraith -i
 | :--- | :--- |
 | `--morph-l4 windows` / `windows11` | Explicit Windows reference; strict mode requires Chrome TLS |
 | `--morph-l4 macos` / `linux` | Explicit reference; strict mode requires Safari or Firefox TLS respectively |
-| `--namespace --morph-l4 off` | Keep namespace isolation and kernel TCP defaults |
+| `--namespace --morph-l4 off` | Keep namespace isolation; disable both namespace TCP tuning and Tor access-link normalization |
 | `--tcp-profile`, `--l4-profile`, `--os-profile` | Compatible aliases for `--morph-l4` |
 
 `off` conflicts with full-security and `--tcp-mask`; it cannot silently weaken either request. Full-security also rejects mismatched manual L4/TLS platforms, including mismatches inherited from configuration; select `--morph-l4 auto` to follow the TLS choice. Without a namespace-enabling option, `off` alone does not create one. Session `--tls-profile` selects the TLS client for DoH (including DNSSEC validation queries) and optional cover requests. `wraith fetch --tls-profile …` retains its own per-request selection; applications launched through `exec` retain their own TLS implementation.
 
-`exec` enters the existing protected namespace and runs the application as the invoking sudo user. Existing applications are not moved into it. TCP normalization applies to the namespace stack; it does not rewrite the host Tor daemon's connections or Tor exit-node TCP fingerprints. ClientHello profiles apply to Wraith TLS clients; tunneling an application's encrypted TLS bytes does not change its fingerprint. Diagnostics distinguish reference profiles from measurements and do not certify unobserved p0f or cross-layer coherence.
+`exec` enters the protected namespace only after the session reaches **Active**, and runs the application as the invoking sudo user. Existing applications are not moved into it. The selected profile also arms a separate **Tor UID-scoped IPv4 egress policy before Tor bootstrap**. This changes the access-link packets seen by a local ISP or firewall; the public Tor exit's stack remains outside Wraith's control.
+
+<table>
+<tr><td width="50%" valign="top"><h4>01 · Application namespace</h4><p>Per-namespace sysctls, SYN MSS cap and FIB initial windows. No global TCP sysctl writes.</p></td><td width="50%" valign="top"><h4>02 · Tor → Guard</h4><p>TTL on outgoing Tor TCP packets; checked SYN option reordering, MSS reduction and profile-specific timestamp removal.</p></td></tr>
+</table>
+
+| Access-link field | What the engine does | Preserved boundary |
+| :--- | :--- | :--- |
+| IPv4 TTL | Windows 128; macOS/Linux 64, on every Tor UID TCP packet outside loopback | Hops still decrement TTL |
+| SYN option layout | Reorder existing MSS / WS / SACK / TS with profile padding | Unknown extensions retain their contents and relative order |
+| SYN MSS | Cap at 1460 for Windows or 1440 for macOS | Never increase the kernel offer; Linux has no cap |
+| Timestamp offer | Remove for Windows; preserve existing values for macOS/Linux | Does not synthesize kernel timestamp state |
+| Window / window scale | Preserve the kernel-generated values | No fabricated receive capability or exact native-OS window claim |
+| Integrity | Recompute IPv4 and TCP checksums; preserve sequence numbers and payload | Reject truncated, fragmented, malformed or authenticated TCP headers |
+
+The owned `WRAITH_L4_EGRESS` mangle chain queues initial SYNs to **NFQUEUE 41884**, scoped to the dedicated non-root Tor UID. The worker is bound before rules are installed; ownership is journaled before attachment. Missing TTL/NFQUEUE support or a failed policy readback refuses startup. If the worker dies or its queue fills, new SYNs are dropped without an unmodified fallback. Existing established Tor connections can continue. Other processes using the same Tor UID share this policy.
+
+`sudo wraith -i` reports the selected egress profile, rules, queue ownership, queued/pending SYNs and kernel/netlink delivery drops. Queue counters are **not proof of successful rewriting, completed connections or a measured p0f match**. Shutdown stops managed Tor before removing the policy; if Tor cannot be stopped, firewall restoration is withheld and recovery state is retained.
+
+This is selective TCP normalization, not a replacement TCP stack. IP ID behavior, TCP timing, native window/scale and Tor's own Guard TLS handshake remain kernel/Tor behavior. Browser ClientHello profiles apply to Wraith HTTPS clients inside the Tor stream, not the outer Tor handshake. UDP transports, including UDP-based bridge paths, are outside this TCP policy; session IPv6 remains blocked. With WireGuard, the local ISP sees the tunnel's outer packets, while the normalized TCP is inside it. These controls do not guarantee DPI non-detection or change shared Tor exit reputation.
+
+[Access-link design and failure handling](docs/L4-EGRESS-DESIGN.md) · [L4/L7 wiki guide](https://github.com/ByGh00st/wraith/wiki/L4-and-L7)
 
 Before namespace startup completes, Wraith snapshots and applies sysctls, installs an owned IPv4 SYN `TCPMSS --set-mss` rule, and changes the default route's `initcwnd` / `initrwnd` metrics. Every tier has readback checks. Duplicate owned MSS rules, missing settings, readback differences and absent or ambiguous default routes stop setup. Failed setup rolls back; cleanup errors remain visible. Route restoration preserves recorded protocol/scope/source attributes and rejects changed identities or unsupported attributes instead of silently dropping them.
 
 `sudo wraith -i` reads **TTL, window scaling, timestamps, SACK, MSS rule presence and FIB window metrics** from the recorded namespace lifetime. It reports matching configuration, drift or unavailable observations. An old snapshot never becomes a fabricated Windows profile. The display explicitly keeps **wire fingerprint: not measured** separate from configuration readback.
 
-The L4 engine accepts only the managed namespace and approved TCP keys, rejects host namespace aliases and retains one namespace descriptor across sysctl, MSS, FIB and rollback operations. The legacy host writer is disabled. See the [L4 architecture](docs/L4-SYSCTL-DESIGN.md) for the API and failure policies. These checks verify configuration, not an exact operating-system fingerprint, option order or receive-window byte count.
+The namespace L4 engine accepts only the managed namespace and approved TCP keys, rejects host namespace aliases and retains one namespace descriptor across sysctl, MSS, FIB and rollback operations. The legacy host sysctl writer is disabled. See the [L4 architecture](docs/L4-SYSCTL-DESIGN.md) for the API and failure policies. Namespace readback verifies configuration, not an exact operating-system fingerprint or receive-window byte count. The separate egress engine rewrites SYN option layout; live capture is still required to measure the resulting wire signature.
 
 CLI startup uses fail-closed L4 setup. The library's `RestoreAndContinue` policy may report a skipped profile only before mutation or after successful rollback; failed rollback remains an error. Configuration is a recoverable sequence, not a kernel-atomic multi-key write. `wraith -x` recovers the journaled namespace lifecycle, including an interrupted setup.
 
@@ -1016,7 +1046,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-24**: **208 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
+Checks recorded **2026-09-24**: **227 portable tests passed**, Linux-target test compilation passed, and production Clippy passed with warnings denied. Live Linux networking and a complete installed-system update were not exercised. Linux pidfd ownership tests were cross-compiled, not executed on the Windows host.
 
 ```bash
 cargo test --workspace --locked
@@ -1025,7 +1055,7 @@ cargo clippy --workspace --target x86_64-unknown-linux-gnu --locked -- -D warnin
 cargo audit --deny warnings
 ```
 
-Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers, CMake, Perl and libclang for ring and BoringSSL. Portable regressions cover real browser-profile TLS handshakes against a local test server, certificate and hostname rejection, response limits, CONNECT framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. They do not execute Linux firewall/kernel-hardening commands.
+Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers, CMake, Perl and libclang for ring and BoringSSL. Portable regressions cover real browser-profile TLS handshakes against a local test server, certificate and hostname rejection, response limits, CONNECT framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. Tor access-link regressions also cover fixed SYN layouts/checksums, extension and payload preservation, malformed packets, netlink framing/ownership, fail-closed policy construction and withheld firewall restoration after a failed Tor stop. They do not execute Linux firewall/kernel-hardening commands.
 
 Report failures with the command, distribution, interface and sanitized logs; omit passwords, private keys and tokens. Include the expected behavior and the exact failing step so an issue can be reproduced.
 

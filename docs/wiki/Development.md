@@ -4,11 +4,11 @@
 
 ## Recorded checks — 2026-09-24
 
-Implementation baseline: [`1edfb7a`](https://github.com/ByGh00st/wraith/commit/1edfb7a).
+Implementation baseline: [`67e744f`](https://github.com/ByGh00st/wraith/commit/67e744f).
 
 | Check | Result |
 | :--- | :--- |
-| Portable workspace tests | **208 passed** |
+| Portable workspace tests | **227 passed** |
 | Linux-target production Clippy | Passed with warnings denied |
 | Linux-target test compilation | Passed; Linux tests were not executed on the Windows host |
 | Privileged live Linux networking | Not performed |
@@ -17,7 +17,9 @@ Implementation baseline: [`1edfb7a`](https://github.com/ByGh00st/wraith/commit/1
 
 Coverage includes local real TLS handshakes, certificate/hostname rejection, response limits, CONNECT framing, half-close responses, stalled writes, HTTP address-header removal, DNSSEC validation failures, state preservation, process-stat parsing, route-metric restoration, profile validation, legacy MSS-field compatibility, sysctl encoding, host-write rejection, namespace name/identity guards firewall construction, CLI auto/off and aliases, MSS ownership/readback/rollback, and live-telemetry drift detection. Additional regressions cover competing shortcuts, subcommand option scope, child argument boundaries, invalid configuration without data loss, legacy read-only loading, configuration path precedence, and background worker ownership. Installer shell syntax was checked without installing a service. Strict-preset regressions cover configuration/CLI parity, disabled defaults, the full L4/TLS compatibility matrix, refused activation on absent snapshots or failed readback, host prerequisite validation, legacy-state compatibility and unsupported packet capture. The local TLS exchange also checks the selected platform in HTTP headers.
 
-Linux pidfd identity tests compile with the Linux target; that is not a claim that they ran on Linux. No new dependency audit was performed in this change.
+Access-link regressions cover fixed SYN layouts and independently calculated checksums, extension/payload preservation, malformed and truncated packets, netlink framing and ACKs, queue ownership metadata, policy setup failures, activation boundaries and withheld firewall restoration after a failed Tor stop. The engine adds no dependencies or unsafe blocks.
+
+Linux pidfd identity tests and the NFQUEUE runtime compile with the Linux target; that is not a claim that they ran on Linux. Live Guard connectivity, PMTU/retransmission behavior and p0f captures remain unmeasured. No new dependency audit was performed in this change.
 
 ## Reproduce
 

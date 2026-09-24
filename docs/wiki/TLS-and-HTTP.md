@@ -22,7 +22,7 @@ The native client uses BoringSSL through wreq and supported emulation profiles. 
 
 The platform is explicitly selected in the TLS client configuration. `BrowserProfile::l4_profile()` exposes the matching TCP reference profile; it does not automatically move the TLS connection into a namespace. See [L4 and L7](L4-and-L7.md).
 
-`wraith start --tls-profile safari --morph-l4 auto` selects Safari for session DoH and cover requests and the macOS namespace TCP reference. `fetch` remains a separate per-request selection.
+`wraith start --tls-profile safari --morph-l4 auto` selects Safari for session DoH and cover requests, the macOS namespace TCP reference and the Tor access-link packet profile. It does not change Tor's outer Guard TLS handshake or the remote exit TCP stack. `fetch` remains a separate per-request selection.
 
 With a Wraith/Tor session already running:
 

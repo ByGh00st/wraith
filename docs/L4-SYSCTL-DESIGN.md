@@ -84,4 +84,4 @@ The new snapshot fields use serde defaults. Old untagged MSS rules remain remova
 
 Tests cover profile parsing, old MSS serialization, numeric sysctl conversion, invalid inputs, host aliases, allowed namespace names, missing backups, failed writes and rollback. The local TLS test also checks the request's selected platform. No privileged live Linux network tests are run by these portable checks.
 
-Namespace configuration cannot control the host Tor connection or a Tor exit's TCP stack. Packet-level OS equivalence and same-flow SYN/ClientHello coherence still require live measurements.
+Namespace configuration alone cannot control the host Tor connection or a Tor exit's TCP stack. The separate [Tor access-link engine](L4-EGRESS-DESIGN.md) now applies UID-scoped TTL and SYN option/MSS normalization before Guard connections. Host TCP sysctls and shared Tor exits remain unchanged. Packet-level OS equivalence and same-flow SYN/ClientHello coherence still require live measurements.

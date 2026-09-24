@@ -4,7 +4,7 @@
 
 ## Full-security preset
 
-`-Fs` combines full-security (`-F`) and start (`-s`). **Namespace isolation and L4 `auto` are included**, alongside the required Tor, DNS, browser/font and host controls. No extra L4 flag is needed.
+`-Fs` combines full-security (`-F`) and start (`-s`). **Namespace isolation and L4 `auto` are included**, alongside the required Tor, DNS, browser/font and host controls. The same profile also normalizes Tor's outgoing IPv4 TCP toward its Guard/TCP bridge. No extra L4 flag or VPS is needed.
 
 <table>
 <tr><td width="50%"><b>🌐 Network</b><br>Strict Tor egress · DNSSEC/DoH · mandatory kill switch</td><td width="50%"><b>🧬 Profiles</b><br>L4 sysctls · SYN MSS · FIB windows · matching TLS platform</td></tr>
@@ -23,6 +23,7 @@ sudo wraith -Fs -I eth0 --tls-profile firefox
 | Tor firewall + watchdog | Restrict direct egress, IPv6 and STUN; `--no-killswitch` is rejected |
 | DNSSEC + DoH | Local DNSSEC validation with profile-selected TLS upstream |
 | Namespace + L4 | Chrome → Windows11 (default), Firefox → LinuxDefault, Safari → MacOS |
+| Tor → Guard L4 | UID-scoped TTL, SYN option reordering, MSS cap and Windows timestamp removal; native window/scale preserved |
 | MSS / route windows | Windows: 1460 / 10 / 44; macOS: 1440 / 10 / 45; Linux: kernel MSS/FIB defaults |
 | HTTP privacy relay | Sanitize address headers on the first cleartext request; preserve CONNECT TLS |
 | Identity controls | Journal and rotate host MAC, hostname and machine-id |
@@ -85,9 +86,9 @@ sudo wraith -i
 sudo wraith -x
 ```
 
-`-i` shows the recorded strict/standard policy and reads live L4 settings, MSS rules and route metrics. Legacy records are not presented as confirmed strict sessions. An active record alone does not verify a Tor exit IP.
+`-i` shows the recorded strict/standard policy and reads live L4 settings, MSS rules and route metrics. Separate Tor access-link rows show rules, owned queue binding and queue counters. Legacy records are not presented as confirmed strict sessions. An active record alone does not verify a Tor exit IP.
 
-Only newly launched namespace applications get its TCP settings. They keep their own TLS implementations; the session TLS selection applies to Wraith's DNS and optional cover clients. Managed browser settings require the application to use a supported profile. The RAM vault protects a session copy; the recovery journal remains on disk. See [L4 and L7](L4-and-L7.md) for the host/Tor-exit boundary.
+Only newly launched namespace applications get its sysctl/FIB settings. Tor's outer IPv4 TCP receives the separate egress policy before bootstrap. Missing NFQUEUE/TTL support refuses startup; worker failure blocks new SYNs while established connections may continue. The public Tor exit and Tor's outer TLS handshake remain unchanged. Applications keep their own TLS implementations; the session TLS selection applies to Wraith's DNS and optional cover clients. Managed browser settings require the application to use a supported profile. The RAM vault protects a session copy; the recovery journal remains on disk. See [L4 and L7](L4-and-L7.md) for the complete field and observer boundaries.
 
 ## Optional routes and services
 

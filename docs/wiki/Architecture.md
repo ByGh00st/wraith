@@ -12,8 +12,9 @@ flowchart LR
     D --> G[Tor SOCKS :9050]
     E --> G
     F --> G
-    C --> H[Tor network]
-    G --> H
+    C --> L[Optional Tor UID TTL / SYN normalization]
+    G --> L
+    L --> H[Tor Guard / network]
 ```
 
 ## Six crates, separate responsibilities
@@ -21,7 +22,7 @@ flowchart LR
 | Crate | Responsibility |
 | :--- | :--- |
 | `wraith-core` | State, snapshots, configuration and cryptographic utilities |
-| `wraith-net` | Network policy, interfaces, namespaces and optional shaping |
+| `wraith-net` | Network policy, interfaces, namespace TCP, Tor access-link NFQUEUE and optional shaping |
 | `wraith-tor` | Tor transport, HTTP CONNECT and the verified browser TLS client |
 | `wraith-guard` | DNS, DNSSEC, watchdog, observations and optional cover requests |
 | `wraith-forensic` | Managed browser/host controls and explicit cleanup utilities |
@@ -55,6 +56,12 @@ TCP rollback includes saved sysctl values, the MSS rule and original initial-win
 
 TCP sysctl transactions keep a namespace descriptor open from snapshot through readback and rollback. Subprocesses use that descriptor through `nsenter`; Tokio worker threads remain in their original namespace. Only managed namespace names and approved TCP keys pass validation. The host writer is disabled. Saved namespace identity also prevents sysctl restoration into a replacement namespace.
 
-See [L4 and L7](L4-and-L7.md) for profile targets, failure policies and the remaining CLI work.
+See [L4 and L7](L4-and-L7.md) for profile targets, CLI selection and failure policies.
+
+## Tor access-link packet engine
+
+L4-enabled sessions arm a separate Tor UID-scoped IPv4 mangle policy before managed Tor starts. TTL applies to non-loopback Tor TCP packets; initial SYNs enter an owned NFQUEUE for option reordering, MSS reduction and Windows timestamp-off negotiation. The worker preserves window/scale, sequence numbers, flags and payload, with fresh checksums. No host TCP sysctl writes or replacement TCP stack are involved.
+
+Queue ownership is journaled before rule attachment and checked again before activation. A dead/full queue drops new SYNs without bypass; established connections can continue. Shutdown stops managed Tor before removing the policy and restoring the original tables. A failed Tor stop retains enforcement and recovery state. See the [packet-engine design](https://github.com/ByGh00st/wraith/blob/main/docs/L4-EGRESS-DESIGN.md).
 
 **Next:** [Development and project information →](Development.md)

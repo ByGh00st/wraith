@@ -1,6 +1,6 @@
 # Getting started
 
-> **01 / SETUP** · Install on your Linux host, then start a foreground session.
+> **01 / SETUP** · Install on your Linux host, then start and inspect a session.
 
 ## Requirements
 
@@ -12,6 +12,7 @@ The installed runtime targets **x86_64 Linux**, primarily Debian, Ubuntu, Kali a
 | C/C++, CMake, Perl, libclang and pkg-config | Build the native TLS dependencies |
 | Tor with a dedicated non-root account | Tor transport |
 | iptables/ip6tables and save/restore tools | Session policy and recovery |
+| Kernel TTL/NFQUEUE and owner/comment support | Tor access-link L4 modes; no separate userspace queue library required |
 | iproute2 | Interfaces, namespaces and optional shaping |
 | util-linux (`nsenter`) | TCP settings through a pinned namespace descriptor |
 | fontconfig | Font controls |
@@ -49,13 +50,13 @@ wraith --help
 sudo wraith -s
 ```
 
-Keep that terminal open. In a second terminal:
+Ordinary start runs a background worker. Inspect or stop it with:
 
 ```bash
 sudo wraith -i     # Inspect status
 sudo wraith -x     # Stop and restore recorded settings
 ```
 
-Ctrl+C in the foreground session also requests cleanup. If cleanup reports an error, follow [the recovery guide](Troubleshooting.md) before starting another session.
+Strict and interactive sessions stay in the foreground; Ctrl+C there also requests cleanup. If cleanup reports an error, follow [the recovery guide](Troubleshooting.md) before starting another session.
 
 **Next:** [Daily workflow →](Daily-Workflow.md)

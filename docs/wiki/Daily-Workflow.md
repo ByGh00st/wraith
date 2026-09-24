@@ -7,7 +7,7 @@
 | Command | What it does |
 | :--- | :--- |
 | `sudo wraith -s` | Start a background session (strict/interactive sessions stay foreground) |
-| `sudo wraith -Fs` | Start the foreground strict bundle with namespace L4 auto and matching TLS policy |
+| `sudo wraith -Fs` | Start the foreground strict bundle with namespace + Tor access-link L4 auto and matching TLS policy |
 | `sudo wraith -i` | Inspect status and Tor circuit information |
 | `sudo wraith -r` | Request a new identity for eligible new Tor streams |
 | `sudo wraith -x` | Stop and restore recorded settings |
