@@ -171,6 +171,12 @@ pub fn validate_interface(name: &str) -> Result<NetworkInterface> {
             "Interface name cannot be empty".to_string(),
         ));
     }
+    if trimmed.len() > 15 || trimmed.starts_with('-')
+        || !trimmed.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-.".contains(&b)) {
+        return Err(WraithError::Hardware(format!(
+            "Invalid network interface name format '{trimmed}'"
+        )));
+    }
 
     let interfaces = list_all_interfaces()?;
     for iface in interfaces {
@@ -418,6 +424,10 @@ mod tests {
     fn test_validate_interface_rejects_empty() {
         let res = validate_interface("");
         assert!(res.is_err());
+        assert!(validate_interface("   ").is_err());
+        assert!(validate_interface("-eth0").is_err());
+        assert!(validate_interface("waytoolonginterfacename").is_err());
+        assert!(validate_interface("eth0/evil").is_err());
     }
 
     #[test]

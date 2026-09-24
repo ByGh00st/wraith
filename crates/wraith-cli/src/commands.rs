@@ -242,6 +242,21 @@ fn validate_start_options(args: &crate::StartArgs) -> Result<()> {
         wraith_tor::validate_https_url(args.jitter_endpoint.as_deref().ok_or_else(||
             WraithError::Configuration("--jitter requires --jitter-endpoint HTTPS_URL".into()))?)?;
     }
+    if let Some(ref iface) = args.interface {
+        let trimmed = iface.trim();
+        if trimmed.is_empty() || trimmed.len() > 15 || trimmed.starts_with('-')
+            || !trimmed.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-.".contains(&b)) {
+            return Err(WraithError::Configuration(format!("Invalid target network interface: '{iface}'")));
+        }
+    }
+    if let Some(ref wg_conf) = args.wireguard {
+        if wg_conf.trim().is_empty() {
+            return Err(WraithError::Configuration("WireGuard multi-hop requires a config file path. Use --wireguard <path/to/wg.conf>".into()));
+        }
+        if !Path::new(wg_conf).is_file() {
+            return Err(WraithError::Configuration(format!("WireGuard config file not found or is not a regular file: '{wg_conf}'")));
+        }
+    }
     resolve_tcp_profile(args)?;
     Ok(())
 }
@@ -1294,6 +1309,9 @@ async fn cmd_stop_inner(
 }
 
 pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
+    if target.trim().is_empty() {
+        return Err(WraithError::Configuration("Target path to shred cannot be empty".into()));
+    }
     print_banner(false);
     print_step(
         &format!("{}", t!("commands.cmd_step_shred_start", passes = passes, target = target)),
@@ -1466,16 +1484,14 @@ pub fn spawn_monitor_terminal() -> bool {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| "/usr/local/bin/wraith".into());
 
-    let monitor_cmd = format!("sudo {exe_path} monitor");
-
     let term_cmds: [(&str, Vec<String>); 7] = [
         ("xfce4-terminal", vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-x".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
-        ("x-terminal-emulator", vec!["-e".into(), format!("sh -c '{monitor_cmd}'")]),
-        ("qterminal", vec!["-e".into(), format!("sh -c '{monitor_cmd}'")]),
-        ("gnome-terminal", vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "--".into(), "sh".into(), "-c".into(), monitor_cmd.clone()]),
-        ("xterm", vec!["-title".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), "sh".into(), "-c".into(), monitor_cmd.clone()]),
-        ("kitty", vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "sh".into(), "-c".into(), monitor_cmd.clone()]),
-        ("alacritty", vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), "sh".into(), "-c".into(), monitor_cmd]),
+        ("x-terminal-emulator", vec!["-e".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
+        ("qterminal", vec!["-e".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
+        ("gnome-terminal", vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "--".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
+        ("xterm", vec!["-title".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
+        ("kitty", vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "sudo".into(), exe_path.clone(), "monitor".into()]),
+        ("alacritty", vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), "sudo".into(), exe_path, "monitor".into()]),
     ];
 
     for (term, args) in &term_cmds {
@@ -1688,15 +1704,22 @@ pub async fn cmd_bridge(action: Option<crate::BridgeAction>) -> Result<()> {
                 print_step(&format!("{}", t!("commands.cmd_moat_requesting_challenge", transport = transport)), "info");
                 match moat.fetch_challenge(&transport).await {
                     Ok(ch) => {
-                        let tmp_captcha = std::path::Path::new("/tmp/wraith_moat_captcha.png");
-                        if let Err(e) = wraith_tor::MoatClient::save_captcha_image(&ch.image_base64, tmp_captcha) {
+                        let tmp_captcha = tempfile::Builder::new()
+                            .prefix("wraith_moat_")
+                            .suffix(".png")
+                            .tempfile_in("/tmp")
+                            .or_else(|_| tempfile::NamedTempFile::new())
+                            .map_err(|e| WraithError::Custom(format!("Failed to create temporary captcha file: {e}")))?;
+                        let tmp_path = tmp_captcha.path().to_path_buf();
+                        if let Err(e) = wraith_tor::MoatClient::save_captcha_image(&ch.image_base64, &tmp_path) {
                             tracing::warn!("Could not save captcha PNG: {e}");
                         }
+                        let path_display = tmp_path.display().to_string();
 
                         println!("\n  ┌── [ 🛡️ TOR MOAT PROTOCOL // BRIDGEDB CHALLENGE ] ────────────────────────┐");
                         println!("  │ Challenge Token: {:<56} │", ch.challenge);
                         println!("  │ Transport      : {:<56} │", ch.transport);
-                        println!("  │ CAPTCHA Image  : {:<56} │", "/tmp/wraith_moat_captcha.png");
+                        println!("  │ CAPTCHA Image  : {:<56} │", path_display);
                         println!("  │                                                                          │");
                         println!("  │ View the image and enter solution, or press Enter for circumvention pool: │");
                         println!("  └──────────────────────────────────────────────────────────────────────────┘\n");
@@ -1876,6 +1899,9 @@ pub async fn cmd_exec(command: Vec<String>) -> Result<()> {
         if !namespace_exec_ready(&state, StateManager::default().is_running()) {
             return Err(WraithError::Configuration("Start Wraith with --namespace first".into()));
         }
+        if command.is_empty() || command[0].trim().is_empty() {
+            return Err(WraithError::Configuration("Command program name cannot be empty".into()));
+        }
         let uid = std::env::var("SUDO_UID").ok().and_then(|s| s.parse::<u32>().ok())
             .filter(|uid| *uid != 0).ok_or_else(|| WraithError::Configuration("Run sudo wraith exec -- PROGRAM from your normal user account".into()))?;
         let user = nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid)).map_err(|e| WraithError::Configuration(e.to_string()))?
@@ -2017,6 +2043,11 @@ mod lifecycle_tests {
             crate::StartArgs { profile: Some("typo".into()), ..Default::default() },
             crate::StartArgs { onion_service: Some("80:0".into()), ..Default::default() },
             crate::StartArgs { doh: Some("http://dns.example".into()), ..Default::default() },
+            crate::StartArgs { interface: Some("".into()), ..Default::default() },
+            crate::StartArgs { interface: Some("-eth0".into()), ..Default::default() },
+            crate::StartArgs { interface: Some("waytoolonginterfacename".into()), ..Default::default() },
+            crate::StartArgs { wireguard: Some("".into()), ..Default::default() },
+            crate::StartArgs { wireguard: Some("/nonexistent/file.conf".into()), ..Default::default() },
         ] { assert!(prepare_with_config(args, wraith_core::WraithConfig::default()).is_err()); }
     }
 

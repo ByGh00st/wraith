@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.4] - 2026-09-24
+
+### Security & Hardening
+- Eradicated shell interpolation in `spawn_monitor_terminal` by converting all terminal emulator invocations to direct argument vectors without `/bin/sh`.
+- Mitigated symlink arbitrary file overwrite vulnerability (CWE-59 / CWE-377) in Tor Moat protocol: replaced static `/tmp/wraith_moat_captcha.png` with randomized temporary files created with `O_CREAT | O_EXCL` and hardened `O_NOFOLLOW` 0600 mode on Unix.
+- Enforced strict Linux interface format validation in `wraith_net::validate_interface` and CLI preflight (maximum 15 characters, no leading `-`, restricted ASCII alphabet).
+- Strengthened `WraithConfig::validate` schema bounds for `network.default_interface`, `network.wireguard_config`, `dns.upstream`, and `general.lang`.
+- Added preflight input sanitization preventing empty command execution in `wraith exec` and empty paths in `wraith shred`.
+
 ## [1.4.3] - 2026-09-24
 
 ### Fixed

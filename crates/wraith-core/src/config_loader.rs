@@ -216,6 +216,37 @@ impl WraithConfig {
         choice("hardening.tls_profile", self.hardening.tls_profile.as_deref(), &["chrome", "firefox", "safari"])?;
         choice("dns.transport", self.dns.transport.as_deref(), &["doh"])?;
         if let Some(seconds) = self.tor.rotate_interval { validate_rotation_interval(seconds)?; }
+
+        if let Some(iface) = self.network.default_interface.as_deref() {
+            let trimmed = iface.trim();
+            if trimmed.is_empty() || trimmed.len() > 15 || trimmed.starts_with('-')
+                || !trimmed.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-.".contains(&b)) {
+                return Err(WraithError::Configuration(format!("Invalid default interface name '{iface}'")));
+            }
+        }
+        if let Some(wg) = self.network.wireguard_config.as_deref() {
+            if wg.trim().is_empty() {
+                return Err(WraithError::Configuration("WireGuard config path cannot be empty".into()));
+            }
+        }
+        if let Some(upstream) = self.dns.upstream.as_deref() {
+            let trimmed = upstream.trim();
+            if trimmed.is_empty() {
+                return Err(WraithError::Configuration("DNS upstream cannot be empty".into()));
+            }
+            let presets = ["quad9", "mullvad", "cloudflare", "adguard", "controld", "google"];
+            if !presets.contains(&trimmed.to_ascii_lowercase().as_str()) && !trimmed.starts_with("https://") {
+                return Err(WraithError::Configuration(format!(
+                    "Invalid DNS upstream '{trimmed}': must be a known preset (quad9, mullvad, cloudflare, adguard, controld, google) or HTTPS URL"
+                )));
+            }
+        }
+        if let Some(lang) = self.general.lang.as_deref() {
+            let trimmed = lang.trim();
+            if trimmed.is_empty() || trimmed.len() > 16 || !trimmed.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b)) {
+                return Err(WraithError::Configuration(format!("Invalid language identifier '{trimmed}'")));
+            }
+        }
         Ok(())
     }
 
@@ -627,5 +658,18 @@ mod tests {
 
         let read_back: WraithConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(read_back.fonts, cfg.fonts);
+    }
+
+    #[test]
+    fn test_invalid_parameters_rejected_by_config_validator() {
+        let mut cfg = WraithConfig::default();
+        assert!(cfg.set_key("interface", "").is_err());
+        assert!(cfg.set_key("interface", "-bad").is_err());
+        assert!(cfg.set_key("interface", "toolonginterfacename").is_err());
+        assert!(cfg.set_key("interface", "eth0/evil").is_err());
+        assert!(cfg.set_key("wireguard", "   ").is_err());
+        assert!(cfg.set_key("upstream", "not_a_url_or_preset").is_err());
+        assert!(cfg.set_key("lang", "bad lang code!").is_err());
+        assert!(cfg.set_key("lang", "toolonglanguagecodethatexceeds16").is_err());
     }
 }

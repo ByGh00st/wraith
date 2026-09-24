@@ -262,7 +262,17 @@ impl MoatClient {
             let _ = std::fs::create_dir_all(parent);
         }
 
-        std::fs::write(output_path, decoded)?;
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(libc::O_NOFOLLOW);
+            options.mode(0o600);
+        }
+        let mut file = options.open(output_path)?;
+        use std::io::Write;
+        file.write_all(&decoded)?;
         info!("Saved Moat CAPTCHA challenge image to {:?}", output_path);
         Ok(())
     }
