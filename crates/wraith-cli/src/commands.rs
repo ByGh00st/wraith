@@ -1311,13 +1311,6 @@ async fn cmd_stop_inner(
 pub async fn cmd_reset_network(target: &str) -> Result<()> {
     print_banner(false);
     let target = target.trim().to_lowercase();
-    let scope_display = if target.is_empty() || target == "network" || target == "net" || target == "all" {
-        "ALL NETWORK SUBSYSTEMS"
-    } else if target == "dns" {
-        "DNS SUBSYSTEM"
-    } else if target == "firewall" {
-        "FIREWALL & NETFILTER SUBSYSTEM"
-    print_banner(false);
     let scope_display = if target == "dns" {
         "DNS SUBSYSTEM"
     } else if target == "firewall" {
