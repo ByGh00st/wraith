@@ -81,11 +81,11 @@ print_usage() {
     echo -e "Usage: $0 [OPTIONS]"
     echo -e "Options:"
     echo -e "  --non-interactive           Skip wizard, use defaults or provided flags"
-    echo -e "  --profile <MODE>            Operational profile: stealth|speed|research|darkweb|full"
+    echo -e "  --profile <MODE>            Operational profile: stealth|speed|journalists|research|darkweb|full"
     echo -e "  --interface <NIC>           Target network interface (e.g. eth0, wlan0)"
     echo -e "  --doh <PROVIDER>            DoH provider: quad9|cloudflare|mullvad|adguard|none|<URL>"
     echo -e "  --bridge <TYPE>             Bridge mode: none|moat|obfs4|snowflake|meek"
-    echo -e "  --boot-mode <MODE>          Boot activation: early|standard|manual"
+    echo -e "  --boot-mode <MODE>          Boot activation: standard|manual"
     echo -e "  --rotate <SECS>             Tor IP rotation interval in seconds (0 = disabled)"
     echo -e "  --no-strict                 Disable strict kernel hardening"
     echo -e "  --no-start                  Do not start daemon immediately after installation"
@@ -115,6 +115,14 @@ fi
 
 # Parse CLI arguments if non-interactive
 while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --profile|--interface|--doh|--bridge|--boot-mode|--rotate)
+            if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == --* ]]; then
+                echo "Option $1 requires a value." >&2
+                exit 1
+            fi
+            ;;
+    esac
     case "$1" in
         --non-interactive|--batch|-y)
             INTERACTIVE=false
@@ -309,6 +317,18 @@ for value in "$WRAITH_BIN" "$OPT_PROFILE" "$OPT_INTERFACE" "$OPT_DOH" "$OPT_BRID
 done
 if [[ "$OPT_BOOT_MODE" != standard && "$OPT_BOOT_MODE" != manual ]]; then
     echo "Choose standard or manual boot mode; early mode requires a separate validated boot firewall." >&2
+    exit 1
+fi
+case "$OPT_PROFILE" in
+    stealth|speed|journalists|research|darkweb|full) ;;
+    *) echo "Unsupported exit profile: $OPT_PROFILE" >&2; exit 1 ;;
+esac
+case "$OPT_BRIDGE" in
+    none|moat|obfs4|snowflake|meek|meek-azure) ;;
+    *) echo "Unsupported bridge transport: $OPT_BRIDGE" >&2; exit 1 ;;
+esac
+if [[ ! "$OPT_ROTATE" =~ ^(0|[1-9][0-9]{0,9})$ ]] || (( OPT_ROTATE > 4294967295 )); then
+    echo "Rotation must be 0 (disabled) or 1..4294967295 seconds." >&2
     exit 1
 fi
 
