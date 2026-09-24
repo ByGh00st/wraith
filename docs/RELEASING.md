@@ -1,6 +1,6 @@
 # Building and releasing Wraith
 
-The workspace version is **1.4.3**. Manual CI runs validate artifacts; pushing the matching version tag triggers GitHub release publication.
+The workspace version is **1.4.4**. Manual CI runs validate artifacts; pushing the matching version tag triggers GitHub release publication.
 
 ## Build policy
 
@@ -60,8 +60,8 @@ The script checks resolved workspace/internal dependency versions, packages with
 4. When publication is intended, create and push the matching tag from the reviewed commit:
 
    ```bash
-   git tag -a v1.4.3 -m "Wraith v1.4.3"
-   git push origin v1.4.3
+   git tag -a v1.4.4 -m "Wraith v1.4.4"
+   git push origin v1.4.4
    ```
 
 5. The tag run refuses a workspace/tag mismatch, requires both Debian packages and all four archives, generates `SHA256SUMS.txt`, uploads all seven files to a draft release, then publishes it as latest. Partial builds do not publish. An upload failure can leave a draft for inspection/retry.

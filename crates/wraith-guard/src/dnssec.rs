@@ -151,11 +151,9 @@ mod tests {
             60,
             RData::A(A::new(192, 0, 2, 1)),
         );
-        for proof in [Proof::Bogus] {
-            record.proof = proof;
-            message.answers = vec![record.clone()];
-            assert!(check_proofs(&mut message).is_err());
-        }
+        record.proof = Proof::Bogus;
+        message.answers = vec![record.clone()];
+        assert!(check_proofs(&mut message).is_err());
         record.proof = Proof::Insecure;
         message.answers = vec![record.clone()];
         check_proofs(&mut message).unwrap();
