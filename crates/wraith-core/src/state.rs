@@ -21,6 +21,9 @@ pub enum State {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StateData {
     pub active: bool,
+    /// Recorded session policy; older recovery records did not contain it.
+    #[serde(default)]
+    pub strict_hardening: bool,
     #[serde(default)]
     pub saved_files: std::collections::HashMap<String, crate::file_snapshot::FileSnapshot>,
     #[serde(default)]
@@ -258,6 +261,15 @@ impl StateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn strict_policy_roundtrips_and_legacy_records_remain_recoverable() {
+        let state = StateData { strict_hardening: true, ..Default::default() };
+        let mut json = serde_json::to_value(&state).unwrap();
+        assert!(serde_json::from_value::<StateData>(json.clone()).unwrap().strict_hardening);
+        json.as_object_mut().unwrap().remove("strict_hardening");
+        assert!(!serde_json::from_value::<StateData>(json).unwrap().strict_hardening);
+    }
+
     #[test]
     fn stale_and_corrupt_records_cannot_be_replaced() {
         let dir = tempfile::tempdir().unwrap();

@@ -196,7 +196,7 @@ pub struct StartArgs {
     #[arg(long = "machine-id", visible_aliases = ["cloaking"], help_heading = "System Hardening")]
     pub machine_id_rotation: bool,
 
-    /// Require strict Tor egress, kill switch, MAC, browser shield, namespace, seccomp and memory protection
+    /// Require Tor/DNSSEC, matching namespace L4/TLS profiles, MAC, browser/font and memory controls
     #[arg(
         short = 'F',
         long = "full-security",
@@ -268,6 +268,8 @@ impl StartArgs {
             || self.select_doh
             || self.namespace
             || self.profile.is_some()
+            || self.rotate_interval.is_some()
+            || self.no_ks
             || self.wireguard.is_some()
             || self.onion_service.is_some()
             || self.traffic_shaper

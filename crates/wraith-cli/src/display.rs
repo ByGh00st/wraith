@@ -552,6 +552,11 @@ pub fn print_background_hud(state: &StateData, geo: &IpGeoInfo) {
     println!("{}\n", hud_box.last().unwrap().bright_cyan());
 }
 
+fn session_policy_label(state: &StateData) -> &'static str {
+    if state.strict_hardening { "Full-security (-Fs); required controls, matching L4/TLS" }
+    else { "Standard / legacy record (strict policy not recorded)" }
+}
+
 fn l4_status_rows(state: &StateData) -> Vec<(String, String)> {
     if !state.namespace_active { return vec![("L4 TCP profile".into(), "Inactive — no session namespace".into())]; }
     if !state.tcp_stack_masked { return vec![("L4 TCP profile".into(), "Off — namespace kernel defaults".into())]; }
@@ -611,6 +616,10 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         Cell::new(status_label).fg(Color::Yellow).add_attribute(Attribute::Bold),
         status_val,
     ]);
+    table.add_row(vec![
+        Cell::new("Recorded session policy").fg(Color::Yellow),
+        Cell::new(session_policy_label(state)).fg(Color::Cyan),
+    ]);
 
     let unk = t!("geo.unknown");
     let ip_val = if !geo.ip.is_empty() {
@@ -621,8 +630,10 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         unk.as_ref()
     };
 
-    let ip_cell = if geo.is_tor || state.active {
+    let ip_cell = if geo.is_tor {
         Cell::new(format!("{ip_val} [✔ Verified Tor Node]")).fg(Color::Green).add_attribute(Attribute::Bold)
+    } else if state.active {
+        Cell::new(format!("{ip_val} [Tor exit verification unavailable]")).fg(Color::Yellow)
     } else {
         let warn_str = t!("dashboard.clearnet_warn");
         Cell::new(format!("{ip_val} [{warn_str}]")).fg(Color::Red).add_attribute(Attribute::Bold)
@@ -650,7 +661,7 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         route_cell,
     ]);
 
-    let ks_cell = if state.kill_switch || state.active {
+    let ks_cell = if state.kill_switch {
         Cell::new(t!("dashboard.fail_closed_ks")).fg(Color::Green)
     } else {
         Cell::new(t!("dashboard.fail_closed_inactive")).fg(Color::DarkGrey)
@@ -1034,6 +1045,13 @@ pub fn print_demo_showcase() {
 #[cfg(test)]
 mod l4_display_tests {
     use super::*;
+    #[test]
+    fn dashboard_distinguishes_recorded_strict_policy_from_legacy_state() {
+        assert!(session_policy_label(&StateData::default()).contains("not recorded"));
+        let state = StateData { strict_hardening: true, ..Default::default() };
+        assert!(session_policy_label(&state).contains("Full-security"));
+    }
+
     #[test]
     fn inactive_off_and_missing_snapshot_never_claim_live_verification() {
         let mut state = StateData::default();

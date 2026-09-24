@@ -339,7 +339,7 @@ help:
   opt_tcp_mask: TCP/IP L4 yığın parametrelerini (TTL=128, timestamps=0) Windows standardına
     normalleştirir
   opt_machine_id: OS /etc/machine-id ve donanım kimliklerini rastgeleleştirir
-  opt_full_security: "-Fs → Tor / Netfilter / DNSSEC / Seccomp; README: #full-security"
+  opt_full_security: "-Fs → Tor / DNSSEC / L4 auto + TLS / Browser + Fonts / Seccomp; README: #full-security"
   sec_forensic_header: 'Yüksek Riskli & Adli Bilişim Karşıtı Operasyonlar:'
   opt_wipe_logs: '⚠ GERİ ALINAMAZ: Sistem oturum loglarını, olay günlüklerini ve kabuk
     geçmişini siler'

@@ -335,7 +335,7 @@ help:
   opt_font_sandbox: Изолировать системные шрифты (Fontconfig sandbox)
   opt_tcp_mask: Нормализовать параметры стека TCP/IP (TTL=128, TS=0)
   opt_machine_id: Рандомизировать /etc/machine-id и DMI идентификаторы
-  opt_full_security: "-Fs → Tor / Netfilter / DNSSEC / Seccomp; README: #full-security"
+  opt_full_security: "-Fs → Tor / DNSSEC / L4 auto + TLS / Browser + Fonts / Seccomp; README: #full-security"
   sec_forensic_header: 'Операции высокого риска и антикриминалистика:'
   opt_wipe_logs: '⚠ БЕЗВОЗВРАТНО: Уничтожить системные логи и историю терминала'
   opt_self_destruct: '⚠ БЕЗВОЗВРАТНО: Стереть бинарный файл с диска при выходе (SIGINT)'

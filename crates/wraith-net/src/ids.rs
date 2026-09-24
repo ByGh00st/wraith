@@ -5,7 +5,7 @@
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::atomic::AtomicU64;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Instant;
@@ -691,40 +691,25 @@ impl EgressIntrusionDetector {
         (detector, telemetry, cancel_token)
     }
 
-    pub fn spawn_sniffer(&self) -> tokio::task::JoinHandle<()> {
-        let cancel = self.cancel_token.clone();
-        let telemetry = self.telemetry.clone();
-
-        tokio::spawn(async move {
-            #[cfg(unix)]
-            {
-                // SAFETY: Creating AF_PACKET raw socket descriptor with valid flags.
-                let sock_fd = unsafe {
-                    libc::socket(
-                        libc::AF_PACKET,
-                        libc::SOCK_RAW | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC,
-                        (libc::ETH_P_ALL as u16).to_be() as i32,
-                    )
-                };
-
-                if sock_fd >= 0 {
-                    let mut buf = vec![0u8; 65535];
-                    loop {
-                        if cancel.is_cancelled() {
-                            // SAFETY: Closing open raw socket descriptor on shutdown.
-                            unsafe { libc::close(sock_fd) };
-                            break;
-                        }
-
-                        // SAFETY: Receiving into allocated mutable buffer of exact length.
-                        let res = unsafe {
-                            libc::recv(sock_fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0)
-                        };
-
-                        if res > 0 {
-                            let n = res as usize;
+    /// Acquire the socket before reporting readiness. The owned descriptor is
+    /// also closed when the task is aborted during failed startup.
+    pub fn spawn_sniffer(&self) -> wraith_core::error::Result<tokio::task::JoinHandle<()>> {
+        #[cfg(target_os = "linux")]
+        {
+            use nix::sys::socket::{socket, recv, AddressFamily, SockType, SockFlag, SockProtocol, MsgFlags};
+            use std::os::fd::AsRawFd;
+            let socket = socket(AddressFamily::Packet, SockType::Raw,
+                SockFlag::SOCK_NONBLOCK | SockFlag::SOCK_CLOEXEC, SockProtocol::EthAll)
+                .map_err(|e| wraith_core::error::WraithError::Network(format!("IDS socket setup failed: {e}")))?;
+            let cancel = self.cancel_token.clone();
+            let telemetry = self.telemetry.clone();
+            Ok(tokio::spawn(async move {
+                let mut buf = vec![0u8; 65535];
+                loop {
+                    if cancel.is_cancelled() { break; }
+                    match recv(socket.as_raw_fd(), &mut buf, MsgFlags::empty()) {
+                        Ok(n) if n > 0 => {
                             telemetry.packets_inspected.fetch_add(1, Ordering::Relaxed);
-
                             if let Some(pkt) = PacketDissector::dissect(&buf[..n]) {
                                 if pkt.is_tor_transport {
                                     telemetry.tor_routed_bytes.fetch_add(n as u64, Ordering::Relaxed);
@@ -736,23 +721,26 @@ impl EgressIntrusionDetector {
                                     telemetry.clearnet_escapes_blocked.fetch_add(1, Ordering::SeqCst);
                                 }
                             }
-                        } else {
-                            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                            // A continuously busy interface must not starve cancellation.
+                            tokio::task::yield_now().await;
+                        }
+                        Err(nix::errno::Errno::EINTR) => continue,
+                        Ok(_) | Err(nix::errno::Errno::EAGAIN) => {
+                            tokio::select! {
+                                _ = cancel.cancelled() => break,
+                                _ = tokio::time::sleep(tokio::time::Duration::from_millis(50)) => {},
+                            }
+                        }
+                        Err(error) => {
+                            tracing::error!("IDS socket receive failed: {error}");
+                            break;
                         }
                     }
                 }
-            }
-            #[cfg(not(unix))]
-            {
-                let _ = telemetry;
-                loop {
-                    if cancel.is_cancelled() {
-                        break;
-                    }
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                }
-            }
-        })
+            }))
+        }
+        #[cfg(not(target_os = "linux"))]
+        { Err(wraith_core::error::WraithError::UnsupportedPlatform) }
     }
 
     pub fn get_telemetry(&self) -> Arc<IdsTelemetry> {
@@ -767,6 +755,13 @@ impl EgressIntrusionDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_os = "linux"))]
+    #[test]
+    fn unsupported_capture_cannot_report_ready() {
+        assert!(matches!(EgressIntrusionDetector::default().spawn_sniffer(),
+            Err(wraith_core::error::WraithError::UnsupportedPlatform)));
+    }
 
     #[test]
     fn test_offensive_tool_signatures_count() {

@@ -340,7 +340,7 @@ help:
   opt_tcp_mask: Normalize TCP/IP L4 stack parameters (TTL=128, timestamps=0) to resist
     OS fingerprinting
   opt_machine_id: Rotate unique OS /etc/machine-id and system hardware identifiers
-  opt_full_security: "-Fs → Tor / Netfilter / DNSSEC / Seccomp; README: #full-security"
+  opt_full_security: "-Fs → Tor / DNSSEC / L4 auto + TLS / Browser + Fonts / Seccomp; README: #full-security"
   sec_forensic_header: 'High-Risk & Forensic Operations:'
   opt_wipe_logs: '⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs,
     and user shell history files'

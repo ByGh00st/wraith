@@ -88,6 +88,7 @@ mod tests {
     fn session_options_cannot_silently_disappear() {
         for args in [vec!["wraith", "-F", "start"], vec!["wraith", "-F", "-i"],
             vec!["wraith", "-x", "-L"], vec!["wraith", "--morph-l4", "off", "info"],
+            vec!["wraith", "--rotate", "60", "info"], vec!["wraith", "--no-ks", "-i"],
             vec!["wraith", "--tls-profile", "safari", "fetch", "https://example.org", "-o", "page"]] {
             assert!(parse(args).is_err());
         }

@@ -191,8 +191,27 @@ fn prepare_with_config(args: crate::StartArgs, cfg: wraith_core::WraithConfig) -
         }
     }
 
+    apply_strict_preset(&mut args);
+    args.namespace |= args.tcp_mask
+        || args.morph_l4.as_deref().is_some_and(|mode| mode != "off");
     validate_start_options(&args)?;
     Ok(PreparedStart { args, moat_transport })
+}
+
+/// Resolve the required preset after configuration merging, before any mutation.
+/// Explicit profile choices are validated, never silently replaced.
+fn apply_strict_preset(args: &mut crate::StartArgs) {
+    if !args.strict_hardening { return; }
+    args.namespace = true;
+    args.tcp_mask = true;
+    args.mac = true;
+    args.machine_id_rotation = true;
+    args.browser_shield = true;
+    args.font_sandbox = true;
+    args.honey_ports = true;
+    args.morph_l4.get_or_insert_with(|| "auto".into());
+    args.tls_profile.get_or_insert_with(|| "chrome".into());
+    args.profile.get_or_insert_with(|| "stealth".into());
 }
 
 fn validate_start_options(args: &crate::StartArgs) -> Result<()> {
@@ -234,7 +253,7 @@ pub async fn cmd_start(prepared: PreparedStart) -> Result<()> {
 }
 
 async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
-    let PreparedStart { mut args, moat_transport } = prepared;
+    let PreparedStart { args, moat_transport } = prepared;
     print_banner(args.strict_hardening);
     let state_mgr = StateManager::default();
 
@@ -271,6 +290,8 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     let mut state_data = StateData {
         active: false,
         state: Some(wraith_core::State::Arming),
+        strict_hardening: is_strict,
+        tls_profile: Some(args.tls_profile.clone().unwrap_or_else(|| "chrome".into())),
         physical_fastpath_disabled: true,
         ..Default::default()
     };
@@ -386,7 +407,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     };
 
     // 1. MAC & Hostname Randomization
-    if args.mac || is_strict {
+    if args.mac {
         print_step(&t!("commands.cmd_step_1"), "info");
         match wraith_net::change_mac_with_journal(Some(&target_interface), None, |iface, old, new| {
             state_data.mac_interface = Some(iface.into());
@@ -425,7 +446,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     }
 
     // 2. Machine-ID & Hardware DMI Cloaking
-    if args.machine_id_rotation || is_strict {
+    if args.machine_id_rotation {
         print_step(&t!("commands.cmd_step_73"), "info");
         match wraith_forensic::hardware_cloaker::rotate_machine_id_with_journal(|backup| {
             state_data.machine_id_backup = backup.clone();
@@ -440,11 +461,6 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
         }
         state_mgr.activate(state_data.clone())?;
     }
-
-    // TCP profiles apply to applications explicitly launched in the namespace.
-    // Never mark a requested profile active before the kernel accepted it.
-    args.namespace |= args.tcp_mask || is_strict
-        || args.morph_l4.as_deref().is_some_and(|mode| mode != "off");
 
     // Every mode redirects port 80 here, so every mode needs this listener.
     let (server, ct) = TlsCamouflageServer::new(None);
@@ -596,11 +612,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     print_step(&t!("commands.cmd_step_76"), "ok");
 
     // 8. Exit Node Profile
-    let exit_prof = if is_strict && args.profile.is_none() {
-        Some("stealth".to_string())
-    } else {
-        args.profile.clone()
-    };
+    let exit_prof = args.profile.clone();
 
     if let Some(prof_name) = &exit_prof {
         print_step(
@@ -657,7 +669,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     if is_strict {
         print_step(&t!("commands.cmd_step_78"), "info");
         let (ids, _telemetry, ct) = EgressIntrusionDetector::new();
-        let handle = ids.spawn_sniffer();
+        let handle = ids.spawn_sniffer()?;
         print_step(&t!("commands.cmd_step_79"), "ok");
         bg_services.ids = Some((ct, handle));
     }
@@ -673,7 +685,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     }
 
     // 13. Hardware, GPU, Font & Resolution Browser Shield
-    if args.browser_shield || is_strict {
+    if args.browser_shield {
         print_step(&t!("commands.cmd_step_82"), "info");
         state_data.browser_configured = true;
         state_mgr.activate(state_data.clone())?;
@@ -691,7 +703,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     }
 
     // 14. System-level Font Sandbox
-    if args.font_sandbox || is_strict {
+    if args.font_sandbox {
         print_step(&t!("commands.cmd_step_83"), "info");
         journal_file(&state_mgr, &mut state_data, wraith_forensic::FONT_CONFIG_PATH, false)?;
         journal_file(&state_mgr, &mut state_data, wraith_forensic::FONT_CONFIG_BACKUP, false)?;
@@ -736,7 +748,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     }
 
     // 16. Network Namespace
-    if args.namespace || is_strict {
+    if args.namespace {
         print_step(&t!("commands.cmd_step_18"), "info");
         wraith_net::preflight_namespace()?;
         state_data.namespace_active = true;
@@ -745,7 +757,6 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
             Ok(snapshot) => {
                 print_step(&t!("commands.cmd_step_19"), "ok");
                 state_data.namespace_active = true;
-                state_data.tls_profile = Some(args.tls_profile.clone().unwrap_or_else(|| "chrome".into()));
                 if let Some(snapshot) = snapshot {
                     print_step(&format!("L4 namespace profile applied and read back: {}",
                         snapshot.profile_name.as_deref().unwrap_or("unknown")), "ok");
@@ -842,16 +853,9 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
         match EncryptedRamVault::init() {
             Ok(mut vault) => {
                 state_data.vault_path = Some(vault.path().to_string_lossy().into_owned());
-                match serde_json::to_vec(&state_data) {
-                    Ok(secret_payload) => {
-                        if let Err(e) = vault.write_secret("session.state.enc", &secret_payload) {
-                            tracing::warn!("Encrypted vault write warning: {e}");
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed serializing state for encrypted vault: {e}");
-                    }
-                }
+                // Strict activation requires the encrypted copy to be written.
+                let secret_payload = serde_json::to_vec(&state_data)?;
+                vault.write_secret("session.state", &secret_payload)?;
                 print_step(&t!("commands.cmd_step_87"), "ok");
                 Some(vault)
             }
@@ -897,15 +901,16 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
     }
 
     // 22. KillSwitch Daemon & State Activation (Strictly enforced in ALL modes)
-    state_data.state = Some(wraith_core::State::Active);
-    state_data.ip = Some(geo.ip.clone());
-    state_data.kill_switch = true;
-    state_mgr.activate(state_data)?;
-
+    verify_strict_l4_activation(&state_data, |snapshot|
+        Ok(wraith_net::inspect_tcp_stack(snapshot)?.matches_profile))?;
     print_step(&t!("commands.cmd_step_21"), "info");
     let (ks, cancel_token) = KillSwitch::new_with_mode(is_strict);
     let ks_handle = ks.spawn_monitor();
     bg_services.killswitch = Some((cancel_token, ks_handle));
+    state_data.state = Some(wraith_core::State::Active);
+    state_data.ip = Some(geo.ip.clone());
+    state_data.kill_switch = true;
+    state_mgr.activate(state_data)?;
     print_step(&t!("commands.cmd_step_90"), "ok");
 
     crate::display::print_session_hud(&geo, is_strict, args.rotate_interval);
@@ -1706,7 +1711,30 @@ fn record_cleanup(label: &str, result: Result<()>, errors: &mut Vec<String>) {
     }
 }
 
-/// Resolves L4 TCP fingerprint profile from runtime parameters or defaults
+/// Require a complete, matching L4 transaction and fresh readback before Active.
+fn verify_strict_l4_activation(
+    state: &StateData,
+    inspect: impl FnOnce(&NetnsTcpSnapshot) -> Result<bool>,
+) -> Result<()> {
+    if !state.strict_hardening { return Ok(()); }
+    if !state.namespace_active || !state.tcp_stack_masked {
+        return Err(WraithError::Namespace("Full-security requires an applied namespace L4 profile".into()));
+    }
+    let snapshot: NetnsTcpSnapshot = serde_json::from_str(state.tcp_snapshot_json.as_deref()
+        .ok_or_else(|| WraithError::Namespace("Full-security L4 snapshot is missing".into()))?)?;
+    let browser: wraith_tor::BrowserProfile = state.tls_profile.as_deref()
+        .ok_or_else(|| WraithError::Configuration("Full-security TLS profile is missing".into()))?.parse()?;
+    if snapshot.applied_profile.as_ref() != Some(&browser.l4_profile()) {
+        return Err(WraithError::Namespace("Applied L4 profile does not match the strict TLS platform".into()));
+    }
+    if !inspect(&snapshot)? {
+        return Err(WraithError::Namespace("Full-security L4 readback detected configuration drift; activation refused".into()));
+    }
+    tracing::info!("Strict L4 profile verified before session activation");
+    Ok(())
+}
+
+/// Resolve the namespace reference profile and enforce strict platform pairing.
 fn resolve_tcp_profile(args: &crate::StartArgs) -> Result<Option<TcpFingerprintProfile>> {
     let browser: wraith_tor::BrowserProfile = args.tls_profile.as_deref().unwrap_or("chrome").parse()?;
     let profile = match args.morph_l4.as_deref().unwrap_or("auto") {
@@ -1722,12 +1750,82 @@ fn resolve_tcp_profile(args: &crate::StartArgs) -> Result<Option<TcpFingerprintP
         "linux" => TcpFingerprintProfile::linux_default(),
         value => return Err(WraithError::Configuration(format!("Unknown L4 profile: {value}"))),
     };
+    if args.strict_hardening && profile.kind != browser.l4_profile().kind {
+        return Err(WraithError::Configuration(format!(
+            "Full-security requires matching L4/TLS platforms: {} does not match --tls-profile {}. Use --morph-l4 auto or select a matching TLS profile",
+            profile.name, args.tls_profile.as_deref().unwrap_or("chrome")
+        )));
+    }
     Ok(Some(profile))
 }
 
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
+    #[test]
+    fn full_security_resolves_required_controls_for_cli_and_config() {
+        for from_config in [false, true] {
+            let mut config = wraith_core::WraithConfig::default();
+            config.set_key("hardening.strict", if from_config { "true" } else { "false" }).unwrap();
+            for flag in ["hardening.tcp_mask", "hardening.browser_shield", "hardening.font_sandbox", "hardening.honey_ports"] {
+                config.set_key(flag, "false").unwrap();
+            }
+            let args = crate::StartArgs { strict_hardening: !from_config, ..Default::default() };
+            let prepared = prepare_with_config(args, config).unwrap();
+            let args = &prepared.args;
+            assert!(args.namespace && args.tcp_mask && args.mac && args.machine_id_rotation);
+            assert!(args.browser_shield && args.font_sandbox && args.honey_ports);
+            assert_eq!(args.morph_l4.as_deref(), Some("auto"));
+            assert_eq!(args.tls_profile.as_deref(), Some("chrome"));
+            assert_eq!(args.profile.as_deref(), Some("stealth"));
+            assert!(!crate::invocation::should_background(args));
+            assert!(!args.forensic_wipe_logs && !args.forensic_self_destruct && !args.honey_lan);
+            assert!(!args.jitter && !args.traffic_shaper && !args.display_sandbox && !args.bridge);
+            assert!(args.wireguard.is_none() && args.onion_service.is_none() && args.rotate_interval.is_none());
+        }
+    }
+
+    #[test]
+    fn strict_profile_pairs_reject_off_and_mismatches_before_mutation() {
+        for (tls, matching) in [("chrome", "windows"), ("firefox", "linux"), ("safari", "macos")] {
+            for mode in ["auto", "windows", "windows11", "linux", "macos", "off"] {
+                let args = crate::StartArgs { strict_hardening: true, tls_profile: Some(tls.into()),
+                    morph_l4: Some(mode.into()), ..Default::default() };
+                let result = prepare_with_config(args, wraith_core::WraithConfig::default());
+                assert_eq!(result.is_ok(), mode == "auto" || mode == matching || (tls == "chrome" && mode == "windows11"), "{tls}/{mode}");
+            }
+        }
+        let mut config = wraith_core::WraithConfig::default();
+        config.set_key("hardening.morph_l4", "off").unwrap();
+        assert!(prepare_with_config(crate::StartArgs { strict_hardening: true, ..Default::default() }, config).is_err());
+    }
+
+    #[test]
+    fn ordinary_sessions_do_not_inherit_the_strict_preset() {
+        let args = crate::StartArgs::default();
+        let prepared = prepare_with_config(args.clone(), wraith_core::WraithConfig::default()).unwrap();
+        assert_eq!(prepared.args, args);
+    }
+
+    #[test]
+    fn strict_activation_requires_a_matching_snapshot_and_fresh_readback() {
+        assert!(verify_strict_l4_activation(&StateData::default(), |_| panic!("standard mode")).is_ok());
+        let mut state = StateData { strict_hardening: true, ..Default::default() };
+        assert!(verify_strict_l4_activation(&state, |_| panic!("missing namespace")).is_err());
+        state.namespace_active = true;
+        state.tcp_stack_masked = true;
+        assert!(verify_strict_l4_activation(&state, |_| panic!("missing snapshot")).is_err());
+        let mut snapshot = NetnsTcpSnapshot::new(wraith_net::NAMESPACE_NAME);
+        snapshot.applied_profile = Some(TcpFingerprintProfile::windows11());
+        state.tcp_snapshot_json = Some(serde_json::to_string(&snapshot).unwrap());
+        state.tls_profile = Some("safari".into());
+        assert!(verify_strict_l4_activation(&state, |_| panic!("mismatch")).is_err());
+        state.tls_profile = Some("chrome".into());
+        assert!(verify_strict_l4_activation(&state, |_| Ok(true)).is_ok());
+        assert!(verify_strict_l4_activation(&state, |_| Ok(false)).is_err());
+        assert!(verify_strict_l4_activation(&state, |_| Err(WraithError::PermissionDenied)).is_err());
+    }
+
     #[test]
     fn persistent_strict_mode_is_resolved_before_daemon_selection() {
         let mut config = wraith_core::WraithConfig::default();
