@@ -313,6 +313,8 @@ help:
   commands_header: 'Kullanılabilir Alt Komutlar:'
   cmd_start: Anonimleştirmeyi ve çekirdek korumasını başlatır
   cmd_stop: Anonimleştirmeyi durdurur ve normal ağı geri yükler
+  cmd_reset: Ağ arabirimlerini, güvenlik duvarını, DNS ve yönlendirmeleri sıfırlayarak varsayılan duruma getirir
+  cmd_network: Ağ yönetimi ve acil durum ağ kurtarma operasyonları
   cmd_switch: Yeni bir Tor çıkış kimliği (Newnym) talep eder
   cmd_test: Kapsamlı DNS, WebRTC ve IPv6 sızıntı testlerini çalıştırır
   cmd_info: Canlı telemetri paneli ve aktif devre durumunu gösterir

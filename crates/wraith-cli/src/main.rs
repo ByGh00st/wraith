@@ -318,6 +318,13 @@ struct Cli {
     #[arg(short = 'x', long, conflicts_with = "start")]
     stop: bool,
 
+    /// Emergency reset and restore host network interfaces, firewall, DNS, and routes to clean default state
+    #[arg(
+        long = "reset",
+        visible_aliases = ["reset-network", "network-reset", "net-reset", "ressert"]
+    )]
+    reset: bool,
+
     /// Launch real-time dedicated DPI & IDS live interceptor monitor
     #[arg(short = 'M', long = "monitor", visible_aliases = ["live", "ids-monitor"])]
     monitor: bool,
@@ -403,6 +410,19 @@ enum Commands {
         #[arg(short = 'd', long = "forensic-self-destruct", visible_aliases = ["self-destruct"])]
         self_destruct: bool,
     },
+    /// Emergency reset and restore host network interfaces, firewall, DNS, and routes to clean default state
+    #[command(name = "reset", visible_aliases = ["reset-network", "net-reset", "network-reset", "ressert"])]
+    Reset {
+        /// Target component to reset: network (default), dns, firewall, or all
+        #[arg(default_value = "network", value_parser = ["network", "net", "dns", "firewall", "all"])]
+        target: String,
+    },
+    /// Network operations and emergency recovery
+    #[command(name = "network", visible_aliases = ["net"])]
+    Network {
+        #[command(subcommand)]
+        action: NetworkAction,
+    },
     /// Enumerate network interfaces and display adapter attributes
     #[command(name = "interfaces", visible_aliases = ["nics", "adapters", "ifaces"])]
     Interfaces {
@@ -482,6 +502,17 @@ enum Commands {
         /// Launch interactive TUI selector
         #[arg(short = 's', long = "select")]
         select: bool,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug, PartialEq, Eq)]
+pub enum NetworkAction {
+    /// Emergency reset and restore host network interfaces, firewall, DNS, and routes
+    #[command(name = "reset", visible_aliases = ["restore", "clean", "ressert"])]
+    Reset {
+        /// Target component to reset: network (default), dns, firewall, or all
+        #[arg(default_value = "network", value_parser = ["network", "net", "dns", "firewall", "all"])]
+        target: String,
     },
 }
 
@@ -600,6 +631,10 @@ pub(crate) fn resolve_command(cli: &Cli) -> Option<Commands> {
     } else if cli.stop {
         Some(Commands::Stop {
             self_destruct: cli.start_opts.forensic_self_destruct,
+        })
+    } else if cli.reset {
+        Some(Commands::Reset {
+            target: "network".to_string(),
         })
     } else if cli.start {
         Some(Commands::Start(cli.start_opts.clone()))
@@ -927,6 +962,14 @@ pub async fn main() -> Result<()> {
         Commands::Stop { self_destruct } => {
             commands::cmd_stop(self_destruct).await?;
         }
+        Commands::Reset { target } => {
+            commands::cmd_reset_network(&target).await?;
+        }
+        Commands::Network { action } => match action {
+            NetworkAction::Reset { target } => {
+                commands::cmd_reset_network(&target).await?;
+            }
+        },
         Commands::Switch => {
             commands::cmd_switch().await?;
         }
@@ -1257,6 +1300,25 @@ mod tests {
 
         let cli_ifaces = Cli::try_parse_from(["wraith", "--interfaces"]).unwrap();
         assert_eq!(resolve_command(&cli_ifaces), Some(Commands::Interfaces { all: false }));
+
+        // Network reset shortcuts & subcommands
+        let cli_reset = Cli::try_parse_from(["wraith", "--reset"]).unwrap();
+        assert_eq!(resolve_command(&cli_reset), Some(Commands::Reset { target: "network".to_string() }));
+
+        let cli_reset_net = Cli::try_parse_from(["wraith", "--reset-network"]).unwrap();
+        assert_eq!(resolve_command(&cli_reset_net), Some(Commands::Reset { target: "network".to_string() }));
+
+        let cli_ressert = Cli::try_parse_from(["wraith", "--ressert"]).unwrap();
+        assert_eq!(resolve_command(&cli_ressert), Some(Commands::Reset { target: "network".to_string() }));
+
+        let cli_reset_sub = Cli::try_parse_from(["wraith", "reset"]).unwrap();
+        assert_eq!(resolve_command(&cli_reset_sub), Some(Commands::Reset { target: "network".to_string() }));
+
+        let cli_reset_sub_dns = Cli::try_parse_from(["wraith", "reset", "dns"]).unwrap();
+        assert_eq!(resolve_command(&cli_reset_sub_dns), Some(Commands::Reset { target: "dns".to_string() }));
+
+        let cli_net_reset = Cli::try_parse_from(["wraith", "network", "reset"]).unwrap();
+        assert_eq!(resolve_command(&cli_net_reset), Some(Commands::Network { action: NetworkAction::Reset { target: "network".to_string() } }));
 
         // Conflicting start & stop
         assert!(Cli::try_parse_from(["wraith", "-s", "-x"]).is_err());

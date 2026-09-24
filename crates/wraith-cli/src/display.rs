@@ -994,10 +994,13 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("cleanup_full", |a| a.help(t!("help.cmd_cleanup_full").into_owned()))
         .mut_arg("shred", |a| a.help(t!("help.cmd_shred").into_owned()))
         .mut_arg("monitor", |a| a.help(t!("help.cmd_monitor").into_owned()))
-        .mut_arg("interfaces", |a| a.help(t!("help.cmd_interfaces").into_owned()));
+        .mut_arg("interfaces", |a| a.help(t!("help.cmd_interfaces").into_owned()))
+        .mut_arg("reset", |a| a.help(t!("help.cmd_reset").into_owned()));
 
     cmd = cmd.mut_subcommand("start", |s| s.about(t!("help.cmd_start").into_owned()))
         .mut_subcommand("stop", |s| s.about(t!("help.cmd_stop").into_owned()))
+        .mut_subcommand("reset", |s| s.about(t!("help.cmd_reset").into_owned()))
+        .mut_subcommand("network", |s| s.about(t!("help.cmd_network").into_owned()))
         .mut_subcommand("switch", |s| s.about(t!("help.cmd_switch").into_owned()))
         .mut_subcommand("test", |s| s.about(t!("help.cmd_test").into_owned()))
         .mut_subcommand("info", |s| s.about(t!("help.cmd_info").into_owned()))

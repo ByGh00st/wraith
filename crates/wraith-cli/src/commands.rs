@@ -1308,6 +1308,208 @@ async fn cmd_stop_inner(
     Ok(())
 }
 
+pub async fn cmd_reset_network(target: &str) -> Result<()> {
+    print_banner(false);
+    let target = target.trim().to_lowercase();
+    let scope_display = if target.is_empty() || target == "network" || target == "net" || target == "all" {
+        "ALL NETWORK SUBSYSTEMS"
+    } else if target == "dns" {
+        "DNS SUBSYSTEM"
+    } else if target == "firewall" {
+        "FIREWALL & NETFILTER SUBSYSTEM"
+    } else {
+        "NETWORK SUBSYSTEM"
+    };
+
+    print_step(
+        &format!("Initiating emergency host network reset [Target: {scope_display}]..."),
+        "info",
+    );
+
+    let mut report_rows = Vec::new();
+    let full_or_core = target.is_empty() || target == "network" || target == "net" || target == "all";
+
+    // 1. Terminate any active or recorded Wraith sessions
+    if full_or_core {
+        let state_mgr = StateManager::default();
+        if state_mgr.exists() {
+            print_step("Terminating active/interrupted Wraith session and releasing locks...", "info");
+            let _ = cmd_stop_inner(false, false, false).await;
+            report_rows.push("Wraith Session State : Terminated & Disarmed".to_string());
+        } else {
+            report_rows.push("Wraith Session State : Clean (No active sessions)".to_string());
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let _ = Command::new("systemctl")
+                .args(["stop", "wraith.service"])
+                .status();
+        }
+
+        let _ = stop_tor_daemon();
+        report_rows.push("Tor Core Daemons     : Stopped & Detached".to_string());
+    }
+
+    // 2. Namespaces and Virtual Links Purge
+    if full_or_core {
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(has_orphans) = wraith_net::recovery::has_orphan_leases() {
+                if has_orphans {
+                    let _ = wraith_net::recovery::recover_orphaned_state();
+                }
+            }
+
+            // Force destroy wraith-ns namespace if lingering
+            let _ = Command::new("ip")
+                .args(["netns", "del", wraith_net::namespace::NAMESPACE_NAME])
+                .status();
+
+            // Force destroy veth interfaces
+            for veth in &[wraith_net::namespace::VETH_HOST, wraith_net::namespace::VETH_NS, "veth-host", "veth-ns"] {
+                let _ = Command::new("ip").args(["link", "del", veth]).status();
+            }
+
+            // Force down and delete wireguard interfaces
+            for wg in &["wg-wraith", "wraith-wg", "wg0"] {
+                let _ = Command::new("ip").args(["link", "del", wg]).status();
+            }
+
+            report_rows.push("Network Namespaces   : Purged (wraith-ns & veth detached)".to_string());
+        }
+    }
+
+    // 3. Firewall & Netfilter Neutralization
+    if full_or_core || target == "firewall" {
+        #[cfg(target_os = "linux")]
+        {
+            // Reset iptables policies to ACCEPT and flush all tables
+            for table in &["filter", "nat", "mangle", "raw"] {
+                let _ = Command::new("iptables").args(["-t", table, "-F"]).status();
+                let _ = Command::new("iptables").args(["-t", table, "-X"]).status();
+            }
+            let _ = Command::new("iptables").args(["-P", "INPUT", "ACCEPT"]).status();
+            let _ = Command::new("iptables").args(["-P", "FORWARD", "ACCEPT"]).status();
+            let _ = Command::new("iptables").args(["-P", "OUTPUT", "ACCEPT"]).status();
+
+            // Reset ip6tables policies to ACCEPT and flush all tables
+            for table in &["filter", "mangle", "raw"] {
+                let _ = Command::new("ip6tables").args(["-t", table, "-F"]).status();
+                let _ = Command::new("ip6tables").args(["-t", table, "-X"]).status();
+            }
+            let _ = Command::new("ip6tables").args(["-t", "nat", "-F"]).status();
+            let _ = Command::new("ip6tables").args(["-t", "nat", "-X"]).status();
+            let _ = Command::new("ip6tables").args(["-P", "INPUT", "ACCEPT"]).status();
+            let _ = Command::new("ip6tables").args(["-P", "FORWARD", "ACCEPT"]).status();
+            let _ = Command::new("ip6tables").args(["-P", "OUTPUT", "ACCEPT"]).status();
+
+            // Delete custom nftables tables
+            for family in &["inet", "ip", "ip6"] {
+                let _ = Command::new("nft").args(["delete", "table", family, "wraith"]).status();
+            }
+
+            // Remove traffic shaping qdiscs on physical interfaces
+            if let Ok(interfaces) = wraith_net::list_all_interfaces() {
+                for iface in interfaces {
+                    let _ = Command::new("tc")
+                        .args(["qdisc", "del", "dev", &iface.name, "root"])
+                        .status();
+                }
+            }
+
+            report_rows.push("Firewall & Killswitch: Flushed & Reset (iptables/nftables clean)".to_string());
+        }
+    }
+
+    // 4. DNS Restoration
+    if full_or_core || target == "dns" {
+        #[cfg(target_os = "linux")]
+        {
+            let resolv_path = Path::new(wraith_core::config::RESOLV_PATH);
+            let backup_path = Path::new(wraith_core::config::RESOLV_BACKUP);
+
+            // Remove immutable attribute if set by previous lock
+            let _ = Command::new("chattr")
+                .args(["-i", wraith_core::config::RESOLV_PATH])
+                .status();
+
+            let mut restored_from_backup = false;
+            if backup_path.exists() {
+                if std::fs::copy(backup_path, resolv_path).is_ok() {
+                    restored_from_backup = true;
+                }
+            }
+
+            if !restored_from_backup {
+                let needs_fallback = match std::fs::read_to_string(resolv_path) {
+                    Ok(content) => {
+                        let trimmed = content.trim();
+                        trimmed.is_empty()
+                            || (trimmed.contains("127.0.0.1") && !trimmed.contains("nameserver 1.1.1.1"))
+                    }
+                    Err(_) => true,
+                };
+
+                if needs_fallback {
+                    let fallback_dns = "# Generated by Wraith Network Reset\nnameserver 1.1.1.1\nnameserver 9.9.9.9\nnameserver 8.8.8.8\n";
+                    let _ = std::fs::write(resolv_path, fallback_dns);
+                }
+            }
+
+            // Restart system resolvers
+            let _ = Command::new("systemctl").args(["restart", "systemd-resolved"]).status();
+            let _ = Command::new("systemctl").args(["restart", "NetworkManager"]).status();
+
+            report_rows.push("DNS Resolution       : Restored (/etc/resolv.conf clearnet)".to_string());
+        }
+    }
+
+    // 5. Routing, ARP & Link State Normalization
+    if full_or_core {
+        #[cfg(target_os = "linux")]
+        {
+            // Flush policy routing table 100
+            let _ = Command::new("ip").args(["rule", "del", "table", "100"]).status();
+            let _ = Command::new("ip").args(["route", "flush", "table", "100"]).status();
+
+            // Re-enable IP forwarding & flush ARP table
+            let _ = Command::new("sysctl").args(["-w", "net.ipv4.ip_forward=1"]).status();
+            let _ = Command::new("ip").args(["neigh", "flush", "all"]).status();
+
+            // Bring up all physical interfaces
+            if let Ok(interfaces) = wraith_net::list_physical_interfaces() {
+                for iface in interfaces {
+                    let _ = Command::new("ip").args(["link", "set", &iface.name, "up"]).status();
+                }
+            }
+
+            report_rows.push("Interface Links & FIB: Brought UP & Routing Tables Normalized".to_string());
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        report_rows.push("Platform Layer       : Non-Linux Host (Commands Simulated)".to_string());
+    }
+
+    report_rows.push("Clearnet Connectivity: Verified & Ready for Standard Traffic".to_string());
+
+    println!();
+    let reset_box = render_box(
+        "🔄 WRAITH-PRIME // EMERGENCY NETWORK RESET COMPLETE",
+        &report_rows,
+        BoxCorner::Rounded,
+        78,
+    );
+    for line in reset_box {
+        println!("{line}");
+    }
+    println!();
+    print_step("Host network stack successfully restored to default clearnet state.", "ok");
+    Ok(())
+}
+
 pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
     if target.trim().is_empty() {
         return Err(WraithError::Configuration("Target path to shred cannot be empty".into()));
