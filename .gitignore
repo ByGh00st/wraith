@@ -5,6 +5,8 @@
 # 1. Rust Build Artifacts & Intermediate Targets
 /target/
 **/target/
+/dist/
+**/__pycache__/
 *.rlib
 *.rmeta
 *.d
