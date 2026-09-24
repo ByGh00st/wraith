@@ -21,6 +21,7 @@ done
 
 [[ -n $repository && -n $keyring && -n $version ]] || usage
 [[ -d $repository && -f $keyring ]] || { echo 'Repository or public key is missing.' >&2; exit 1; }
+cmp -- "$keyring" "$repository/wraith-archive-keyring.asc"
 for command in apt-get dpkg-deb gpg gpgv python3; do
     command -v "$command" >/dev/null || { echo "Missing required command: $command" >&2; exit 1; }
 done
