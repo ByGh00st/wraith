@@ -33,6 +33,7 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 | Area | Current behavior |
 | :--- | :--- |
+| Release distribution | v1.4.0 package pipeline: native Debian packages and GNU/musl archives for x86_64 and ARM64 |
 | Full-security preset | Automatic namespace + Tor access-link L4/TLS pairing, required setup checks and recorded policy telemetry |
 | Local ISP / firewall scope | Tor UID TCP TTL, SYN option order and MSS normalization; shared Tor exits preserved |
 | Worker ownership | Boot/start-time/executable identity and pidfd-bound shutdown |
@@ -49,8 +50,8 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 ### Project at a glance
 
-**6 Rust crates · 17 locales · GPL-3.0 · x86_64 Linux runtime**
+**6 Rust crates · 17 locales · GPL-3.0 · x86_64 + ARM64 Linux runtime**
 
-The latest recorded checks include **238 passing portable tests**, one ignored native wire audit, and **all-target Clippy with warnings denied** on Windows and for the Linux target. The Linux wire audit is compiled, not executed; live routing, NFQUEUE/Guard integration and installed-system updates remain outside that validation. See [the validation guide](Development.md).
+The latest recorded checks include **238 passing Windows tests**, **240 tests on each native GNU Linux architecture**, all-target Clippy with warnings denied, **14 installer scenarios**, and verified x86_64/ARM64 Debian packages plus static musl archives. The native wire audit remains ignored; live routing, NFQUEUE/Guard integration and installed-system updates remain outside that validation. See [the validation guide](Development.md).
 
 <p align="center"><a href="https://github.com/ByGh00st/wraith">Repository</a> · <a href="https://github.com/ByGh00st/wraith#privacy-matrix">Tool comparison</a> · <a href="https://github.com/ByGh00st/wraith/issues">Issues</a></p>

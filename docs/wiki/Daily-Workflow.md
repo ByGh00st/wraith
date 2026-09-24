@@ -55,6 +55,8 @@ wraith -u
 sudo ./build.sh
 ```
 
+For release packages, rerun `install.sh` or install a newer `.deb` with APT. `-u` remains a source-checkout operation; it does not upgrade an installed package.
+
 The updater requires the official origin, `main`, a clean checkout and a fast-forward update. It does not build or replace the installed binary. The build helper compiles as your normal sudo account and installs only after a successful locked build.
 
 A clone predating a history rewrite may be refused as divergent. Preserve your local work and clone into a new directory; the updater never resets the existing checkout. Signed offline artifact installation is not implemented; its CLI options return an explicit error.

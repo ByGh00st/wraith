@@ -89,6 +89,6 @@ This applies to namespace creation even with L4 morphing off. Physical-adapter M
 
 `StateData`, TCP/route/egress snapshots and process identity implement zeroization on drop. `SensitiveMap` drains and wipes owned keys/values on replacement, clear and destruction. Protected buffers also cover state JSON, vault plaintext and WireGuard configuration input; WireGuard debug formatting redacts secret fields.
 
-Release builds use panic unwinding so destructors can run on ordinary error returns and unwound scopes. A panic does not synchronously restore network state: restrictive policy and records remain for recovery. SIGKILL, abort and power loss skip destructors. This is not whole-process erasure, a guarantee about third-party TLS allocations, or protection from cold-boot inspection. The disk recovery journal is intentionally retained until cleanup succeeds.
+Release builds use `panic = "abort"`. Destructors run on normal scope exits and ordinary error returns, but not after a release panic, SIGKILL or power loss. Tests use unwinding; their drop checks do not establish release-panic cleanup. A panic does not synchronously restore network state: restrictive policy and durable records remain for recovery. This is not whole-process erasure, a guarantee about third-party TLS allocations, or protection from cold-boot inspection. The disk recovery journal is intentionally retained until cleanup succeeds.
 
 **Next:** [Development and project information →](Development.md)

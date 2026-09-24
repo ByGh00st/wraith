@@ -4,11 +4,12 @@
 
 ## Requirements
 
-The installed runtime targets **x86_64 Linux**, primarily Debian, Ubuntu, Kali and Parrot-style environments. Windows supports portable development tests, not privileged networking sessions.
+The installed runtime targets **x86_64 and ARM64 Linux**, primarily Debian, Ubuntu, Kali and Parrot-style environments. Windows supports portable development tests, not privileged networking sessions.
 
 | Component | Purpose |
 | :--- | :--- |
-| Rust 1.88 or newer | Build the locked workspace |
+| Bash, curl and Python 3.8+ | Download and verify release packages |
+| Rust 1.88 or newer (source builds only) | Build the locked workspace |
 | C/C++, CMake, Perl, libclang and pkg-config | Build the native TLS dependencies |
 | Tor with a dedicated non-root account | Tor transport |
 | iptables/ip6tables and save/restore tools | Session policy and recovery |
@@ -18,6 +19,37 @@ The installed runtime targets **x86_64 Linux**, primarily Debian, Ubuntu, Kali a
 | fontconfig | Font controls |
 
 Install Rust under your ordinary account before using the helper. Optional WireGuard and virtual-display features also require their corresponding system tools.
+
+## Install an official release
+
+**The v1.4.0 package pipeline is prepared; its release has not yet been published.** Use the source path below until a completed release contains the packages and checksums.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ByGh00st/wraith/main/install.sh | sudo bash
+wraith --version
+```
+
+| Platform | Installation | Global command path |
+| :--- | :--- | :--- |
+| Debian/Ubuntu/Kali with glibc | Architecture-matched `.deb` through APT | `/usr/bin/wraith` |
+| Other glibc distributions | GNU archive | `/usr/local/bin/wraith` |
+| Alpine/musl | Static musl archive | `/usr/local/bin/wraith` |
+
+Both x86_64 and ARM64 are selected automatically. The installer requires Bash, curl and Python 3.8+ (`apk add bash curl python3` on Alpine). When already root, replace `sudo bash` with `bash`. It verifies SHA-256, package identity or archive/ELF structure, and the installed version. Archives do not install Tor, Netfilter or other runtime tools; install those through your distribution. GNU artifacts are built on Ubuntu 22.04 and need compatible glibc/libstdc++ versions. The current Debian packages require `libc6 >= 2.34`; older systems can build from source.
+
+Manual Debian installation, once v1.4.0 is published:
+
+```bash
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith_1.4.0_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.0/SHA256SUMS.txt
+sha256sum --ignore-missing --check SHA256SUMS.txt
+sudo apt install ./wraith_1.4.0_amd64.deb
+wraith --version
+```
+
+Use `arm64` in the filename on ARM64. APT owns the installed package; no external APT repository is configured. Rerun the installer or install the newer package to upgrade. To remove the APT package, complete `sudo wraith -x` first, then run `sudo apt remove wraith`. `wraith -u` only updates a source checkout.
+
+For an installation preview, download `install.sh`, inspect it, then run `bash install.sh --dry-run`. This fetches and validates the assets without executing the binary or changing system files. Checksums use the same GitHub trust boundary as the release. A PATH conflict is reported rather than silently deleting a previous installation; inspect `type -a wraith` if necessary.
 
 ## Install from the official repository
 
@@ -36,13 +68,15 @@ The helper installs Debian-family packages, builds as the invoking user with `Ca
 Install the required system dependencies, then build as your ordinary account:
 
 ```bash
-cargo build --release --locked
+CMAKE_BUILD_PARALLEL_LEVEL=2 cargo build --release --locked -j 2
 sudo install -m 0755 target/release/wraith /usr/local/bin/wraith
 wraith --version
 wraith --help
 ```
 
 </details>
+
+Release builds use ThinLTO, 16 codegen units, stripped symbols, no debug information and `panic = "abort"`. `build.sh` limits Cargo and CMake concurrency to two. Use `cargo build --release -j 2` on low-memory machines; this is a mitigation, not a zero-OOM guarantee. See [build diagnostics](Troubleshooting.md#build-and-package-diagnostics) and the [release procedure](https://github.com/ByGh00st/wraith/blob/main/docs/RELEASING.md).
 
 ## Your first session
 

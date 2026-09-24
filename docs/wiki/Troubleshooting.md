@@ -18,6 +18,25 @@
 | Namespace still contains processes | Applications launched through `wraith exec` | Close them, then retry `sudo wraith -x` |
 | Ownership is ambiguous | Namespace lifetime, veth alias, lease or chain conflict | Preserve the evidence; do not flush tables or delete links by prefix |
 
+## Build and package diagnostics
+
+| Failure | Check / action |
+| :--- | :--- |
+| Cargo exits with 101 | Read the first compiler/build-script error; 101 alone does not identify OOM. |
+| `signal: 9, SIGKILL` / linker killed | Check `journalctl -k` or `dmesg` for OOM evidence. Close memory-heavy jobs or use a larger builder; limit Cargo and CMake jobs to two. |
+| `libclang` cannot load on Alpine | Native bindgen build scripts must support dynamic loading. Use the documented musl builder; the final release binary remains static. |
+| `cargo deb --dry-run` rejected | cargo-deb 3.8.0 does not provide this flag. Build first, then run the package-validation script. |
+| Latest release lacks matching assets | Use the source installer until a complete release is published; do not substitute another CPU/libc binary. |
+| APT refuses a dependency | Check distribution/library compatibility. Do not force-install the package while skipping dependencies. |
+| Version check reports PATH conflict | Run `type -a wraith`; explicitly reconcile an earlier `/usr/local/bin` install with the APT-owned `/usr/bin/wraith`. |
+| SHA-256, metadata or archive validation fails | Installation is refused. Check the selected official release and download again; do not bypass verification. |
+
+```bash
+CMAKE_BUILD_PARALLEL_LEVEL=2 cargo build --release --locked -j 2 -p wraith-cli
+```
+
+The release workflow adds 4 GiB of swap on disposable GitHub runners. This reduces memory pressure; it does not guarantee zero OOM failures or modify the user's swap configuration. The repository previously had LTO disabled, so ThinLTO must not be described as a measured RAM improvement over that baseline.
+
 ## Retry cleanup
 
 ```bash

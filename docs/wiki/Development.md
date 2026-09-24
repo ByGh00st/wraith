@@ -4,14 +4,18 @@
 
 ## Recorded checks — 2026-09-24
 
-Implementation baseline: [`5a04818`](https://github.com/ByGh00st/wraith/commit/5a04818).
+Release-preparation baseline: [`1cee183`](https://github.com/ByGh00st/wraith/commit/1cee183). The [native build matrix](https://github.com/ByGh00st/wraith/actions/runs/35992818793) passed on all four x86_64/ARM64 GNU/musl targets and produced two Debian packages plus four archives. Manual validation skipped release publication.
 
 | Check | Result |
 | :--- | :--- |
-| Workspace check, all targets | Passed on the Windows build host |
-| Portable workspace tests | **238 passed, 0 failed, 1 ignored** |
+| Workspace check, all targets | Passed on Windows and both native GNU Linux architectures |
+| Windows workspace tests | **238 passed, 0 failed, 1 ignored** |
+| Native GNU Linux tests, x86_64 and ARM64 | **240 passed on each, 0 failed, 1 ignored** |
 | Windows all-target Clippy | Passed with warnings denied |
-| Linux-target all-target Clippy | Passed with warnings denied; includes test compilation |
+| GNU Linux all-target Clippy | Passed natively on both architectures and by cross-compilation; warnings denied |
+| Installer preview regressions | 14 platform/failure scenarios passed on Windows and Ubuntu; no installation |
+| Native Debian packages | Both architectures built; extraction, identity, permissions, version and APT simulation passed |
+| Static musl archives, x86_64 and ARM64 | Native builds, `--version` / `--help` and no-interpreter ELF checks passed |
 | Dependency audit | Passed with warnings denied; 351 locked dependencies |
 | Native Linux SYN audit | Compiled; ignored and not executed |
 | Privileged live Linux networking | Not performed |
@@ -24,7 +28,7 @@ Access-link regressions cover fixed SYN layouts and independently calculated che
 
 Hardening regressions cover sensitive-map replacement/clear/error/unwind drops, serialized map compatibility, state and TCP snapshot zeroization, redacted WireGuard keys, MAC bit layout and readback failures, refusal of unmarked/non-veth resources, reciprocal legacy veth ownership and configured L4↔L7 mismatches. Repeated actual orphan preflight is exercised by the ignored live test, not the portable suite.
 
-Linux pidfd identity tests and the NFQUEUE runtime compile with the Linux target; that is not a claim that they ran on Linux. Live Guard connectivity, PMTU/retransmission behavior and p0f captures remain unmeasured. The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). Advisory scanning does not establish absence of all defects.
+Native GNU tests include Linux pidfd identity regressions. NFQUEUE protocol/unit checks ran; the privileged queue worker and wire audit were not exercised live. Live Guard connectivity, PMTU/retransmission behavior and p0f captures remain unmeasured. The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). Advisory scanning does not establish absence of all defects.
 
 ## Reproduce
 
@@ -38,6 +42,21 @@ cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu --locke
 ```
 
 Cross-compilation needs the Linux Rust target, compatible C/C++ tools and headers, CMake, Perl and libclang. All-target Clippy includes test targets; the earlier test-module-order warnings have been corrected. Portable tests do not execute privileged Linux firewall operations.
+
+## Release packaging
+
+Follow the [release guide](https://github.com/ByGh00st/wraith/blob/main/docs/RELEASING.md) for version checks, native Debian packaging, musl builders and tag publication. The manual GitHub workflow builds artifacts without publishing a release. The workspace is prepared for 1.4.0; a matching tag is a separate release action.
+
+```bash
+bash -n install.sh build.sh scripts/package-release.sh .github/musl-rustc-wrapper.sh
+python3 scripts/test-install.py
+```
+
+The 14 installer scenarios exercise CPU/libc selection and rejection of checksum mismatches, duplicate/missing/foreign-origin assets, prereleases, wrong ELF architecture, archive links and path traversal. They use synthetic fixtures and do not establish successful APT installation. Actual Debian packaging is checked separately by cargo-deb, extraction and APT dependency simulation.
+
+`cargo-deb 3.8.0` rejects `--dry-run`; the supported validation path compiles first and uses `--no-build --no-strip` through `scripts/package-release.sh`. The download-only `install.sh --dry-run` is a different feature.
+
+Release builds use `panic = "abort"`; unit tests use unwinding. Successful unwind-drop tests cover that test execution mode, not destructor execution after release panics.
 
 ## Native Linux wire audit
 

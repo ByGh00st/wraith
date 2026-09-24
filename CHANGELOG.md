@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - Unreleased
+
+### Release engineering
+- One workspace version for all six crates, versioned internal dependencies and localized banners derived from Cargo metadata.
+- ThinLTO release profile, 16 codegen units, stripped symbols, no debug information and `panic = "abort"`; source installation caps Cargo/CMake concurrency at two.
+- Native x86_64 and ARM64 Debian packages, plus GNU and static musl archives; Debian installs `/usr/bin/wraith` with runtime dependencies and project documentation.
+- Official-release installer selects CPU/libc, validates checksums and package/archive identity, supports a download-only preview, and verifies the installed version and PATH.
+- Tag-driven release workflow validates all artifacts, creates SHA-256 sums and publishes only after all uploads; manual runs only build and validate. Disposable runners receive 4 GiB of additional swap.
+- Native ARM64 seccomp audit architecture and ptrace syscall selection; musl builder separates dynamically linked host tools from static target artifacts.
+
+### Session hardening since 1.3.0
+- Owned namespace veth MACs use the OS CSPRNG and are verified before activation. Durable leases and process identity constrain orphan cleanup.
+- Owned session/snapshot buffers and serialization secrets are zeroized on normal drop. Release panics now abort and skip destructors; no whole-process or abrupt-termination erasure guarantee is made.
+- Namespace TCP profiles, Tor access-link SYN normalization and inspect telemetry document the local ISP/Guard scope and preserve shared Tor exits.
+- Updated `rustls` to 0.23.45 for RUSTSEC-2026-0285; CLI validation, recovery and TLS/HTTP regressions are included in the current validation guide.
+
+Historical entries below describe earlier release announcements. Current supported behavior and measured limits are documented in the README and wiki.
+
 ## [1.3.0] - 2026-09-10
 
 ### Added

@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.0-8172b3?style=flat-square" alt="Version 1.3.0">
+  <img src="https://img.shields.io/badge/version-1.4.0-8172b3?style=flat-square" alt="Workspace version 1.4.0">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
   <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-238_passed-547d85?style=flat-square" alt="238 portable tests passed"></a>
@@ -81,6 +81,7 @@ sudo wraith -x     # Stop and restore recorded settings
 - [🛡️ Privacy & Security Comparison Matrix](#privacy-matrix)
 - [📂 Modular Crate Topology](#crate-topology)
 - [🚀 Quickstart & Installation](#installation)
+  - [Quick install · APT & binary archives](#quick-install)
   - [1. Automated System Deployment](#1-clone--automated-system-deployment)
   - [2. Manual Cargo Compilation & Binary Setup](#2-manual-cargo-compilation--binary-setup)
   - [3. Systemd Daemon Deployment](#3-systemd-daemon-deployment)
@@ -129,7 +130,7 @@ Start a session, inspect its status, and stop it to restore recorded settings. A
 | 🧠 Host | Reversible sysctl/configuration snapshots, memory controls and strict prerequisites |
 | 💻 Operations | Interface selection, 17-language TUI, circuit telemetry and official GitHub updates |
 
-**Validation scope:** portable regressions and Linux cross-compilation are checked. Live Linux network integration remains unverified; see [development and validation](#validation) for the measured results.
+**Validation scope:** portable regressions, native x86_64/ARM64 GNU Linux tests and Debian packaging are checked. Live Linux network integration remains unverified; see [development and validation](#validation) for the measured results.
 
 ---
 
@@ -140,25 +141,26 @@ Start a session, inspect its status, and stop it to restore recorded settings. A
 <details open>
 <summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-24</b></summary>
 
-Measured **2026-09-24** with Tokei 12.1.2. Scope: source crates, the native wire audit, manifests, Cargo configuration and the three shell scripts; standalone documentation and build output are excluded. The test path is explicit because of directory-ignore handling in this Tokei version. Embedded Rust documentation is reported under Markdown.
+Measured **2026-09-24** with Tokei 12.1.2. Scope: source crates, the native wire audit, manifests, Cargo configuration, installers and release scripts/workflow; standalone documentation and build output are excluded. The test path is explicit because of directory-ignore handling in this Tokei version. Embedded Rust documentation is reported under Markdown.
 
 ```sh
-tokei crates crates/wraith-net/tests/live_wire_syn_audit.rs Cargo.toml .cargo build.sh install-daemon.sh uninstall.sh
+tokei crates crates/wraith-net/tests/live_wire_syn_audit.rs Cargo.toml .cargo build.sh install.sh install-daemon.sh uninstall.sh scripts .github
 ```
 
 ```text
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
- Shell                   3          597          498           45           54
- TOML                    8          235          218            0           17
- YAML                  342        12239        12236            0            3
+ Python                  2          191          176            4           11
+ Shell                   6          802          692           55           55
+ TOML                    8          251          233            0           18
+ YAML                  343        12395        12386            0            9
 -------------------------------------------------------------------------------
- Rust                   80        24932        21882          701         2349
+ Rust                   80        24935        21887          699         2349
  |- Markdown            73          783            3          738           42
- (Total)                          25715        21885         1439         2391
+ (Total)                          25718        21890         1437         2391
 ===============================================================================
- Total                 433        38003        34834          746         2423
+ Total                 439        38574        35374          758         2442
 ===============================================================================
 ```
 
@@ -305,7 +307,7 @@ Wraith is cleanly architected into 6 Rust crates with separate responsibilities:
 
 ```
 wraith/
-├── Cargo.toml                              # Workspace Root Manifest (v1.3.0)
+├── Cargo.toml                              # Workspace Root Manifest (v1.4.0)
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
 ├── SECURITY.md                             # Private Vulnerability Reporting Policy
@@ -313,6 +315,9 @@ wraith/
 ├── SUPPORT.md                              # Support Routes & Troubleshooting
 ├── CODE_OF_CONDUCT.md                      # Community Expectations
 ├── docs/THREAT_MODEL.md                    # Protection Scope & Trust Assumptions
+├── install.sh                              # Verified Release Asset Installer (APT / Archive)
+├── .github/workflows/release.yml            # Native GNU/musl Build & Tag Release Pipeline
+├── scripts/                                # Release Validation, Packaging & Installer Tests
 ├── build.sh                                # User-Privilege Build & Atomic Installation
 ├── install-daemon.sh                       # Systemd Network-Online Service Deployment
 ├── uninstall.sh                            # Uninstaller with Recorded-Session Cleanup
@@ -402,9 +407,55 @@ wraith/
 <a id="installation"></a>
 ## 🚀 Quickstart & Installation
 
+<a id="quick-install"></a>
+
+### Quick install · official release assets
+
+> **v1.4.0 packaging is prepared; the release is not published yet.** These binary installation commands require a completed release with matching assets and `SHA256SUMS.txt`. [Source installation](#1-clone--automated-system-deployment) is available now.
+
+```bash
+# Automatically select APT or a binary archive for your Linux platform
+curl -fsSL https://raw.githubusercontent.com/ByGh00st/wraith/main/install.sh | sudo bash
+wraith --version
+```
+
+| Your system | Selected package | Global executable |
+| :--- | :--- | :--- |
+| Debian / Ubuntu / Kali · x86_64 or ARM64 | Native `.deb`, installed with APT | `/usr/bin/wraith` |
+| Arch / Fedora and other glibc systems | GNU `.tar.gz` | `/usr/local/bin/wraith` |
+| Alpine / musl · x86_64 or ARM64 | Static musl `.tar.gz` | `/usr/local/bin/wraith` |
+
+The installer needs **Bash, curl and Python 3.8+**; Alpine users can install them with `apk add bash curl python3`. Already running as root? Use `bash` instead of `sudo bash` in the installer command. It detects CPU and libc, selects assets from the official GitHub release, verifies SHA-256 and checks the installed version. Archive installs still need the runtime tools listed below. GNU artifacts are built on Ubuntu 22.04 and require compatible glibc/libstdc++ versions; APT checks Debian library dependencies (the current packages require `libc6 >= 2.34`).
+
+<details>
+<summary><b>Manual Debian installation · inspect the download first</b></summary>
+
+```bash
+# x86_64 / amd64; use arm64 in the package filename on ARM64
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith_1.4.0_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.0/SHA256SUMS.txt
+sha256sum --ignore-missing --check SHA256SUMS.txt
+sudo apt install ./wraith_1.4.0_amd64.deb
+wraith --version
+```
+
+APT owns `/usr/bin/wraith`; no external APT repository is added. Install a newer `.deb` or rerun the installer for package upgrades. To remove an APT installation, finish session cleanup with `sudo wraith -x`, then run `sudo apt remove wraith`. If an older `/usr/local/bin/wraith` shadows it, inspect `type -a wraith` and explicitly resolve that previous installation. The installer reports the conflict.
+
+To inspect and verify without installing:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ByGh00st/wraith/main/install.sh -o install.sh
+less install.sh
+bash install.sh --dry-run
+```
+
+`--dry-run` downloads and validates assets without running the binary or changing system files. Release checksums detect mismatches; they share the repository's GitHub trust boundary and are not independent signatures.
+
+</details>
+
 ### 1. Clone & Automated System Deployment
 
-The runtime targets **x86_64 Linux**, primarily Debian/Kali-style installations. Windows supports portable development tests, not privileged network sessions.
+The runtime targets **x86_64 and ARM64 Linux**. The source-install helper supports GNU/Linux on Debian-family distributions. Windows supports portable development tests, not privileged network sessions.
 
 ```bash
 git clone https://github.com/ByGh00st/wraith.git
@@ -420,7 +471,7 @@ Install Rust under your ordinary account first. The helper installs Debian-famil
 Use current stable Rust (dependencies require at least Rust 1.88) and C/C++ compilers, CMake, Perl and libclang for BoringSSL. Build as your ordinary account, then install the executable:
 
 ```bash
-cargo build --release --locked
+CMAKE_BUILD_PARALLEL_LEVEL=2 cargo build --release --locked -j 2
 sudo install -m 0755 target/release/wraith /usr/local/bin/wraith
 wraith --version
 wraith --help
@@ -428,7 +479,7 @@ wraith --help
 
 | Dependency | Required for |
 | :--- | :--- |
-| Tor and dedicated `debian-tor` account | Tor transport; UID 0 is never a fallback |
+| Tor and a dedicated non-root account (`debian-tor`, `tor`, `toranon` or `_tor`) | Tor transport; UID 0 is never a fallback |
 | Dedicated `/run/wraith-tor` and `/var/lib/wraith/tor` | Wraith Tor runtime and data; system Tor files are kept separate |
 | iproute2 (`ip`, `tc`) | Interfaces, namespaces and optional shaping |
 | util-linux (`nsenter`) | Execute TCP settings through a pinned namespace descriptor |
@@ -439,6 +490,8 @@ wraith --help
 | WireGuard tools | Optional `-W` outer tunnel |
 | Xvfb and `xauth` | Optional private virtual display |
 | Pluggable transport executable | Selected Tor bridge transport |
+
+The release profile uses **ThinLTO, 16 codegen units, no debug information, stripped symbols and `panic = "abort"`**. The helper limits Cargo and native CMake jobs to two. On constrained machines use `cargo build --release -j 2`; this limits concurrency but cannot guarantee a build fits available RAM. Exit code 101 is generic: check for `signal: 9, SIGKILL` and kernel OOM logs before diagnosing memory exhaustion. See [build troubleshooting](docs/wiki/Troubleshooting.md#build-and-package-diagnostics).
 
 ### 3. Systemd Daemon Deployment
 
@@ -841,7 +894,7 @@ A successful exit-IP probe describes that request, not every interface, protocol
 
 `StateData`, namespace TCP snapshots, route snapshots and Tor egress snapshots implement zeroization on drop. Sensitive maps wipe their keys and values on replacement, clear and destruction. State JSON buffers, vault plaintext and WireGuard configuration input use `Zeroizing`; WireGuard debug output redacts its keys. The on-disk recovery journal remains available for restoration.
 
-Release builds use panic unwinding so ordinary error returns and unwound scopes run destructors. **SIGKILL, abort and power loss do not run Rust destructors.** This does not erase allocator copies, third-party TLS internals, kernel buffers or every process allocation, and is not a cold-boot resistance guarantee. Memory locking does not defeat a compromised kernel. Seccomp is not a general syscall allowlist; file overwrites cannot establish erasure from SSD firmware, snapshots or backups.
+Release builds use **`panic = "abort"`**. Normal scope exits and ordinary error returns run destructors; a release panic, SIGKILL or power loss does not. Tests use unwinding, so an unwind-drop regression is not evidence of cleanup after a release panic. This does not erase allocator copies, third-party TLS internals, kernel buffers or every process allocation, and is not a cold-boot resistance guarantee. Memory locking does not defeat a compromised kernel. Seccomp is not a general syscall allowlist; file overwrites cannot establish erasure from SSD firmware, snapshots or backups.
 
 ---
 
@@ -1088,6 +1141,8 @@ sudo ./build.sh            # compile as your normal user, then install
 
 The updater validates the origin and `main` branch, rejects uncommitted changes and URL rewrite rules, then performs a **fast-forward-only** update from `ByGh00st/wraith` over verified HTTPS. It never resets your work. Git hooks and filesystem monitors are disabled; Git runs as the normal user even when invoked through `sudo`. A failed fetch or divergent branch returns an error. `./update.sh` follows the same source-sync workflow.
 
+For release installations, rerun `install.sh` or install a newer `.deb`; `-u` remains a source-checkout operation.
+
 Source synchronization and binary installation are separate steps. `build.sh` uses an isolated build directory and installs only after a successful locked build. Run it through `sudo` from the account that owns your Rust toolchain. Direct root builds are rejected. GitHub HTTPS and repository access controls are the source-update trust boundary.
 
 Clones predating a repository history rewrite may fail the fast-forward check. Preserve local work and clone into a new directory; the updater will not reset your existing checkout.
@@ -1097,7 +1152,19 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-24**, implementation [`5a04818`](https://github.com/ByGh00st/wraith/commit/5a04818): **238 portable tests passed, 0 failed, 1 ignored**. Workspace checking passed on Windows; **all-target Clippy with warnings denied passed on Windows and for the Linux target**. Linux-specific code, including the native wire audit, was cross-compiled; privileged Linux tests and a complete installed-system update were not executed.
+Checks recorded **2026-09-24** for the v1.4.0 preparation:
+
+| Executed check | Result |
+| :--- | :--- |
+| Windows workspace tests | **238 passed, 0 failed, 1 ignored** |
+| Native GNU Linux tests · x86_64 and ARM64 | **240 passed on each, 0 failed, 1 ignored** |
+| Workspace check + all-target Clippy | Passed on Windows and both native GNU Linux architectures; warnings denied |
+| Installer regressions | **14 offline platform/failure scenarios passed**, no system installation |
+| Native Debian packaging | Both architectures built; contents, mode, executable version and APT dependency simulation passed |
+| Static musl archives · x86_64 and ARM64 | Both built; native `--version` / `--help` and absence of an ELF interpreter verified |
+| Privileged network audit / full installed-system update | Not executed |
+
+The [native package CI](https://github.com/ByGh00st/wraith/actions/runs/35992818793) passed on all four targets at `1cee183`, producing two Debian packages and four GNU/musl archives. The manual run skipped release publication. See [Development](docs/wiki/Development.md) and [Releasing](docs/RELEASING.md) for commands and release scope.
 
 ```bash
 cargo check --workspace --all-targets --locked

@@ -20,7 +20,7 @@ cd wraith
 cargo build --workspace --locked
 ```
 
-Fork the repository if you do not have write access, and open your PR against `main`. Windows can run portable tests; the installed runtime targets x86_64 Linux. Cross-compilation requires the matching Rust target, native cross-compilers and headers.
+Fork the repository if you do not have write access, and open your PR against `main`. Windows can run portable tests; the installed runtime targets x86_64 and ARM64 Linux (GNU/musl release artifacts). Cross-compilation requires the matching Rust target, native cross-compilers and headers.
 
 ## Validation appropriate to the change
 
@@ -28,7 +28,8 @@ Finish related edits before running a consolidated check. For Rust behavior chan
 
 ```bash
 cargo test --workspace --locked
-cargo clippy --workspace --tests --target x86_64-unknown-linux-gnu --locked -- -D warnings
+cargo check --workspace --all-targets --locked
+cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu --locked -- -D warnings
 ```
 
 For dependency changes, also run `cargo audit --deny warnings` with cargo-audit installed. For shell changes, use `bash -n` on the affected scripts. For documentation-only changes, check links, examples and rendering; rerunning the whole Rust suite is unnecessary.
@@ -36,6 +37,8 @@ For dependency changes, also run `cargo audit --deny warnings` with cargo-audit 
 Format changed Rust code consistently without reformatting unrelated files. Include meaningful regressions for security or protocol changes, using local mock endpoints where possible. Clearly distinguish portable tests, cross-compilation and live Linux integration results.
 
 Privileged integration tests belong on an authorized disposable Linux environment with a recovery path. Do not use your everyday network configuration as an implicit test fixture.
+
+For packaging changes, also run `python3 scripts/test-install.py` and follow [the release guide](docs/RELEASING.md). A manual release-workflow run builds and validates artifacts without publishing. `cargo-deb` has no `--dry-run`; validate an actual package with `--no-build` after compiling. Release builds abort on panic, while unit tests unwind: do not interpret unwind tests as release cleanup coverage.
 
 ## Engineering expectations
 
