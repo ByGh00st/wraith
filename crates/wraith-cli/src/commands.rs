@@ -28,7 +28,7 @@ use wraith_net::tcp_stack::{restore_netns_tcp_stack, NetnsTcpSnapshot};
 use wraith_tor::{
     apply_exit_profile, arm_onion_service, backup_resolv, configure_dns,
     get_circuit_telemetry, purge_onion_service, restore_dns, start_tor_daemon, stop_tor_daemon,
-    write_bridge_torrc, write_torrc, OnionServiceConfig, TlsCamouflageServer, TorControlClient,
+    write_torrc, OnionServiceConfig, TlsCamouflageServer, TorControlClient,
 };
 
 use crate::display::{
@@ -130,25 +130,20 @@ impl Drop for BackgroundServices {
     }
 }
 
-pub async fn cmd_start(args: crate::StartArgs) -> Result<()> {
-    let result = cmd_start_inner(args).await;
-    if let Err(ref startup) = result {
-        let manager = StateManager::default();
-        if manager.read_checked().ok().and_then(|state| state.pid) == Some(std::process::id()) {
-            if let Err(cleanup) = cmd_stop(false).await {
-                return Err(WraithError::Custom(format!("Startup failed: {}; cleanup failed: {cleanup}. Session record retained.", startup)));
-            }
-        }
-    }
-    result
+pub struct PreparedStart {
+    pub args: crate::StartArgs,
+    moat_transport: String,
 }
 
-async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
+pub fn prepare_start(args: crate::StartArgs) -> Result<PreparedStart> {
+    prepare_with_config(args, wraith_core::WraithConfig::load()?)
+}
+
+fn prepare_with_config(args: crate::StartArgs, cfg: wraith_core::WraithConfig) -> Result<PreparedStart> {
     // 0-CFG. Merge persistent configuration defaults if not explicitly provided
     let mut args = args;
     let moat_transport;
     {
-        let cfg = wraith_core::WraithConfig::load()?;
         moat_transport = cfg.tor.moat_transport.unwrap_or_else(|| "obfs4".into());
         if wraith_tor::PluggableTransportType::from_str(&moat_transport).is_none() {
             return Err(WraithError::Configuration("Unsupported tor.moat_transport".into()));
@@ -196,6 +191,50 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
         }
     }
 
+    validate_start_options(&args)?;
+    Ok(PreparedStart { args, moat_transport })
+}
+
+fn validate_start_options(args: &crate::StartArgs) -> Result<()> {
+    if args.no_ks { return Err(WraithError::Configuration("--no-killswitch/--no-ks is unsupported: the kill switch is mandatory".into())); }
+    if args.daemon_worker && (args.select_interface || args.select_doh) {
+        return Err(WraithError::Configuration("Daemon workers cannot open selection menus; supply --interface and --doh explicitly".into()));
+    }
+    if (args.select_interface && args.interface.is_some()) || (args.select_doh && args.doh.is_some()) {
+        return Err(WraithError::Configuration("Choose either interactive selection or an explicit value".into()));
+    }
+    if let Some(seconds) = args.rotate_interval { wraith_core::config_loader::validate_rotation_interval(seconds)?; }
+    if let Some(profile) = &args.profile {
+        if !["stealth", "speed", "journalists", "research", "darkweb"].contains(&profile.as_str()) {
+            return Err(WraithError::Configuration(format!("Unknown exit profile: {profile}")));
+        }
+    }
+    if let Some(bridge) = &args.bridge_type { crate::invocation::parse_bridge(bridge).map_err(WraithError::Configuration)?; }
+    if let Some(provider) = &args.doh { wraith_guard::DohProvider::parse_input(provider)?; }
+    if let Some(spec) = &args.onion_service { parse_onion_spec(spec)?; }
+    if args.jitter {
+        wraith_tor::validate_https_url(args.jitter_endpoint.as_deref().ok_or_else(||
+            WraithError::Configuration("--jitter requires --jitter-endpoint HTTPS_URL".into()))?)?;
+    }
+    resolve_tcp_profile(args)?;
+    Ok(())
+}
+
+pub async fn cmd_start(prepared: PreparedStart) -> Result<()> {
+    let result = cmd_start_inner(prepared).await;
+    if let Err(ref startup) = result {
+        let manager = StateManager::default();
+        if manager.read_checked().ok().and_then(|state| state.pid) == Some(std::process::id()) {
+            if let Err(cleanup) = cmd_stop(false).await {
+                return Err(WraithError::Custom(format!("Startup failed: {}; cleanup failed: {cleanup}. Session record retained.", startup)));
+            }
+        }
+    }
+    result
+}
+
+async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
+    let PreparedStart { mut args, moat_transport } = prepared;
     print_banner(args.strict_hardening);
     let state_mgr = StateManager::default();
 
@@ -212,22 +251,6 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     let tls_profile: wraith_tor::BrowserProfile = args.tls_profile.as_deref().unwrap_or("chrome").parse()?;
     let tcp_profile = resolve_tcp_profile(&args)?;
     let is_strict = args.strict_hardening;
-    if is_strict && args.no_ks {
-        return Err(WraithError::Configuration("Full security requires the kill switch; remove --no-ks".into()));
-    }
-    if args.no_ks {
-        print_step("Fail-Closed KillSwitch is strictly enforced in all operational modes to prevent clearnet leaks; ignoring --no-ks", "warn");
-    }
-    if args.rotate_interval == Some(0) {
-        return Err(WraithError::Configuration("Rotation interval must be greater than zero".into()));
-    }
-    if args.jitter {
-        wraith_tor::validate_https_url(args.jitter_endpoint.as_deref().ok_or_else(|| {
-            WraithError::Configuration("--jitter requires --jitter-endpoint HTTPS_URL".into())
-        })?)?;
-    }
-
-    // WireGuard Multi-Hop early configuration validation
     if let Some(ref wg_conf) = args.wireguard {
         if wg_conf.trim().is_empty() {
             print_error(&t!("commands.cmd_err_wg_conf"));
@@ -452,24 +475,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
             state_data.bridge_enabled = true;
             state_data.bridge_count = count;
         } else {
-            print_step(&t!("commands.cmd_step_2"), "info");
-            match write_bridge_torrc(None) {
-                Ok(count) => {
-                    print_step(
-                        &format!("{}", t!("commands.cmd_step_bridge_obfs4_enabled", count = count)),
-                        "ok",
-                    );
-                    state_data.bridge_enabled = true;
-                    state_data.bridge_count = count;
-                }
-                Err(e) => {
-                    print_step(
-                        &format!("{}", t!("bridge_tui.bridge_fallback", error = e.to_string())),
-                        "warn",
-                    );
-                    write_torrc()?;
-                }
-            }
+            return Err(WraithError::Configuration(format!("Unsupported bridge transport: {b_type}")));
         }
     } else {
         print_step(&t!("commands.cmd_step_3"), "info");
@@ -614,12 +620,7 @@ async fn cmd_start_inner(args: crate::StartArgs) -> Result<()> {
     // 8b. Ephemeral v3 Onion Hidden Service
     if let Some(ref onion_spec) = args.onion_service {
         print_step(&format!("{} [{onion_spec}]...", t!("commands.cmd_step_50")), "info");
-        let (virt_port, target_port) = if let Some((v, t)) = onion_spec.split_once(':') {
-            (parse_onion_port(v)?, parse_onion_port(t)?)
-        } else {
-            let p = parse_onion_port(onion_spec)?;
-            (p, p)
-        };
+        let (virt_port, target_port) = parse_onion_spec(onion_spec)?;
 
         let mut onion_cfg = OnionServiceConfig::default();
         onion_cfg.add_port(virt_port, target_port);
@@ -1208,10 +1209,7 @@ pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
     );
 
     let path = Path::new(target);
-    if !path.exists() {
-        print_error(&format!("{}", t!("commands.cmd_err_target_not_found", target = target)));
-        return Ok(());
-    }
+    std::fs::symlink_metadata(path)?;
 
     let passes = u8::try_from(passes).ok().filter(|n| *n > 0)
         .ok_or_else(|| WraithError::Configuration("Overwrite passes must be 1..=255".into()))?;
@@ -1640,7 +1638,7 @@ pub async fn cmd_bridge(action: Option<crate::BridgeAction>) -> Result<()> {
             };
 
             let pt_type = wraith_tor::PluggableTransportType::from_str(&transport)
-                .unwrap_or(wraith_tor::PluggableTransportType::Obfs4);
+                .ok_or_else(|| WraithError::Configuration(format!("Unsupported transport: {transport}")))?;
             let count = wraith_tor::write_pluggable_transport_torrc(pt_type, Some(bridges.clone()))?;
             let pt_str = pt_type.to_string();
             print_success(&format!("{}", t!("daemon_cli.bridges_configured", count = count, pt = pt_str)));
@@ -1655,11 +1653,11 @@ pub async fn cmd_bridge(action: Option<crate::BridgeAction>) -> Result<()> {
 
 pub fn cmd_doh(select: bool) -> Result<()> {
     if select {
+        let mut cfg = wraith_core::WraithConfig::load()?;
         let provider = crate::doh_tui::select_doh_tui()?;
         print_banner(false);
         print_success(&format!("{}", t!("daemon_cli.doh_selected", name = provider.name(), url = provider.url())));
 
-        let mut cfg = wraith_core::WraithConfig::load().unwrap_or_default();
         cfg.dns.transport = Some("doh".to_string());
         cfg.dns.provider = Some(provider.name().to_string());
         cfg.dns.upstream = Some(provider.url().to_string());
@@ -1674,6 +1672,15 @@ pub fn cmd_doh(select: bool) -> Result<()> {
     Ok(())
 }
 
+
+fn parse_onion_spec(value: &str) -> Result<(u16, u16)> {
+    if let Some((virtual_port, target_port)) = value.split_once(':') {
+        Ok((parse_onion_port(virtual_port)?, parse_onion_port(target_port)?))
+    } else {
+        let port = parse_onion_port(value)?;
+        Ok((port, port))
+    }
+}
 
 fn parse_onion_port(value: &str) -> Result<u16> {
     value.parse::<u16>().ok().filter(|port| *port > 0)
@@ -1721,6 +1728,41 @@ fn resolve_tcp_profile(args: &crate::StartArgs) -> Result<Option<TcpFingerprintP
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
+    #[test]
+    fn persistent_strict_mode_is_resolved_before_daemon_selection() {
+        let mut config = wraith_core::WraithConfig::default();
+        config.set_key("hardening.strict", "true").unwrap();
+        let prepared = prepare_with_config(crate::StartArgs::default(), config).unwrap();
+        assert!(prepared.args.strict_hardening);
+        assert!(!crate::invocation::should_background(&prepared.args));
+    }
+
+    #[test]
+    fn explicit_profiles_override_defaults_without_losing_other_guards() {
+        let mut config = wraith_core::WraithConfig::default();
+        config.set_key("hardening.morph_l4", "windows").unwrap();
+        config.set_key("hardening.tls_profile", "chrome").unwrap();
+        config.set_key("hardening.browser_shield", "true").unwrap();
+        let args = crate::StartArgs { morph_l4: Some("auto".into()), tls_profile: Some("safari".into()), ..Default::default() };
+        let prepared = prepare_with_config(args, config).unwrap();
+        assert!(prepared.args.browser_shield);
+        assert_eq!(resolve_tcp_profile(&prepared.args).unwrap().unwrap().kind, wraith_core::tcp_fingerprint::TcpProfileKind::MacOS);
+    }
+
+    #[test]
+    fn startup_rejects_invalid_options_before_claiming_a_session() {
+        for args in [
+            crate::StartArgs { rotate_interval: Some(u64::MAX), ..Default::default() },
+            crate::StartArgs { rotate_interval: Some(0), ..Default::default() },
+            crate::StartArgs { no_ks: true, ..Default::default() },
+            crate::StartArgs { daemon_worker: true, select_interface: true, ..Default::default() },
+            crate::StartArgs { bridge_type: Some("webtunnel".into()), ..Default::default() },
+            crate::StartArgs { profile: Some("typo".into()), ..Default::default() },
+            crate::StartArgs { onion_service: Some("80:0".into()), ..Default::default() },
+            crate::StartArgs { doh: Some("http://dns.example".into()), ..Default::default() },
+        ] { assert!(prepare_with_config(args, wraith_core::WraithConfig::default()).is_err()); }
+    }
+
     #[test]
     fn malformed_onion_ports_never_publish_a_default_service() {
         for value in ["", "0", "65536", "abc", "80:90"] { assert!(parse_onion_port(value).is_err()); }

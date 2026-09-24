@@ -32,10 +32,15 @@ pub const ALL_LANGUAGES: [(&str, &str); 17] = [
 struct TerminalGuardStderr;
 
 impl TerminalGuardStderr {
-    fn new() -> Self {
-        let _ = enable_raw_mode();
-        let _ = execute!(std::io::stderr(), EnterAlternateScreen, Hide);
-        Self
+    fn new() -> Result<Self> {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
+            return Err(wraith_core::error::WraithError::Configuration("Interactive selection requires a terminal; supply explicit options for a daemon".into()));
+        }
+        enable_raw_mode()?;
+        let guard = Self;
+        execute!(std::io::stderr(), EnterAlternateScreen, Hide)?;
+        Ok(guard)
     }
 }
 
@@ -48,7 +53,8 @@ impl Drop for TerminalGuardStderr {
 
 pub fn run_language_selector_tui() -> Result<String> {
     use std::io::Write;
-    let _guard = TerminalGuardStderr::new();
+    let mut config = wraith_core::WraithConfig::load()?;
+    let _guard = TerminalGuardStderr::new()?;
 
     let total = ALL_LANGUAGES.len();
     let mut cursor: usize = 0;
@@ -56,7 +62,7 @@ pub fn run_language_selector_tui() -> Result<String> {
     const BOX_WIDTH: usize = 86;
 
     // Detect if there is a current configured language
-    if let Ok(current) = std::fs::read_to_string("/etc/wraith/lang") {
+    if let Some(current) = &config.general.lang {
         let trimmed = current.trim();
         if let Some(pos) = ALL_LANGUAGES.iter().position(|(code, _)| *code == trimmed) {
             cursor = pos;
@@ -130,8 +136,8 @@ pub fn run_language_selector_tui() -> Result<String> {
         let _ = std::io::stderr().flush();
 
         // Read keypress synchronously with 100ms timeout
-        if event::poll(Duration::from_millis(100)).unwrap_or(false) {
-            if let Ok(Event::Key(key)) = event::read() {
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
                 // Handle Ctrl+C, Q, Esc cleanly
                 if (key.modifiers.contains(KeyModifiers::CONTROL) && (key.code == KeyCode::Char('c') || key.code == KeyCode::Char('C')))
                     || key.code == KeyCode::Char('q')
@@ -165,13 +171,9 @@ pub fn run_language_selector_tui() -> Result<String> {
         }
     }
 
-    // Persist language selection
-    let _ = std::fs::create_dir_all("/etc/wraith");
-    let _ = std::fs::write("/etc/wraith/lang", format!("{selected_code}\n"));
-    if let Ok(home) = std::env::var("HOME") {
-        let _ = std::fs::create_dir_all(format!("{home}/.config/wraith"));
-        let _ = std::fs::write(format!("{home}/.config/wraith/lang"), format!("{selected_code}\n"));
-    }
+    // Use the same atomic configuration path as config set/get.
+    config.set_key("general.lang", &selected_code)?;
+    config.save()?;
 
     Ok(selected_code)
 }

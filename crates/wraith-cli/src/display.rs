@@ -913,112 +913,8 @@ pub fn show_circuit_telemetry(telemetry: &TorTelemetry) {
 
 pub fn print_localized_help() {
     print_banner(false);
-    println!("  {}\n", t!("help.desc").dimmed());
-    println!("  {}\n", t!("help.usage").bold().bright_cyan());
-
-    println!("  {}", t!("help.shortcuts_header").bold().bright_yellow());
-    let shortcuts = [
-        ("-s, --start", t!("help.cmd_start")),
-        ("-x, --stop [-d]", t!("help.cmd_stop")),
-        ("-r, --switch", t!("help.cmd_switch")),
-        ("-t, --test", t!("help.cmd_test")),
-        ("-i, --info", t!("help.cmd_info")),
-        ("-u, --update", t!("help.cmd_update")),
-        ("-c, --cleanup", t!("help.cmd_cleanup")),
-        ("--cleanup-full", t!("help.cmd_cleanup_full")),
-        ("-M, --monitor", t!("help.cmd_monitor")),
-    ];
-    for (sc, desc) in shortcuts {
-        println!("    {:<28} {}", sc.bold().bright_green(), desc);
-    }
-
-    println!("\n  {}", t!("help.commands_header").bold().bright_yellow());
-    let commands = [
-        ("start [OPTIONS]", t!("help.cmd_start")),
-        ("stop [-d]", t!("help.cmd_stop")),
-        ("switch", t!("help.cmd_switch")),
-        ("test", t!("help.cmd_test")),
-        ("info", t!("help.cmd_info")),
-        ("doctor", t!("help.cmd_doctor")),
-        ("benchmark", t!("help.cmd_benchmark")),
-        ("cleanup [--full]", t!("help.cmd_cleanup")),
-        ("mac", t!("help.cmd_mac")),
-        ("profile <PROFILE>", t!("help.cmd_profile")),
-        ("pentest", t!("help.cmd_pentest")),
-        ("fetch <URL> -o <FILE>", "HTTPS → Tor | --tls-profile chrome/firefox/safari".into()),
-        ("update", t!("help.cmd_update")),
-        ("shred <PATH>", t!("help.cmd_shred")),
-        ("monitor", t!("help.cmd_monitor")),
-        ("config [show|get|set]", t!("help.cmd_config")),
-        ("bridge [moat|list]", t!("help.cmd_bridge")),
-        ("doh [-s]", t!("help.cmd_doh")),
-        ("interfaces [-a]", t!("help.cmd_interfaces")),
-    ];
-    for (cmd, desc) in commands {
-        println!("    {:<28} {}", cmd.bold().bright_green(), desc);
-    }
-
-    println!("\n  {}", t!("help.sec_net_header").bold().bright_yellow());
-    let net_opts = [
-        ("-I, --interface <NIC>", t!("help.opt_interface")),
-        ("--select-interface", t!("help.opt_select_interface")),
-        ("-m, --mac", t!("help.opt_mac")),
-        ("-b, --bridge", t!("help.opt_bridge")),
-        ("--bridge-type <TYPE>", t!("help.opt_bridge_type")),
-        ("-D, --doh <PRESET|URL>", t!("help.opt_doh")),
-        ("--select-doh", t!("help.opt_select_doh")),
-        ("-n, --namespace", t!("help.opt_namespace")),
-        ("-p, --profile <PROFILE>", t!("help.opt_profile")),
-        ("--jitter", t!("help.opt_jitter")),
-        ("--jitter-endpoint <URL>", t!("help.opt_jitter")),
-        ("--rotate-interval <SEC>", t!("help.opt_rotate")),
-        ("--no-killswitch", t!("help.opt_no_ks")),
-        ("-W, --wireguard <CONF>", t!("help.opt_wg")),
-        ("--spawn-monitor", t!("help.opt_spawn_monitor")),
-    ];
-    for (opt, desc) in net_opts {
-        println!("    {:<28} {}", opt.bold().bright_cyan(), desc);
-    }
-
-    println!("\n  {}", t!("help.sec_harden_header").bold().bright_yellow());
-    let harden_opts = [
-        ("--browser-shield", t!("help.opt_browser_shield")),
-        ("--font-sandbox", t!("help.opt_font_sandbox")),
-        ("--tcp-mask", t!("help.opt_tcp_mask")),
-        ("--machine-id", t!("help.opt_machine_id")),
-        ("-F, --full-security", t!("help.opt_full_security")),
-    ];
-    for (opt, desc) in harden_opts {
-        println!("    {:<28} {}", opt.bold().bright_cyan(), desc);
-    }
-
-    println!("\n  {}", t!("help.sec_forensic_header").bold().bright_red());
-    let forensic_opts = [
-        ("-L, --forensic-wipe-logs", t!("help.opt_wipe_logs")),
-        ("-d, --forensic-self-destruct", t!("help.opt_self_destruct")),
-        ("-K, --aggressive-masquerade", t!("help.opt_masquerade")),
-        ("-A, --aggressive-anti-debug", t!("help.opt_anti_debug")),
-    ];
-    for (opt, desc) in forensic_opts {
-        println!("    {:<28} {}", opt.bold().bright_red(), desc);
-    }
-
-    println!("\n  {}", t!("help.sec_general_header").bold().bright_yellow());
-    println!("    {:<28} {}", "-v, --verbose", t!("help.opt_verbose"));
-    println!("    {:<28} {}", "--lang <LANG>", t!("help.opt_lang"));
-    println!("    {:<28} {}", "--select-lang", t!("help.opt_select_lang"));
-    println!("    {:<28} {}", "-h, --help", t!("help.opt_help"));
-    println!("    {:<28} {}", "-V, --version", t!("help.opt_version"));
-
-    println!("\n  {}", t!("help.examples_header").bold().bright_yellow());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs".bright_cyan(), format!("→ {}", t!("help.ex_fs")).dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -m -p stealth".bright_cyan(), format!("→ {}", t!("help.ex_stealth")).dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -L".bright_cyan(), format!("→ {}", t!("help.ex_wipe")).dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -d".bright_cyan(), format!("→ {}", t!("help.ex_destruct")).dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs --bridge-type moat".bright_cyan(), format!("→ {}", t!("help.ex_moat")).dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-s -Fs -D quad9".bright_cyan(), format!("→ {}", t!("help.ex_doh")).dimmed());
-    println!("    {} {:<28} {}", "sudo wraith".bold().bright_white(), "-x".bright_cyan(), format!("→ {}", t!("help.ex_stop")).dimmed());
-    println!("    {} {:<28} {}\n", "sudo wraith".bold().bright_white(), "-u".bright_cyan(), format!("→ {}", t!("help.ex_update")).dimmed());
+    let _ = build_localized_command().print_long_help();
+    println!();
 }
 
 pub fn build_localized_command() -> clap::Command {
@@ -1037,7 +933,7 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("profile", |a| a.help(t!("help.opt_profile").into_owned()))
         .mut_arg("jitter", |a| a.help(t!("help.opt_jitter").into_owned()))
         .mut_arg("rotate_interval", |a| a.help(t!("help.opt_rotate").into_owned()))
-        .mut_arg("no_ks", |a| a.help(t!("help.opt_no_ks").into_owned()))
+        .mut_arg("no_ks", |a| a.help("Unsupported legacy option: the kill switch is required in every mode"))
         .mut_arg("wireguard", |a| a.help(t!("help.opt_wg").into_owned()))
         .mut_arg("browser_shield", |a| a.help(t!("help.opt_browser_shield").into_owned()))
         .mut_arg("font_sandbox", |a| a.help(t!("help.opt_font_sandbox").into_owned()))

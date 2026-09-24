@@ -2,6 +2,7 @@
 //! High-Assurance Network Anonymization & OS Fingerprint Hardening Engine in Pure Rust.
 
 mod benchmark;
+mod invocation;
 mod commands;
 mod source_update;
 mod diagnostics;
@@ -36,6 +37,7 @@ pub struct StartArgs {
     #[arg(
         long = "select-interface",
         visible_aliases = ["pick-nic", "choose-interface"],
+        conflicts_with = "interface",
         help_heading = "Network Isolation"
     )]
     pub select_interface: bool,
@@ -48,11 +50,12 @@ pub struct StartArgs {
     #[arg(short = 'b', long = "bridge", help_heading = "Network Isolation")]
     pub bridge: bool,
 
-    /// Pluggable transport type or circumvention protocol (obfs4, snowflake, meek, webtunnel, moat)
+    /// Pluggable transport or discovery mode (obfs4, snowflake, meek, moat)
     #[arg(
         long = "bridge-type",
         visible_aliases = ["transport", "pt"],
         value_name = "TYPE",
+        value_parser = invocation::parse_bridge,
         help_heading = "Network Isolation"
     )]
     pub bridge_type: Option<String>,
@@ -71,6 +74,7 @@ pub struct StartArgs {
     #[arg(
         long = "select-doh",
         visible_aliases = ["pick-doh", "choose-doh"],
+        conflicts_with = "doh",
         help_heading = "Network Isolation"
     )]
     pub select_doh: bool,
@@ -106,10 +110,10 @@ pub struct StartArgs {
     pub jitter_endpoint: Option<String>,
 
     /// Automatically rotate Tor exit node identity every N seconds (e.g. --rotate 60)
-    #[arg(long = "rotate-interval", visible_aliases = ["interval", "rotate", "auto-rotate"], value_name = "SECONDS", help_heading = "Network Isolation")]
+    #[arg(long = "rotate-interval", visible_aliases = ["interval", "rotate", "auto-rotate"], value_name = "SECONDS", value_parser = clap::value_parser!(u64).range(1..=u32::MAX as u64), help_heading = "Network Isolation")]
     pub rotate_interval: Option<u64>,
 
-    /// Disable the Fail-Closed KillSwitch watchdog monitor
+    /// Unsupported legacy option: the kill switch is required in every mode
     #[arg(long = "no-killswitch", visible_aliases = ["no-ks"], help_heading = "Network Isolation")]
     pub no_ks: bool,
 
@@ -357,7 +361,7 @@ struct Cli {
     shred: Option<String>,
 
     /// Enable verbose debug logging
-    #[arg(short = 'v', long)]
+    #[arg(short = 'v', long, global = true)]
     verbose: bool,
 
     /// Override system language (e.g. 'en', 'tr')
@@ -452,7 +456,7 @@ enum Commands {
         /// Target file path to shred
         target: String,
         /// Number of overwrite passes (default: 7)
-        #[arg(short = 'p', long, default_value_t = 7)]
+        #[arg(short = 'p', long, default_value_t = 7, value_parser = clap::value_parser!(u32).range(1..=255))]
         passes: u32,
     },
     /// Launch real-time dedicated DPI & IDS live interceptor monitor
@@ -483,8 +487,8 @@ enum Commands {
 pub enum BridgeAction {
     /// Query Tor BridgeDB via Moat Protocol (JSON-API)
     Moat {
-        /// Transport protocol (obfs4, snowflake, webtunnel, meek-azure)
-        #[arg(short = 't', long, default_value = "obfs4")]
+        /// Transport protocol (obfs4, snowflake, meek-azure)
+        #[arg(short = 't', long, default_value = "obfs4", value_parser = invocation::parse_transport)]
         transport: String,
         /// Challenge solution if known
         #[arg(short = 's', long)]
@@ -553,13 +557,9 @@ fn check_root() -> Result<()> {
     Ok(())
 }
 
-fn detect_system_language(raw_args: &[String]) -> String {
-    // 1. CLI argument override: --lang <code>
-    for i in 0..raw_args.len() {
-        if raw_args[i] == "--lang" && i + 1 < raw_args.len() {
-            return raw_args[i + 1].clone();
-        }
-    }
+fn detect_system_language(raw_args: &[std::ffi::OsString]) -> String {
+    // Let Clap respect values, aliases and the exec argument boundary.
+    if let Some(lang) = invocation::language_override(raw_args) { return lang; }
     // 2. Environment variable: WRAITH_LANG
     if let Ok(lang) = std::env::var("WRAITH_LANG") {
         let trimmed = lang.trim().to_string();
@@ -567,7 +567,11 @@ fn detect_system_language(raw_args: &[String]) -> String {
             return trimmed;
         }
     }
-    // 3. Persistent system-wide config: /etc/wraith/lang
+    // Canonical configuration; a locale read error must not prevent emergency stop.
+    if let Ok(config) = wraith_core::WraithConfig::load() {
+        if let Some(lang) = config.general.lang { return lang; }
+    }
+    // 3. Legacy system-wide language file
     if let Ok(content) = std::fs::read_to_string("/etc/wraith/lang") {
         let trimmed = content.trim().to_string();
         if !trimmed.is_empty() {
@@ -640,24 +644,14 @@ pub async fn main() -> Result<()> {
     install_emergency_panic_sentry();
 
     // 1. Initialize multi-language i18n from argv, env, or /etc/wraith/lang
-    let raw_args: Vec<String> = std::env::args().collect();
+    let raw_args: Vec<_> = std::env::args_os().collect();
     let initial_lang = detect_system_language(&raw_args);
     rust_i18n::set_locale(&initial_lang);
-
-    // 2. Intercept -h / --help / help to show fully localized help screen
-    let has_subcommand = <Cli as clap::CommandFactory>::command().get_subcommands().any(|command| {
-        raw_args.iter().skip(1).any(|arg| arg == command.get_name())
+    let cli = invocation::parse(raw_args).unwrap_or_else(|error| {
+        if error.kind() == clap::error::ErrorKind::DisplayHelp { display::print_banner(false); }
+        error.exit()
     });
-    if !has_subcommand
-        && raw_args
-            .iter()
-            .any(|arg| arg == "-h" || arg == "--help" || arg == "help")
-    {
-        display::print_localized_help();
-        return Ok(());
-    }
-
-    let cli = Cli::parse();
+    if let Some(lang) = &cli.lang { rust_i18n::set_locale(lang); }
 
     if cli.select_lang {
         let chosen = tui::run_language_selector_tui()?;
@@ -688,20 +682,16 @@ pub async fn main() -> Result<()> {
     let command = match resolve_command(&cli) {
         Some(cmd) => cmd,
         None => {
-            display::print_banner(false);
-            println!("  {}\n", rust_i18n::t!("runtime.help_hint"));
+            display::print_localized_help();
             return Ok(());
         }
     };
 
-    // Check root privileges for system-modifying operations
-    match &command {
-        Commands::Pentest | Commands::Interfaces { .. } | Commands::Config { .. } | Commands::Fetch { .. } | Commands::Update { .. } => {} // Read-only or self-managing operations do not require root
-        _ => {
-            if let Err(e) = check_root() {
-                display::print_error(&format!("{}", rust_i18n::t!("runtime.root_required", e = e.to_string())));
-                std::process::exit(1);
-            }
+    // Discovery lists are read-only; mutations keep their privilege requirements.
+    if invocation::requires_root(&command) {
+        if let Err(e) = check_root() {
+            display::print_error(&format!("{}", rust_i18n::t!("runtime.root_required", e = e.to_string())));
+            std::process::exit(1);
         }
     }
 
@@ -740,11 +730,11 @@ pub async fn main() -> Result<()> {
             );
         }
         Commands::Config { action } => {
-            let mut cfg = wraith_core::WraithConfig::load().unwrap_or_default();
+            let mut cfg = wraith_core::WraithConfig::load()?;
             match action.unwrap_or(ConfigAction::Show) {
                 ConfigAction::Show => {
                     display::print_banner(false);
-                    let pretty = toml::to_string_pretty(&cfg).unwrap_or_default();
+                    let pretty = toml::to_string_pretty(&cfg).map_err(|e| wraith_core::error::WraithError::Configuration(e.to_string()))?;
                     println!("  \x1b[1;36m{}\x1b[0m\n", rust_i18n::t!("config_cmd.show_title"));
                     for line in pretty.lines() {
                         println!("    {line}");
@@ -752,54 +742,7 @@ pub async fn main() -> Result<()> {
                     println!();
                 }
                 ConfigAction::Get { key } => {
-                    let val: String = match key.to_lowercase().as_str() {
-                        "interface" | "nic" | "adapter" | "network.interface" => {
-                            cfg.network.default_interface.or(cfg.default_interface).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "profile" | "tor.profile" => {
-                            cfg.tor.default_profile.or(cfg.default_profile).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "bridge" | "tor.bridge" => {
-                            cfg.tor.bridge.or(cfg.bridge).map(|b| b.to_string()).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "bridge_type" | "tor.bridge_type" => {
-                            cfg.tor.bridge_type.or(cfg.bridge_type).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "moat_transport" | "tor.moat_transport" => {
-                            cfg.tor.moat_transport.unwrap_or_else(|| "unset".to_string())
-                        }
-                        "strict" | "hardening.strict" => {
-                            cfg.hardening.strict.or(cfg.strict_hardening).map(|b| b.to_string()).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "dns" | "dns_transport" | "dns.transport" => {
-                            cfg.dns.transport.or(cfg.dns_transport).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "provider" | "dns.provider" => {
-                            cfg.dns.provider.unwrap_or_else(|| "unset".to_string())
-                        }
-                        "doh" | "upstream" | "dns.upstream" => {
-                            cfg.dns.upstream.or(cfg.doh_upstream).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "rotate" | "interval" | "tor.rotate_interval" => {
-                            cfg.tor.rotate_interval.or(cfg.rotate_interval).map(|n| n.to_string()).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "lang" | "general.lang" => {
-                            cfg.general.lang.or(cfg.lang).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "fonts.allowed" | "fonts.allowed_fonts" => {
-                            cfg.fonts.allowed_fonts.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "fonts.blocked" | "fonts.blocked_fonts" => {
-                            cfg.fonts.blocked_fonts.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "fonts.blocked_paths" => {
-                            cfg.fonts.blocked_paths.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
-                        }
-                        "fonts.monospace" | "fonts.preferred_monospace" => {
-                            cfg.fonts.preferred_monospace.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "unset".to_string())
-                        }
-                        _ => rust_i18n::t!("config_cmd.key_unknown").to_string(),
-                    };
+                    let val = cfg.get_key(&key)?;
                     println!("{val}");
                 }
                 ConfigAction::Set { key, value } => {
@@ -819,8 +762,10 @@ pub async fn main() -> Result<()> {
             interface_tui::print_interfaces_table(&ifaces);
         }
         Commands::Start(args) => {
+            let prepared = commands::prepare_start(args)?;
+            let args = &prepared.args;
             // Check if we need to daemonize (-s without -F/strict_hardening and not already daemon_worker)
-            if !args.strict_hardening && !args.daemon_worker {
+            if invocation::should_background(args) {
                 #[cfg(target_os = "linux")]
                 {
                     let is_systemd_active = std::process::Command::new("systemctl")
@@ -865,9 +810,8 @@ pub async fn main() -> Result<()> {
                 println!("{}", init_box.last().unwrap().bright_cyan());
                 
                 let mut cmd = std::process::Command::new(std::env::current_exe()?);
-                // Forward all original arguments and append --daemon-worker
-                cmd.args(std::env::args().skip(1));
-                cmd.arg("--daemon-worker");
+                // Keep the internal flag before a trailing -- argument boundary.
+                cmd.args(invocation::worker_arguments(std::env::args_os().skip(1).collect()));
                 
                 // Detach from current terminal
                 cmd.stdin(std::process::Stdio::null());
@@ -876,7 +820,7 @@ pub async fn main() -> Result<()> {
                     use std::os::unix::process::CommandExt;
                     unsafe {
                         cmd.pre_exec(|| {
-                            libc::setsid();
+                            if libc::setsid() < 0 { return Err(std::io::Error::last_os_error()); }
                             Ok(())
                         });
                     }
@@ -931,7 +875,8 @@ pub async fn main() -> Result<()> {
                         return Err(wraith_core::error::WraithError::Custom("Daemon startup failed".into()));
                     }
 
-                    if state_mgr.is_active() {
+                    if state_mgr.read_checked().is_ok_and(|state|
+                        invocation::worker_is_ready(&state, child.id(), state_mgr.is_running())) {
                         activated = true;
                         break;
                     }
@@ -951,7 +896,7 @@ pub async fn main() -> Result<()> {
             }
 
             tokio::select! {
-                res = commands::cmd_start(args) => {
+                res = commands::cmd_start(prepared) => {
                     if let Err(e) = res {
                         let prefix = rust_i18n::t!("runtime.startup_aborted");
                         let err_msg = if prefix.contains("{}") {
@@ -1001,8 +946,12 @@ pub async fn main() -> Result<()> {
             commands::cmd_cleanup(full).await?;
         }
         Commands::Mac => {
-            let _ = wraith_net::change_mac(None, None);
-            let _ = wraith_net::randomize_hostname();
+            let (interface, original, _) = wraith_net::change_mac(None, None)?;
+            if let Err(error) = wraith_net::randomize_hostname() {
+                wraith_net::restore_mac(&interface, &original).map_err(|rollback|
+                    wraith_core::error::WraithError::Hardware(format!("{error}; MAC rollback failed: {rollback}")))?;
+                return Err(error);
+            }
             display::print_success(&rust_i18n::t!("runtime.mac_randomized"));
         }
         Commands::Profile { name } => {

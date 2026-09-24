@@ -19,10 +19,15 @@ use wraith_guard::{DohProvider, DOH_PRESETS};
 struct TerminalGuardStderr;
 
 impl TerminalGuardStderr {
-    fn new() -> Self {
-        let _ = enable_raw_mode();
-        let _ = execute!(std::io::stderr(), EnterAlternateScreen, Hide);
-        Self
+    fn new() -> Result<Self> {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
+            return Err(wraith_core::error::WraithError::Configuration("Interactive selection requires a terminal; supply explicit options for a daemon".into()));
+        }
+        enable_raw_mode()?;
+        let guard = Self;
+        execute!(std::io::stderr(), EnterAlternateScreen, Hide)?;
+        Ok(guard)
     }
 }
 
@@ -44,7 +49,7 @@ pub fn select_doh_tui() -> Result<DohProvider> {
     loop {
         // Run inner raw-mode loop
         let selected_index = {
-            let _guard = TerminalGuardStderr::new();
+            let _guard = TerminalGuardStderr::new()?;
 
             loop {
                 let _ = execute!(
@@ -136,8 +141,8 @@ pub fn select_doh_tui() -> Result<DohProvider> {
                 let _ = writeln!(std::io::stderr(), "└{}┘", "─".repeat(BOX_WIDTH.saturating_sub(2)));
                 let _ = std::io::stderr().flush();
 
-                if event::poll(Duration::from_millis(150)).unwrap_or(false) {
-                    if let Ok(Event::Key(key)) = event::read() {
+                if event::poll(Duration::from_millis(150))? {
+                    if let Event::Key(key) = event::read()? {
                         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
                             return Err(WraithError::Custom(t!("doh_tui.selection_aborted").to_string()));
                         }

@@ -19,10 +19,15 @@ use wraith_net::NetworkInterface;
 struct TerminalGuardStderr;
 
 impl TerminalGuardStderr {
-    fn new() -> Self {
-        let _ = enable_raw_mode();
-        let _ = execute!(std::io::stderr(), EnterAlternateScreen, Hide);
-        Self
+    fn new() -> Result<Self> {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
+            return Err(wraith_core::error::WraithError::Configuration("Interactive selection requires a terminal; supply explicit options for a daemon".into()));
+        }
+        enable_raw_mode()?;
+        let guard = Self;
+        execute!(std::io::stderr(), EnterAlternateScreen, Hide)?;
+        Ok(guard)
     }
 }
 
@@ -41,7 +46,7 @@ pub fn select_interface_tui(interfaces: &[NetworkInterface]) -> Result<String> {
         ));
     }
 
-    let _guard = TerminalGuardStderr::new();
+    let _guard = TerminalGuardStderr::new()?;
     let total = interfaces.len();
     let mut cursor: usize = 0;
     const BOX_WIDTH: usize = 88;
@@ -135,8 +140,8 @@ pub fn select_interface_tui(interfaces: &[NetworkInterface]) -> Result<String> {
         }
         let _ = std::io::stderr().flush();
 
-        if event::poll(Duration::from_millis(100)).unwrap_or(false) {
-            if let Ok(Event::Key(key)) = event::read() {
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
                 if (key.modifiers.contains(KeyModifiers::CONTROL) && (key.code == KeyCode::Char('c') || key.code == KeyCode::Char('C')))
                     || key.code == KeyCode::Char('q')
                     || key.code == KeyCode::Char('Q')
