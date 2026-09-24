@@ -946,11 +946,15 @@ pub fn print_reset_report(report_rows: &[(&str, &str, &str)]) {
         BoxCorner::Rounded,
         78,
     );
-    println!("{}", reset_box[0].bright_green());
-    for row in &reset_box[1..reset_box.len() - 1] {
-        println!("{row}");
+    if let (Some(first), Some(last)) = (reset_box.first(), reset_box.last()) {
+        println!("{}", first.bright_green());
+        for row in reset_box.iter().take(reset_box.len().saturating_sub(1)).skip(1) {
+            println!("{row}");
+        }
+        if reset_box.len() > 1 {
+            println!("{}\n", last.bright_green());
+        }
     }
-    println!("{}\n", reset_box.last().unwrap().bright_green());
 }
 
 
