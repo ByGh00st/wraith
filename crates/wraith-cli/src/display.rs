@@ -794,7 +794,7 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
     println!("{}\n", info_box.last().unwrap().bright_cyan());
 }
 
-pub fn print_system_restored(geo: Option<&IpGeoInfo>) {
+pub fn print_system_restored() {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -802,59 +802,39 @@ pub fn print_system_restored(geo: Option<&IpGeoInfo>) {
         .set_content_arrangement(ContentArrangement::Dynamic);
 
     table.set_header(vec![
-        Cell::new(t!("dashboard.system_restored_title")).fg(Color::Green).add_attribute(Attribute::Bold),
-        Cell::new(t!("dashboard.teardown_verification")).fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.cleanup_complete_title")).fg(Color::Green).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.cleanup_verification")).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new(t!("dashboard.op_state")).fg(Color::Yellow).add_attribute(Attribute::Bold),
-        Cell::new(t!("dashboard.state_deactivated_clearnet")).fg(Color::Green).add_attribute(Attribute::Bold),
-    ]);
-
-    if let Some(g) = geo {
-        let unk = t!("geo.unknown");
-        let ip_str = if !g.ip.is_empty() { g.ip.as_str() } else { unk.as_ref() };
-        table.add_row(vec![
-            Cell::new(t!("dashboard.clearnet_public_ip")).fg(Color::Yellow).add_attribute(Attribute::Bold),
-            Cell::new(ip_str).fg(Color::Green).add_attribute(Attribute::Bold),
-        ]);
-
-        if g.country_code.is_some() || g.country_name.is_some() {
-            let loc = format_geo_location(g);
-            table.add_row(vec![
-                Cell::new(t!("dashboard.origin_geo")).fg(Color::Yellow),
-                Cell::new(loc).fg(Color::Cyan),
-            ]);
-        }
-    }
-
-    table.add_row(vec![
-        Cell::new(t!("dashboard.firewall_posture")).fg(Color::Yellow),
-        Cell::new(t!("dashboard.firewall_posture_val")).fg(Color::Green),
+        Cell::new(t!("dashboard.cleanup_state")).fg(Color::Yellow).add_attribute(Attribute::Bold),
+        Cell::new(t!("dashboard.cleanup_state_val")).fg(Color::Green).add_attribute(Attribute::Bold),
     ]);
 
     table.add_row(vec![
-        Cell::new(t!("dashboard.dns_res")).fg(Color::Yellow),
-        Cell::new(t!("dashboard.dns_res_val")).fg(Color::Green),
+        Cell::new(t!("dashboard.cleanup_firewall")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.cleanup_firewall_val")).fg(Color::Green),
     ]);
 
     table.add_row(vec![
-        Cell::new(t!("dashboard.gw_processes")).fg(Color::Yellow),
-        Cell::new(t!("dashboard.gw_processes_val")).fg(Color::Green),
+        Cell::new(t!("dashboard.cleanup_dns")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.cleanup_dns_val")).fg(Color::Green),
     ]);
 
     table.add_row(vec![
-        Cell::new(t!("dashboard.anti_forensics")).fg(Color::Yellow),
-        Cell::new(t!("dashboard.anti_forensics_val")).fg(Color::Green),
+        Cell::new(t!("dashboard.cleanup_workers")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.cleanup_workers_val")).fg(Color::Green),
+    ]);
+
+    table.add_row(vec![
+        Cell::new(t!("dashboard.cleanup_memory")).fg(Color::Yellow),
+        Cell::new(t!("dashboard.cleanup_memory_val")).fg(Color::Green),
     ]);
 
     println!("\n{table}");
 
-    let notice = vec![
-        "  ⚡ Direct Clearnet link established. Your origin traffic is no longer masked.".to_string(),
-        format!("  🔒 To re-arm Wraith anonymity gate: {}", "wraith -s".bold().bright_cyan()),
-    ];
-    let notice_box = render_box("SYSTEM STATUS : CLEARNET ACTIVE", &notice, BoxCorner::Rounded, 78);
+    let notice = vec![format!("  {}", t!("dashboard.cleanup_notice"))];
+    let notice_box = render_box(&t!("dashboard.cleanup_notice_title"), &notice, BoxCorner::Rounded, 78);
     println!("{}", notice_box[0].bright_green());
     for row in &notice_box[1..notice_box.len() - 1] {
         println!("{row}");

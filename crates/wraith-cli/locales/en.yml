@@ -8,6 +8,21 @@ banner:
   gate_status: 'GATE STATUS :'
   gate_val_strict: "-Fs → Tor / Netfilter / DNSSEC / Seccomp"
   gate_val_normal: "Tor / Netfilter"
+dashboard:
+  cleanup_complete_title: Managed session cleanup complete
+  cleanup_verification: Local teardown result
+  cleanup_state: Session state
+  cleanup_state_val: Wraith-owned resources restored
+  cleanup_firewall: Firewall
+  cleanup_firewall_val: Saved Wraith rules restored
+  cleanup_dns: DNS resolver
+  cleanup_dns_val: Saved resolver state restored
+  cleanup_workers: Session workers
+  cleanup_workers_val: Managed workers stopped
+  cleanup_memory: Memory state
+  cleanup_memory_val: Owned transient memory released
+  cleanup_notice_title: SESSION CLEANUP COMPLETE
+  cleanup_notice: Wraith restored only resources it manages; no external connectivity probe was made.
 tui:
   header_strict: MAXIMUM DEFENSE TELEMETRY HUD
   header_normal: REAL-TIME TELEMETRY DASHBOARD
@@ -26,7 +41,7 @@ tui:
   def_seccomp: '[✓] Seccomp-BPF Filter   : ptrace Blocked @ Ring 0 (raw sockets exempt
     for IDS engine)'
   def_ebpf: '[✓] eBPF / TC Fastpath   : Qdisc clsact Driver Egress Drop Active'
-  def_lockdown: '[✓] Kernel Lockdown      : Confidentiality Mode (/dev/mem & DMA Shield)'
+  def_lockdown: '[i] Kernel Lockdown      : Observed at startup; never changed by Wraith'
   def_dns: '[✓] DNS Engine           : QNAME Minimized + EDNS0 468B Padded + Telemetry
     Sinkhole'
   def_tls: '[✓] JA3/JA4 TLS Camo     : Google Chrome 131 / Win11 Profile + RFC 8701
@@ -143,7 +158,7 @@ commands:
   cmd_step_65: Enforcing Process Memory Lockdown (PR_SET_DUMPABLE=0, mlockall)...
   cmd_step_66: Process memory secured against dumpers (PR_SET_DUMPABLE=0, mlockall)
   cmd_warn_mem_lockdown: 'Process memory lockdown warning: %{e}'
-  cmd_step_67: Enforcing Linux Kernel Lockdown & DMA Hardware Defense...
+  cmd_step_67: Observing kernel lockdown and applying reversible session controls...
   cmd_warn_kernel_lockdown: 'Kernel Lockdown warning: %{e}'
   cmd_step_68: Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...
   cmd_warn_anti_debug: 'Anti-debug probe warning: %{e}'
@@ -208,7 +223,7 @@ commands:
   cmd_step_95: Submitting provided challenge solution...
   cmd_step_96: No solution entered, using hardened circumvention pool
 
-  cmd_step_kernel_lockdown_eval: 'Kernel Lockdown evaluated (%{lockdown}, /dev/mem & DMA IOMMU verified)'
+  cmd_step_kernel_lockdown_eval: 'Kernel policy observed: %{lockdown}; reversible session controls applied'
   cmd_warn_log_scrub_err: 'System log scrub failed: %{e}'
   cmd_step_history_wiped: 'Wiped %{count} shell history file(s) [EXPLICIT OPT-IN]'
   cmd_warn_history_wipe_err: 'History wipe failed: %{e}'

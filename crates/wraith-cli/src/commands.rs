@@ -251,7 +251,7 @@ pub async fn cmd_start(prepared: PreparedStart) -> Result<()> {
     if let Err(ref startup) = result {
         let manager = StateManager::default();
         if manager.read_checked().ok().and_then(|state| state.pid) == Some(std::process::id()) {
-            if let Err(cleanup) = cmd_stop(false).await {
+            if let Err(cleanup) = cmd_stop_inner(false, false, false).await {
                 return Err(WraithError::Custom(format!("Startup failed: {}; cleanup failed: {cleanup}. Session record retained.", startup)));
             }
         }
@@ -277,7 +277,7 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
 
     if state_mgr.exists() {
         print_step("Recovering the recorded interrupted session before startup...", "info");
-        cmd_stop_inner(false, true).await?;
+        cmd_stop_inner(false, true, true).await?;
     }
     if wraith_net::recovery::has_orphan_leases()? {
         stop_tor_daemon()?;
@@ -1103,12 +1103,18 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
 }
 
 pub async fn cmd_stop(self_destruct: bool) -> Result<()> {
-    cmd_stop_inner(self_destruct, false).await
+    cmd_stop_inner(self_destruct, false, true).await
 }
 
-async fn cmd_stop_inner(self_destruct: bool, lifecycle_lock_held: bool) -> Result<()> {
+async fn cmd_stop_inner(
+    self_destruct: bool,
+    lifecycle_lock_held: bool,
+    show_completion: bool,
+) -> Result<()> {
     let _ = crossterm::terminal::disable_raw_mode();
-    print_banner(false);
+    if show_completion {
+        print_banner(false);
+    }
 
     let state_mgr = StateManager::default();
     if !state_mgr.exists() {
@@ -1281,9 +1287,9 @@ async fn cmd_stop_inner(self_destruct: bool, lifecycle_lock_held: bool) -> Resul
 
     state_mgr.finish_cleanup(&errors)?;
 
-    sleep(Duration::from_secs(2)).await;
-    let real_geo = get_current_ip_geo().await;
-    print_system_restored(Some(&real_geo));
+    if show_completion {
+        print_system_restored();
+    }
     Ok(())
 }
 

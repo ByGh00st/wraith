@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.0-8172b3?style=flat-square" alt="Workspace version 1.4.0">
+  <img src="https://img.shields.io/badge/version-1.4.1-8172b3?style=flat-square" alt="Workspace version 1.4.1">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
   <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-238_passed-547d85?style=flat-square" alt="238 portable tests passed"></a>
@@ -307,7 +307,7 @@ Wraith is cleanly architected into 6 Rust crates with separate responsibilities:
 
 ```
 wraith/
-├── Cargo.toml                              # Workspace Root Manifest (v1.4.0)
+├── Cargo.toml                              # Workspace Root Manifest (v1.4.1)
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
 ├── SECURITY.md                             # Private Vulnerability Reporting Policy
@@ -326,7 +326,7 @@ wraith/
     │   ├── locales/                        # Localized Core & Crypto Dictionaries
     │   ├── src/crypto.rs                   # SHA-256 and HMAC Utilities
     │   ├── src/vault.rs                    # Encrypted RAMFS Vault (RFC 8439 ChaCha20-Poly1305, mlockall, ZeroizeOnDrop)
-    │   ├── src/kernel_lockdown.rs          # Strict Prerequisites & Reversible Sysctl Controls
+    │   ├── src/kernel_lockdown.rs          # Boot-policy Observation & Reversible Sysctl Controls
     │   ├── src/process_lockdown.rs         # Process Memory Lockdown (PR_SET_DUMPABLE=0, PR_SET_NO_NEW_PRIVS)
     │   ├── src/file_snapshot.rs            # Retryable Configuration Snapshots
     │   ├── src/sensitive.rs                # Zeroize-on-drop maps and owned recovery buffers
@@ -411,7 +411,7 @@ wraith/
 
 ### Quick install · signed APT repository and official release assets
 
-> **[Wraith v1.4.0](https://github.com/ByGh00st/wraith/releases/tag/v1.4.0)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
+> **[Wraith v1.4.1](https://github.com/ByGh00st/wraith/releases/tag/v1.4.1)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
 
 ```bash
 # Debian / Ubuntu / Kali: configure the signed Wraith APT repository once.
@@ -441,10 +441,10 @@ The installer needs **Bash, curl and Python 3.8+**; Alpine users can install the
 
 ```bash
 # x86_64 / amd64; use arm64 in the package filename on ARM64
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith_1.4.0_amd64.deb
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.0/SHA256SUMS.txt
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.1/wraith_1.4.1_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.4.1/SHA256SUMS.txt
 sha256sum --ignore-missing --check SHA256SUMS.txt
-sudo apt install ./wraith_1.4.0_amd64.deb
+sudo apt install ./wraith_1.4.1_amd64.deb
 wraith --version
 ```
 
@@ -1010,17 +1010,9 @@ Profile pairing compares the recorded TLS platform with both namespace and Tor e
 
 Traffic shaping, onion-service publication, LAN decoys, log wiping and self-destruction are not part of the default bundle. Adding `--jitter` to strict mode also enables its TC shaper. Full-security names a required control bundle; it does not promise complete anonymity, universal browser protection or avoidance of destination blocklists.
 
-### Host prerequisites
+### Host protections
 
-These irreversible controls must already be configured by the host administrator:
-
-| Setting | Required state |
-| :--- | :--- |
-| Kernel lockdown | `confidentiality` |
-| `kernel.kexec_load_disabled` | `1` |
-| `kernel.yama.ptrace_scope` | `3` |
-
-Wraith checks them instead of irreversibly enabling them for a temporary session. Reversible SysRq/core-dump controls are saved and verified. IOMMU groups are an observation, not proof of complete DMA protection.
+Kernel lockdown, `kernel.kexec_load_disabled` and `kernel.yama.ptrace_scope` are boot or administrator policies. Wraith observes and reports them but never requires or attempts to change them for a temporary session. Full-security remains available when a distribution exposes `lockdown=none` or no lockdown interface. Reversible SysRq/core-dump controls are saved, applied and verified; IOMMU groups are an observation, not proof of complete DMA protection.
 
 ### Recorded restoration
 
@@ -1135,7 +1127,7 @@ New Linux session records bind the worker to its boot ID, process start ticks an
 
 Honeypot startup must reserve every configured port before adding LAN firewall exceptions. LAN mode requires a private address on the selected interface; connections have a shared limit and a deadline. A port already used by a real service aborts startup.
 
-`wraith stop` restores recorded settings and can recover owned network leases when the main journal is absent. Missing state never triggers a firewall flush, and failed restoration retains its recovery record for retry. Reset and uninstall delegate to the recorded restoration path. Sessions leave irreversible kernel lockdown, kexec-disable and ptrace policies under the administrator's control. File overwrites cannot guarantee erasure from SSD remapping, snapshots or backups.
+`wraith stop` restores recorded settings and can recover owned network leases when the main journal is absent. Missing state never triggers a firewall flush, and failed restoration retains its recovery record for retry. Reset and uninstall delegate to the recorded restoration path. Wraith observes boot-time kernel lockdown policy but does not require or attempt to change it; only reversible session controls are applied and restored. File overwrites cannot guarantee erasure from SSD remapping, snapshots or backups.
 
 <a id="updates"></a>
 ## ⬆️ Official GitHub Updates

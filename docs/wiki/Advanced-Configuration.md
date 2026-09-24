@@ -38,15 +38,9 @@ Configuration is merged before the strict preset is expanded. Included boolean c
 
 Required startup errors refuse activation and initiate recorded cleanup. Incomplete cleanup preserves the recovery record. A final L4 readback must succeed before the session becomes active; this is configuration verification, not a captured p0f/JA3/JA4 measurement.
 
-### Host prerequisites
+### Host protections
 
-| Host prerequisite | Required value |
-| :--- | :--- |
-| Kernel lockdown | `confidentiality` |
-| `kernel.kexec_load_disabled` | `1` |
-| `kernel.yama.ptrace_scope` | `3` |
-
-These irreversible settings must already be configured by the host administrator. Wraith checks them rather than enabling them irreversibly for a temporary session. Reversible controls are recorded for restoration.
+Kernel lockdown, `kernel.kexec_load_disabled` and `kernel.yama.ptrace_scope` are controlled at boot or by the host administrator. Wraith reports their observed state but does not require or attempt to change them for a temporary session, so full-security remains available on standard distributions that expose `lockdown=none` or no lockdown interface. Reversible SysRq and core-dump controls are journaled, verified and restored during cleanup.
 
 ## L4 and TLS profiles
 

@@ -8,6 +8,21 @@ banner:
   gate_status: 'GEÇİT DURUMU  :'
   gate_val_strict: "-Fs → Tor / Netfilter / DNSSEC / Seccomp"
   gate_val_normal: "Tor / Netfilter"
+dashboard:
+  cleanup_complete_title: Yönetilen oturum temizliği tamamlandı
+  cleanup_verification: Yerel geri alma sonucu
+  cleanup_state: Oturum durumu
+  cleanup_state_val: Wraith kaynakları geri alındı
+  cleanup_firewall: Güvenlik duvarı
+  cleanup_firewall_val: Kaydedilen Wraith kuralları geri yüklendi
+  cleanup_dns: DNS çözümleyici
+  cleanup_dns_val: Kaydedilen çözümleyici durumu geri yüklendi
+  cleanup_workers: Oturum işlemleri
+  cleanup_workers_val: Yönetilen işlemler durduruldu
+  cleanup_memory: Bellek durumu
+  cleanup_memory_val: Sahipli geçici bellek bırakıldı
+  cleanup_notice_title: OTURUM TEMİZLİĞİ TAMAMLANDI
+  cleanup_notice: Wraith yalnızca kendi yönettiği kaynakları geri aldı; dış bağlantı testi yapılmadı.
 tui:
   header_strict: MAKSİMUM SAVUNMA TELEMETRİ EKRANI
   header_normal: GERÇEK ZAMANLI TELEMETRİ EKRANI
@@ -26,7 +41,7 @@ tui:
   def_seccomp: '[✓] Seccomp-BPF Filtresi : Ring 0''da ptrace Engellendi (IDS için
     raw soketler hariç)'
   def_ebpf: '[✓] eBPF / TC Fastpath   : Qdisc clsact Sürücüsü Çıkış Reddetme Aktif'
-  def_lockdown: '[✓] Çekirdek Kilitleme   : Gizlilik Modu (/dev/mem & DMA Kalkanı)'
+  def_lockdown: '[i] Çekirdek Kilitleme   : Başlangıçta gözlemlenir; Wraith değiştirmez'
   def_dns: '[✓] DNS Motoru           : QNAME Küçültülmüş + EDNS0 468B Dolgulu + Telemetri
     Tuzağı'
   def_tls: '[✓] JA3/JA4 TLS Kamuflaj : Google Chrome 131 / Win11 Profili + RFC 8701
@@ -144,7 +159,7 @@ commands:
   cmd_step_65: Süreç Bellek Kilidi Zorlanıyor (PR_SET_DUMPABLE=0, mlockall)...
   cmd_step_66: Süreç belleği dökümcülere karşı güvenceye alındı (PR_SET_DUMPABLE=0, mlockall)
   cmd_warn_mem_lockdown: 'Süreç bellek kilitleme uyarısı: %{e}'
-  cmd_step_67: Linux Çekirdek Kilidi & DMA Donanım Savunması Devreye Alınıyor...
+  cmd_step_67: Çekirdek kilidi gözlemleniyor; geri alınabilir oturum denetimleri uygulanıyor...
   cmd_warn_kernel_lockdown: 'Çekirdek kilitleme uyarısı: %{e}'
   cmd_step_68: Agresif Hata Ayıklama Tuzağı Silahlanıyor (TracerPid / ptrace üzerinde SIGKILL)...
   cmd_warn_anti_debug: 'Hata ayıklama tuzağı uyarısı: %{e}'
@@ -209,7 +224,7 @@ commands:
   cmd_step_95: Verilen meydan okuma çözümü sunuluyor...
   cmd_step_96: Çözüm girilmedi, sertleştirilmiş atlatma havuzu kullanılıyor
 
-  cmd_step_kernel_lockdown_eval: 'Çekirdek Kilitlenmesi değerlendirildi (%{lockdown}, /dev/mem ve DMA IOMMU doğrulandı)'
+  cmd_step_kernel_lockdown_eval: 'Çekirdek politikası gözlemlendi: %{lockdown}; geri alınabilir oturum denetimleri uygulandı'
   cmd_warn_log_scrub_err: 'Sistem günlük temizliği başarısız: %{e}'
   cmd_step_history_wiped: '%{count} adet kabuk geçmiş dosyası kalıcı olarak temizlendi [AÇIK ONAYLI]'
   cmd_warn_history_wipe_err: 'Geçmiş temizleme başarısız: %{e}'

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] - 2026-09-24
+
+### Fixed
+- Full-security no longer refuses standard Linux systems solely because boot-time kernel lockdown is `none`, `integrity`, or unavailable. Wraith observes that administrator-owned policy and still verifies only reversible session controls.
+- Failed startup recovery no longer prints a fabricated clearnet status, fetches a public IP, or displays raw untranslated dashboard keys. Normal cleanup reports local restoration without making an external connectivity probe.
+- Strict-mode status text now distinguishes observed kernel policy from controls that Wraith actually applies.
+
 ## [1.4.0] - 2026-09-24
 
 ### Release engineering

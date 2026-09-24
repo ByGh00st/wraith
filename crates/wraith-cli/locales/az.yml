@@ -530,3 +530,19 @@ daemon_cli:
   bridges_configured: 'Successfully configured %{count} %{pt} bridges in /etc/tor/wraithrc'
   doh_selected: 'Selected DoH Provider: %{name} [%{url}]'
   doh_saved: 'Saved active DoH provider to %{path}'
+
+dashboard:
+  cleanup_complete_title: Managed session cleanup complete
+  cleanup_verification: Local teardown result
+  cleanup_state: Session state
+  cleanup_state_val: Wraith-owned resources restored
+  cleanup_firewall: Firewall
+  cleanup_firewall_val: Saved Wraith rules restored
+  cleanup_dns: DNS resolver
+  cleanup_dns_val: Saved resolver state restored
+  cleanup_workers: Session workers
+  cleanup_workers_val: Managed workers stopped
+  cleanup_memory: Memory state
+  cleanup_memory_val: Owned transient memory released
+  cleanup_notice_title: SESSION CLEANUP COMPLETE
+  cleanup_notice: Wraith restored only resources it manages; no external connectivity probe was made.
