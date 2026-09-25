@@ -1,0 +1,16 @@
+# Native x86_64/arm64 builder; the project build runs as the runner's ordinary UID.
+FROM rust:alpine
+RUN apk add --no-cache build-base libstdc++-dev cmake perl clang-dev llvm-dev linux-headers \
+    pkgconf git python3 tar binutils bash && test -f /usr/lib/libstdc++.a
+ARG BUILDER_UID=1001
+ARG BUILDER_GID=1001
+RUN addgroup -g "${BUILDER_GID}" builder && adduser -D -u "${BUILDER_UID}" -G builder builder
+COPY --chmod=755 .github/musl-rustc-wrapper.sh /usr/local/bin/wraith-musl-rustc
+ENV CARGO_HOME=/home/builder/.cargo \
+    CARGO_BUILD_JOBS=2 \
+    CMAKE_BUILD_PARALLEL_LEVEL=2 \
+    BORING_BSSL_RUST_CPPLIB=static=stdc++ \
+    RUSTFLAGS="-L native=/usr/lib" \
+    RUSTC_WRAPPER=/usr/local/bin/wraith-musl-rustc
+USER builder
+WORKDIR /work

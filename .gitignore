@@ -70,7 +70,6 @@ vgcore.*
 !.env.example
 
 # 6. IDE, Editor & Agent Caches
-.github/
 .idea/
 .vscode/
 *.sublime-project
