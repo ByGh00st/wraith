@@ -14,6 +14,10 @@ version=$(python3 scripts/check-release.py target/release-metadata.json "${WRAIT
 binary="target/$target/release/wraith"
 [[ $("$binary" --version) == "wraith $version" ]]
 "$binary" --help >/dev/null
+mkdir -p packaging/completions
+"$binary" --generate-completions bash > packaging/completions/wraith.bash
+"$binary" --generate-completions zsh > packaging/completions/_wraith
+"$binary" --generate-completions fish > packaging/completions/wraith.fish
 if [[ $target == *-musl ]]; then
     if readelf -l "$binary" | grep -q INTERP; then
         echo 'The musl release must be static; refusing a runtime-loader dependency.' >&2
@@ -33,6 +37,9 @@ else
     test -f "$extracted/usr/share/doc/wraith/copyright"
     # cargo-deb may gzip installed documentation.
     test -f "$extracted/usr/share/doc/wraith/README.md" || test -f "$extracted/usr/share/doc/wraith/README.md.gz"
+    test -f "$extracted/usr/share/bash-completion/completions/wraith"
+    test -f "$extracted/usr/share/zsh/vendor-completions/_wraith"
+    test -f "$extracted/usr/share/fish/vendor_completions.d/wraith.fish"
     sudo apt-get --simulate install "$(pwd)/$deb"
 fi
 epoch=${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}

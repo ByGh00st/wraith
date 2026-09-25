@@ -221,7 +221,12 @@ pub(crate) fn remove_namespace_rules(tag: Option<&str>) -> Result<()> {
         check[operation] = "-C".into();
         // Bounded retries also clean duplicate owned rules left by old attempts.
         for attempt in 0..=32 {
-            let status = Command::new("iptables").args(["-w", "5"]).args(&check).status()?;
+            let status = Command::new("iptables")
+                .args(["-w", "5"])
+                .args(&check)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()?;
             match status.code() {
                 Some(1) => break,
                 Some(0) if attempt < 32 => {

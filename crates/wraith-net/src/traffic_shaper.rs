@@ -68,11 +68,11 @@ impl TrafficShaper {
                 "distribution", "normal",
                 "loss", &loss_str, "rate", &rate_str,
             ])
-            .status();
+            .output()?;
 
-        let status = status?;
-        if !status.success() {
-            return Err(WraithError::Network(format!("tc netem setup failed on {}: {status}", self.interface)));
+        if !status.status.success() {
+            let stderr = String::from_utf8_lossy(&status.stderr);
+            return Err(WraithError::Network(format!("tc netem setup failed on {}: {stderr}", self.interface)));
         }
         self.active = true;
         info!("Netem attached on {}", self.interface);
@@ -89,8 +89,8 @@ impl TrafficShaper {
         if owns_qdisc(&String::from_utf8_lossy(&output.stdout)) {
             let status = Command::new("tc")
                 .args(["qdisc", "del", "dev", &self.interface, "root", "handle", "a731:"])
-                .status()?;
-            if !status.success() {
+                .output()?;
+            if !status.status.success() {
                 return Err(WraithError::Network("Cannot remove Wraith netem qdisc".into()));
             }
         }

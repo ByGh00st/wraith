@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
 use wraith_core::error::{Result, WraithError};
@@ -1241,7 +1241,12 @@ async fn cmd_stop_inner(
         record_cleanup("MAC", restore_mac(iface, mac), &mut errors);
     }
     if let Some(hostname) = &state_info.hostname_old {
-        let result = Command::new("hostname").arg(hostname).status().map_err(WraithError::from)
+        let result = Command::new("hostname")
+            .arg(hostname)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(WraithError::from)
             .and_then(|status| if status.success() { Ok(()) } else { Err(WraithError::Command(format!("hostname failed: {status}"))) });
         record_cleanup("hostname", result, &mut errors);
     }
@@ -1342,6 +1347,8 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
         {
             let _ = Command::new("systemctl")
                 .args(["stop", "wraith.service"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .status();
         }
 
@@ -1361,16 +1368,26 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
             // Force destroy wraith-ns namespace if lingering
             let _ = Command::new("ip")
                 .args(["netns", "del", wraith_net::namespace::NAMESPACE_NAME])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .status();
 
             // Force destroy veth interfaces including veth-wr
             for veth in &[wraith_net::namespace::VETH_HOST, wraith_net::namespace::VETH_NS, "veth-host", "veth-ns", "veth-wr-host", "veth-wr-ns"] {
-                let _ = Command::new("ip").args(["link", "del", veth]).status();
+                let _ = Command::new("ip")
+                    .args(["link", "del", veth])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
             }
 
             // Force down and delete wireguard interfaces
             for wg in &["wg-wraith", "wraith-wg", "wg0"] {
-                let _ = Command::new("ip").args(["link", "del", wg]).status();
+                let _ = Command::new("ip")
+                    .args(["link", "del", wg])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
             }
 
             report_rows.push(("Kernel Namespaces", "wraith-ns destroyed & veth-wr unlinked".to_string(), "PURGED"));
@@ -1384,27 +1401,27 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
             print_step("Flushing Netfilter tables & restoring default ACCEPT policy...", "info");
             // Reset iptables policies to ACCEPT and flush all tables
             for table in &["filter", "nat", "mangle", "raw"] {
-                let _ = Command::new("iptables").args(["-t", table, "-F"]).status();
-                let _ = Command::new("iptables").args(["-t", table, "-X"]).status();
+                let _ = Command::new("iptables").args(["-t", table, "-F"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+                let _ = Command::new("iptables").args(["-t", table, "-X"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             }
-            let _ = Command::new("iptables").args(["-P", "INPUT", "ACCEPT"]).status();
-            let _ = Command::new("iptables").args(["-P", "FORWARD", "ACCEPT"]).status();
-            let _ = Command::new("iptables").args(["-P", "OUTPUT", "ACCEPT"]).status();
+            let _ = Command::new("iptables").args(["-P", "INPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("iptables").args(["-P", "FORWARD", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("iptables").args(["-P", "OUTPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
 
             // Reset ip6tables policies to ACCEPT and flush all tables
             for table in &["filter", "mangle", "raw"] {
-                let _ = Command::new("ip6tables").args(["-t", table, "-F"]).status();
-                let _ = Command::new("ip6tables").args(["-t", table, "-X"]).status();
+                let _ = Command::new("ip6tables").args(["-t", table, "-F"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+                let _ = Command::new("ip6tables").args(["-t", table, "-X"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             }
-            let _ = Command::new("ip6tables").args(["-t", "nat", "-F"]).status();
-            let _ = Command::new("ip6tables").args(["-t", "nat", "-X"]).status();
-            let _ = Command::new("ip6tables").args(["-P", "INPUT", "ACCEPT"]).status();
-            let _ = Command::new("ip6tables").args(["-P", "FORWARD", "ACCEPT"]).status();
-            let _ = Command::new("ip6tables").args(["-P", "OUTPUT", "ACCEPT"]).status();
+            let _ = Command::new("ip6tables").args(["-t", "nat", "-F"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("ip6tables").args(["-t", "nat", "-X"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("ip6tables").args(["-P", "INPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("ip6tables").args(["-P", "FORWARD", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("ip6tables").args(["-P", "OUTPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
 
             // Delete custom nftables tables
             for family in &["inet", "ip", "ip6"] {
-                let _ = Command::new("nft").args(["delete", "table", family, "wraith"]).status();
+                let _ = Command::new("nft").args(["delete", "table", family, "wraith"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             }
 
             // Remove traffic shaping qdiscs on physical interfaces
@@ -1412,6 +1429,8 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
                 for iface in interfaces {
                     let _ = Command::new("tc")
                         .args(["qdisc", "del", "dev", &iface.name, "root"])
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
                         .status();
                 }
             }
@@ -1431,6 +1450,8 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
             // Remove immutable attribute if set by previous lock
             let _ = Command::new("chattr")
                 .args(["-i", wraith_core::config::RESOLV_PATH])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .status();
 
             let mut restored_from_backup = false;
@@ -1455,8 +1476,16 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
             }
 
             // Restart system resolvers
-            let _ = Command::new("systemctl").args(["restart", "systemd-resolved"]).status();
-            let _ = Command::new("systemctl").args(["restart", "NetworkManager"]).status();
+            let _ = Command::new("systemctl")
+                .args(["restart", "systemd-resolved"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("systemctl")
+                .args(["restart", "NetworkManager"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
 
             report_rows.push(("DNS Resolvers", "/etc/resolv.conf restored to Anycast upstream".to_string(), "RESOLVED"));
         }
@@ -1468,17 +1497,37 @@ pub async fn cmd_reset_network(target: &str) -> Result<()> {
         {
             print_step("Flushing routing table 100, ARP cache and elevating links...", "info");
             // Flush policy routing table 100
-            let _ = Command::new("ip").args(["rule", "del", "table", "100"]).status();
-            let _ = Command::new("ip").args(["route", "flush", "table", "100"]).status();
+            let _ = Command::new("ip")
+                .args(["rule", "del", "table", "100"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("ip")
+                .args(["route", "flush", "table", "100"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
 
             // Re-enable IP forwarding & flush ARP table
-            let _ = Command::new("sysctl").args(["-w", "net.ipv4.ip_forward=1"]).status();
-            let _ = Command::new("ip").args(["neigh", "flush", "all"]).status();
+            let _ = Command::new("sysctl")
+                .args(["-w", "net.ipv4.ip_forward=1"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("ip")
+                .args(["neigh", "flush", "all"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
 
             // Bring up all physical interfaces
             if let Ok(interfaces) = wraith_net::list_physical_interfaces() {
                 for iface in interfaces {
-                    let _ = Command::new("ip").args(["link", "set", &iface.name, "up"]).status();
+                    let _ = Command::new("ip")
+                        .args(["link", "set", &iface.name, "up"])
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status();
                 }
             }
 

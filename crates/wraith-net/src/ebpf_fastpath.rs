@@ -54,17 +54,17 @@ impl EgressFastpath {
                 // Attach clsact qdisc hook
                 let qdisc_res = Command::new("tc")
                     .args(["qdisc", "add", "dev", iface, "clsact"])
-                    .status();
+                    .output();
 
                 if let Ok(st) = qdisc_res {
-                    if st.success() {
+                    if st.status.success() {
                         // Priority 10: Allow Tor TransPort (TCP 9040)
                         let _ = Command::new("tc")
                             .args([
                                 "filter", "add", "dev", iface, "egress", "protocol", "ip", "pref", "10",
                                 "u32", "match", "ip", "dport", &TOR_TRANS_PORT.to_string(), "0xffff", "action", "pass",
                             ])
-                            .status();
+                            .output();
 
                         // Priority 20: Allow Tor DNSPort (UDP 5353)
                         let _ = Command::new("tc")
@@ -72,7 +72,7 @@ impl EgressFastpath {
                                 "filter", "add", "dev", iface, "egress", "protocol", "ip", "pref", "20",
                                 "u32", "match", "ip", "dport", &TOR_DNS_PORT.to_string(), "0xffff", "action", "pass",
                             ])
-                            .status();
+                            .output();
 
                         // Priority 30: Allow Local Loopback/DHCP egress (UDP 67/68) for lease renewals
                         let _ = Command::new("tc")
@@ -80,7 +80,7 @@ impl EgressFastpath {
                                 "filter", "add", "dev", iface, "egress", "protocol", "ip", "pref", "30",
                                 "u32", "match", "ip", "dport", "67", "0xffff", "action", "pass",
                             ])
-                            .status();
+                            .output();
 
                         // Priority 100: Catch-all drop rule for direct clearnet egress attempts
                         let _ = Command::new("tc")
@@ -88,7 +88,7 @@ impl EgressFastpath {
                                 "filter", "add", "dev", iface, "egress", "protocol", "ip", "pref", "100",
                                 "u32", "match", "ip", "protocol", "6", "0xff", "action", "drop",
                             ])
-                            .status();
+                            .output();
 
                         self.active_interfaces.insert(iface.clone());
                         info!("eBPF/TC clsact egress filter active on {}: Clearnet TCP blocked at qdisc", iface);

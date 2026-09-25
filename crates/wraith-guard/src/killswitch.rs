@@ -1,7 +1,7 @@
 //! Wraith Fail-Closed Watchdog & Emergency Lockdown
 //! Millisecond-interval Tor health monitor with automatic network severance upon connection drop.
 
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -91,9 +91,21 @@ impl KillSwitch {
         // WireGuard guards. Tor packets must still traverse the original rules.
         let uid = wraith_net::get_tor_uid()?.to_string();
         for rule in lockdown_rules(&uid) {
-            let exists = Command::new("iptables").arg("-w").arg("5").arg("-C").args(&rule).status()?;
+            let exists = Command::new("iptables")
+                .arg("-w")
+                .arg("5")
+                .arg("-C")
+                .args(&rule)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()?;
             if !exists.success() {
-                let status = Command::new("iptables").args(["-w", "5", "-I"]).args(&rule).status()?;
+                let status = Command::new("iptables")
+                    .args(["-w", "5", "-I"])
+                    .args(&rule)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()?;
                 if !status.success() {
                     return Err(wraith_core::error::WraithError::Firewall(format!("Emergency rule failed: {status}")));
                 }

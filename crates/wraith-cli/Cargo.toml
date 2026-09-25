@@ -51,4 +51,7 @@ assets = [
     ["target/release/wraith", "usr/bin/wraith", "0755"],
     ["../../LICENSE", "usr/share/doc/wraith/copyright", "0644"],
     ["../../README.md", "usr/share/doc/wraith/README.md", "0644"],
+    ["../../packaging/completions/wraith.bash", "usr/share/bash-completion/completions/wraith", "0644"],
+    ["../../packaging/completions/_wraith", "usr/share/zsh/vendor-completions/_wraith", "0644"],
+    ["../../packaging/completions/wraith.fish", "usr/share/fish/vendor_completions.d/wraith.fish", "0644"],
 ]
