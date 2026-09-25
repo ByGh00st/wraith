@@ -34,6 +34,11 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 | Area | Current behavior |
 | :--- | :--- |
 | Release distribution | [v1.4.6 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.6): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
+| Emergency Reset HUD | `-R` and `-N` shortcuts with real-time subsystem recovery HUD telemetry |
+| Cryptographic Shredding | DoD 5220.22-M 7-pass random overwrite and zeroize for Onion v3 keys |
+| RAMFS WireGuard Keys | `/dev/shm` ephemeral key isolation with in-memory zeroize-on-drop |
+| Process Neutralization | `pidfd_open` race-proof rogue process containment with protected daemon whitelist |
+| Tor Bridge Sanitization | Strict CRLF, null byte and directive injection filtering for pluggable transports |
 | Full-security preset | Automatic namespace + Tor access-link L4/TLS pairing, required setup checks and recorded policy telemetry |
 | Local ISP / firewall scope | Tor UID TCP TTL, SYN option order and MSS normalization; shared Tor exits preserved |
 | Worker ownership | Boot/start-time/executable identity and pidfd-bound shutdown |
@@ -43,7 +48,7 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 | Owned memory | Zeroization of session/snapshot buffers on drop; abrupt termination excluded |
 | Profile pairing | Configured L4↔L7 mismatch alerts, live TCP/MAC drift and explicit unmeasured wire scope |
 | TCP restoration | Original route metrics restored and read back without deleting the namespace |
-| HTTP privacy | Initial-request address headers removed while preserving binary bodies |
+| HTTP privacy | Initial-request address headers removed, Connection: close enforced to block pipelining |
 | Proxy availability | 10-second setup-write deadline; 120-second relay inactivity limit |
 
 [Read the L4/L7 guide](L4-and-L7.md) · [Validation details](Development.md)
@@ -52,6 +57,6 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 **6 Rust crates · 17 locales · GPL-3.0 · x86_64 + ARM64 Linux runtime**
 
-The latest recorded checks include **238 passing Windows tests**, **240 tests on each native GNU Linux architecture**, all-target Clippy with warnings denied, **14 installer scenarios**, and verified x86_64/ARM64 Debian packages plus static musl archives. The native wire audit remains ignored; live routing, NFQUEUE/Guard integration and installed-system updates remain outside that validation. See [the validation guide](Development.md).
+The latest recorded checks include **252 passing Windows tests**, **254 tests on each native GNU Linux architecture**, all-target Clippy with warnings denied, **14 installer scenarios**, and verified x86_64/ARM64 Debian packages plus static musl archives. The native wire audit remains ignored; live routing, NFQUEUE/Guard integration and installed-system updates remain outside that validation. See [the validation guide](Development.md).
 
 <p align="center"><a href="https://github.com/ByGh00st/wraith">Repository</a> · <a href="https://github.com/ByGh00st/wraith#privacy-matrix">Tool comparison</a> · <a href="https://github.com/ByGh00st/wraith/issues">Issues</a></p>

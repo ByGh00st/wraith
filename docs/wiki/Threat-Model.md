@@ -7,7 +7,11 @@
 | Normalize selected TCP settings | Namespace sysctl, MSS and initial-window metrics | Does not control Tor exit TCP or guarantee OS fingerprint equivalence |
 | Reduce local access-link TCP differences | Tor UID TTL + initial SYN option/MSS normalization | Local ISP/firewall observer; native window/scale and Tor Guard TLS remain unchanged |
 | Profile Wraith HTTPS | Certificate-verified browser TLS client | Other applications retain their own handshakes |
-| Remove HTTP address metadata | Initial request header filtering | Persistent follow-up requests are not reparsed |
+| Remove HTTP address metadata | Initial request header filtering and mandatory Connection: close | Prevents persistent follow-up pipelining bypasses |
+| Cryptographic key wiping | DoD 5220.22-M 7-pass random overwrite and zeroize for Onion v3 keys | Storage wear-leveling on SSDs can retain remap traces |
+| Ephemeral tunnel key protection | RAMFS (/dev/shm) SecureTempKey RAII with 0600 permissions | Host root compromise before deallocation can access RAM |
+| Prevent process signal race | Linux pidfd_open / pidfd_send_signal with protected daemon whitelist | Requires kernel >= 5.3; legacy fallback uses verified /proc/pid/comm |
+| Tor bridge configuration safety | Strict sanitize_bridge_line rejecting CRLF, control chars and illegal syntax | Relies on tor daemon parser semantics |
 | Restore settings | Saved state and checked cleanup | Restoration failures retain recovery state and require attention |
 | Recover owned orphans | Lifecycle lock, namespace/egress leases and checked teardown | Ambiguous resources are refused; leases are not a full reboot-safe host backup |
 | Reduce local virtual-link identifiers | CSPRNG local-unicast namespace MAC before activation | Does not replace the physical MAC or remote Tor exit identity |

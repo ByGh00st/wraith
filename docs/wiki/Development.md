@@ -9,8 +9,8 @@ Release-preparation baseline: [`1cee183`](https://github.com/ByGh00st/wraith/com
 | Check | Result |
 | :--- | :--- |
 | Workspace check, all targets | Passed on Windows and both native GNU Linux architectures |
-| Windows workspace tests | **238 passed, 0 failed, 1 ignored** |
-| Native GNU Linux tests, x86_64 and ARM64 | **240 passed on each, 0 failed, 1 ignored** |
+| Windows workspace tests | **252 passed, 0 failed, 1 ignored** |
+| Native GNU Linux tests, x86_64 and ARM64 | **254 passed on each, 0 failed, 1 ignored** |
 | Windows all-target Clippy | Passed with warnings denied |
 | GNU Linux all-target Clippy | Passed natively on both architectures and by cross-compilation; warnings denied |
 | Installer preview regressions | 14 platform/failure scenarios passed on Windows and Ubuntu; no installation |

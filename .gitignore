@@ -28,6 +28,7 @@ crates/wraith-net/tests/*
 *_test.rs
 *tests.rs
 wraith_test_*
+implement.md
 *.tmp
 *.temp
 *.bak
