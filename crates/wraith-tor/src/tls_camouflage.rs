@@ -154,10 +154,19 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
             continue;
         }
         let line_lower = line.to_lowercase();
-        // Strip client Keep-Alive headers to eliminate HTTP pipelining bypasses
-        if line_lower.starts_with("connection:") || line_lower.starts_with("proxy-connection:") {
-            was_sanitized = true;
-            continue;
+        // Strip client Keep-Alive headers to eliminate HTTP pipelining bypasses and enforce close
+        if let Some((header_name, _)) = line_lower.split_once(':') {
+            let header_trimmed = header_name.trim();
+            if header_trimmed == "connection" {
+                was_sanitized = true;
+                modified_lines.push("Connection: close".to_string());
+                continue;
+            }
+            if header_trimmed == "proxy-connection" {
+                was_sanitized = true;
+                modified_lines.push("Proxy-Connection: close".to_string());
+                continue;
+            }
         }
         if line_lower.starts_with("host:") {
             target_host = line[5..].trim().to_string();
@@ -179,15 +188,6 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
             } else {
                 modified_lines.push(line.to_string());
             }
-        } else if line.is_empty() {
-            // End of header section: inject Connection: close and Proxy-Connection: close
-            // This forces the connection to terminate after this transaction, ensuring
-            // every subsequent request initiates a new TCP connection that is properly sanitized.
-            modified_lines.push("Connection: close".to_string());
-            modified_lines.push("Proxy-Connection: close".to_string());
-            modified_lines.push(String::new());
-            modified_lines.push(String::new());
-            break;
         } else {
             modified_lines.push(line.to_string());
         }
