@@ -26,12 +26,18 @@ def validate(metadata, tag=""):
     binary = ["target/release/wraith", "usr/bin/wraith", "0755"]
     if binary not in deb["assets"]:
         raise ValueError("Debian executable must be installed as /usr/bin/wraith, mode 0755")
+    valid_dest_prefixes = (
+        "usr/share/doc/wraith/",
+        "usr/share/bash-completion/completions/",
+        "usr/share/zsh/vendor-completions/",
+        "usr/share/fish/vendor_completions.d/",
+    )
     for source, destination, mode in deb["assets"]:
         if source.startswith("target/release/"):
             continue
         if not (Path(cli["manifest_path"]).parent / source).is_file():
             raise ValueError(f"Missing package asset: {source}")
-        if not destination.startswith("usr/share/doc/wraith/") or mode != "0644":
+        if not any(destination.startswith(prefix) for prefix in valid_dest_prefixes) or mode != "0644":
             raise ValueError("Unexpected documentation asset destination/mode")
     return version
 
