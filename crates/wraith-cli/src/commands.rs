@@ -1748,7 +1748,7 @@ pub fn spawn_monitor_terminal() -> bool {
             if let Ok(src_meta) = std::fs::symlink_metadata(&xauth) {
                 if src_meta.is_file() && !src_meta.file_type().is_symlink() && src_meta.len() > 0 && src_meta.len() <= 65536 {
                     use std::io::Read;
-                    if let Ok(mut src_file) = std::fs::File::open(&xauth) {
+                    if let Ok(src_file) = std::fs::File::open(&xauth) {
                         let mut cookie_bytes = Vec::new();
                         if src_file.take(65536).read_to_end(&mut cookie_bytes).is_ok() && !cookie_bytes.is_empty() {
                             // Harden destination /root/.Xauthority: reject or remove existing symlink, write with O_NOFOLLOW and 0600
