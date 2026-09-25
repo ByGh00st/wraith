@@ -139,9 +139,9 @@ Start a session, inspect its status, and stop it to restore recorded settings. A
 ## 📊 Codebase Metrics & Language Breakdown
 
 <details open>
-<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-24</b></summary>
+<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-25</b></summary>
 
-Measured **2026-09-24** with Tokei 12.1.2. Scope: source crates, the native wire audit, manifests, Cargo configuration, installers and release scripts/workflow; standalone documentation and build output are excluded. The test path is explicit because of directory-ignore handling in this Tokei version. Embedded Rust documentation is reported under Markdown.
+Measured **2026-09-25** with Tokei 12.1.2. Scope: source crates, the native wire audit, manifests, Cargo configuration, installers and release scripts/workflow; standalone documentation and build output are excluded. The test path is explicit because of directory-ignore handling in this Tokei version. Embedded Rust documentation is reported under Markdown.
 
 ```sh
 tokei crates crates/wraith-net/tests/live_wire_syn_audit.rs Cargo.toml .cargo build.sh install.sh install-daemon.sh uninstall.sh scripts .github
@@ -151,16 +151,16 @@ tokei crates crates/wraith-net/tests/live_wire_syn_audit.rs Cargo.toml .cargo bu
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
- Python                  2          191          176            4           11
- Shell                   6          802          692           55           55
- TOML                    8          251          233            0           18
- YAML                  343        12395        12386            0            9
+ Python                  2          197          182            4           11
+ Shell                   8          990          854           62           74
+ TOML                    8          254          237            0           17
+ YAML                  344        12878        12862            1           15
 -------------------------------------------------------------------------------
- Rust                   80        24935        21887          699         2349
- |- Markdown            73          783            3          738           42
- (Total)                          25718        21890         1437         2391
+ Rust                   80        26381        23106          756         2519
+ |- Markdown            73          802            3          757           42
+ (Total)                          27183        23109         1513         2561
 ===============================================================================
- Total                 439        38574        35374          758         2442
+ Total                 442        40700        37241          823         2636
 ===============================================================================
 ```
 
@@ -1154,7 +1154,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-24** for the v1.4.0 preparation:
+Checks recorded **2026-09-25** for the v1.4.6 preparation:
 
 | Executed check | Result |
 | :--- | :--- |

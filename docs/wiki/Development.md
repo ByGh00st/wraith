@@ -2,7 +2,7 @@
 
 > **08 / CONTRIBUTE** · Separate executed tests from unmeasured properties.
 
-## Recorded checks — 2026-09-24
+## Recorded checks — 2026-09-25
 
 Release-preparation baseline: [`1cee183`](https://github.com/ByGh00st/wraith/commit/1cee183). The [native build matrix](https://github.com/ByGh00st/wraith/actions/runs/35992818793) passed on all four x86_64/ARM64 GNU/musl targets and produced two Debian packages plus four archives. Manual validation skipped release publication.
 
