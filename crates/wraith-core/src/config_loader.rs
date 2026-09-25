@@ -176,6 +176,28 @@ impl WraithConfig {
     fn load_paths(system: &Path, user: Option<&Path>, legacy: &Path) -> Result<Self> {
         for path in std::iter::once(system).chain(user) {
             if let Some(data) = read_optional(path)? {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::MetadataExt;
+                    if nix::unistd::geteuid().is_root() {
+                        if let Ok(meta) = fs::symlink_metadata(path) {
+                            if meta.uid() != 0 {
+                                return Err(WraithError::Configuration(format!(
+                                    "Refusing to load untrusted configuration {}: owned by UID {}, expected root (0)",
+                                    path.display(),
+                                    meta.uid()
+                                )));
+                            }
+                            if (meta.mode() & 0o002) != 0 {
+                                return Err(WraithError::Configuration(format!(
+                                    "Refusing to load untrusted configuration {}: world-writable permissions ({:#o})",
+                                    path.display(),
+                                    meta.mode() & 0o777
+                                )));
+                            }
+                        }
+                    }
+                }
                 return Self::parse_toml(&data).map_err(|e| WraithError::Configuration(format!("{}: {e}", path.display())));
             }
         }
@@ -461,6 +483,15 @@ pub fn validate_rotation_interval(seconds: u64) -> Result<()> {
 }
 
 fn user_config_path() -> Option<PathBuf> {
+    #[cfg(unix)]
+    {
+        if nix::unistd::geteuid().is_root() {
+            // When executing with root privileges, strictly forbid loading
+            // unprivileged user configurations to eliminate Local Privilege Escalation (LPE)
+            // and malicious overriding of root security policies.
+            return None;
+        }
+    }
     std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config/wraith/config.toml"))
 }
 
@@ -671,5 +702,15 @@ mod tests {
         assert!(cfg.set_key("upstream", "not_a_url_or_preset").is_err());
         assert!(cfg.set_key("lang", "bad lang code!").is_err());
         assert!(cfg.set_key("lang", "toolonglanguagecodethatexceeds16").is_err());
+    }
+
+    #[test]
+    fn test_root_context_config_isolation() {
+        #[cfg(unix)]
+        {
+            if nix::unistd::geteuid().is_root() {
+                assert!(user_config_path().is_none(), "Root context must never fall back to user config");
+            }
+        }
     }
 }

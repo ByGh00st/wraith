@@ -179,10 +179,20 @@ impl StateManager {
         #[cfg(target_os = "linux")]
         { data.process_identity = Some(crate::process_identity::capture(std::process::id())?); }
         let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = temp.as_file().set_permissions(fs::Permissions::from_mode(0o600));
+        }
         temp.write_all(&serialize_state(&data)?)?;
         temp.as_file().sync_all()?;
         temp.persist_noclobber(&self.path).map_err(|e| e.error)?;
         #[cfg(unix)] File::open(parent)?.sync_all()?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(0o600));
+        }
         Ok(())
     }
 
@@ -203,6 +213,11 @@ impl StateManager {
         // Atomic write via tempfile in same directory
         let parent = self.path.parent().unwrap_or_else(|| Path::new("/var/run"));
         let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = temp.as_file().set_permissions(fs::Permissions::from_mode(0o600));
+        }
         temp.write_all(&serialized)?;
         temp.as_file().sync_all()?;
         temp.persist(&self.path).map_err(|e| e.error)?;
@@ -376,4 +391,20 @@ mod tests {
         assert_eq!(decoded.tcp_profile_kind.as_deref(), Some("Windows 11"));
         assert!(decoded.tcp_snapshot_json.is_some());
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_claim_and_activate_enforce_0600_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let manager = StateManager { path: dir.path().join("state") };
+        manager.claim(StateData::default()).unwrap();
+        let meta = fs::metadata(&manager.path).unwrap();
+        assert_eq!(meta.permissions().mode() & 0o777, 0o600);
+
+        manager.activate(StateData::default()).unwrap();
+        let meta2 = fs::metadata(&manager.path).unwrap();
+        assert_eq!(meta2.permissions().mode() & 0o777, 0o600);
+    }
 }
+

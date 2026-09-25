@@ -2,8 +2,10 @@
 //! Generates on-the-fly Tor v3 Hidden Services (.onion) with Ed25519 authorization,
 //! PoW anti-DoS rate limiting, and ephemeral Unix Domain Socket binding.
 
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
+use rand::RngCore;
 use tracing::info;
 use wraith_core::config::TORRC_PATH;
 use wraith_core::error::{Result, WraithError};
@@ -124,12 +126,84 @@ impl OnionServiceManager {
         }
     }
 
+    /// Securely shreds an ephemeral key file using DoD 5220.22-M 7-pass random overwrite and flush
+    pub fn shred_key_file(path: &Path, passes: u8) -> Result<()> {
+        let metadata = match fs::symlink_metadata(path) {
+            Ok(m) => m,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e.into()),
+        };
+
+        if metadata.file_type().is_symlink() {
+            fs::remove_file(path)?;
+            return Ok(());
+        }
+
+        if !metadata.is_file() {
+            return Ok(());
+        }
+
+        let len = metadata.len();
+        if len > 0 {
+            let mut file = OpenOptions::new().write(true).open(path)?;
+            let mut buffer = zeroize::Zeroizing::new(vec![0u8; 4096]);
+            let mut rng = rand::thread_rng();
+
+            let pass_count = passes.max(1);
+            for _ in 0..pass_count {
+                file.seek(SeekFrom::Start(0))?;
+                let mut written = 0;
+                while written < len {
+                    let chunk = std::cmp::min(buffer.len() as u64, len - written) as usize;
+                    rng.fill_bytes(&mut buffer[..chunk]);
+                    file.write_all(&buffer[..chunk])?;
+                    written += chunk as u64;
+                }
+                file.sync_all()?;
+            }
+
+            // Final zeroization pass
+            file.seek(SeekFrom::Start(0))?;
+            buffer.fill(0);
+            let mut written = 0;
+            while written < len {
+                let chunk = std::cmp::min(buffer.len() as u64, len - written) as usize;
+                file.write_all(&buffer[..chunk])?;
+                written += chunk as u64;
+            }
+            file.sync_all()?;
+        }
+
+        fs::remove_file(path)?;
+        Ok(())
+    }
+
+    /// Recursively shreds all cryptographic keys, hostnames, and metadata in an Onion Service directory
+    pub fn shred_onion_tree(dir: &Path) -> Result<()> {
+        if !dir.exists() {
+            return Ok(());
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let meta = fs::symlink_metadata(&path)?;
+            if meta.is_dir() {
+                Self::shred_onion_tree(&path)?;
+                let _ = fs::remove_dir(&path);
+            } else {
+                Self::shred_key_file(&path, 7)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Purges all Onion Hidden Service directories and private keys from storage
     pub fn purge_onion_service() -> Result<()> {
         let service_dir = Path::new(ONION_SERVICE_DIR);
         if service_dir.exists() {
-            fs::remove_dir_all(service_dir)?;
-            info!("Ephemeral Onion service directory removed");
+            Self::shred_onion_tree(service_dir)?;
+            let _ = fs::remove_dir_all(service_dir);
+            info!("Ephemeral Onion service directory securely shredded and removed");
         }
         Ok(())
     }
@@ -162,5 +236,30 @@ mod tests {
         assert!(directives.contains("HiddenServiceDir /var/lib/wraith/tor/onion_service"));
         assert!(directives.contains("HiddenServicePort 80 127.0.0.1:8080"));
         assert!(directives.contains("HiddenServiceEnablePoW 1"));
+    }
+
+    #[test]
+    fn test_shred_onion_tree_wipes_keys_and_directory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let onion_dir = temp_dir.path().join("onion_service");
+        fs::create_dir_all(&onion_dir).unwrap();
+
+        let secret_key_path = onion_dir.join("hs_ed25519_secret_key");
+        let pub_key_path = onion_dir.join("hs_ed25519_public_key");
+        let hostname_path = onion_dir.join("hostname");
+
+        fs::write(&secret_key_path, b"==ed25519v1-secret: type0==\x00\x01mock_secret_key_material_bytes").unwrap();
+        fs::write(&pub_key_path, b"==ed25519v1-public: type0==\x00\x01mock_public_key_material_bytes").unwrap();
+        fs::write(&hostname_path, b"abcxyz1234567890.onion\n").unwrap();
+
+        assert!(secret_key_path.exists());
+        assert!(pub_key_path.exists());
+        assert!(hostname_path.exists());
+
+        OnionServiceManager::shred_onion_tree(&onion_dir).unwrap();
+
+        assert!(!secret_key_path.exists());
+        assert!(!pub_key_path.exists());
+        assert!(!hostname_path.exists());
     }
 }

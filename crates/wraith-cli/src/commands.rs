@@ -1743,16 +1743,53 @@ pub fn spawn_monitor_terminal() -> bool {
     // Bridge authorization for pure root shells (root@kali / root@byghost)
     #[cfg(target_os = "linux")]
     {
-        if xauth != "/root/.Xauthority" && Path::new(&xauth).exists() {
-            if let Ok(cookie_bytes) = std::fs::read(&xauth) {
-                let _ = std::fs::write("/root/.Xauthority", cookie_bytes);
+        if xauth != "/root/.Xauthority" {
+            // Validate source xauth: must exist, regular file, not a symlink, bounded size <= 64KB
+            if let Ok(src_meta) = std::fs::symlink_metadata(&xauth) {
+                if src_meta.is_file() && !src_meta.file_type().is_symlink() && src_meta.len() > 0 && src_meta.len() <= 65536 {
+                    use std::io::Read;
+                    if let Ok(mut src_file) = std::fs::File::open(&xauth) {
+                        let mut cookie_bytes = Vec::new();
+                        if src_file.take(65536).read_to_end(&mut cookie_bytes).is_ok() && !cookie_bytes.is_empty() {
+                            // Harden destination /root/.Xauthority: reject or remove existing symlink, write with O_NOFOLLOW and 0600
+                            if let Ok(dst_meta) = std::fs::symlink_metadata("/root/.Xauthority") {
+                                if dst_meta.file_type().is_symlink() {
+                                    let _ = std::fs::remove_file("/root/.Xauthority");
+                                }
+                            }
+                            #[cfg(unix)]
+                            {
+                                use std::os::unix::fs::OpenOptionsExt;
+                                use std::io::Write;
+                                if let Ok(mut dst_file) = std::fs::OpenOptions::new()
+                                    .write(true)
+                                    .create(true)
+                                    .truncate(true)
+                                    .mode(0o600)
+                                    .custom_flags(libc::O_NOFOLLOW)
+                                    .open("/root/.Xauthority")
+                                {
+                                    let _ = dst_file.write_all(&cookie_bytes);
+                                    let _ = dst_file.sync_all();
+                                }
+                            }
+                            #[cfg(not(unix))]
+                            {
+                                let _ = std::fs::write("/root/.Xauthority", &cookie_bytes);
+                            }
+                        }
+                    }
+                }
             }
         }
 
         for auth_candidate in [&xauth, &"/root/.Xauthority".to_string()] {
             if Path::new(auth_candidate).exists() {
+                // Strictly authorize only root (+SI:localuser:root).
+                // Do NOT use +local: as it disables local access controls entirely,
+                // exposing the X11 display to keylogging and screengrabs by unprivileged users.
                 let _ = std::process::Command::new("xhost")
-                    .args(["+SI:localuser:root", "+local:"])
+                    .args(["+SI:localuser:root"])
                     .env("DISPLAY", &display)
                     .env("XAUTHORITY", auth_candidate)
                     .stdout(std::process::Stdio::null())

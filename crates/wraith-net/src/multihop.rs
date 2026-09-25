@@ -17,6 +17,72 @@ fn checked_status(command: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+/// Secure temporary keyfile backed by RAMFS (/dev/shm) when available,
+/// with strict 0600 permissions, zeroized in memory and on disk before destruction.
+struct SecureTempKey {
+    file: Option<tempfile::NamedTempFile>,
+    path: std::path::PathBuf,
+    len: usize,
+}
+
+impl SecureTempKey {
+    fn create(prefix: &str, secret: &str) -> Result<Self> {
+        use std::io::Write;
+
+        let base_dir = if Path::new("/dev/shm").is_dir() {
+            std::path::PathBuf::from("/dev/shm")
+        } else {
+            std::env::temp_dir()
+        };
+
+        let mut builder = tempfile::Builder::new();
+        builder.prefix(prefix);
+
+        let mut temp_file = builder
+            .tempfile_in(&base_dir)
+            .map_err(|e| WraithError::Custom(format!("Failed to create secure temp keyfile in {}: {e}", base_dir.display())))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = temp_file.as_file().set_permissions(std::fs::Permissions::from_mode(0o600));
+        }
+
+        let bytes = secret.as_bytes();
+        temp_file
+            .write_all(bytes)
+            .map_err(|e| WraithError::Custom(format!("Failed to write key to secure tempfile: {e}")))?;
+        temp_file.flush()?;
+
+        let path = temp_file.path().to_path_buf();
+        Ok(Self {
+            file: Some(temp_file),
+            path,
+            len: bytes.len(),
+        })
+    }
+
+    fn path_str(&self) -> &str {
+        self.path.to_str().unwrap_or("")
+    }
+}
+
+impl Drop for SecureTempKey {
+    fn drop(&mut self) {
+        if let Some(mut file) = self.file.take() {
+            use std::io::{Seek, SeekFrom, Write};
+            if self.len > 0 {
+                let zeros = vec![0u8; self.len];
+                let _ = file.seek(SeekFrom::Start(0));
+                let _ = file.write_all(&zeros);
+                let _ = file.flush();
+                let _ = file.as_file().sync_all();
+            }
+        }
+    }
+}
+
+
 /// Default WireGuard fwmark for policy routing Tor traffic
 pub const WRAITH_WG_FWMARK: u32 = 0x5182;
 /// Dedicated FIB routing table ID for WireGuard egress
@@ -179,32 +245,19 @@ impl MultiHopTunnelEngine {
 
         // 4. Configure WireGuard peer, keys and endpoint via wg CLI
         if !config.private_key.is_empty() {
-            let mut key_file = tempfile::Builder::new()
-                .prefix(".wraith-wg-key-")
-                .tempfile()
-                .map_err(|e| WraithError::Custom(format!("Failed to create temp keyfile: {e}")))?;
-
-            use std::io::Write;
-            key_file
-                .write_all(config.private_key.as_bytes())
-                .map_err(|e| WraithError::Custom(format!("Failed to write private key: {e}")))?;
-            key_file.flush()?;
-
-            let key_path = key_file.path().to_str().unwrap_or("");
-            let mut wg_args = vec!["set", iface, "private-key", key_path];
+            let key_file = SecureTempKey::create(".wraith-wg-key-", &config.private_key)?;
+            let mut wg_args = vec!["set", iface, "private-key", key_file.path_str()];
             let listen_port = config.listen_port.map(|port| port.to_string());
             if let Some(ref port) = listen_port { wg_args.extend_from_slice(&["listen-port", port]); }
             let keepalive = config.persistent_keepalive.map(|seconds| seconds.to_string());
-            let mut preshared = if let Some(ref key) = config.preshared_key {
-                let mut file = tempfile::NamedTempFile::new()?;
-                file.write_all(key.as_bytes())?; file.flush()?;
-                Some(file)
+            let preshared = if let Some(ref key) = config.preshared_key {
+                Some(SecureTempKey::create(".wraith-wg-psk-", key)?)
             } else { None };
-            let preshared_path = preshared.as_mut().map(|file| file.path().to_string_lossy().into_owned());
+            let preshared_path = preshared.as_ref().map(|k| k.path_str());
 
             if !config.peer_public_key.is_empty() {
                 wg_args.extend_from_slice(&["peer", &config.peer_public_key]);
-                if let Some(ref path) = preshared_path { wg_args.extend_from_slice(&["preshared-key", path]); }
+                if let Some(path) = preshared_path { wg_args.extend_from_slice(&["preshared-key", path]); }
                 if let Some(ref seconds) = keepalive { wg_args.extend_from_slice(&["persistent-keepalive", seconds]); }
                 if !config.peer_endpoint.is_empty() {
                     wg_args.extend_from_slice(&["endpoint", &config.peer_endpoint]);

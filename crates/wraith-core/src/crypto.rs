@@ -97,21 +97,15 @@ pub struct HmacSha256 {
 
 impl HmacSha256 {
     pub fn new(key: &[u8]) -> Self {
-        let mac = match HmacSha256Core::new_from_slice(key) {
-            Ok(m) => m,
-            Err(_) => {
-                let hashed_key = Sha256::digest(key);
-                match HmacSha256Core::new_from_slice(&hashed_key.0) {
-                    Ok(m) => m,
-                    Err(_) => match HmacSha256Core::new_from_slice(&[0u8; 32]) {
-                        Ok(m) => m,
-                        Err(_) => match HmacSha256Core::new_from_slice(&[]) {
-                            Ok(m) => m,
-                            Err(_) => unreachable!("HMAC-SHA256 zero-key initialization invariant"),
-                        },
-                    },
-                }
-            }
+        // RFC 2104 Section 2:
+        // Keys longer than SHA-256 block size (64 bytes) must be hashed first.
+        let mac = if key.len() > 64 {
+            let hashed_key = Sha256::digest(key);
+            HmacSha256Core::new_from_slice(&hashed_key.0)
+                .expect("HMAC-SHA256: RFC 2104 32-byte hashed key must succeed")
+        } else {
+            HmacSha256Core::new_from_slice(key)
+                .expect("HMAC-SHA256: valid key slice must succeed")
         };
         Self { mac }
     }
@@ -173,6 +167,23 @@ mod tests {
         let c = [2u8; 32];
         assert!(constant_time_eq(&a, &b));
         assert!(!constant_time_eq(&a, &c));
+    }
+
+    #[test]
+    fn test_hmac_sha256_rfc2104_long_key_and_no_zero_fallback() {
+        let long_key = vec![0x42u8; 128]; // > 64 bytes
+        let data = b"payload for rfc2104 test";
+        let mac_long = HmacSha256::mac(&long_key, data);
+
+        // Pre-hashed key according to RFC 2104
+        let hashed_key = Sha256::digest(&long_key);
+        let mac_prehashed = HmacSha256::mac(&hashed_key.0, data);
+        assert_eq!(mac_long.0, mac_prehashed.0, "RFC 2104 key hashing must be equivalent");
+
+        // Verify it never produces an all-zero key fallback MAC
+        let zero_key = [0u8; 32];
+        let mac_zero = HmacSha256::mac(&zero_key, data);
+        assert_ne!(mac_long.0, mac_zero.0, "MAC must never silently collapse to zero-key MAC");
     }
 }
 

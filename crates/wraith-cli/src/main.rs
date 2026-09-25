@@ -865,12 +865,38 @@ pub async fn main() -> Result<()> {
                     }
                 }
 
-                let _ = std::fs::create_dir_all("/var/log/wraith");
-                let log_file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .truncate(true)
-                    .open("/var/log/wraith/daemon.log");
+                #[cfg(unix)]
+                let log_file = {
+                    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+                    let dir_path = std::path::Path::new("/var/log/wraith");
+                    let _ = std::fs::create_dir_all(dir_path);
+                    let _ = std::fs::set_permissions(dir_path, std::fs::Permissions::from_mode(0o700));
+
+                    // Verify directory is not a symlink to prevent symlink traversal attacks
+                    let is_safe = std::fs::symlink_metadata(dir_path)
+                        .map(|m| m.is_dir() && !m.file_type().is_symlink())
+                        .unwrap_or(false);
+
+                    if is_safe {
+                        let mut opts = std::fs::OpenOptions::new();
+                        opts.create(true).write(true).truncate(true);
+                        opts.custom_flags(libc::O_NOFOLLOW);
+                        opts.mode(0o600);
+                        opts.open("/var/log/wraith/daemon.log")
+                    } else {
+                        Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Symlink detected at /var/log/wraith"))
+                    }
+                };
+
+                #[cfg(not(unix))]
+                let log_file = {
+                    let _ = std::fs::create_dir_all("/var/log/wraith");
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .truncate(true)
+                        .open("/var/log/wraith/daemon.log")
+                };
                 if let Ok(ref file) = log_file {
                     if let Ok(out_f) = file.try_clone() {
                         cmd.stdout(out_f);

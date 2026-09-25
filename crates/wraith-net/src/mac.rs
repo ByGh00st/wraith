@@ -8,20 +8,33 @@ use std::process::Command;
 use tracing::info;
 use wraith_core::error::{Result, WraithError};
 
-pub const VENDOR_OUIS: &[&str] = &[
+/// Realistic physical network interface manufacturer OUIs (Intel, Apple, HP, Dell, Realtek, etc.)
+pub const PHYSICAL_VENDOR_OUIS: &[&str] = &[
     "00:20:7A", // WiseComm
     "00:1B:44", // SanDisk
     "00:24:D6", // Intel
     "00:26:C6", // Intel
+    "A4:4C:C8", // Intel
     "3C:D9:2B", // Hewlett-Packard
+    "70:5A:0F", // HP
+    "00:14:22", // Dell
     "00:1E:68", // Quanta
     "00:25:00", // Apple
     "F0:DB:E2", // Apple
+    "00:E0:4C", // Realtek
+    "B8:27:EB", // Raspberry Pi
+];
+
+/// Virtual hypervisor OUIs (strictly isolated for VM environments)
+pub const VIRTUAL_VENDOR_OUIS: &[&str] = &[
     "00:50:56", // VMware
     "00:0C:29", // VMware
     "08:00:27", // VirtualBox
     "52:54:00", // QEMU
 ];
+
+/// Default vendor OUI list for physical network adapters (excludes virtual hypervisor OUIs)
+pub const VENDOR_OUIS: &[&str] = PHYSICAL_VENDOR_OUIS;
 
 /// OS entropy with the IEEE locally-administered unicast bits, no vendor OUI.
 pub fn generate_namespace_mac() -> Result<String> {
@@ -108,6 +121,19 @@ pub fn generate_random_mac(vendor_prefix: bool) -> String {
             rng.gen::<u8>()
         )
     }
+}
+
+/// Generates a randomized MAC with virtual hypervisor prefix (for VM-specific spoofing)
+pub fn generate_virtual_mac() -> String {
+    let mut rng = rand::thread_rng();
+    let oui = VIRTUAL_VENDOR_OUIS.choose(&mut rng).unwrap_or(&"52:54:00");
+    let suffix = format!(
+        "{:02x}:{:02x}:{:02x}",
+        rng.gen::<u8>(),
+        rng.gen::<u8>(),
+        rng.gen::<u8>()
+    );
+    format!("{oui}:{suffix}")
 }
 
 pub fn change_mac(interface: Option<&str>, target_mac: Option<&str>) -> Result<(String, String, String)> {
@@ -199,6 +225,26 @@ mod namespace_mac_tests {
             let bytes: Vec<_> = value.split(':').map(|v| u8::from_str_radix(v, 16).unwrap()).collect();
             assert_eq!(bytes.len(), 6);
             assert_eq!(bytes[0] & 3, 2);
+        }
+    }
+
+    #[test]
+    fn physical_mac_generator_never_picks_virtual_ouis() {
+        for _ in 0..500 {
+            let mac = super::generate_random_mac(true);
+            let prefix = &mac[..8];
+            for &virtual_oui in super::VIRTUAL_VENDOR_OUIS {
+                assert_ne!(prefix, virtual_oui, "Physical MAC generator must never pick virtual hypervisor OUI {virtual_oui}");
+            }
+        }
+    }
+
+    #[test]
+    fn virtual_mac_generator_only_picks_virtual_ouis() {
+        for _ in 0..100 {
+            let mac = super::generate_virtual_mac();
+            let prefix = &mac[..8];
+            assert!(super::VIRTUAL_VENDOR_OUIS.contains(&prefix));
         }
     }
 }

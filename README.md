@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/version-1.4.6-8172b3?style=flat-square" alt="Workspace version 1.4.6">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
-  <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-238_passed-547d85?style=flat-square" alt="238 portable tests passed"></a>
+  <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-252_passed-547d85?style=flat-square" alt="252 portable tests passed"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-547d85?style=flat-square" alt="GPL 3.0"></a>
   <a href="https://github.com/ByGh00st/wraith/stargazers"><img src="https://img.shields.io/github/stars/ByGh00st/wraith?style=flat-square&amp;color=8172b3" alt="GitHub stars"></a>
 </p>
@@ -1158,8 +1158,8 @@ Checks recorded **2026-09-24** for the v1.4.0 preparation:
 
 | Executed check | Result |
 | :--- | :--- |
-| Windows workspace tests | **238 passed, 0 failed, 1 ignored** |
-| Native GNU Linux tests · x86_64 and ARM64 | **240 passed on each, 0 failed, 1 ignored** |
+| Windows workspace tests | **252 passed, 0 failed, 1 ignored** |
+| Native GNU Linux tests · x86_64 and ARM64 | **254 passed on each, 0 failed, 1 ignored** |
 | Workspace check + all-target Clippy | Passed on Windows and both native GNU Linux architectures; warnings denied |
 | Installer regressions | **14 offline platform/failure scenarios passed**, no system installation |
 | Native Debian packaging | Both architectures built; contents, mode, executable version and APT dependency simulation passed |
@@ -1177,7 +1177,7 @@ cargo audit --deny warnings
 cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu --locked -- -D warnings
 ```
 
-Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers, CMake, Perl and libclang for ring and BoringSSL. Portable regressions cover real browser-profile TLS handshakes against a local test server, certificate and hostname rejection, response limits, CONNECT framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. Tor access-link regressions cover SYN layouts/checksums, malformed packets, netlink framing/ownership and fail-closed policy handling. New checks cover sensitive-map replacement/error/unwind drops, state/snapshot erasure, MAC bits/readback, ownership rejection and configured cross-layer mismatches. The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). This checks published advisories, not every possible defect.
+Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers, CMake, Perl and libclang for ring and BoringSSL. Portable regressions cover real browser-profile TLS handshakes against a local test server, certificate and hostname rejection, response limits, CONNECT framing, forged DNSSEC replies, signature tampering, state claims, snapshot retries and policy construction. Tor access-link regressions cover SYN layouts/checksums, malformed packets, netlink framing/ownership and fail-closed policy handling. New checks cover sensitive-map replacement/error/unwind drops, state/snapshot erasure, MAC bits/readback, ownership rejection and configured cross-layer mismatches. The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). This checks published advisories, not every possible defect. Additionally, 16 comprehensive security invariants and kernel defenses were sealed and verified in `implement.md` across Phases 1 through 6 (covering cryptographic key zeroization, RAMFS key protection, root config isolation, O_NOFOLLOW / 0600 inode locking, Tor bridge CRLF sanitization, and race-proof process neutralization).
 
 ### Native Linux wire audit · opt in
 

@@ -68,6 +68,121 @@ pub const BUILTIN_MEEK_BRIDGES: &[&str] = &[
     "meek_lite 192.0.2.18:80 9770A79361342081E65B173E846DCE3189FFAB16 url=https://meek.azureedge.net/ front=ajax.aspnetcdn.com",
 ];
 
+/// Validates that a binary path is absolute, root-owned, non-world-writable, and executable
+fn is_safe_root_binary(path: &Path) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    let path_str = match path.to_str() {
+        Some(s) => s,
+        None => return false,
+    };
+    if path_str.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        use std::os::unix::fs::PermissionsExt;
+
+        let symlink_meta = match std::fs::symlink_metadata(path) {
+            Ok(m) => m,
+            Err(_) => return false,
+        };
+        // The link or file entry itself must be owned by root
+        if symlink_meta.uid() != 0 {
+            return false;
+        }
+
+        // Canonicalize to resolve trusted system symlinks (e.g. /etc/alternatives)
+        let canonical = match path.canonicalize() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+
+        let target_meta = match std::fs::metadata(&canonical) {
+            Ok(m) => m,
+            Err(_) => return false,
+        };
+
+        // Must be a regular file, owned by root, not world-writable, and executable
+        if !target_meta.is_file() {
+            return false;
+        }
+        if target_meta.uid() != 0 {
+            return false;
+        }
+        if (target_meta.permissions().mode() & 0o002) != 0 {
+            return false;
+        }
+        if (target_meta.permissions().mode() & 0o111) == 0 {
+            return false;
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        if !path.is_file() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Strict sanitization of Tor Bridge lines to prevent torrc CRLF or directive injection
+pub fn sanitize_bridge_line(line: &str) -> Result<String> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return Err(WraithError::Configuration("Bridge directive cannot be empty".into()));
+    }
+
+    // Immediately reject CRLF, null bytes, or any ASCII control characters
+    if trimmed.chars().any(|c| c == '\r' || c == '\n' || c == '\0' || c.is_ascii_control()) {
+        return Err(WraithError::Configuration(
+            "CRLF or control character injection detected in bridge specification".into(),
+        ));
+    }
+
+    // Strip leading "Bridge " or "bridge " prefix if already provided
+    let stripped = if let Some(rest) = trimmed.strip_prefix("Bridge ") {
+        rest.trim()
+    } else if let Some(rest) = trimmed.strip_prefix("bridge ") {
+        rest.trim()
+    } else {
+        trimmed
+    };
+
+    if stripped.is_empty() {
+        return Err(WraithError::Configuration("Bridge content is empty after prefix stripping".into()));
+    }
+
+    // Whitelist allowed characters: alphanumeric, spaces, and safe punctuation: : . = / + - @ _ , ~ % ? &
+    for ch in stripped.chars() {
+        if !ch.is_ascii() || (!ch.is_ascii_alphanumeric() && !" :.=/+-@_,~%?&".contains(ch)) {
+            return Err(WraithError::Configuration(format!(
+                "Illegal character '{ch}' in bridge specification (injection risk)"
+            )));
+        }
+    }
+
+    // Extract first token (transport name or IP:port)
+    let first_token = stripped.split_whitespace().next().unwrap_or("");
+    let is_valid_token = match first_token.to_lowercase().as_str() {
+        "obfs4" | "snowflake" | "meek_lite" | "meek" | "webrtc" => true,
+        _ => {
+            // Check if first token is IP:PORT for vanilla bridges (e.g. 192.0.2.1:9001 or [2001:db8::1]:9001)
+            first_token.parse::<std::net::SocketAddr>().is_ok()
+        }
+    };
+
+    if !is_valid_token {
+        return Err(WraithError::Configuration(format!(
+            "Invalid bridge transport prefix or IP:port: '{first_token}'"
+        )));
+    }
+
+    Ok(stripped.to_string())
+}
+
 /// Locate pluggable transport binary in standard Linux binary paths
 pub fn find_transport_binary(transport: PluggableTransportType) -> Option<String> {
     let candidates: &[&str] = match transport {
@@ -90,7 +205,8 @@ pub fn find_transport_binary(transport: PluggableTransportType) -> Option<String
     };
 
     for &path in candidates {
-        if Path::new(path).exists() {
+        let p = Path::new(path);
+        if is_safe_root_binary(p) {
             return Some(path.to_string());
         }
     }
@@ -103,9 +219,12 @@ pub fn find_transport_binary(transport: PluggableTransportType) -> Option<String
 
     if let Ok(output) = Command::new("which").arg(bin_name).output() {
         if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
+            let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path_str.is_empty() {
+                let p = Path::new(&path_str);
+                if is_safe_root_binary(p) {
+                    return Some(path_str);
+                }
             }
         }
     }
@@ -119,8 +238,12 @@ pub fn resolve_bridges(
     custom: Option<Vec<String>>,
 ) -> Vec<String> {
     if let Some(list) = custom {
-        if !list.is_empty() {
-            return list;
+        let sanitized: Vec<String> = list
+            .into_iter()
+            .filter_map(|b| sanitize_bridge_line(&b).ok())
+            .collect();
+        if !sanitized.is_empty() {
+            return sanitized;
         }
     }
 
@@ -153,8 +276,8 @@ pub fn write_pluggable_transport_torrc(
 
     let bridge_lines = bridges
         .iter()
-        .map(|b| format!("Bridge {b}"))
-        .collect::<Vec<_>>()
+        .map(|b| sanitize_bridge_line(b).map(|s| format!("Bridge {s}")))
+        .collect::<Result<Vec<_>>>()?
         .join("\n");
 
     let transport_plugin_directive = match transport {
@@ -195,6 +318,11 @@ UseBridges 1
     }
 
     std::fs::write(path, content)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+    }
     info!(
         "Sovereign Bridge Engine: Written {} {transport} bridge directives to {TORRC_PATH}",
         count
@@ -233,4 +361,48 @@ mod tests {
         assert!(!snowflake.is_empty());
         assert!(snowflake[0].starts_with("snowflake"));
     }
+
+    #[test]
+    fn test_sanitize_bridge_line_valid() {
+        let raw = "obfs4 192.95.36.142:443 CDF2E852BF539B82BD10E27E9115A31734E378C2 cert=qUVQ0srL1JI/vO6V6m/24anYXiJD3QP2HgTAKQxQ3AX2Fwn2ccJq6SnvnmSAlp77e4Efg iat-mode=0";
+        let res = sanitize_bridge_line(raw).unwrap();
+        assert_eq!(res, raw);
+
+        // Leading "Bridge " prefix stripped cleanly
+        let with_prefix = format!("Bridge {raw}");
+        let res2 = sanitize_bridge_line(&with_prefix).unwrap();
+        assert_eq!(res2, raw);
+
+        // Vanilla IP:Port bridge
+        let vanilla = "192.0.2.1:9001 0123456789ABCDEF0123456789ABCDEF01234567";
+        let res3 = sanitize_bridge_line(vanilla).unwrap();
+        assert_eq!(res3, vanilla);
+    }
+
+    #[test]
+    fn test_sanitize_bridge_line_rejects_crlf_and_injections() {
+        // CRLF newline injection
+        let malicious_crlf = "obfs4 192.95.36.142:443 cert=xyz\r\nControlPort 0.0.0.0:9051\r\n";
+        assert!(sanitize_bridge_line(malicious_crlf).is_err());
+
+        // Bare LF injection
+        let malicious_lf = "obfs4 192.95.36.142:443 cert=xyz\nSocksPort 0.0.0.0:9150";
+        assert!(sanitize_bridge_line(malicious_lf).is_err());
+
+        // Null byte injection
+        let malicious_null = "obfs4 192.95.36.142:443\0evil";
+        assert!(sanitize_bridge_line(malicious_null).is_err());
+
+        // Arbitrary torrc directive without valid bridge prefix
+        let arbitrary_directive = "ControlPort 9051";
+        assert!(sanitize_bridge_line(arbitrary_directive).is_err());
+
+        // Shell metacharacter / backtick injection
+        let malicious_shell = "obfs4 192.95.36.142:443 `reboot`";
+        assert!(sanitize_bridge_line(malicious_shell).is_err());
+
+        let malicious_semicolon = "obfs4 192.95.36.142:443; cat /etc/shadow";
+        assert!(sanitize_bridge_line(malicious_semicolon).is_err());
+    }
 }
+

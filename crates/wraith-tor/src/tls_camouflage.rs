@@ -153,10 +153,16 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
             was_sanitized = true;
             continue;
         }
-        if line.to_lowercase().starts_with("host:") {
+        let line_lower = line.to_lowercase();
+        // Strip client Keep-Alive headers to eliminate HTTP pipelining bypasses
+        if line_lower.starts_with("connection:") || line_lower.starts_with("proxy-connection:") {
+            was_sanitized = true;
+            continue;
+        }
+        if line_lower.starts_with("host:") {
             target_host = line[5..].trim().to_string();
             modified_lines.push(line.to_string());
-        } else if line.to_lowercase().starts_with("user-agent:") {
+        } else if line_lower.starts_with("user-agent:") {
             let current_ua = line[11..].trim();
             let raw_ua_lower = current_ua.to_lowercase();
             
@@ -173,6 +179,15 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
             } else {
                 modified_lines.push(line.to_string());
             }
+        } else if line.is_empty() {
+            // End of header section: inject Connection: close and Proxy-Connection: close
+            // This forces the connection to terminate after this transaction, ensuring
+            // every subsequent request initiates a new TCP connection that is properly sanitized.
+            modified_lines.push("Connection: close".to_string());
+            modified_lines.push("Proxy-Connection: close".to_string());
+            modified_lines.push(String::new());
+            modified_lines.push(String::new());
+            break;
         } else {
             modified_lines.push(line.to_string());
         }
@@ -633,6 +648,22 @@ mod tests {
         let param_names: Vec<_> = anomalies.iter().map(|a| a.parameter.as_str()).collect();
         assert!(param_names.contains(&"default_ttl"));
         assert!(param_names.contains(&"tcp_timestamps"));
+    }
+
+    #[test]
+    fn test_sanitize_http_request_enforces_connection_close() {
+        let raw_req = b"GET /index.html HTTP/1.1\r\nHost: target.org\r\nUser-Agent: sqlmap/1.5\r\nConnection: keep-alive\r\nProxy-Connection: keep-alive\r\n\r\n";
+        let (sanitized, host, was_sanitized) = sanitize_http_request(raw_req);
+        assert!(was_sanitized);
+        assert_eq!(host, "target.org");
+
+        let sanitized_str = String::from_utf8_lossy(&sanitized);
+        assert!(!sanitized_str.contains("sqlmap"));
+        assert!(!sanitized_str.to_lowercase().contains("connection: keep-alive"));
+        assert!(!sanitized_str.to_lowercase().contains("proxy-connection: keep-alive"));
+        assert!(sanitized_str.contains("Connection: close"));
+        assert!(sanitized_str.contains("Proxy-Connection: close"));
+        assert!(sanitized_str.ends_with("\r\n\r\n"));
     }
 }
 

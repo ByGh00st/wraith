@@ -56,6 +56,7 @@ pub struct MoatErrorItem {
 pub struct MoatClient {
     endpoint: String,
     timeout_secs: u64,
+    socks_proxy: Option<String>,
 }
 
 impl Default for MoatClient {
@@ -66,10 +67,23 @@ impl Default for MoatClient {
 
 impl MoatClient {
     pub fn new(endpoint: Option<&str>, timeout_secs: Option<u64>) -> Self {
+        Self::with_proxy(endpoint, timeout_secs, None)
+    }
+
+    pub fn with_proxy(endpoint: Option<&str>, timeout_secs: Option<u64>, socks_proxy: Option<String>) -> Self {
         Self {
             endpoint: endpoint.unwrap_or(MOAT_DEFAULT_ENDPOINT).trim_end_matches('/').to_string(),
             timeout_secs: timeout_secs.unwrap_or(10),
+            socks_proxy,
         }
+    }
+
+    pub fn set_proxy(&mut self, proxy: Option<String>) {
+        self.socks_proxy = proxy;
+    }
+
+    pub fn socks_proxy(&self) -> Option<&str> {
+        self.socks_proxy.as_deref()
     }
 
     /// Step 1: Request a challenge / CAPTCHA from Moat for the specified transport
@@ -155,12 +169,21 @@ impl MoatClient {
             WraithError::Tor("Moat response did not contain 'moat-bridges'".into())
         })?;
 
-        let bridges = item.bridges.ok_or_else(|| {
+        let raw_bridges = item.bridges.ok_or_else(|| {
             WraithError::Tor("Moat bridges list was empty".into())
         })?;
 
-        info!("🛡️ TOR MOAT: Received {} active bridges from BridgeDB", bridges.len());
-        Ok(bridges)
+        let sanitized: Vec<String> = raw_bridges
+            .into_iter()
+            .filter_map(|b| crate::bridge_discovery::sanitize_bridge_line(&b).ok())
+            .collect();
+
+        if sanitized.is_empty() {
+            return Err(WraithError::Tor("All received Moat bridges failed sanitization".into()));
+        }
+
+        info!("🛡️ TOR MOAT: Received {} active bridges from BridgeDB", sanitized.len());
+        Ok(sanitized)
     }
 
     /// Automated bridge discovery with fallback:
@@ -197,14 +220,54 @@ impl MoatClient {
         if let Ok(envelope) = serde_json::from_slice::<MoatEnvelope>(&resp_bytes) {
             if let Some(item) = envelope.data.into_iter().find(|d| d.bridges.is_some()) {
                 if let Some(bridges) = item.bridges {
-                    if !bridges.is_empty() {
-                        return Ok(bridges);
+                    let sanitized: Vec<String> = bridges
+                        .into_iter()
+                        .filter_map(|b| crate::bridge_discovery::sanitize_bridge_line(&b).ok())
+                        .collect();
+                    if !sanitized.is_empty() {
+                        return Ok(sanitized);
                     }
                 }
             }
         }
 
         Err(WraithError::Tor("No circumvention defaults returned".into()))
+    }
+
+    /// Builds curl command-line arguments, incorporating SOCKS5 egress proxy if available
+    fn build_curl_args(&self, url: &str) -> Vec<String> {
+        let timeout_str = self.timeout_secs.to_string();
+        let mut curl_args: Vec<String> = vec![
+            "-s".into(),
+            "-X".into(), "POST".into(),
+            "--connect-timeout".into(), "4".into(),
+            "-m".into(), timeout_str,
+            "-H".into(), format!("Content-Type: {MOAT_CONTENT_TYPE}"),
+            "-H".into(), format!("Accept: {MOAT_CONTENT_TYPE}"),
+        ];
+
+        // SOCKS5 Egress routing check: prevents clearnet SNI/DNS leaks on DPI
+        let mut effective_proxy = self.socks_proxy.clone();
+        if effective_proxy.is_none() {
+            // Check if local Tor SOCKS port 9050 is active and accepting connections
+            if std::net::TcpStream::connect_timeout(
+                &std::net::SocketAddr::from(([127, 0, 0, 1], 9050)),
+                std::time::Duration::from_millis(100),
+            ).is_ok() {
+                effective_proxy = Some("127.0.0.1:9050".into());
+            }
+        }
+
+        if let Some(ref proxy) = effective_proxy {
+            tracing::info!("🛡️ Moat: Routing wire-transport through SOCKS5 proxy ({})", proxy);
+            curl_args.push("--socks5-hostname".into());
+            curl_args.push(proxy.clone());
+        } else {
+            tracing::warn!("⚠️ Moat: Direct clearnet egress engaged (no active SOCKS proxy). SNI bridges.torproject.org is visible to DPI.");
+        }
+
+        curl_args.extend(["--data-binary".into(), "@-".into(), "--".into(), url.to_string()]);
+        curl_args
     }
 
     /// Low-level HTTP POST using `curl` wire-transport with JSON-API headers
@@ -215,19 +278,9 @@ impl MoatClient {
             ));
         }
 
-        let timeout_str = self.timeout_secs.to_string();
+        let curl_args = self.build_curl_args(url);
         let mut child = tokio::process::Command::new("curl")
-            .args([
-                "-s",
-                "-X", "POST",
-                "--connect-timeout", "4",
-                "-m", &timeout_str,
-                "-H", &format!("Content-Type: {MOAT_CONTENT_TYPE}"),
-                "-H", &format!("Accept: {MOAT_CONTENT_TYPE}"),
-                "--data-binary", "@-",
-                "--",
-                url,
-            ])
+            .args(&curl_args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -363,5 +416,18 @@ mod tests {
         let challenge = &envelope.data[0];
         assert_eq!(challenge.data_type, "moat-challenge");
         assert_eq!(challenge.challenge.as_deref(), Some("test_token_12345"));
+    }
+
+    #[test]
+    fn test_moat_client_socks_proxy_arguments() {
+        let client_direct = MoatClient::new(None, Some(5));
+        assert!(client_direct.socks_proxy().is_none());
+
+        let client_proxied = MoatClient::with_proxy(None, Some(5), Some("127.0.0.1:9050".into()));
+        assert_eq!(client_proxied.socks_proxy(), Some("127.0.0.1:9050"));
+        let args_proxied = client_proxied.build_curl_args("https://bridges.torproject.org/moat/fetch");
+        assert!(args_proxied.contains(&"--socks5-hostname".to_string()));
+        let proxy_idx = args_proxied.iter().position(|a| a == "--socks5-hostname").unwrap();
+        assert_eq!(args_proxied[proxy_idx + 1], "127.0.0.1:9050");
     }
 }

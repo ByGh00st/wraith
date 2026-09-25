@@ -14,6 +14,19 @@ pub struct EgressFastpath {
     active_interfaces: HashSet<String>,
 }
 
+/// Checks if iproute2 `tc` binary is installed and executable in standard system locations or PATH
+fn is_tc_available() -> bool {
+    const KNOWN_PATHS: &[&str] = &["/sbin/tc", "/usr/sbin/tc", "/bin/tc", "/usr/bin/tc"];
+    if KNOWN_PATHS.iter().any(|p| std::path::Path::new(p).exists()) {
+        return true;
+    }
+    Command::new("which")
+        .arg("tc")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
 impl EgressFastpath {
     pub fn new(interface: Option<&str>) -> Result<Self> {
         let mut ifaces = Vec::new();
@@ -32,7 +45,7 @@ impl EgressFastpath {
 
     /// Attaches the TC clsact qdisc filter and configures Ring 0 packet rules
     pub fn attach(&mut self) -> Result<()> {
-        if Command::new("which").arg("tc").output().is_err() {
+        if !is_tc_available() {
             warn!("iproute2 'tc' not detected; continuing with standard netfilter");
             return Ok(());
         }
@@ -102,6 +115,10 @@ impl EgressFastpath {
 
     /// Detaches and cleans up all TC fastpath hooks across all attached interfaces
     pub fn detach(&mut self) -> Result<()> {
+        if !is_tc_available() {
+            self.active_interfaces.clear();
+            return Ok(());
+        }
         for iface in &self.interfaces {
             let _ = Command::new("tc")
                 .args(["qdisc", "del", "dev", iface, "clsact"])
@@ -112,3 +129,26 @@ impl EgressFastpath {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ebpf_fastpath_initialization() {
+        let ep = EgressFastpath::new(Some("eth0")).unwrap();
+        assert_eq!(ep.interfaces, vec!["eth0"]);
+    }
+
+    #[test]
+    fn test_ebpf_fastpath_default_interface() {
+        let ep = EgressFastpath::new(None).unwrap();
+        assert_eq!(ep.interfaces, vec![VETH_HOST]);
+    }
+
+    #[test]
+    fn test_is_tc_available_does_not_panic() {
+        let _ = is_tc_available();
+    }
+}
+

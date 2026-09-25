@@ -18,6 +18,14 @@ use tracing::{error, warn};
 
 pub const DECOY_PORTS: &[u16] = &[2222, 3306, 5432, 6379, 8080, 27017];
 
+/// Whitelist of critical system daemons that must NEVER be killed or frozen
+pub const PROTECTED_SYSTEM_DAEMONS: &[&str] = &[
+    "systemd", "systemd-journal", "systemd-udevd", "systemd-resolve", "systemd-logind",
+    "systemd-network", "systemd-timesyn", "sshd", "auditd", "rsyslogd", "syslogd",
+    "dbus-daemon", "dbus-broker", "NetworkManager", "wpa_supplicant", "tor", "wraith",
+    "kthreadd", "init", "bash", "zsh", "sh"
+];
+
 #[derive(Debug, Clone)]
 pub struct RogueProcessInfo {
     pub pid: u32,
@@ -144,10 +152,10 @@ impl HoneyPortTrap {
                 proc.name, proc.pid, proc.exe_path
             );
 
-            // SECURITY: PID 0, PID 1 (init/systemd), and Wraith itself must NEVER be signaled.
+            // SECURITY: Never signal kernel tasks (PID 0-2), system daemons, or Wraith itself.
             let my_pid = std::process::id();
-            if auto_freeze && proc.pid > 1 && proc.pid != my_pid {
-                Self::neutralize_rogue_process(proc.pid, false);
+            if auto_freeze && proc.pid > 2 && proc.pid != my_pid {
+                Self::neutralize_rogue_process_verified(proc.pid, Some(&proc.name), false);
             }
         } else if is_local_origin {
             error!("🚨 ACTIVE HONEYPOT INTRUSION: Unknown local connection on decoy port :{port} from {peer_addr}!");
@@ -290,8 +298,8 @@ impl HoneyPortTrap {
                 }
             }
             8080 => {
-                // HTTP 401 Basic Auth Challenge
-                let resp = "HTTP/1.1 401 Unauthorized\r\nServer: nginx/1.24.0 (Ubuntu)\r\nContent-Type: text/html\r\nWWW-Authenticate: Basic realm=\"Wraith Enterprise Control Panel\"\r\nContent-Length: 142\r\nConnection: keep-alive\r\n\r\n<html><head><title>401 Unauthorized</title></head><body><center><h1>401 Unauthorized</h1></center><hr><center>nginx/1.24.0</center></body></html>";
+                // HTTP 401 Basic Auth Challenge (Generic stealth administration banner)
+                let resp = "HTTP/1.1 401 Unauthorized\r\nServer: nginx/1.24.0 (Ubuntu)\r\nContent-Type: text/html\r\nWWW-Authenticate: Basic realm=\"Restricted Administration Area\"\r\nContent-Length: 142\r\nConnection: close\r\n\r\n<html><head><title>401 Unauthorized</title></head><body><center><h1>401 Unauthorized</h1></center><hr><center>nginx/1.24.0</center></body></html>";
                 let _ = stream.write_all(resp.as_bytes()).await;
             }
             _ => {
@@ -317,16 +325,75 @@ impl HoneyPortTrap {
 
     /// Neutralizes a rogue process by sending SIGSTOP (freeze for forensics) or SIGKILL
     pub fn neutralize_rogue_process(pid: u32, kill: bool) -> bool {
-        // Critical safeguard: Never signal init/systemd (PID 1), kernel task (PID 0), or self
+        Self::neutralize_rogue_process_verified(pid, None, kill)
+    }
+
+    /// Neutralizes a rogue process with identity verification against PID recycling (TOCTOU)
+    pub fn neutralize_rogue_process_verified(pid: u32, expected_name: Option<&str>, kill: bool) -> bool {
+        // Critical safeguard: Never signal kernel tasks (PID 0-2), init/systemd (PID 1), out of range, or self/parent
         let my_pid = std::process::id();
-        if pid <= 1 || pid > i32::MAX as u32 || pid == my_pid {
-            warn!("Refusing to neutralize protected PID {pid} (init/kernel/self)");
+        #[cfg(unix)]
+        let my_ppid = unsafe { libc::getppid() as u32 };
+        #[cfg(not(unix))]
+        let my_ppid = 0u32;
+
+        if pid <= 2 || pid > i32::MAX as u32 || pid == my_pid || pid == my_ppid {
+            warn!("Refusing to neutralize protected PID {pid} (init/kernel/self/parent)");
             return false;
         }
 
         #[cfg(unix)]
         {
+            // Verify process name against critical system daemon whitelist and expected_name
+            let comm_path = format!("/proc/{pid}/comm");
+            if let Ok(comm) = std::fs::read_to_string(&comm_path) {
+                let comm_clean = comm.trim();
+                for &protected in PROTECTED_SYSTEM_DAEMONS {
+                    if comm_clean.eq_ignore_ascii_case(protected) {
+                        warn!("Refusing to neutralize protected system daemon PID {pid} ('{comm_clean}')");
+                        return false;
+                    }
+                }
+                if let Some(expected) = expected_name {
+                    if !comm_clean.eq_ignore_ascii_case(expected) {
+                        warn!("PID recycling detected: PID {pid} comm is '{comm_clean}', expected '{expected}'. Aborting neutralization.");
+                        return false;
+                    }
+                }
+            }
+
             let sig = if kill { libc::SIGKILL } else { libc::SIGSTOP };
+
+            #[cfg(target_os = "linux")]
+            {
+                // Open pidfd to race-proof signal delivery against PID recycling
+                let pidfd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid as i32, 0) };
+                if pidfd >= 0 {
+                    let sig_res = unsafe {
+                        libc::syscall(
+                            libc::SYS_pidfd_send_signal,
+                            pidfd as i32,
+                            sig,
+                            std::ptr::null::<libc::siginfo_t>(),
+                            0,
+                        )
+                    };
+                    unsafe { libc::close(pidfd as i32) };
+                    if sig_res == 0 {
+                        tracing::info!(
+                            "Rogue process PID: {} successfully {} via pidfd",
+                            pid,
+                            if kill { "TERMINATED (SIGKILL)" } else { "FROZEN (SIGSTOP)" }
+                        );
+                        return true;
+                    } else {
+                        warn!("Failed pidfd_send_signal to PID {pid}: {}", std::io::Error::last_os_error());
+                        return false;
+                    }
+                }
+            }
+
+            // Fallback for non-Linux unix or kernels lacking pidfd_open
             let res = unsafe { libc::kill(pid as i32, sig) };
             if res == 0 {
                 tracing::info!(
@@ -342,7 +409,7 @@ impl HoneyPortTrap {
         }
         #[cfg(not(unix))]
         {
-            let _ = (pid, kill);
+            let _ = (pid, expected_name, kill);
             false
         }
     }
@@ -405,10 +472,35 @@ mod tests {
         let my_pid = std::process::id();
         assert!(!HoneyPortTrap::neutralize_rogue_process(0, false));
         assert!(!HoneyPortTrap::neutralize_rogue_process(1, false));
+        assert!(!HoneyPortTrap::neutralize_rogue_process(2, false));
         assert!(!HoneyPortTrap::neutralize_rogue_process(my_pid, false));
         assert!(!HoneyPortTrap::neutralize_rogue_process(0, true));
         assert!(!HoneyPortTrap::neutralize_rogue_process(1, true));
+        assert!(!HoneyPortTrap::neutralize_rogue_process(2, true));
         assert!(!HoneyPortTrap::neutralize_rogue_process(my_pid, true));
+    }
+
+    #[tokio::test]
+    async fn test_honeypot_http_stealth_banner_has_no_wraith_fingerprint() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let ct = CancellationToken::new();
+        let ct_clone = ct.clone();
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let _ = HoneyPortTrap::emulate_and_tarpit(&mut stream, 8080, ct_clone).await;
+            }
+        });
+
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        let mut banner = vec![0u8; 512];
+        let n = client.read(&mut banner).await.unwrap();
+        let banner_str = String::from_utf8_lossy(&banner[..n]);
+        assert!(banner_str.contains("Restricted Administration Area"));
+        assert!(banner_str.contains("Connection: close"));
+        assert!(!banner_str.contains("Wraith Enterprise"));
+        ct.cancel();
     }
 }
 
