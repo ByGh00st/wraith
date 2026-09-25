@@ -162,11 +162,6 @@ fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
                 modified_lines.push("Connection: close".to_string());
                 continue;
             }
-            if header_trimmed == "proxy-connection" {
-                was_sanitized = true;
-                modified_lines.push("Proxy-Connection: close".to_string());
-                continue;
-            }
         }
         if line_lower.starts_with("host:") {
             target_host = line[5..].trim().to_string();
@@ -660,9 +655,8 @@ mod tests {
         let sanitized_str = String::from_utf8_lossy(&sanitized);
         assert!(!sanitized_str.contains("sqlmap"));
         assert!(!sanitized_str.to_lowercase().contains("connection: keep-alive"));
-        assert!(!sanitized_str.to_lowercase().contains("proxy-connection: keep-alive"));
+        assert!(!sanitized_str.to_lowercase().contains("proxy-connection"));
         assert!(sanitized_str.contains("Connection: close"));
-        assert!(sanitized_str.contains("Proxy-Connection: close"));
         assert!(sanitized_str.ends_with("\r\n\r\n"));
     }
 }
