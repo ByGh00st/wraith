@@ -4,8 +4,8 @@ set -e
 case "$1" in
     remove|deconfigure)
         # If an active session is in progress, attempt graceful stop
-        if [ -x /usr/bin/wraith ] && { [ -f /var/run/wraith.state ] || [ -f /run/wraith.state ]; }; then
-            /usr/bin/wraith stop 2>/dev/null || true
+        if command -v wraith >/dev/null 2>&1 && { [ -f /var/run/wraith.state ] || [ -f /run/wraith.state ]; }; then
+            wraith stop 2>/dev/null || true
         fi
         ;;
     upgrade|failed-upgrade)
@@ -15,7 +15,5 @@ case "$1" in
         exit 1
         ;;
 esac
-
-#DEBHELPER#
 
 exit 0

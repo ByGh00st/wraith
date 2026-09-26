@@ -21,6 +21,8 @@ done
 sleep 2
 # Terminate packet capture
 kill "$TCPDUMP_PID" 2>/dev/null || true
+sleep 1
+kill -9 "$TCPDUMP_PID" 2>/dev/null || true
 wait "$TCPDUMP_PID" 2>/dev/null || true
 
 # Analyze captured packets

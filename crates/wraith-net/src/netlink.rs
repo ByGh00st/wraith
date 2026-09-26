@@ -399,17 +399,17 @@ pub struct NeighborDetails {
 
 #[inline]
 pub fn rta_align(len: usize) -> usize {
-    (len + 3) & !3
+    len.saturating_add(3) & !3
 }
 
 #[inline]
 pub fn rta_length(len: usize) -> usize {
-    rta_align(size_of::<RtAttr>()) + len
+    rta_align(size_of::<RtAttr>()).saturating_add(len)
 }
 
 #[inline]
 pub fn nlmsg_align(len: usize) -> usize {
-    (len + 3) & !3
+    len.saturating_add(3) & !3
 }
 
 // ==============================================================================
@@ -597,14 +597,15 @@ pub fn parse_netlink_ack(buf: &[u8]) -> Result<()> {
             std::ptr::read_unaligned(buf[err_offset..].as_ptr() as *const _)
         };
         if err_msg.error != 0 {
+            let code = err_msg.error.saturating_neg();
             #[cfg(unix)]
-            let os_err = std::io::Error::from_raw_os_error(-err_msg.error);
+            let os_err = std::io::Error::from_raw_os_error(code);
             #[cfg(not(unix))]
-            let os_err = format!("Error code {}", -err_msg.error);
+            let os_err = format!("Error code {code}");
 
             return Err(WraithError::Custom(format!(
                 "Netlink kernel execution error: {} (code {})",
-                os_err, -err_msg.error
+                os_err, code
             )));
         }
     }
@@ -616,14 +617,23 @@ pub fn parse_netlink_ack(buf: &[u8]) -> Result<()> {
 /// Returns (frames, is_done). Fuzzable with raw &[u8].
 pub fn parse_netlink_frames(buf: &[u8]) -> Result<(Vec<Vec<u8>>, bool)> {
     let mut frames = Vec::new();
-    let mut offset = 0;
+    let mut offset: usize = 0;
     let mut is_done = false;
 
-    while offset + size_of::<NlMsgHdr>() <= buf.len() {
+    while let Some(hdr_end) = offset.checked_add(size_of::<NlMsgHdr>()) {
+        if hdr_end > buf.len() {
+            break;
+        }
         let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(buf[offset..].as_ptr() as *const _) };
         let msg_len = nl_hdr.nlmsg_len as usize;
 
-        if msg_len < size_of::<NlMsgHdr>() || offset + msg_len > buf.len() {
+        if msg_len < size_of::<NlMsgHdr>() {
+            break;
+        }
+        let Some(msg_end) = offset.checked_add(msg_len) else {
+            break;
+        };
+        if msg_end > buf.len() {
             break;
         }
 
@@ -633,20 +643,30 @@ pub fn parse_netlink_frames(buf: &[u8]) -> Result<(Vec<Vec<u8>>, bool)> {
         }
 
         if nl_hdr.nlmsg_type == NLMSG_ERROR {
-            let err_inner_offset = offset + size_of::<NlMsgHdr>();
-            if err_inner_offset + size_of::<NlMsgErr>() > buf.len() {
+            let Some(err_end) = offset.checked_add(size_of::<NlMsgHdr>() + size_of::<NlMsgErr>()) else {
+                break;
+            };
+            if err_end > buf.len() {
                 break;
             }
+            let err_inner_offset = offset + size_of::<NlMsgHdr>();
             let err_msg: NlMsgErr = unsafe {
                 std::ptr::read_unaligned(buf[err_inner_offset..].as_ptr() as *const _)
             };
             if err_msg.error != 0 {
-                return Err(WraithError::Custom(format!("Dump error: {}", -err_msg.error)));
+                let code = err_msg.error.saturating_neg();
+                return Err(WraithError::Custom(format!("Dump error: {code}")));
             }
         }
 
-        frames.push(buf[offset..offset + msg_len].to_vec());
-        let next_offset = offset + nlmsg_align(msg_len);
+        frames.push(buf[offset..msg_end].to_vec());
+        let aligned_len = match msg_len.checked_add(3) {
+            Some(l) => l & !3,
+            None => break,
+        };
+        let Some(next_offset) = offset.checked_add(aligned_len) else {
+            break;
+        };
         if next_offset <= offset {
             break;
         }

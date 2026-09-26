@@ -39,8 +39,8 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/work" \
             -w /work \
-            alpine:3.20 \
-            sh -c "apk add --no-cache bash python3 rust cargo cmake make g++ musl-dev perl linux-headers git && \
+            rust:alpine \
+            sh -c "apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils && \
                    cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl && \
                    bash scripts/package-release.sh x86_64-unknown-linux-musl"
 

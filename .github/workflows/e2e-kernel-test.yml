@@ -55,4 +55,4 @@ jobs:
 
       - name: Execute Native Wire SYN Audit (Kernel Namespace Isolated)
         run: |
-          sudo env "PATH=$PATH" cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocapture
+          sudo env "PATH=$PATH" "CARGO_HOME=$CARGO_HOME" cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocapture

@@ -39,20 +39,22 @@ toml.workspace = true
 tempfile.workspace = true
 
 [package.metadata.deb]
-maintainer = "ByGh00st <https://github.com/ByGh00st/wraith>"
+maintainer = "ByGh00st <byghost@users.noreply.github.com>"
 name = "wraith"
 section = "net"
 priority = "optional"
 revision = ""
-depends = "$auto, iptables, iproute2, tor, util-linux, procps, psmisc, ca-certificates"
+depends = "$auto, iptables, iproute2, tor, procps, psmisc, ca-certificates"
 recommends = "obfs4proxy, fontconfig, e2fsprogs, curl"
 extended-description = "Kernel-Level Network Anonymization & Anti-Forensics Engine in Pure Rust"
 maintainer-scripts = "../../packaging/debian"
+changelog = "../../packaging/debian/changelog"
 assets = [
     ["target/release/wraith", "usr/bin/wraith", "0755"],
-    ["../../LICENSE", "usr/share/doc/wraith/copyright", "0644"],
+    ["../../packaging/debian/copyright", "usr/share/doc/wraith/copyright", "0644"],
     ["../../README.md", "usr/share/doc/wraith/README.md", "0644"],
     ["../../docs/wraith.1", "usr/share/man/man1/wraith.1", "0644"],
+    ["../../packaging/debian/overrides", "usr/share/lintian/overrides/wraith", "0644"],
     ["../../packaging/completions/wraith.bash", "usr/share/bash-completion/completions/wraith", "0644"],
     ["../../packaging/completions/_wraith", "usr/share/zsh/vendor-completions/_wraith", "0644"],
     ["../../packaging/completions/wraith.fish", "usr/share/fish/vendor_completions.d/wraith.fish", "0644"],
