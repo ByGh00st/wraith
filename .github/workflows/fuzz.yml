@@ -46,32 +46,42 @@ jobs:
 
       - name: Fuzz F1 - wraith-net: tcp_wire
         working-directory: crates/wraith-net
+        env:
+          INPUT_DURATION: ${{ inputs.duration_seconds }}
         run: |
-          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_tcp_wire -- -max_total_time=$DURATION -timeout=10
 
       - name: Fuzz F2 - wraith-net: netlink
         working-directory: crates/wraith-net
+        env:
+          INPUT_DURATION: ${{ inputs.duration_seconds }}
         run: |
-          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_netlink -- -max_total_time=$DURATION -timeout=10
 
       - name: Fuzz F3 - wraith-guard: dns_engine
         working-directory: crates/wraith-guard
+        env:
+          INPUT_DURATION: ${{ inputs.duration_seconds }}
         run: |
-          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_dns_engine -- -max_total_time=$DURATION -timeout=10
 
       - name: Fuzz F4 - wraith-tor: proxy_request
         working-directory: crates/wraith-tor
+        env:
+          INPUT_DURATION: ${{ inputs.duration_seconds }}
         run: |
-          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_proxy_request -- -max_total_time=$DURATION -timeout=10
 
       - name: Fuzz F5 - wraith-tor: tls_camouflage
         working-directory: crates/wraith-tor
+        env:
+          INPUT_DURATION: ${{ inputs.duration_seconds }}
         run: |
-          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_tls_camouflage -- -max_total_time=$DURATION -timeout=10
 
       - name: Upload Crash Artifacts (On Failure)
