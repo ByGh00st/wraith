@@ -223,7 +223,8 @@ The watchdog preserves application egress restrictions when Tor becomes unhealth
 | **Local DNSSEC proof validation** | ✅ Hickory | — | ❌ Tor DNS only | ❌ No validator | — |
 | **TCP + UDP port-53 interception** | ✅ Both | ◐ UDP rule | ◐ UDP rule | ❌ No interception | — |
 | **Explicit host IPv6 restriction** | ✅ Session rules | ✅ Disable IPv6 | ❌ No IPv6 rule² | ❌ No host policy | — |
-| **General UDP transport through Tor** | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Access-link L4 TCP SYN normalization** | ◐ Tor UID NFQUEUE rewrite⁷ | ❌ | ❌ | ❌ | ❌ |
+| **General UDP transport through Tor** | ❌ (Tor limitation) | ❌ | ❌ | ❌ | ❌ |
 
 <a id="matrix-privacy"></a>
 ### 🔐 02 / Application privacy & recovery
@@ -236,7 +237,8 @@ The watchdog preserves application egress restrictions when Tor becomes unhealth
 | **Saved firewall restoration** | ✅ Journaled tables | ✅ Saved rules | ❌ Flush/reset² | — No host policy | — Separate OS |
 | **Resolver backup / restoration** | ✅ Saved entry | ✅ dnstool | ✅ Backup file | — | — Separate OS |
 | **MAC address randomization** | ✅ Optional | — | ❌ | ❌ | ✅ Default⁵ |
-| **Encrypted persistent OS storage** | ❌ Runtime vault only | ❌ Host tool | ❌ Host tool | ❌ App tool | ✅ Optional⁶ |
+| **Encrypted persistent OS storage** | ❌ Ephemeral RAMFS vault only | ❌ Host tool | ❌ Host tool | ❌ App tool | ✅ Optional⁶ |
+| **Cold-boot / OS-wide RAM wipe on shutdown** | ❌ Internal buffer zeroize only | ❌ | ❌ | ❌ | ✅ Kernel memory wipe⁸ |
 | **Browser privacy preferences** | ✅ Managed profiles | — | ❌ | ❌ | ✅ Tor Browser⁴ |
 
 <a id="matrix-workflow"></a>
@@ -255,7 +257,7 @@ The watchdog preserves application egress restrictions when Tor becomes unhealth
 <details open>
 <summary><b>📚 Evidence, scope and comparison notes</b></summary>
 
-Reviewed **2026-09-11** against upstream documentation and source. A dash is deliberately not a cross: an unverified capability must not be presented as absent. These projects differ in deployment scope; there is no overall winner or calculated anonymity score.
+Reviewed **2026-09-26** against upstream documentation and source. A dash is deliberately not a cross: an unverified capability must not be presented as absent. These projects differ in deployment scope; there is no overall winner or calculated anonymity score.
 
 1. [How Tails works](https://tails.net/about/index.en.html) describes its integrated environment and Tor limits. Its explicitly separate Unsafe Browser is not an anonymous Tor browsing path.
 2. [TorGhost routing source](https://github.com/SusmithKrishnan/torghost/blob/master/torghost.py) defines the compared rules, resolver backup and stop/reset behavior. Entries describe that implementation, not every possible external Tor configuration.
@@ -263,6 +265,8 @@ Reviewed **2026-09-11** against upstream documentation and source. A dash is del
 4. Tails integrates Tor Browser; this is not equivalent to a three-profile HTTP client API. Browser identity controls have a different scope from system-wide identity changes. See [Tails included software](https://tails.net/doc/about/features/index.en.html).
 5. [Tails MAC address anonymization](https://tails.net/doc/first_steps/welcome_screen/mac_spoofing/index.en.html) documents its defaults and compatibility limits.
 6. [Tails Persistent Storage](https://tails.net/doc/persistent_storage/index.en.html) is encrypted optional storage. Wraith's in-memory vault serves a different purpose.
+7. Wraith provides selective TCP SYN rewrite on the Tor access link (TTL, MSS cap, option layout); this does not replace the kernel TCP stack, does not alter public Tor exit packets, and has no measured p0f wire guarantee.
+8. Tails executes an automated kernel-level memory wipe on shutdown/reboot (amnesia) to resist physical RAM extraction. Wraith runs as a userspace session manager on an existing Linux host; it zeroizes its own internal buffers but cannot erase kernel allocations or provide cold-boot hardware immunity.
 
 Additional sources: [AnonSurf routing and restoration](https://github.com/ParrotSec/anonsurf/blob/master/scripts/anondaemon), [AnonSurf project and interfaces](https://github.com/ParrotSec/anonsurf), [Proxychains-NG capabilities and compatibility](https://github.com/rofl0r/proxychains-ng#readme).
 
@@ -308,18 +312,29 @@ Wraith is cleanly architected into 6 Rust crates with separate responsibilities:
 ```
 wraith/
 ├── Cargo.toml                              # Workspace Root Manifest (v1.4.7)
+├── Cargo.lock                              # Locked Workspace Dependency Graph
+├── CHANGELOG.md                            # Structured Release History & Security Advisories
+├── metadata.json                           # Packaging & Release Verification Metadata
 ├── LICENSE                                 # GNU General Public License v3.0 (GPLv3)
 ├── README.md                               # Operational Architecture & Documentation
 ├── SECURITY.md                             # Private Vulnerability Reporting Policy
 ├── CONTRIBUTING.md                         # Development & Review Guide
 ├── SUPPORT.md                              # Support Routes & Troubleshooting
 ├── CODE_OF_CONDUCT.md                      # Community Expectations
-├── docs/THREAT_MODEL.md                    # Protection Scope & Trust Assumptions
+├── docs/                                   # Architectural Designs, Threat Model & Release Archive
+│   ├── releases/                           # Archived Release Advisories & Version Index
+│   ├── wiki/                               # Offline Wiki Guides Synchronized with GitHub Wiki
+│   ├── THREAT_MODEL.md                     # Protection Scope & Trust Assumptions
+│   ├── RELEASING.md                        # Packaging Policy & Publication Guide
+│   ├── L4-EGRESS-DESIGN.md                 # Access-Link L4 Egress Design & Failure Handling
+│   └── L4-SYSCTL-DESIGN.md                 # Namespace L4 Sysctl Isolation & Rollback
 ├── install.sh                              # Verified Release Asset Installer (APT / Archive)
 ├── .github/workflows/release.yml            # Native GNU/musl Build & Tag Release Pipeline
 ├── scripts/                                # Release Validation, Packaging & Installer Tests
 ├── build.sh                                # User-Privilege Build & Atomic Installation
 ├── install-daemon.sh                       # Systemd Network-Online Service Deployment
+├── reset.sh                                # Emergency Recorded-Session Recovery Script
+├── update.sh                               # Verified Fast-Forward Source Updater
 ├── uninstall.sh                            # Uninstaller with Recorded-Session Cleanup
 └── crates/
     ├── wraith-core/                        # [Core & Memory Security Layer]
@@ -343,7 +358,7 @@ wraith/
     │   ├── src/multihop.rs                 # Tor-over-WireGuard Outer Tunnel
     │   ├── src/ebpf_fastpath.rs            # Experimental Fastpath Helpers (Not Active Egress Policy)
     │   ├── src/ipv6.rs                     # IPv6 Dual-Stack Blackout & Leak Guard
-    │   ├── src/mac.rs                      # IEEE 802.3 Hardware MAC Address & Hostname Randomizer
+    │   ├── src/mac.rs                      # OsRng CSPRNG L2 MAC Address & Natural Hostname Randomizer
     │   ├── src/namespace.rs                # Isolated Kernel Network Namespace (veth jail)
     │   ├── src/recovery.rs                 # Durable ownership leases and orphan preflight
     │   ├── tests/live_wire_syn_audit.rs     # Ignored AF_PACKET SYN audit in an isolated sandbox
@@ -356,12 +371,12 @@ wraith/
     │
     ├── wraith-guard/                       # [Defense & DNS Engine]
     │   ├── locales/                        # Localized Guard & DNS Dictionaries
-    │   ├── src/dns_engine.rs               # UDP/TCP DNS Relay, DoH Transport & Sinkhole
+    │   ├── src/dns_engine.rs               # UDP/TCP DNS Relay, FQDN Dot Normalizer & DoH Transport
     │   ├── src/dnssec.rs                   # Local DNSSEC Validator over Tor DoH
     │   ├── src/killswitch.rs               # Bounded Tor Health Checks & Policy Preservation
     │   ├── src/traffic_jitter.rs           # Bounded HTTPS Cover Requests over Tor
     │   ├── src/bpf_filter_engine.rs        # Classic BPF / eBPF Raw Packet Assembly & Filtering
-    │   ├── src/seccomp_jail.rs             # Ptrace-Deny Filter with Thread Synchronization
+    │   ├── src/seccomp_jail.rs             # Ptrace & process_vm_readv/writev BPF Syscall Sandbox
     │   ├── src/honey_ports.rs              # Deceptive Honey-Port Listeners & Inbound Scanner Trap
     │   └── src/leak.rs                     # Multi-Vector Egress Leak Auditor
     │
@@ -374,14 +389,14 @@ wraith/
     │   ├── src/multichain.rs               # Five-Eyes Exclusion Matrix & Strict Geographic Exit Profiler
     │   ├── src/circuit.rs                  # Multi-Hop Circuit Topology & Live Telemetry Inspector
     │   ├── src/control.rs                  # Tor Control Protocol Interface (SIGNAL NEWNYM, Telemetry)
-    │   ├── src/onion_service.rs            # Ephemeral v3 Onion Hidden Service Controller
+    │   ├── src/onion_service.rs            # Ephemeral v3 Onion Service & TOCTOU Key Shredder
     │   ├── src/daemon.rs                   # Isolated Tor Daemon Lifecycle & Sandboxed Process Manager
     │   └── src/bridge.rs                   # obfs4 / Snowflake Pluggable Transport Manager
     │
     ├── wraith-forensic/                    # [Anti-Forensics & Hardware Cloaking Layer]
     │   ├── locales/                        # Localized Anti-Forensics Dictionaries
     │   ├── src/shred.rs                    # Multi-Pass Crypto Shredder with FS Sync & Zeroization
-    │   ├── src/memory.rs                   # Volatile RAM & Swap Partition Cleaner (with 5s Emergency Timeout)
+    │   ├── src/memory.rs                   # Volatile RAM & Verified Swap Partition Cleaner
     │   ├── src/anti_debug_probe.rs         # Dynamic RE Detection (PTRACE_TRACEME, TracerPid Probe)
     │   ├── src/anti_fingerprint.rs         # WebGL, Canvas, AudioContext & Letterboxing Profile Hardener
     │   ├── src/font_jail.rs                # Fontconfig Restrictions & Cache Refresh
