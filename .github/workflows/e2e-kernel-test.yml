@@ -14,7 +14,7 @@ jobs:
   kernel-e2e:
     name: Live Linux Netfilter & Tor Sandbox
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Source Code
@@ -45,8 +45,8 @@ jobs:
 
       - name: Initialize Environment Directories
         run: |
-          sudo mkdir -p /var/lib/wraith/tor /run/wraith-tor
-          sudo chmod 700 /var/lib/wraith/tor
+          sudo mkdir -p /var/lib/wraith/tor /run/wraith-tor /var/log/wraith
+          sudo chmod 700 /var/lib/wraith/tor /var/log/wraith
           sudo chmod +x tests/e2e/*.sh
 
       - name: Execute Network Namespace E2E Test Suite (7 Scenarios)

@@ -11,8 +11,8 @@ if [[ -z "$TOR_PID" ]]; then
     exit 1
 fi
 
-echo "[*] [Scenario 5] Injecting SIGKILL (kill -9) into Tor daemon (PID: $TOR_PID)..."
-kill -9 "$TOR_PID"
+echo "[*] [Scenario 5] Injecting SIGKILL (kill -9) into Tor daemon..."
+pkill -9 -x tor || kill -9 $TOR_PID 2>/dev/null || true
 sleep 2
 
 echo "[*] [Scenario 5] Verifying fail-closed firewall state (attempting clearnet HTTP request)..."

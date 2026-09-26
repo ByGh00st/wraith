@@ -40,8 +40,11 @@ jobs:
             -v "${{ github.workspace }}:/work" \
             -w /work \
             -e LIBCLANG_PATH=/usr/lib \
+            -e CARGO_HOST_RUSTFLAGS="-C target-feature=-crt-static" \
+            -e CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C target-feature=+crt-static" \
             rust:alpine \
-            sh -c "apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils clang-dev clang-libs && \
+            sh -c "git config --global --add safe.directory /work && \
+                   apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils clang-dev clang-libs tar && \
                    cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl && \
                    bash scripts/package-release.sh x86_64-unknown-linux-musl"
 
@@ -74,7 +77,7 @@ jobs:
           - name: "Arch Linux"
             image: "archlinux:latest"
             pkg: "tarball"
-            setup: "pacman -Syu --noconfirm iptables iproute2 tor procps-ng sudo"
+            setup: "pacman -Sy --noconfirm archlinux-keyring && pacman -Syu --noconfirm iptables iproute2 tor procps-ng sudo"
           - name: "Alpine Linux 3.20"
             image: "alpine:3.20"
             pkg: "tarball-musl"

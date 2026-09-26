@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # NYX-PRIME // WRAITH E2E KERNEL SANDBOX HARNESS
-# Isolated Linux Network Namespace (NetNS) Execution Engine
-# Prevents CI Runner Severing by isolating iptables/Tor from host interface.
+# Isolated Linux Network Namespace (NetNS) & Mount Namespace Execution Engine
+# Prevents CI Runner Severing by isolating iptables/Tor and /etc/resolv.conf from host.
 # ==============================================================================
 set -euo pipefail
 
@@ -14,11 +14,12 @@ VETH_NS="veth-ns"
 HOST_IP="10.200.1.1"
 NS_IP="10.200.1.2"
 SUBNET="10.200.1.0/24"
+SANDBOX_DIR=$(mktemp -d /tmp/wraith-sandbox-XXXXXX)
 
 cleanup() {
     echo "[*] Cleaning up network namespace harness ($NS_NAME)..."
     # Kill any processes remaining in namespace
-    if ip netns list | grep -qw "$NS_NAME"; then
+    if ip netns list 2>/dev/null | grep -qw "$NS_NAME"; then
         ip netns pids "$NS_NAME" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
     fi
 
@@ -33,6 +34,7 @@ cleanup() {
     # Interface & namespace teardown
     ip link delete "$VETH_HOST" 2>/dev/null || true
     ip netns delete "$NS_NAME" 2>/dev/null || true
+    rm -rf "$SANDBOX_DIR" 2>/dev/null || true
     echo "[+] Harness cleanup complete."
 }
 trap cleanup EXIT
@@ -60,22 +62,47 @@ if [[ -z "$HOST_EGRESS" ]]; then
     exit 1
 fi
 
-iptables -t nat -A POSTROUTING -s "$SUBNET" -o "$HOST_EGRESS" -j MASQUERADE
-iptables -A FORWARD -i "$VETH_HOST" -o "$HOST_EGRESS" -j ACCEPT
-iptables -A FORWARD -i "$HOST_EGRESS" -o "$VETH_HOST" -m state --state RELATED,ESTABLISHED -j ACCEPT
+# Insert FORWARD and NAT rules at head of chains (prioritized over container / firewall policies)
+iptables -t nat -I POSTROUTING 1 -s "$SUBNET" -o "$HOST_EGRESS" -j MASQUERADE
+iptables -I FORWARD 1 -i "$VETH_HOST" -o "$HOST_EGRESS" -j ACCEPT
+iptables -I FORWARD 2 -i "$HOST_EGRESS" -o "$VETH_HOST" -m state --state RELATED,ESTABLISHED -j ACCEPT
 
 # Verify outbound ping from namespace to host gateway
 if ! ip netns exec "$NS_NAME" ping -c 1 -W 2 "$HOST_IP" >/dev/null; then
     echo "[!] Namespace connectivity check failed (gateway unreachable)." >&2
     exit 1
 fi
-echo "[+] Network Namespace ($NS_NAME) online with verified gateway ($HOST_IP)."
 
-# Execute targeted test scenario or all scenarios
+# Verify outbound internet reachability from namespace via host gateway
+if ! ip netns exec "$NS_NAME" ping -c 1 -W 2 1.1.1.1 >/dev/null; then
+    echo "[!] Namespace internet egress check failed (1.1.1.1 unreachable)." >&2
+    exit 1
+fi
+echo "[+] Network Namespace ($NS_NAME) online with verified gateway ($HOST_IP) and outbound route."
+
+# Prepare isolated overlay directories for /etc and /run
+mkdir -p "$SANDBOX_DIR/etc-upper" "$SANDBOX_DIR/etc-work"
+mkdir -p "$SANDBOX_DIR/run-upper" "$SANDBOX_DIR/run-work"
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+# Execute test suite inside Network + Mount Namespace isolation
 if [[ $# -eq 0 ]]; then
-    echo "[*] No scenario specified. Running full E2E test suite inside $NS_NAME..."
-    ip netns exec "$NS_NAME" timeout 400 bash "$(dirname "$0")/run-all.sh"
+    echo "[*] No scenario specified. Running full E2E test suite inside $NS_NAME with mount isolation..."
+    ip netns exec "$NS_NAME" unshare -m bash -c "
+        set -euo pipefail
+        mount --make-rprivate /
+        mount -t overlay overlay -o lowerdir=/etc,upperdir='$SANDBOX_DIR/etc-upper',workdir='$SANDBOX_DIR/etc-work' /etc
+        mount -t overlay overlay -o lowerdir=/run,upperdir='$SANDBOX_DIR/run-upper',workdir='$SANDBOX_DIR/run-work' /run
+        timeout --kill-after=10 300 bash '$SCRIPT_DIR/run-all.sh'
+    "
 else
-    echo "[*] Executing: $* inside $NS_NAME..."
-    ip netns exec "$NS_NAME" "$@"
+    echo "[*] Executing: $* inside $NS_NAME with mount isolation..."
+    ip netns exec "$NS_NAME" unshare -m bash -c "
+        set -euo pipefail
+        mount --make-rprivate /
+        mount -t overlay overlay -o lowerdir=/etc,upperdir='$SANDBOX_DIR/etc-upper',workdir='$SANDBOX_DIR/etc-work' /etc
+        mount -t overlay overlay -o lowerdir=/run,upperdir='$SANDBOX_DIR/run-upper',workdir='$SANDBOX_DIR/run-work' /run
+        $*
+    "
 fi

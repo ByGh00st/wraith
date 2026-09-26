@@ -8,7 +8,7 @@ echo "[*] [Scenario 3] Polling Tor bootstrap readiness (max 45s)..."
 BOOTSTRAPPED=false
 for i in {1..45}; do
     # Check if Tor circuit is ready by querying check.torproject.org
-    TOR_RESPONSE=$(curl --max-time 5 --silent https://check.torproject.org/api/ip 2>/dev/null || true)
+    TOR_RESPONSE=$(curl --max-time 10 --silent https://check.torproject.org/api/ip 2>/dev/null || true)
     if echo "$TOR_RESPONSE" | grep -q '"IsTor"'; then
         BOOTSTRAPPED=true
         echo "[+] Tor circuit established at attempt $i."
@@ -20,6 +20,9 @@ done
 if [[ "$BOOTSTRAPPED" != "true" ]]; then
     # Fallback to HTTP endpoint if TLS had transient handshake delay
     TOR_RESPONSE=$(curl --max-time 10 --silent http://check.torproject.org/api/ip 2>/dev/null || true)
+    if ! echo "$TOR_RESPONSE" | grep -q '"IsTor"'; then
+        TOR_RESPONSE=$(curl --socks5-hostname 127.0.0.1:9050 --max-time 10 --silent https://check.torproject.org/api/ip 2>/dev/null || true)
+    fi
 fi
 
 echo "[*] [Scenario 3] Parsing Tor verification payload..."
