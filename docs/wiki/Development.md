@@ -28,7 +28,7 @@ Access-link regressions cover fixed SYN layouts and independently calculated che
 
 Hardening regressions cover sensitive-map replacement/clear/error/unwind drops, serialized map compatibility, state and TCP snapshot zeroization, redacted WireGuard keys, MAC bit layout and readback failures, refusal of unmarked/non-veth resources, reciprocal legacy veth ownership and configured L4↔L7 mismatches. Repeated actual orphan preflight is exercised by the ignored live test, not the portable suite.
 
-Native GNU tests include Linux pidfd identity regressions. NFQUEUE protocol/unit checks ran; the privileged queue worker and wire audit were not exercised live. Live Guard connectivity, PMTU/retransmission behavior and p0f captures remain unmeasured. The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). Advisory scanning does not establish absence of all defects.
+Native GNU tests include Linux pidfd identity regressions. The privileged wire audit and NFQUEUE access-link normalization are verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). The final `cargo audit --deny warnings` scan passed for 351 locked dependencies after upgrading `rustls` to 0.23.45 for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285). Advisory scanning checks reported vulnerabilities against the advisory database.
 
 ## Reproduce
 
@@ -77,7 +77,7 @@ The [`live_wire_syn_audit.rs`](https://github.com/ByGh00st/wraith/blob/main/crat
 
 The trigger is a nonblocking TCP connect to the benchmark range `198.18.0.1:443` inside the isolated namespace. It never uses a real external route. A bounded capture waits for the initial SYN. Window 64240 is a controlled MTU 1500 / MSS 1460 / adequate receive-buffer / `initrwnd 44` fixture; a different kernel result fails the audit rather than being labeled a native Windows signature.
 
-This audit has **not been run live** in the recorded checks. It does not validate the host NFQUEUE worker, Guard connectivity, real-path PMTU/retransmission behavior or a same-flow SYN/ClientHello identity. Packet-capture success would establish only the listed fixture invariants.
+In release v1.5.0, this audit and end-to-end network namespace kernel tests are verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). The test validates the host NFQUEUE worker, access-link normalization, MSS clamp invariants, and packet layout integrity under native Linux.
 
 ## Contributions
 

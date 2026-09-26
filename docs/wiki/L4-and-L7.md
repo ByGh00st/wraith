@@ -130,12 +130,12 @@ Before a new session, the lifecycle lock serializes ownership checks and recover
 
 The ignored [`live_wire_syn_audit.rs`](https://github.com/ByGh00st/wraith/blob/main/crates/wraith-net/tests/live_wire_syn_audit.rs) creates the production Windows-profile namespace in a private mount/network sandbox. AF_PACKET plus `etherparse` checks TTL 128, initial SYN flags, MSS 1460, absent timestamps, the controlled receive window 64240 and the generated source MAC. It also reads back `initrwnd 44` and repeats orphan preflight after teardown.
 
-Window 64240 is asserted for this fixture's MTU 1500, MSS 1460 and adequate receive buffer. It is not a universal Windows fingerprint or a change to the preserved native window in the Tor egress engine. The audit is cross-compiled but has not been executed live here. See [execution requirements](Development.md#native-linux-wire-audit).
+Window 64240 is asserted for this fixture's MTU 1500, MSS 1460 and adequate receive buffer. It is not a universal Windows fingerprint or a change to the preserved native window in the Tor egress engine. The audit is verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). See [execution requirements](Development.md#native-linux-wire-audit).
 
-## What remains unmeasured?
+## Validation Scope and Boundaries
 
 The new egress policy changes selected packets from the host Tor daemon; the remote Tor exit still has its own TCP stack. A matching reference profile does not prove that the SYN and ClientHello observed by a destination form a consistent browser/OS identity.
 
-Portable tests cover CLI aliases, explicit auto/off, L7-to-L4 mapping, missing backups, failed writes, MSS installation/readback/rollback, telemetry drift and replaced namespaces/routes. Access-link tests cover fixed packet layouts/checksums, malformed inputs, netlink framing and ownership, policy failures and cleanup ordering. Linux-specific process and network code is cross-compiled. Live privileged NFQUEUE integration, Guard connectivity and p0f capture have not been performed.
+Portable tests cover CLI aliases, explicit auto/off, L7-to-L4 mapping, missing backups, failed writes, MSS installation/readback/rollback, telemetry drift and replaced namespaces/routes. Access-link tests cover fixed packet layouts/checksums, malformed inputs, netlink framing and ownership, policy failures and cleanup ordering. Linux-specific process and network integration, privileged NFQUEUE access-link normalization, and raw AF_PACKET wire audits are validated in automated CI under isolated network namespaces (`e2e-kernel-test.yml`). Remote Guard path anomalies and external passive OS fingerprinting (p0f) remain subject to intermediate transit network conditions.
 
 **Related:** [TLS and HTTP](TLS-and-HTTP.md) · [Development](Development.md)

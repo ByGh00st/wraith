@@ -56,7 +56,7 @@ The script checks resolved workspace/internal dependency versions, packages with
    python3 scripts/test-install.py
    ```
 
-3. Push the reviewed commit and run `gh workflow run release.yml --ref main`. This builds native packages on all four targets and retains CI artifacts for seven days. It does not publish. Inspect every build result; the privileged wire audit remains ignored.
+3. Push the reviewed commit and run `gh workflow run release.yml --ref main`. This builds native packages on all four targets and retains CI artifacts for seven days. It does not publish. Inspect every build result, and ensure end-to-end kernel tests pass under `e2e-kernel-test.yml`.
 4. When publication is intended, create and push the matching tag from the reviewed commit:
 
    ```bash

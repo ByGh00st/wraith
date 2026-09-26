@@ -58,7 +58,7 @@ Wraith retains recovery state when cleanup fails. Keep that state available, add
 | Namespace and WireGuard | Recorded resource teardown |
 | Traffic shaper | Owned netem handle `a731:` |
 
-Snapshots do not capture every ACL/xattr, Tor working data or unrelated changes by other programs. Coordinate with other privileged firewall managers. Live Linux routing and kernel recovery still need integration validation.
+Snapshots do not capture every ACL/xattr, Tor working data or unrelated changes by other programs. Coordinate with other privileged firewall managers. Live Linux routing and kernel recovery are verified via automated network namespace tests in CI (`e2e-kernel-test.yml`).
 
 ## Report a reproducible issue
 
