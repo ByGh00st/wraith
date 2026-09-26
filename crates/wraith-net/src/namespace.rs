@@ -77,8 +77,8 @@ pub fn create_namespace_with_optional_l4_profile(profile: Option<&TcpFingerprint
     };
     let result = (|| -> Result<Option<NetnsTcpSnapshot>> {
         // 2. Create veth interface pair
-        run_cmd("ip", &["link", "add", VETH_HOST, "alias", &lease.tag,
-            "type", "veth", "peer", "name", VETH_NS, "alias", &lease.tag])?;
+        run_cmd("ip", &["link", "add", VETH_HOST, "type", "veth", "peer", "name", VETH_NS])?;
+        run_cmd("ip", &["link", "set", "dev", VETH_HOST, "alias", &lease.tag])?;
 
         // 3. Move one end into the namespace
         run_cmd("ip", &["link", "set", VETH_NS, "netns", NAMESPACE_NAME])?;
