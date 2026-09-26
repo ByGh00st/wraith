@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Wipe all runtime-created ephemeral state, tor caches, and residual backups
+        rm -rf /var/lib/wraith 2>/dev/null || true
+        rm -rf /run/wraith-tor 2>/dev/null || true
+        rm -rf /var/run/wraith.state 2>/dev/null || true
+        rm -rf /run/wraith.state 2>/dev/null || true
+        rm -f /etc/tor/wraithrc 2>/dev/null || true
+        rm -f /etc/resolv.conf.wraith.bak 2>/dev/null || true
+        ;;
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -1,0 +1,73 @@
+name: Debian Package Lintian & Purge Audit
+
+on:
+  push:
+    branches: [ "main", "stabilization/**" ]
+  pull_request:
+    branches: [ "main", "stabilization/**" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lintian-audit:
+    name: Lintian Packaging Compliance & Purge Verification
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain & cargo-deb
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Lintian & Debian Packaging Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lintian man-db e2fsprogs tor iptables iproute2
+          cargo install cargo-deb --locked
+
+      - name: Build Native Release Binary
+        run: |
+          cargo build --release -p wraith-cli
+          bash scripts/package-release.sh x86_64-unknown-linux-gnu
+
+      - name: Run Lintian Strict Quality Audit
+        run: |
+          DEB_FILE=$(ls dist/wraith_*_amd64.deb | head -n 1)
+          echo "[*] Auditing Debian package: $DEB_FILE"
+          lintian --info --display-info --pedantic "$DEB_FILE" || true
+          # Fail exclusively on severe lintian errors
+          lintian --fail-on error "$DEB_FILE"
+
+      - name: Verify Manpage Rendering
+        run: |
+          DEB_FILE=$(ls dist/wraith_*_amd64.deb | head -n 1)
+          sudo dpkg -i "$DEB_FILE"
+          man -P cat wraith | grep -q "wraith"
+          echo "[+] Manpage renders cleanly via man-db."
+
+      - name: Execute Full Purge & Zero-Orphan Verification
+        run: |
+          echo "[*] Creating simulated runtime session state..."
+          sudo mkdir -p /var/lib/wraith /run/wraith-tor
+          sudo touch /var/run/wraith.state /etc/tor/wraithrc /etc/resolv.conf.wraith.bak
+
+          echo "[*] Purging package via apt..."
+          sudo apt-get remove --purge -y wraith
+
+          echo "[*] Checking for lingering orphan artifacts..."
+          ORPHANS=""
+          [ -f /etc/tor/wraithrc ] && ORPHANS="$ORPHANS /etc/tor/wraithrc"
+          [ -d /var/lib/wraith ] && ORPHANS="$ORPHANS /var/lib/wraith"
+          [ -d /run/wraith-tor ] && ORPHANS="$ORPHANS /run/wraith-tor"
+          [ -f /var/run/wraith.state ] && ORPHANS="$ORPHANS /var/run/wraith.state"
+          [ -f /etc/resolv.conf.wraith.bak ] && ORPHANS="$ORPHANS /etc/resolv.conf.wraith.bak"
+
+          if [ -n "$ORPHANS" ]; then
+              echo "[!] FAILED: Residual orphan files detected after purge: $ORPHANS" >&2
+              exit 1
+          fi
+
+          echo "[+] PASSED: Zero orphan artifacts remaining on filesystem."

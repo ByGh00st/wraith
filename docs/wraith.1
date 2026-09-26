@@ -1,0 +1,74 @@
+.TH WRAITH 1 "September 2026" "wraith 1.4.7" "User Commands"
+.SH NAME
+wraith \- Kernel-grade network anonymization and anti-forensics framework
+.SH SYNOPSIS
+.B wraith
+[\fIOPTIONS\fR] [\fICOMMAND\fR]
+.SH DESCRIPTION
+.B wraith
+is a sovereign Linux network anonymization engine. It enforces transparent Tor routing,
+kernel-level Netfilter isolation, RFC 1035 wire-format DNS sinkholing, and cross-layer L4/L7 OS fingerprint normalization.
+.SH COMMANDS
+.TP
+\fBstart\fR [\fIOPTIONS\fR]
+Initiates the kernel network anonymization session, locks down Netfilter tables, starts the sovereign DNS resolver, and bootstraps Tor routing.
+.TP
+\fBstop\fR
+Gracefully terminates the active session, flushes TransPort redirects, restores original nameservers, and unlocks /etc/resolv.conf.
+.TP
+\fBstatus\fR
+Displays live network interfaces, active Tor circuits, IP leak diagnostics, and firewall state.
+.TP
+\fBreset\fR
+Emergency recovery tool. Forces cleanup of lingering iptables rules, unlocks immutable files, and restores default networking.
+.TP
+\fBdoctor\fR
+Executes an audit on kernel capabilities, netfilter modules, Tor binaries, and system utilities.
+.SH OPTIONS
+.TP
+\fB\-I\fR, \fB\-\-interface\fR \fIINTERFACE\fR
+Target network interface adapter for L2/L3 operations (e.g. eth0, wlan0, veth-ns).
+.TP
+\fB\-m\fR, \fB\-\-mac\fR
+Randomize network interface L2 MAC address and hostname before establishing session.
+.TP
+\fB\-b\fR, \fB\-\-bridge\fR
+Route traffic through censorship-resistant Tor bridges.
+.TP
+\fB\-\-bridge\-type\fR \fITYPE\fR
+Pluggable transport mechanism: obfs4, snowflake, meek, or moat.
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Enable verbose debug tracing output.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help message and exit.
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version information and exit.
+.SH FILES
+.TP
+.I /run/wraith.state
+Runtime session state and rollback snapshot.
+.TP
+.I /etc/tor/wraithrc
+Dedicated Tor daemon configuration generated for the active session.
+.TP
+.I /var/lib/wraith/
+Persistent directory for Tor daemon state, consensus cache, and cryptographic keys.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+General operational error or verification failure.
+.TP
+.B 2
+Insufficient permissions (root privileges required).
+.SH SEE ALSO
+.BR tor (1),
+.BR iptables (8),
+.BR ip-netns (8)
+.SH AUTHORS
+ByGh00st / WRAITH-PRIME.

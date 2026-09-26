@@ -1,0 +1,117 @@
+name: Multi-Distribution Compatibility Matrix
+
+on:
+  push:
+    branches: [ "main", "stabilization/**" ]
+  pull_request:
+    branches: [ "main", "stabilization/**" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-binaries:
+    name: Build Multi-Architecture & Musl Binaries
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain & Musl Target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl
+
+      - name: Install Build Tools & cargo-deb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          cargo install cargo-deb --locked
+
+      - name: Build GNU Release Binary & .deb Package
+        run: |
+          cargo build --release -p wraith-cli --target x86_64-unknown-linux-gnu
+          bash scripts/package-release.sh x86_64-unknown-linux-gnu
+
+      - name: Build Static Musl Release Binary
+        run: |
+          cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl
+          bash scripts/package-release.sh x86_64-unknown-linux-musl
+
+      - name: Upload Dist Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/*
+
+  matrix-test:
+    name: ${{ matrix.distro.name }} (${{ matrix.distro.pkg }})
+    needs: build-binaries
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - name: "Kali Linux (Rolling)"
+            image: "kalilinux/kali-rolling"
+            pkg: "deb"
+            setup: "apt-get update && apt-get install -y sudo iptables iproute2 tor procps"
+          - name: "Debian 12 (Bookworm)"
+            image: "debian:12"
+            pkg: "deb"
+            setup: "apt-get update && apt-get install -y sudo iptables iproute2 tor procps"
+          - name: "Ubuntu 24.04 LTS"
+            image: "ubuntu:24.04"
+            pkg: "deb"
+            setup: "apt-get update && apt-get install -y sudo iptables iproute2 tor procps"
+          - name: "Arch Linux"
+            image: "archlinux:latest"
+            pkg: "tarball"
+            setup: "pacman -Syu --noconfirm iptables iproute2 tor procps-ng sudo"
+          - name: "Alpine Linux 3.20"
+            image: "alpine:3.20"
+            pkg: "tarball-musl"
+            setup: "apk update && apk add bash iptables iproute2 tor procps sudo"
+
+    container:
+      image: ${{ matrix.distro.image }}
+      options: --privileged --cap-add=NET_ADMIN --cap-add=NET_RAW --cap-add=SYS_ADMIN
+
+    steps:
+      - name: Download Built Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist
+
+      - name: Install Container Dependencies
+        run: |
+          ${{ matrix.distro.setup }}
+
+      - name: Install Wraith (${{ matrix.distro.pkg }})
+        run: |
+          if [ "${{ matrix.distro.pkg }}" = "deb" ]; then
+            dpkg -i dist/wraith_*_amd64.deb || apt-get install -f -y
+          elif [ "${{ matrix.distro.pkg }}" = "tarball-musl" ]; then
+            tar xzf dist/wraith-*-x86_64-unknown-linux-musl.tar.gz
+            cp wraith /usr/local/bin/wraith
+            chmod 755 /usr/local/bin/wraith
+            # Verify static musl binary has no runtime dynamic interpreter
+            if command -v scanelf >/dev/null 2>&1; then
+              scanelf -ET /usr/local/bin/wraith
+            fi
+          else
+            tar xzf dist/wraith-*-x86_64-unknown-linux-gnu.tar.gz
+            cp wraith /usr/local/bin/wraith
+            chmod 755 /usr/local/bin/wraith
+          fi
+
+      - name: Verify Binary & Execution
+        run: |
+          wraith --version
+          wraith --help
+
+      - name: Run Wraith Diagnostics (Doctor)
+        run: |
+          wraith doctor || true

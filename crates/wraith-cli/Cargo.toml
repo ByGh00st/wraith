@@ -47,10 +47,12 @@ revision = ""
 depends = "$auto, iptables, iproute2, tor, util-linux, procps, psmisc, ca-certificates"
 recommends = "obfs4proxy, fontconfig, e2fsprogs, curl"
 extended-description = "Kernel-Level Network Anonymization & Anti-Forensics Engine in Pure Rust"
+maintainer-scripts = "../../packaging/debian"
 assets = [
     ["target/release/wraith", "usr/bin/wraith", "0755"],
     ["../../LICENSE", "usr/share/doc/wraith/copyright", "0644"],
     ["../../README.md", "usr/share/doc/wraith/README.md", "0644"],
+    ["../../docs/wraith.1", "usr/share/man/man1/wraith.1", "0644"],
     ["../../packaging/completions/wraith.bash", "usr/share/bash-completion/completions/wraith", "0644"],
     ["../../packaging/completions/_wraith", "usr/share/zsh/vendor-completions/_wraith", "0644"],
     ["../../packaging/completions/wraith.fish", "usr/share/fish/vendor_completions.d/wraith.fish", "0644"],
