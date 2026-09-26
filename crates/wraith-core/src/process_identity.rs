@@ -52,7 +52,9 @@ impl SessionProcess {
         let raw = unsafe { libc::syscall(libc::SYS_pidfd_open, pid as i32, 0) };
         if raw < 0 {
             let error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ESRCH) { return Ok(None); }
+            if error.raw_os_error() == Some(libc::ESRCH) || error.raw_os_error() == Some(libc::EINVAL) {
+                return Ok(None);
+            }
             return Err(error);
         }
         let process = Self(unsafe { std::os::fd::OwnedFd::from_raw_fd(raw as i32) });
@@ -76,7 +78,10 @@ impl SessionProcess {
             self.0.as_raw_fd(), libc::SIGTERM, std::ptr::null::<libc::siginfo_t>(), 0) };
         if result != 0 {
             let error = std::io::Error::last_os_error();
-            if error.raw_os_error() != Some(libc::ESRCH) { return Err(error); }
+            match error.raw_os_error() {
+                Some(libc::ESRCH | libc::EINVAL) => return Ok(()),
+                _ => return Err(error),
+            }
         }
         Ok(())
     }
@@ -85,8 +90,14 @@ impl SessionProcess {
         use std::os::fd::AsRawFd;
         let mut event = libc::pollfd { fd: self.0.as_raw_fd(), events: libc::POLLIN, revents: 0 };
         let result = unsafe { libc::poll(&mut event, 1, 0) };
-        if result < 0 { return Err(std::io::Error::last_os_error()); }
-        if event.revents & libc::POLLNVAL != 0 {
+        if result < 0 {
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINVAL) || error.raw_os_error() == Some(libc::ESRCH) {
+                return Ok(true);
+            }
+            return Err(error);
+        }
+        if event.revents & (libc::POLLNVAL | libc::POLLERR) != 0 {
             return Ok(true);
         }
         Ok(event.revents & (libc::POLLIN | libc::POLLHUP) != 0)

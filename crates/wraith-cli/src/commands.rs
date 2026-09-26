@@ -1175,12 +1175,12 @@ async fn cmd_stop_inner(
                 return Err(WraithError::Configuration("Another worker is still performing cleanup".into()));
             }
             print_step(&format!("Stopping verified session worker (PID: {pid})..."), "info");
-            process.terminate()?;
+            let _ = process.terminate();
             let mut exited = false;
             for _ in 0..450 {
                 sleep(Duration::from_millis(100)).await;
                 if !state_mgr.exists() { return Ok(()); }
-                if process.has_exited()? { exited = true; break; }
+                if process.has_exited().unwrap_or(true) { exited = true; break; }
             }
             if !exited {
                 return Err(WraithError::Custom("Session has not stopped; recovery record retained. Inspect the worker before retrying.".into()));
