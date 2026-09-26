@@ -12,6 +12,10 @@ mkdir -p target dist
 cargo metadata --locked --no-deps --format-version 1 > target/release-metadata.json
 version=$(python3 scripts/check-release.py target/release-metadata.json "${WRAITH_RELEASE_TAG:-}")
 binary="target/$target/release/wraith"
+if [[ ! -f "$binary" && -f "target/release/wraith" ]]; then
+    mkdir -p "target/$target/release"
+    cp "target/release/wraith" "$binary"
+fi
 [[ $("$binary" --version) == "wraith $version" ]]
 "$binary" --help >/dev/null
 mkdir -p packaging/completions

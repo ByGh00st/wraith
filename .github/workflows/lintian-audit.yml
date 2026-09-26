@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Native Release Binary
         run: |
-          cargo build --release -p wraith-cli
+          cargo build --release -p wraith-cli --target x86_64-unknown-linux-gnu
           bash scripts/package-release.sh x86_64-unknown-linux-gnu
 
       - name: Run Lintian Strict Quality Audit

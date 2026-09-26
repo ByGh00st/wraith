@@ -36,8 +36,13 @@ jobs:
 
       - name: Build Static Musl Release Binary
         run: |
-          cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl
-          bash scripts/package-release.sh x86_64-unknown-linux-musl
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -w /work \
+            alpine:3.20 \
+            sh -c "apk add --no-cache bash python3 rust cargo cmake make g++ musl-dev perl linux-headers git && \
+                   cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl && \
+                   bash scripts/package-release.sh x86_64-unknown-linux-musl"
 
       - name: Upload Dist Artifacts
         uses: actions/upload-artifact@v4
