@@ -112,11 +112,10 @@ pub fn active_system_tor_services() -> Result<Vec<String>> {
     if !Path::new("/run/systemd/system").exists() { return Ok(Vec::new()); }
     let mut active = Vec::new();
     for service in SYSTEM_TOR_SERVICES {
-        let status = Command::new("systemctl").args(["is-active", "--quiet", service]).status()?;
-        match status.code() {
-            Some(0) => active.push((*service).into()),
-            Some(3 | 4) => {},
-            _ => return Err(WraithError::Tor(format!("Cannot determine service state: {service}"))),
+        if let Ok(status) = Command::new("systemctl").args(["is-active", "--quiet", service]).status() {
+            if status.code() == Some(0) {
+                active.push((*service).into());
+            }
         }
     }
     Ok(active)
