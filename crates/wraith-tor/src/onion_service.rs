@@ -55,6 +55,53 @@ impl OnionServiceConfig {
         self.target_port = target_port;
         self
     }
+
+    /// Strict validation of Onion service parameters to prevent torrc injection and malformed directives
+    pub fn validate(&self) -> Result<()> {
+        if self.name.is_empty() || self.name.len() > 64 {
+            return Err(WraithError::Configuration(
+                "Onion service name must be between 1 and 64 characters".into(),
+            ));
+        }
+        if !self.name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+            return Err(WraithError::Configuration(
+                "Onion service name contains invalid characters (only alphanumeric, '-' and '_' allowed)".into(),
+            ));
+        }
+        if self.virtual_port == 0 || self.target_port == 0 {
+            return Err(WraithError::Configuration(
+                "Onion ports must be nonzero".into(),
+            ));
+        }
+        if let Some(ref sock) = self.target_unix_socket {
+            if sock.is_empty() || sock.len() > 108 {
+                return Err(WraithError::Configuration(
+                    "Onion Unix domain socket path must be between 1 and 108 characters".into(),
+                ));
+            }
+            if !sock.starts_with('/') {
+                return Err(WraithError::Configuration(
+                    "Onion Unix domain socket path must be absolute".into(),
+                ));
+            }
+            if sock.contains("..") || sock.chars().any(|c| c.is_ascii_control() || c.is_ascii_whitespace() || c == '#') {
+                return Err(WraithError::Configuration(
+                    "Onion Unix domain socket path contains invalid characters or path traversal".into(),
+                ));
+            }
+        }
+        if self.enable_pow_defense && (self.pow_queue_rate == 0 || self.pow_queue_rate > 10_000) {
+            return Err(WraithError::Configuration(
+                "Onion PoW queue rate must be between 1 and 10000".into(),
+            ));
+        }
+        if !self.client_auth_keys.is_empty() {
+            return Err(WraithError::Configuration(
+                "Onion client authorization is not implemented; refusing to publish an unauthenticated service".into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 pub struct OnionServiceManager;
@@ -88,16 +135,7 @@ impl OnionServiceManager {
 
     /// Injects ephemeral Hidden Service configuration into torrc (Idempotent)
     pub fn arm_onion_service(config: &OnionServiceConfig) -> Result<()> {
-        if !config.client_auth_keys.is_empty() {
-            return Err(WraithError::Configuration("Onion client authorization is not implemented; refusing to publish an unauthenticated service".into()));
-        }
-        if config.name.contains(['\r', '\n']) || config.target_unix_socket.as_deref()
-            .map(|path| path.contains(['\r', '\n'])).unwrap_or(false) {
-            return Err(WraithError::Configuration("Onion configuration contains line breaks".into()));
-        }
-        if config.virtual_port == 0 || config.target_port == 0 {
-            return Err(WraithError::Configuration("Onion ports must be nonzero".into()));
-        }
+        config.validate()?;
         let torrc = Path::new(TORRC_PATH);
         if !torrc.is_file() { return Err(WraithError::Configuration("Tor configuration is missing".into())); }
         if torrc.exists() {
@@ -126,6 +164,17 @@ impl OnionServiceManager {
         }
     }
 
+    fn open_no_follow_write(path: &Path) -> std::io::Result<fs::File> {
+        let mut options = OpenOptions::new();
+        options.write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+        }
+        options.open(path)
+    }
+
     /// Securely shreds an ephemeral key file using DoD 5220.22-M 7-pass random overwrite and flush
     pub fn shred_key_file(path: &Path, passes: u8) -> Result<()> {
         let metadata = match fs::symlink_metadata(path) {
@@ -143,9 +192,22 @@ impl OnionServiceManager {
             return Ok(());
         }
 
-        let len = metadata.len();
+        let mut file = Self::open_no_follow_write(path)?;
+        let opened = file.metadata()?;
+        if !opened.is_file() {
+            return Err(WraithError::Configuration("Target changed to a non-regular file".into()));
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            if opened.nlink() != 1 || opened.ino() != metadata.ino() || opened.dev() != metadata.dev() {
+                return Err(WraithError::Configuration("Target changed or has additional hard links".into()));
+            }
+        }
+
+        let len = opened.len();
         if len > 0 {
-            let mut file = OpenOptions::new().write(true).open(path)?;
             let mut buffer = zeroize::Zeroizing::new(vec![0u8; 4096]);
             let mut rng = rand::thread_rng();
 
@@ -172,6 +234,15 @@ impl OnionServiceManager {
                 written += chunk as u64;
             }
             file.sync_all()?;
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let current = fs::symlink_metadata(path)?;
+            if current.ino() != opened.ino() || current.dev() != opened.dev() {
+                return Err(WraithError::Configuration("Target name changed during overwrite; refusing unlink".into()));
+            }
         }
 
         fs::remove_file(path)?;
@@ -261,5 +332,83 @@ mod tests {
         assert!(!secret_key_path.exists());
         assert!(!pub_key_path.exists());
         assert!(!hostname_path.exists());
+    }
+
+    #[test]
+    fn test_shred_key_file_basic() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let key_file = temp_dir.path().join("test_key");
+        fs::write(&key_file, b"EPHEMERAL_KEY_BYTES_DO_NOT_LEAK").unwrap();
+        assert!(key_file.exists());
+
+        OnionServiceManager::shred_key_file(&key_file, 3).unwrap();
+        assert!(!key_file.exists());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_shred_key_file_symlink_safety() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let target_file = temp_dir.path().join("safe_target.txt");
+        let symlink_file = temp_dir.path().join("symlink_key");
+
+        fs::write(&target_file, b"CRITICAL_DATA_SAFE").unwrap();
+        std::os::unix::fs::symlink(&target_file, &symlink_file).unwrap();
+
+        assert!(symlink_file.exists());
+        assert!(target_file.exists());
+
+        OnionServiceManager::shred_key_file(&symlink_file, 3).unwrap();
+
+        // The symlink is removed, but the target file remains intact and uncorrupted
+        assert!(!symlink_file.exists());
+        assert!(target_file.exists());
+        assert_eq!(fs::read(&target_file).unwrap(), b"CRITICAL_DATA_SAFE");
+    }
+
+    #[test]
+    fn test_onion_service_config_validation() {
+        let valid = OnionServiceConfig::default();
+        assert!(valid.validate().is_ok());
+
+        // Reject comment injection
+        let mut bad_name = valid.clone();
+        bad_name.name = "service#evil".into();
+        assert!(bad_name.validate().is_err());
+
+        // Reject CRLF injection
+        bad_name.name = "service\r\nHiddenServicePort 22 127.0.0.1:22".into();
+        assert!(bad_name.validate().is_err());
+
+        // Reject spaces
+        bad_name.name = "service evil".into();
+        assert!(bad_name.validate().is_err());
+
+        // Reject empty name
+        bad_name.name = "".into();
+        assert!(bad_name.validate().is_err());
+
+        // Reject excessively long name
+        bad_name.name = "a".repeat(65);
+        assert!(bad_name.validate().is_err());
+
+        // Reject zero ports
+        let mut bad_port = valid.clone();
+        bad_port.virtual_port = 0;
+        assert!(bad_port.validate().is_err());
+        bad_port.virtual_port = 80;
+        bad_port.target_port = 0;
+        assert!(bad_port.validate().is_err());
+
+        // Reject invalid unix domain socket
+        let mut bad_sock = valid.clone();
+        bad_sock.target_unix_socket = Some("relative/path.sock".into());
+        assert!(bad_sock.validate().is_err());
+        bad_sock.target_unix_socket = Some("/tmp/sock#injection".into());
+        assert!(bad_sock.validate().is_err());
+        bad_sock.target_unix_socket = Some("/tmp/../etc/shadow".into());
+        assert!(bad_sock.validate().is_err());
+        bad_sock.target_unix_socket = Some("/valid/path/to.sock".into());
+        assert!(bad_sock.validate().is_ok());
     }
 }
