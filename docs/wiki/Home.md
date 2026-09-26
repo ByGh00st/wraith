@@ -33,7 +33,7 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 | Area | Current behavior |
 | :--- | :--- |
-| Release distribution | [v1.4.6 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.6): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
+| Release distribution | [v1.4.7 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.7): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
 | Emergency Reset HUD | `-R` and `-N` shortcuts with real-time subsystem recovery HUD telemetry |
 | Cryptographic Shredding | DoD 5220.22-M 7-pass random overwrite and zeroize for Onion v3 keys |
 | RAMFS WireGuard Keys | `/dev/shm` ephemeral key isolation with in-memory zeroize-on-drop |
