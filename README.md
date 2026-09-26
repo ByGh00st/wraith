@@ -146,24 +146,24 @@ Start a session, inspect its status, and stop it to restore recorded settings. A
 ## 📊 Codebase Metrics & Language Breakdown
 
 <details open>
-<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-26</b></summary>
+<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-27</b></summary>
 
-Measured **2026-09-26** with Tokei 12.1.2. Scope covers source crates, native wire tests, workspace manifests, build/installer scripts, and CI workflows (excluding standalone documentation and build artifacts). Embedded Rust documentation is reported under Markdown.
+Measured **2026-09-27** with Tokei 12.1.2. Scope covers source crates, native wire tests, workspace manifests, build/installer scripts, and CI workflows (excluding standalone documentation and build artifacts). Embedded Rust documentation is reported under Markdown.
 
 ```text
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
- Python                  2          197          182            4           11
- Shell                   8          990          854           62           74
- TOML                    8          254          237            0           17
- YAML                  344        12878        12862            1           15
+ Python                  2          199          184            4           11
+ Shell                   8          993          858           61           74
+ TOML                   11          338          307            0           31
+ YAML                  348        13237        13166            4           67
 -------------------------------------------------------------------------------
- Rust                   80        26594        23283          767         2544
- |- Markdown            73          808            3          763           42
- (Total)                          27402        23286         1530         2586
+ Rust                   86        27014        23668          782         2564
+ |- Markdown            74          813            3          768           42
+ (Total)                          27827        23671         1550         2606
 ===============================================================================
- Total                 442        40913        37418          834         2661
+ Total                 455        41781        38183          851         2747
 ===============================================================================
 ```
 
