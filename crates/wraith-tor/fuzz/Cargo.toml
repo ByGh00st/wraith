@@ -1,0 +1,25 @@
+[package]
+name = "wraith-tor-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+wraith-tor = { path = ".." }
+wraith-core = { path = "../../wraith-core" }
+
+[[bin]]
+name = "fuzz_proxy_request"
+path = "fuzz_targets/fuzz_proxy_request.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_tls_camouflage"
+path = "fuzz_targets/fuzz_tls_camouflage.rs"
+test = false
+doc = false

@@ -1,0 +1,84 @@
+name: Continuous Parser Fuzzing
+
+on:
+  schedule:
+    # Run every Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: "Duration per target (seconds)"
+        required: false
+        default: "60"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: LibFuzzer Untrusted Parser Hardening
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Nightly Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Cargo Dependencies & Fuzz Artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-fuzz
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fuzz-
+
+      - name: Install cargo-fuzz
+        run: |
+          which cargo-fuzz || cargo install cargo-fuzz --locked
+
+      - name: Fuzz F1 - wraith-net: tcp_wire
+        working-directory: crates/wraith-net
+        run: |
+          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          cargo fuzz run fuzz_tcp_wire -- -max_total_time=$DURATION -timeout=10
+
+      - name: Fuzz F2 - wraith-net: netlink
+        working-directory: crates/wraith-net
+        run: |
+          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          cargo fuzz run fuzz_netlink -- -max_total_time=$DURATION -timeout=10
+
+      - name: Fuzz F3 - wraith-guard: dns_engine
+        working-directory: crates/wraith-guard
+        run: |
+          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          cargo fuzz run fuzz_dns_engine -- -max_total_time=$DURATION -timeout=10
+
+      - name: Fuzz F4 - wraith-tor: proxy_request
+        working-directory: crates/wraith-tor
+        run: |
+          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          cargo fuzz run fuzz_proxy_request -- -max_total_time=$DURATION -timeout=10
+
+      - name: Fuzz F5 - wraith-tor: tls_camouflage
+        working-directory: crates/wraith-tor
+        run: |
+          DURATION="${{ github.event.inputs.duration_seconds || '600' }}"
+          cargo fuzz run fuzz_tls_camouflage -- -max_total_time=$DURATION -timeout=10
+
+      - name: Upload Crash Artifacts (On Failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-artifacts
+          path: |
+            crates/**/fuzz/artifacts/
+            crates/**/fuzz/crash-*

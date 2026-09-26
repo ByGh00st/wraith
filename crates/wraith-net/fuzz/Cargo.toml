@@ -1,0 +1,25 @@
+[package]
+name = "wraith-net-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+wraith-net = { path = ".." }
+wraith-core = { path = "../../wraith-core" }
+
+[[bin]]
+name = "fuzz_tcp_wire"
+path = "fuzz_targets/fuzz_tcp_wire.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_netlink"
+path = "fuzz_targets/fuzz_netlink.rs"
+test = false
+doc = false

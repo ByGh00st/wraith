@@ -1,0 +1,19 @@
+[package]
+name = "wraith-guard-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+wraith-guard = { path = ".." }
+wraith-core = { path = "../../wraith-core" }
+
+[[bin]]
+name = "fuzz_dns_engine"
+path = "fuzz_targets/fuzz_dns_engine.rs"
+test = false
+doc = false

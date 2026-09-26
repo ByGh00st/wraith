@@ -128,7 +128,7 @@ impl TlsCamouflageServer {
 }
 
 /// Rewrites security auditing or custom User-Agents in-flight in the HTTP header
-fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
+pub fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
     let header_end = match req_data.windows(4).position(|w| w == b"\r\n\r\n") {
         Some(pos) => pos + 4,
         None => return (req_data.to_vec(), String::new(), false),

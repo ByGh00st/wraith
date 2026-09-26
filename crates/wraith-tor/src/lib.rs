@@ -10,7 +10,7 @@ pub mod grease;
 pub mod moat;
 pub mod multichain;
 pub mod onion_service;
-mod proxy_request;
+pub mod proxy_request;
 pub mod tls_camouflage;
 
 pub use bridge::*;

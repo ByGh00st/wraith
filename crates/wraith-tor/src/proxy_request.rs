@@ -1,7 +1,7 @@
 //! Parse explicit CONNECT, absolute HTTP URLs and transparent origin-form requests.
 use wraith_core::error::{Result, WraithError};
 
-pub(crate) struct Request {
+pub struct Request {
     pub host: String,
     pub port: u16,
     pub tunnel: bool,
@@ -47,7 +47,7 @@ fn authority(value: &str, default_port: Option<u16>) -> Result<(String, u16)> {
     Ok((host, port))
 }
 
-pub(crate) fn parse(bytes: &[u8]) -> Result<Request> {
+pub fn parse(bytes: &[u8]) -> Result<Request> {
     let end = bytes
         .windows(4)
         .position(|w| w == b"\r\n\r\n")

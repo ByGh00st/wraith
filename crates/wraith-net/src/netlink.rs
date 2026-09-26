@@ -577,7 +577,86 @@ impl NetlinkSocket {
     pub fn append_attr_u8(buf: &mut Vec<u8>, rta_type: u16, val: u8) {
         Self::append_attr(buf, rta_type, &[val]);
     }
+}
 
+/// Pure parser for Netlink ACK or error response. Fuzzable with raw &[u8].
+pub fn parse_netlink_ack(buf: &[u8]) -> Result<()> {
+    if buf.len() < size_of::<NlMsgHdr>() {
+        return Err(WraithError::Custom("Truncated Netlink response".into()));
+    }
+
+    let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(buf.as_ptr() as *const _) };
+
+    if nl_hdr.nlmsg_type == NLMSG_ERROR {
+        let err_total_size = size_of::<NlMsgHdr>() + size_of::<NlMsgErr>();
+        if buf.len() < err_total_size {
+            return Err(WraithError::Custom("Truncated NLMSG_ERROR payload".into()));
+        }
+        let err_offset = size_of::<NlMsgHdr>();
+        let err_msg: NlMsgErr = unsafe {
+            std::ptr::read_unaligned(buf[err_offset..].as_ptr() as *const _)
+        };
+        if err_msg.error != 0 {
+            #[cfg(unix)]
+            let os_err = std::io::Error::from_raw_os_error(-err_msg.error);
+            #[cfg(not(unix))]
+            let os_err = format!("Error code {}", -err_msg.error);
+
+            return Err(WraithError::Custom(format!(
+                "Netlink kernel execution error: {} (code {})",
+                os_err, -err_msg.error
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Pure parser for Netlink multi-part dump frames from raw buffer.
+/// Returns (frames, is_done). Fuzzable with raw &[u8].
+pub fn parse_netlink_frames(buf: &[u8]) -> Result<(Vec<Vec<u8>>, bool)> {
+    let mut frames = Vec::new();
+    let mut offset = 0;
+    let mut is_done = false;
+
+    while offset + size_of::<NlMsgHdr>() <= buf.len() {
+        let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(buf[offset..].as_ptr() as *const _) };
+        let msg_len = nl_hdr.nlmsg_len as usize;
+
+        if msg_len < size_of::<NlMsgHdr>() || offset + msg_len > buf.len() {
+            break;
+        }
+
+        if nl_hdr.nlmsg_type == NLMSG_DONE {
+            is_done = true;
+            break;
+        }
+
+        if nl_hdr.nlmsg_type == NLMSG_ERROR {
+            let err_inner_offset = offset + size_of::<NlMsgHdr>();
+            if err_inner_offset + size_of::<NlMsgErr>() > buf.len() {
+                break;
+            }
+            let err_msg: NlMsgErr = unsafe {
+                std::ptr::read_unaligned(buf[err_inner_offset..].as_ptr() as *const _)
+            };
+            if err_msg.error != 0 {
+                return Err(WraithError::Custom(format!("Dump error: {}", -err_msg.error)));
+            }
+        }
+
+        frames.push(buf[offset..offset + msg_len].to_vec());
+        let next_offset = offset + nlmsg_align(msg_len);
+        if next_offset <= offset {
+            break;
+        }
+        offset = next_offset;
+    }
+
+    Ok((frames, is_done))
+}
+
+impl NetlinkSocket {
     /// Sends a Netlink request buffer and validates kernel ACK response
     pub fn send_and_recv_ack(&mut self, buf: &[u8]) -> Result<()> {
         #[cfg(unix)]
@@ -618,36 +697,14 @@ impl NetlinkSocket {
             }
 
             let bytes_read = recv_res as usize;
-            if bytes_read < size_of::<NlMsgHdr>() {
-                return Err(WraithError::Custom("Truncated Netlink response".into()));
-            }
-
-            let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(resp_buf.as_ptr() as *const _) };
-
-            if nl_hdr.nlmsg_type == NLMSG_ERROR {
-                let err_total_size = size_of::<NlMsgHdr>() + size_of::<NlMsgErr>();
-                if bytes_read < err_total_size {
-                    return Err(WraithError::Custom("Truncated NLMSG_ERROR payload".into()));
-                }
-                // SAFETY: Reading NlMsgErr from immediately after NlMsgHdr within validated bounds.
-                let err_offset = size_of::<NlMsgHdr>();
-                let err_msg: NlMsgErr = unsafe {
-                    std::ptr::read_unaligned(resp_buf[err_offset..].as_ptr() as *const _)
-                };
-                if err_msg.error != 0 {
-                    let os_err = Error::from_raw_os_error(-err_msg.error);
-                    return Err(WraithError::Custom(format!(
-                        "Netlink kernel execution error: {} (code {})",
-                        os_err, -err_msg.error
-                    )));
-                }
-            }
-
-            Ok(())
+            parse_netlink_ack(&resp_buf[..bytes_read])
         }
         #[cfg(not(unix))]
         {
             let _ = buf;
+            Err(WraithError::UnsupportedPlatform)
+        }
+    }
             Err(WraithError::UnsupportedPlatform)
         }
     }
@@ -708,37 +765,10 @@ impl NetlinkSocket {
                 }
 
                 let bytes_read = recv_res as usize;
-                let mut offset = 0;
-
-                while offset + size_of::<NlMsgHdr>() <= bytes_read {
-                    // SAFETY: Pointer is within bounds [offset..bytes_read] with at least size_of::<NlMsgHdr>() bytes available; using read_unaligned.
-                    let nl_hdr: NlMsgHdr = unsafe { std::ptr::read_unaligned(recv_buf[offset..].as_ptr() as *const _) };
-                    let msg_len = nl_hdr.nlmsg_len as usize;
-
-                    if msg_len < size_of::<NlMsgHdr>() || offset + msg_len > bytes_read {
-                        break;
-                    }
-
-                    if nl_hdr.nlmsg_type == NLMSG_DONE {
-                        break 'dump_loop;
-                    }
-
-                    if nl_hdr.nlmsg_type == NLMSG_ERROR {
-                        let err_inner_offset = offset + size_of::<NlMsgHdr>();
-                        if err_inner_offset + size_of::<NlMsgErr>() > bytes_read {
-                            break;
-                        }
-                        // SAFETY: Reading error header starting after NlMsgHdr within validated bounds.
-                        let err_msg: NlMsgErr = unsafe {
-                            std::ptr::read_unaligned(recv_buf[err_inner_offset..].as_ptr() as *const _)
-                        };
-                        if err_msg.error != 0 {
-                            return Err(WraithError::Custom(format!("Dump error: {}", -err_msg.error)));
-                        }
-                    }
-
-                    frames.push(recv_buf[offset..offset + msg_len].to_vec());
-                    offset += nlmsg_align(msg_len);
+                let (new_frames, is_done) = parse_netlink_frames(&recv_buf[..bytes_read])?;
+                frames.extend(new_frames);
+                if is_done {
+                    break 'dump_loop;
                 }
             }
 
