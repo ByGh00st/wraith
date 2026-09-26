@@ -705,9 +705,6 @@ impl NetlinkSocket {
             Err(WraithError::UnsupportedPlatform)
         }
     }
-            Err(WraithError::UnsupportedPlatform)
-        }
-    }
 
     /// Sends a multi-part dump request and collects all response frames until `NLMSG_DONE`
     pub fn send_dump_request(&mut self, msg_type: u16, family: u8) -> Result<Vec<Vec<u8>>> {

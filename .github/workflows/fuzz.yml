@@ -44,7 +44,7 @@ jobs:
         run: |
           which cargo-fuzz || cargo install cargo-fuzz --locked
 
-      - name: Fuzz F1 - wraith-net: tcp_wire
+      - name: "Fuzz F1 - wraith-net (tcp_wire)"
         working-directory: crates/wraith-net
         env:
           INPUT_DURATION: ${{ inputs.duration_seconds }}
@@ -52,7 +52,7 @@ jobs:
           DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_tcp_wire -- -max_total_time=$DURATION -timeout=10
 
-      - name: Fuzz F2 - wraith-net: netlink
+      - name: "Fuzz F2 - wraith-net (netlink)"
         working-directory: crates/wraith-net
         env:
           INPUT_DURATION: ${{ inputs.duration_seconds }}
@@ -60,7 +60,7 @@ jobs:
           DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_netlink -- -max_total_time=$DURATION -timeout=10
 
-      - name: Fuzz F3 - wraith-guard: dns_engine
+      - name: "Fuzz F3 - wraith-guard (dns_engine)"
         working-directory: crates/wraith-guard
         env:
           INPUT_DURATION: ${{ inputs.duration_seconds }}
@@ -68,7 +68,7 @@ jobs:
           DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_dns_engine -- -max_total_time=$DURATION -timeout=10
 
-      - name: Fuzz F4 - wraith-tor: proxy_request
+      - name: "Fuzz F4 - wraith-tor (proxy_request)"
         working-directory: crates/wraith-tor
         env:
           INPUT_DURATION: ${{ inputs.duration_seconds }}
@@ -76,7 +76,7 @@ jobs:
           DURATION="${INPUT_DURATION:-600}"
           cargo fuzz run fuzz_proxy_request -- -max_total_time=$DURATION -timeout=10
 
-      - name: Fuzz F5 - wraith-tor: tls_camouflage
+      - name: "Fuzz F5 - wraith-tor (tls_camouflage)"
         working-directory: crates/wraith-tor
         env:
           INPUT_DURATION: ${{ inputs.duration_seconds }}
