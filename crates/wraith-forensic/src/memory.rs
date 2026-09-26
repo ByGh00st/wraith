@@ -30,10 +30,18 @@ pub fn overwrite_swap(is_emergency: bool) -> Result<()> {
     }
     for line in String::from_utf8_lossy(&output.stdout).lines() {
         let fields: Vec<_> = line.split_whitespace().collect();
-        if fields.len() != 4 || !fields[0].starts_with('/') || fields[0].contains('\\') {
+        if fields.len() != 4
+            || !fields[0].starts_with('/')
+            || fields[0].contains('\\')
+            || fields[0].contains("..")
+            || fields[0].chars().any(|c| c.is_ascii_control() || c.is_ascii_whitespace())
+        {
             return Err(WraithError::Forensic("Unsupported swap path; no destructive operation attempted".into()));
         }
         let device = fields[0];
+        if !Path::new(device).exists() {
+            return Err(WraithError::Forensic(format!("Swap target {device} does not exist")));
+        }
         let size = fields[1].parse::<u64>().map_err(|e| WraithError::Forensic(e.to_string()))?;
         let uuid = Command::new("blkid").args(["-s", "UUID", "-o", "value", "--", device]).output()?;
         if !uuid.status.success() { return Err(WraithError::Forensic("Cannot read swap UUID".into())); }
