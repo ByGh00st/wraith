@@ -87,7 +87,7 @@ impl SessionProcess {
         let result = unsafe { libc::poll(&mut event, 1, 0) };
         if result < 0 { return Err(std::io::Error::last_os_error()); }
         if event.revents & libc::POLLNVAL != 0 {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid session pidfd"));
+            return Ok(true);
         }
         Ok(event.revents & (libc::POLLIN | libc::POLLHUP) != 0)
     }
