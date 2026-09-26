@@ -12,7 +12,7 @@ for attempt in $(seq 1 "$MAX_DNS_WAIT"); do
     RAW_OUTPUT=$(dig @127.0.0.1 -p 5354 example.com A +short +time=3 +tries=1 2>&1 || true)
 
     # Filter out error lines — only accept actual IP addresses
-    DNS_RESOLVED=$(echo "$RAW_OUTPUT" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+    DNS_RESOLVED=$(echo "$RAW_OUTPUT" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
 
     if [[ -n "$DNS_RESOLVED" ]]; then
         break
