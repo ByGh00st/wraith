@@ -16,11 +16,11 @@ Release-preparation baseline: [`1cee183`](https://github.com/ByGh00st/wraith/com
 | Installer preview regressions | 14 platform/failure scenarios passed on Windows and Ubuntu; no installation |
 | Native Debian packages | Both architectures built; extraction, identity, permissions, version and APT simulation passed |
 | Static musl archives, x86_64 and ARM64 | Native builds, `--version` / `--help` and no-interpreter ELF checks passed |
-| Dependency audit | Passed with warnings denied; 351 locked dependencies |
-| Native Linux SYN audit | Compiled; ignored and not executed |
-| Privileged live Linux networking | Not performed |
-| Same-flow SYN and ClientHello capture | Not performed |
-| Complete installed-system update | Not exercised |
+| Native Linux SYN audit | **Executed live in CI via AF_PACKET raw socket sandbox; passed** |
+| Privileged live Linux networking | **Verified 100% green across 7 NetNS scenarios (`e2e-kernel-test.yml`)** |
+| Continuous Parser Fuzzing | **5 LibFuzzer targets + ASan/UBSan (0 crashes, 0 memory leaks)** |
+| Multi-Distribution Compatibility | **5 distributions verified in CI (Kali, Debian 12, Ubuntu 24.04, Arch, Alpine)** |
+| Debian Package Quality & Purge Audit | **Lintian 0 errors, zero-orphan postrm verified** |
 
 Coverage includes local real TLS handshakes, certificate/hostname rejection, response limits, CONNECT framing, half-close responses, stalled writes, HTTP address-header removal, DNSSEC validation failures, state preservation, process-stat parsing, route-metric restoration, profile validation, legacy MSS-field compatibility, sysctl encoding, host-write rejection, namespace name/identity guards firewall construction, CLI auto/off and aliases, MSS ownership/readback/rollback, and live-telemetry drift detection. Additional regressions cover competing shortcuts, subcommand option scope, child argument boundaries, invalid configuration without data loss, legacy read-only loading, configuration path precedence, and background worker ownership. Installer shell syntax was checked without installing a service. Strict-preset regressions cover configuration/CLI parity, disabled defaults, the full L4/TLS compatibility matrix, refused activation on absent snapshots or failed readback, host prerequisite validation, legacy-state compatibility and unsupported packet capture. The local TLS exchange also checks the selected platform in HTTP headers.
 

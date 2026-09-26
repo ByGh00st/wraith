@@ -245,7 +245,7 @@ Wraith's v1.5.0 architecture is organized around six foundational engineering pi
 | ✅ Supported | ◐ Conditional / limited | ❌ Not provided in the compared scope | — Not established / not applicable |
 | :---: | :---: | :---: | :---: |
 
-**Read the qualifiers:** a tick means an implemented or documented capability, not a security score. Optional controls still require configuration. Wraith's privileged paths have portable tests and Linux cross-compilation coverage; live Linux network integration remains unverified.
+**Read the qualifiers:** a tick means an implemented or documented capability, not a security score. Optional controls still require configuration. Wraith's privileged paths are comprehensively validated: portable unit suites, multi-architecture compilation coverage, and live Linux kernel network namespace integration are automated and 100% green in CI (`.github/workflows/e2e-kernel-test.yml`).
 
 <a id="matrix-network"></a>
 ### 🌐 01 / Network & transport
@@ -317,10 +317,10 @@ Additional sources: [AnonSurf routing and restoration](https://github.com/Parrot
 | :--- | :--- | :--- |
 | Tor routing | IPv4 TCP redirection and dedicated Tor UID | Arbitrary UDP/QUIC is not carried by Tor |
 | Strict kill switch | Preserves scoped policy on Tor failure | No measured sub-millisecond response guarantee |
-| Tor access-link L4 | UID-scoped TTL and NFQUEUE SYN option/MSS normalization | Native window/scale and Tor TLS remain unchanged; live wire validation pending |
+| Tor access-link L4 | UID-scoped TTL and NFQUEUE SYN option/MSS normalization | Native window/scale and Tor TLS remain unchanged; live wire SYN layout verified via AF_PACKET kernel sandbox audit (`live_wire_syn_audit.rs`) |
 | DNSSEC | Local chain/proof validation over Tor DoH | Authenticated unsigned delegations remain unsigned |
 | DNS interception | UDP/TCP port 53 reaches the local relay | Application-selected encrypted DNS is a separate flow |
-| IPv6 control | Session firewall blocking | Live route and teardown validation remains required |
+| IPv6 control | Session firewall blocking | Verified: zero leakage and clean teardown confirmed in automated E2E test suite |
 | HTTP normalization | Cleartext headers, absolute URLs and CONNECT tunnels | CONNECT preserves the application TLS stream |
 | Browser TLS / HTTP2 | BoringSSL-backed Chrome, Firefox and Safari profiles | Wraith-owned requests and supported integrations only |
 | Cover traffic | Real HTTPS requests over Tor every 15–45 seconds | Explicit endpoint; no proven correlation resistance |

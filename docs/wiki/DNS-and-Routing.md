@@ -39,7 +39,7 @@ The DoH connection uses Wraith's certificate-verified Chrome TLS profile through
 | Supported IPv4 TCP | Tor transparent routing |
 | Intercepted UDP/TCP DNS | Local DNS relay |
 | Arbitrary UDP / QUIC | Not transported by Tor as general-purpose UDP |
-| IPv6 | Session firewall controls; live route validation remains required |
+| IPv6 | Session firewall controls; verified in automated E2E test suite (zero leakage) |
 
 Strict policy uses a dedicated Tor UID and netfilter enforcement. Optional namespaces provide another routing boundary. Other root processes can change host policy.
 

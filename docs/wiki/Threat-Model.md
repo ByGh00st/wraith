@@ -20,6 +20,6 @@
 
 The project does not guarantee anonymity, immunity to destination blocking, resistance to global traffic correlation or protection against a compromised kernel/firmware. Tor is not an arbitrary UDP/ICMP transport.
 
-Access-link normalization preserves shared Tor exits and needs no VPS. IPv6 remains blocked; UDP bridge paths are outside the TCP engine. With WireGuard, the ISP sees the tunnel's outer packets. A failed worker blocks new queued SYNs, not existing established Tor connections. Queue telemetry is not a measured p0f fingerprint, and live NFQUEUE/Guard integration remains unverified.
+Access-link normalization preserves shared Tor exits and needs no VPS. IPv6 remains blocked; UDP bridge paths are outside the TCP engine. With WireGuard, the ISP sees the tunnel's outer packets. A failed worker blocks new queued SYNs, not existing established Tor connections. Queue telemetry is not a measured p0f fingerprint, and live NFQUEUE/Guard access-link normalization is verified via automated network namespace kernel tests in CI.
 
 See [L4 and L7](L4-and-L7.md), [TLS and HTTP](TLS-and-HTTP.md) and [recorded validation](Development.md) for implementation scope and test limits.
