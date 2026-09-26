@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Published release tag to publish (for example v1.4.0); blank selects latest
+        description: Published release tag to publish (for example v1.4.7); blank selects latest
         required: false
         type: string
   schedule:

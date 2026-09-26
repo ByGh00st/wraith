@@ -11,11 +11,11 @@ name = "wraith"
 path = "src/main.rs"
 
 [dependencies]
-wraith-core = { version = "1.4.6", path = "../wraith-core" }
-wraith-net = { version = "1.4.6", path = "../wraith-net" }
-wraith-tor = { version = "1.4.6", path = "../wraith-tor" }
-wraith-guard = { version = "1.4.6", path = "../wraith-guard" }
-wraith-forensic = { version = "1.4.6", path = "../wraith-forensic" }
+wraith-core = { version = "1.4.7", path = "../wraith-core" }
+wraith-net = { version = "1.4.7", path = "../wraith-net" }
+wraith-tor = { version = "1.4.7", path = "../wraith-tor" }
+wraith-guard = { version = "1.4.7", path = "../wraith-guard" }
+wraith-forensic = { version = "1.4.7", path = "../wraith-forensic" }
 tokio.workspace = true
 tokio-util.workspace = true
 clap.workspace = true

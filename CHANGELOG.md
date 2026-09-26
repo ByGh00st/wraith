@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.7] - 2026-09-26
+
+### Security & Integrity Improvements (Remediation & Defense-in-Depth)
+- **Onion v3 Ephemeral Key Shredding TOCTOU Protection (CWE-59)**: Secured `shred_key_file` with `libc::O_NOFOLLOW | libc::O_NONBLOCK` and mandatory post-open descriptor validation (`nlink == 1`, matching inode/device). Enforced post-overwrite verification prior to unlink, eliminating symlink swap race attacks on ephemeral keys.
+- **DNS Sinkhole & Onion FQDN Trailing Dot Normalization (CWE-178)**: Implemented `is_sinkhole_domain` and `is_onion_domain` stripping trailing FQDN dots (`.`) and normalizing case, preventing telemetry probes (e.g. `telemetry.mozilla.org.`) from bypassing sinkhole interception and guaranteeing correct loopback handling for fully qualified `.onion.` names.
+- **Torrc Directive & Comment Injection Prevention (CWE-93)**: Introduced `OnionServiceConfig::validate()` rejecting comment tokens (`#`), CRLF injection (`\r`, `\n`), ASCII control characters, whitespace, identifiers over 64 chars, and path traversal sequences (`..`) in Unix socket targets.
+- **L2 MAC Spoofing CSPRNG Standardization (CWE-330)**: Replaced PRNG `thread_rng` in physical and virtual MAC generation with kernel CSPRNG `rand::rngs::OsRng`.
+- **High-Entropy Natural Hostname Generation (CWE-330)**: Replaced low-entropy dictionary adjective-noun combinations with high-entropy cryptographic hex tokens ($>10^8$ entropy) formatted as authentic corporate endpoints (`desktop-xxxxxx`, `laptop-xxxxxx`, `station-xxxxxx`), defeating DHCP log correlation and device fingerprinting.
+- **Seccomp-BPF Memory Inspection Syscall Sandboxing (CWE-269)**: Extended BPF filter to actively reject cross-process virtual memory dumping syscalls `process_vm_readv` (x86_64: 310, ARM64: 270) and `process_vm_writev` (x86_64: 311, ARM64: 271) alongside `ptrace` and invalid ABI invocations with `EPERM`.
+- **EDNS0 Padding Integer Underflow Hardening (CWE-190)**: Protected `apply_edns0_padding` with checked arithmetic (`checked_add`, `checked_sub`) and bounds conversion (`u16::try_from`), guaranteeing safe padding generation against arbitrary packet payloads.
+- **Forensic Swap Scrubbing Device Path Enforcement (CWE-78)**: Enforced strict swap path validation in `overwrite_swap`, checking path existence via `Path::exists()` and rejecting control characters, traversal sequences (`..`), and non-canonical identifiers prior to disk sanitization.
+
 ## [1.4.6] - 2026-09-25
 
 ### Added & Improved

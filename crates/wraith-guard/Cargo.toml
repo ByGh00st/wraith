@@ -6,9 +6,9 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-wraith-core = { version = "1.4.6", path = "../wraith-core" }
-wraith-net = { version = "1.4.6", path = "../wraith-net" }
-wraith-tor = { version = "1.4.6", path = "../wraith-tor" }
+wraith-core = { version = "1.4.7", path = "../wraith-core" }
+wraith-net = { version = "1.4.7", path = "../wraith-net" }
+wraith-tor = { version = "1.4.7", path = "../wraith-tor" }
 tokio.workspace = true
 tokio-util.workspace = true
 thiserror.workspace = true
