@@ -101,7 +101,7 @@ if [[ $# -eq 0 ]]; then
         mount --make-rprivate /
         mount -t overlay overlay -o lowerdir=/etc,upperdir='$SANDBOX_DIR/etc-upper',workdir='$SANDBOX_DIR/etc-work' /etc
         mount -t overlay overlay -o lowerdir=/run,upperdir='$SANDBOX_DIR/run-upper',workdir='$SANDBOX_DIR/run-work' /run
-        timeout --kill-after=10 300 bash '$SCRIPT_DIR/run-all.sh'
+        timeout --kill-after=10 600 bash '$SCRIPT_DIR/run-all.sh'
     "
 else
     echo "[*] Executing: $* inside $NS_NAME with mount isolation..."

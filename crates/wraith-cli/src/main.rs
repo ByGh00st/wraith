@@ -340,7 +340,7 @@ struct Cli {
     test: bool,
 
     /// Display telemetry dashboard & circuits
-    #[arg(short = 'i', long)]
+    #[arg(short = 'i', long, visible_aliases = ["status"])]
     info: bool,
 
     /// Run deep multi-tier kernel diagnostics auditor
@@ -437,6 +437,7 @@ enum Commands {
     /// Run leak verification suite
     Test,
     /// Show status telemetry dashboard
+    #[command(name = "info", visible_aliases = ["status"])]
     Info,
     /// Run multi-vector deep kernel integrity & network diagnostics
     Doctor,

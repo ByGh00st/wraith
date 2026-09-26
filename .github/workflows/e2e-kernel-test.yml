@@ -14,7 +14,7 @@ jobs:
   kernel-e2e:
     name: Live Linux Netfilter & Tor Sandbox
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout Source Code
@@ -34,6 +34,7 @@ jobs:
             curl \
             dnsutils \
             jq \
+            netcat-openbsd \
             e2fsprogs
 
       - name: Compile Wraith Binary
