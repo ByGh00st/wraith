@@ -50,13 +50,15 @@ impl SockFilter {
 
 pub fn build_seccomp_bpf_filter() -> Vec<SockFilter> {
     if cfg!(target_arch = "aarch64") {
-        filter_for_arch(AUDIT_ARCH_AARCH64, 117, false)
+        // Block ptrace (117), process_vm_readv (270), process_vm_writev (271)
+        filter_for_arch(AUDIT_ARCH_AARCH64, &[117, 270, 271], false)
     } else {
-        filter_for_arch(AUDIT_ARCH_X86_64, 101, true)
+        // Block ptrace (101), process_vm_readv (310), process_vm_writev (311)
+        filter_for_arch(AUDIT_ARCH_X86_64, &[101, 310, 311], true)
     }
 }
 
-fn filter_for_arch(architecture: u32, ptrace_syscall: u32, reject_x32: bool) -> Vec<SockFilter> {
+fn filter_for_arch(architecture: u32, blocked_syscalls: &[u32], reject_x32: bool) -> Vec<SockFilter> {
     let mut filter = vec![
         // 1. Load Architecture (seccomp_data.arch offset 4)
         SockFilter::stmt(BPF_LD | BPF_W | BPF_ABS, 4),
@@ -66,7 +68,6 @@ fn filter_for_arch(architecture: u32, ptrace_syscall: u32, reject_x32: bool) -> 
 
         // 3. Load Syscall Number (seccomp_data.nr offset 0)
         SockFilter::stmt(BPF_LD | BPF_W | BPF_ABS, 0),
-
     ];
     if reject_x32 {
         // x32 shares the x86_64 audit identifier but uses different numbers.
@@ -76,14 +77,16 @@ fn filter_for_arch(architecture: u32, ptrace_syscall: u32, reject_x32: bool) -> 
         ]);
     }
 
-    filter.extend([
-        // 4. Reject the native architecture's ptrace syscall.
-        SockFilter::jump(BPF_JMP | BPF_JEQ | BPF_K, ptrace_syscall, 0, 1),
-        SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+    // 4. Reject debugging and cross-process memory dumping syscalls
+    for &nr in blocked_syscalls {
+        filter.extend([
+            SockFilter::jump(BPF_JMP | BPF_JEQ | BPF_K, nr, 0, 1),
+            SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+        ]);
+    }
 
-        // 5. Default: ALLOW all other standard system calls
-        SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-    ]);
+    // 5. Default: ALLOW all other standard system calls
+    filter.push(SockFilter::stmt(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
     filter
 }
 
@@ -147,13 +150,17 @@ mod tests {
     }
     #[test]
     fn denies_ptrace_and_alternate_abi() {
-        let code = filter_for_arch(AUDIT_ARCH_X86_64, 101, true);
+        let code = filter_for_arch(AUDIT_ARCH_X86_64, &[101, 310, 311], true);
         assert_eq!(decision(&code, AUDIT_ARCH_X86_64, 101), SECCOMP_RET_ERRNO | EPERM);
+        assert_eq!(decision(&code, AUDIT_ARCH_X86_64, 310), SECCOMP_RET_ERRNO | EPERM);
+        assert_eq!(decision(&code, AUDIT_ARCH_X86_64, 311), SECCOMP_RET_ERRNO | EPERM);
         assert_eq!(decision(&code, AUDIT_ARCH_X86_64, 0x40000209), SECCOMP_RET_ERRNO | EPERM);
         assert_eq!(decision(&code, AUDIT_ARCH_X86_64, 1), SECCOMP_RET_ALLOW);
         assert_eq!(decision(&code, AUDIT_ARCH_AARCH64, 1), SECCOMP_RET_KILL_PROCESS);
-        let code = filter_for_arch(AUDIT_ARCH_AARCH64, 117, false);
+        let code = filter_for_arch(AUDIT_ARCH_AARCH64, &[117, 270, 271], false);
         assert_eq!(decision(&code, AUDIT_ARCH_AARCH64, 117), SECCOMP_RET_ERRNO | EPERM);
+        assert_eq!(decision(&code, AUDIT_ARCH_AARCH64, 270), SECCOMP_RET_ERRNO | EPERM);
+        assert_eq!(decision(&code, AUDIT_ARCH_AARCH64, 271), SECCOMP_RET_ERRNO | EPERM);
         assert_eq!(decision(&code, AUDIT_ARCH_AARCH64, 64), SECCOMP_RET_ALLOW);
         assert_eq!(decision(&code, AUDIT_ARCH_X86_64, 101), SECCOMP_RET_KILL_PROCESS);
         assert_eq!(decision(&code, 0x40000028, 26), SECCOMP_RET_KILL_PROCESS);

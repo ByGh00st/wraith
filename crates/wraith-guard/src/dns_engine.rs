@@ -98,6 +98,27 @@ pub const SINKHOLE_DOMAINS: &[&str] = &[
     "hotjar.com",
 ];
 
+/// Matches telemetry/spyware domains against the sinkhole catalog,
+/// normalizing case, trailing dots (FQDN), and subdomains.
+pub fn is_sinkhole_domain(qname: &str) -> bool {
+    let lower = qname.to_ascii_lowercase();
+    let normalized = lower.trim_end_matches('.');
+    if normalized.is_empty() {
+        return false;
+    }
+    SINKHOLE_DOMAINS.iter().any(|sink| {
+        normalized == *sink || normalized.ends_with(&format!(".{sink}"))
+    })
+}
+
+/// Determines if a domain name targets the Tor Onion hidden service space (.onion),
+/// normalizing case and trailing dots.
+pub fn is_onion_domain(qname: &str) -> bool {
+    let lower = qname.to_ascii_lowercase();
+    let normalized = lower.trim_end_matches('.');
+    normalized.ends_with(".onion") || normalized == "onion"
+}
+
 // ==============================================================================
 // 2. DNS WIRE PROTOCOL STRUCTURES (`repr(C)` & Canonical Memory)
 // ==============================================================================
@@ -406,15 +427,19 @@ impl DnsPacket {
 
         let Some(header) = DnsHeader::from_bytes(&payload) else { return payload; };
         // Preserve existing OPT records; never append unframed random garbage.
-        if header.arcount != 0 || target_len < payload.len() + 15 || target_len > 4096 {
+        if header.arcount != 0 || target_len > 4096 {
             return payload;
         }
-        let padding_len = target_len - payload.len() - 15;
+        let Some(needed) = payload.len().checked_add(15) else { return payload; };
+        let Some(padding_len) = target_len.checked_sub(needed) else { return payload; };
+        let Ok(opt_data_len) = u16::try_from(padding_len + 4) else { return payload; };
+        let Ok(opt_pad_len) = u16::try_from(padding_len) else { return payload; };
+
         payload[10..12].copy_from_slice(&1u16.to_be_bytes());
         payload.extend_from_slice(&[0, 0, 41, 16, 0, 0, 0, 0, 0]);
-        payload.extend_from_slice(&((padding_len + 4) as u16).to_be_bytes());
+        payload.extend_from_slice(&opt_data_len.to_be_bytes());
         payload.extend_from_slice(&12u16.to_be_bytes());
-        payload.extend_from_slice(&(padding_len as u16).to_be_bytes());
+        payload.extend_from_slice(&opt_pad_len.to_be_bytes());
         payload.resize(target_len, 0);
         payload
     }
@@ -669,8 +694,7 @@ impl SovereignDnsServer {
 
 
         // 1. Check Spyware & Telemetry Sinkhole Matrix
-        let is_sinkhole = SINKHOLE_DOMAINS.iter().any(|sink| { let name = qname.to_ascii_lowercase(); name == *sink || name.ends_with(&format!(".{sink}")) });
-        if is_sinkhole {
+        if is_sinkhole_domain(qname) {
             info!("🛡️ SINKHOLE INTERCEPTION: Blocked telemetry query '{qname}'");
             let nxdomain = parsed_pkt.build_nxdomain_response();
             let padded = DnsPacket::apply_edns0_padding(nxdomain, EDNS0_TARGET_PADDING_SIZE);
@@ -678,7 +702,7 @@ impl SovereignDnsServer {
         }
 
         // 2. Tor .onion domains MUST be routed to Tor's internal resolver (DNSPort 5353)
-        let is_onion = qname.to_ascii_lowercase().ends_with(".onion") || qname.eq_ignore_ascii_case("onion");
+        let is_onion = is_onion_domain(qname);
 
         // 3. Relay Query via DoH or Local Tor DNSPort (5353)
         let mut response_bytes: Option<Vec<u8>> = None;
@@ -899,9 +923,28 @@ mod tests {
 
     #[test]
     fn test_sinkhole_telemetry_match() {
-        assert!(SINKHOLE_DOMAINS.iter().any(|sink| "telemetry.microsoft.com".ends_with(sink)));
-        assert!(SINKHOLE_DOMAINS.iter().any(|sink| "stats.g.doubleclick.net".ends_with(sink)));
-        assert!(!SINKHOLE_DOMAINS.iter().any(|sink| "torproject.org".ends_with(sink)));
+        assert!(is_sinkhole_domain("telemetry.microsoft.com"));
+        assert!(is_sinkhole_domain("telemetry.microsoft.com."));
+        assert!(is_sinkhole_domain("sub.telemetry.microsoft.com"));
+        assert!(is_sinkhole_domain("sub.telemetry.microsoft.com."));
+        assert!(is_sinkhole_domain("TELEMETRY.MICROSOFT.COM."));
+        assert!(is_sinkhole_domain("stats.g.doubleclick.net"));
+        assert!(is_sinkhole_domain("stats.g.doubleclick.net."));
+        assert!(!is_sinkhole_domain("torproject.org"));
+        assert!(!is_sinkhole_domain("nottelemetry.microsoft.com"));
+        assert!(!is_sinkhole_domain("."));
+        assert!(!is_sinkhole_domain(""));
+    }
+
+    #[test]
+    fn test_onion_domain_match() {
+        assert!(is_onion_domain("duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion"));
+        assert!(is_onion_domain("duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion."));
+        assert!(is_onion_domain("ONION"));
+        assert!(is_onion_domain("onion."));
+        assert!(!is_onion_domain("onion.com"));
+        assert!(!is_onion_domain("example.onion.com"));
+        assert!(!is_onion_domain(""));
     }
 }
 
