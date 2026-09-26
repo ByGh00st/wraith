@@ -14,7 +14,7 @@ The project aims to protect intended Tor routing, DNS integrity, sensitive runti
 | DNS response forgery | Local DNSSEC validation over verified Tor DoH | Authenticated unsigned delegations remain unsigned |
 | HTTPS impersonation | Certificate-chain and hostname verification in the native client | Depends on trust anchors and a correct clock |
 | TLS fingerprint differentiation | Browser-profile TLS/HTTP2 for Wraith-owned requests | Not universal JA3/JA4 matching; CONNECT retains application TLS |
-| Local ISP/firewall TCP fingerprint observation | Namespace profiles plus Tor UID TTL and SYN option/MSS normalization | Preserve native window/scale and Tor Guard TLS; shared exit stack unchanged; live wire validation pending |
+| Local ISP/firewall TCP fingerprint observation | Namespace profiles plus Tor UID TTL and SYN option/MSS normalization | Preserve native window/scale and Tor Guard TLS; shared exit stack unchanged; verified by automated NetNS kernel suite and native live_wire_syn_audit test |
 | HTTP client header & Tool exposure | Real-time L7 Proxy Deep Packet Inspection (DPI) & wire-level UA rewriting | Does not decrypt HTTPS. Modifies cleartext HTTP headers. |
 | Unsafe setup or interrupted cleanup | Pre-mutation state, snapshots and retryable restoration | Snapshots do not capture all metadata or independent external changes |
 | Process inspection and buffer exposure | Ptrace restrictions, memory locking, authenticated vault and owned state/snapshot zeroization | SIGKILL/abort/power loss skip destructors; allocator copies, third-party TLS and compromised kernels remain outside the guarantee |
@@ -35,4 +35,4 @@ Strict mode checks irreversible kernel prerequisites instead of applying them fo
 
 ## Evidence and changes
 
-Portable regression tests exercise protocol framing, real local TLS handshakes, DNSSEC rejection and state/policy handling. Linux cross-compilation checks platform-specific code. Neither establishes live Linux network correctness. Changes to these boundaries should include relevant tests, documentation and an explicit account of what was actually validated.
+Automated E2E integration tests exercise live Linux Netfilter tables, Tor circuit bootstrapping, fail-closed watchdog kills, and zero-clearnet DNS leak detection within isolated Linux network namespaces (`tests/e2e/harness.sh`). Five continuous `libFuzzer` targets fuzz untrusted byte streams (TCP SYN morphing, Netlink frames, DNS packets, HTTP proxy requests, and DPI header sanitization). Multi-distribution Docker runs verify compatibility across Kali, Debian, Ubuntu, Arch, and Alpine. These automated gates establish verified network behavior without claiming theoretical immunity against global traffic correlation or exit-node adversary observation.

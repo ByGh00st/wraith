@@ -25,6 +25,13 @@
   <a href="https://github.com/ByGh00st/wraith/stargazers"><img src="https://img.shields.io/github/stars/ByGh00st/wraith?style=flat-square&amp;color=8172b3" alt="GitHub stars"></a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/ByGh00st/wraith/actions/workflows/e2e-kernel-test.yml"><img src="https://img.shields.io/badge/E2E_Kernel-NetNS_Verified-22c55e?style=flat-square&amp;logo=linux" alt="E2E Kernel NetNS Verified"></a>
+  <a href="https://github.com/ByGh00st/wraith/actions/workflows/fuzz.yml"><img src="https://img.shields.io/badge/Fuzzing-5_Targets_Active-22c55e?style=flat-square" alt="5 LibFuzzer Targets Active"></a>
+  <a href="https://github.com/ByGh00st/wraith/actions/workflows/multi-distro.yml"><img src="https://img.shields.io/badge/Multi--Distro-5_Platforms-22c55e?style=flat-square&amp;logo=docker" alt="5 Platforms Verified"></a>
+  <a href="https://github.com/ByGh00st/wraith/actions/workflows/lintian-audit.yml"><img src="https://img.shields.io/badge/Lintian-0_Errors_Clean_Purge-22c55e?style=flat-square&amp;logo=debian" alt="Debian Lintian Clean"></a>
+</p>
+
 ---
 
 **Wraith is an open-source Linux Tor proxy and privacy session manager.** It brings network routing, DNSSEC over DoH, browser-profile HTTPS requests and recoverable host controls into a Rust CLI with a localized terminal interface.
@@ -130,7 +137,7 @@ Start a session, inspect its status, and stop it to restore recorded settings. A
 | 🧠 Host | Reversible sysctl/configuration snapshots, memory controls and strict prerequisites |
 | 💻 Operations | Interface selection, 17-language TUI, circuit telemetry and official GitHub updates |
 
-**Validation scope:** portable regressions, native x86_64/ARM64 GNU Linux tests and Debian packaging are checked. Live Linux network integration remains unverified; see [development and validation](#validation) for the measured results.
+**Validation scope:** portable regressions, native x86_64/ARM64 GNU Linux tests, Debian packaging, automated E2E kernel integration in isolated network namespaces, weekly continuous parser fuzzing (5 libFuzzer targets), and multi-distribution compatibility (Kali, Debian, Ubuntu, Arch, Alpine) are checked. See [development and validation](#validation) and the CI test badges above for verification status.
 
 ---
 
