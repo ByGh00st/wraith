@@ -22,7 +22,7 @@ run_stage() {
 }
 
 run_stage "01-netfilter.sh"        "Netfilter Routing & TransPort Redirect"
-run_stage "02-dns.sh"              "Sovereign DNS Resolution & DNSSEC Validation"
+run_stage "02-dns.sh"              "Local DNS Resolution & DNSSEC Validation"
 run_stage "03-tor-connectivity.sh" "Tor Circuit Readiness & TCP Egress Anonymity"
 run_stage "04-dns-leak.sh"         "Wire-Level DNS Leak Audit (Zero UDP/53 Clearnet)"
 run_stage "05-kill-switch.sh"      "Tor Daemon SIGKILL & Fail-Closed Kill-Switch"

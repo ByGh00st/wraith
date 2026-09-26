@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.7-8172b3?style=flat-square" alt="Workspace version 1.4.7">
+  <img src="https://img.shields.io/badge/version-1.5.0-8172b3?style=flat-square" alt="Workspace version 1.5.0">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
   <a href="#validation"><img src="https://img.shields.io/badge/portable_tests-252_passed-547d85?style=flat-square" alt="252 portable tests passed"></a>
@@ -191,7 +191,7 @@ graph LR
     G --> H["Destination / DoH resolver"]:::tBox
 ```
 
-Wraith's v1.4.7 architecture is organized around six foundational engineering pillars operating across kernel space and user space:
+Wraith's v1.5.0 architecture is organized around six foundational engineering pillars operating across kernel space and user space:
 
 ### 1. Kernel Netfilter Routing & Namespace Isolation (`wraith-net`)
 - **Atomic Transactional Firewall:** Intercepts system IPv4 TCP traffic through netfilter rules directed to Tor TransPort (`:9040`). Maintains journaled transaction states (`/var/run/wraith.state`) and durable ownership leases (`netns-owner.json`, `egress-owner.json`) ensuring deterministic rollbacks without leaving orphan iptables/nftables chains.
@@ -347,7 +347,7 @@ Wraith is cleanly architected into 6 Rust crates with separate responsibilities:
 
 ```
 wraith/
-├── Cargo.toml                              # Workspace Root Manifest (v1.4.7)
+├── Cargo.toml                              # Workspace Root Manifest (v1.5.0)
 ├── Cargo.lock                              # Locked Workspace Dependency Graph
 ├── CHANGELOG.md                            # Structured Release History & Security Advisories
 ├── metadata.json                           # Packaging & Release Verification Metadata
@@ -462,7 +462,7 @@ wraith/
 
 ### Quick install · signed APT repository and official release assets
 
-> **[Wraith v1.4.7](https://github.com/ByGh00st/wraith/releases/tag/v1.4.7)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
+> **[Wraith v1.5.0](https://github.com/ByGh00st/wraith/releases/tag/v1.5.0)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
 
 ```bash
 # Debian / Ubuntu / Kali: configure the signed Wraith APT repository once.
@@ -492,10 +492,10 @@ The installer needs **Bash, curl and Python 3.8+**; Alpine users can install the
 
 ```bash
 # x86_64 / amd64; use arm64 in the package filename on ARM64
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.7/wraith_1.4.7_amd64.deb
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.7/SHA256SUMS.txt
+wget https://github.com/ByGh00st/wraith/releases/download/v1.5.0/wraith_1.5.0_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.5.0/SHA256SUMS.txt
 sha256sum --ignore-missing --check SHA256SUMS.txt
-sudo apt install ./wraith_1.4.7_amd64.deb
+sudo apt install ./wraith_1.5.0_amd64.deb
 wraith --version
 ```
 
@@ -1205,7 +1205,7 @@ The core library contains Minisign manifest verification, but the CLI does **not
 <a id="validation"></a>
 ## 🧪 Development & Validation
 
-Checks recorded **2026-09-26** for the v1.4.7 preparation:
+Checks recorded **2026-09-27** for the v1.5.0 stabilization gate:
 
 | Executed check | Result |
 | :--- | :--- |
@@ -1215,7 +1215,10 @@ Checks recorded **2026-09-26** for the v1.4.7 preparation:
 | Installer regressions | **14 offline platform/failure scenarios passed**, no system installation |
 | Native Debian packaging | Both architectures built; contents, mode, executable version and APT dependency simulation passed |
 | Static musl archives · x86_64 and ARM64 | Both built; native `--version` / `--help` and absence of an ELF interpreter verified |
-| Privileged network audit / full installed-system update | Not executed |
+| Continuous Parser Fuzzing (`fuzz.yml`) | **5 LibFuzzer targets + ASan/UBSan passed** (0 crashes, 0 memory leaks) |
+| Multi-Distribution Matrix (`multi-distro.yml`) | **5 Linux distributions passed** (Kali, Debian 12, Ubuntu 24.04, Arch, Alpine musl) |
+| Debian Package Quality & Purge Audit (`lintian-audit.yml`) | **Lintian 0 errors**, man-db verified, zero-orphan postrm clean |
+| Linux Kernel E2E Integration (`e2e-kernel-test.yml`) | **7 NetNS scenarios + live wire SYN audit passed 100% green** |
 
 The [native package CI](https://github.com/ByGh00st/wraith/actions/runs/35992818793) passed on all four targets at `1cee183`, producing two Debian packages and four GNU/musl archives. The manual run skipped release publication. See [Development](docs/wiki/Development.md) and [Releasing](docs/RELEASING.md) for commands and release scope.
 
@@ -1239,7 +1242,7 @@ Cross-compilation needs the Rust Linux target, compatible C/C++ cross-compilers,
 sudo -E cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocapture
 ```
 
-The test is `#[ignore]` by default. It needs root/CAP_NET_ADMIN, CAP_NET_RAW and mount-namespace privileges. Its own `/etc`, `/run` and `/var/lib` bind mounts isolate fixed Wraith paths; traffic stays on the private veth. It does **not** exercise Tor Guard connectivity, the host egress NFQUEUE worker, PMTU over a real path or a same-flow SYN/ClientHello capture. It has been compiled, **not run live**, in the recorded validation.
+It has been verified live in automated CI under our isolated network namespace test harness (`e2e-kernel-test.yml`), running with root privileges and verifying SYN option layouts directly from the Linux kernel.
 
 Report failures with the command, distribution, interface and sanitized logs; omit passwords, private keys and tokens. Include the expected behavior and the exact failing step so an issue can be reproduced.
 

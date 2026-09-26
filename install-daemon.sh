@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# ⚔️ WRAITH-PRIME // SOVEREIGN SYSTEMD DAEMON DEPLOYMENT & BOOT ENGINE
-# High-Assurance Ring-0/Ring-3 Defense & Anonymization Engine
+# WRAITH SYSTEMD DAEMON DEPLOYMENT ENGINE
+# High-Assurance Linux Network Privacy & Traffic Anonymization Engine
 # Absolute Precision. Zero Telemetry. Pure Technical Execution.
 # ==============================================================================
 
@@ -187,7 +187,7 @@ BANNER
 
 # ─── [ INTERACTIVE CONFIGURATION WIZARD ] ──────────────────────────────────────
 if [ "$INTERACTIVE" = true ]; then
-    echo -e "  ${CLR_WHITE}${CLR_BOLD}SOVEREIGN DAEMON DEPLOYMENT WIZARD // KERNEL ARMED${CLR_RESET}"
+    echo -e "  ${CLR_WHITE}${CLR_BOLD}WRAITH SYSTEMD DAEMON DEPLOYMENT WIZARD${CLR_RESET}"
     echo -e "  ${CLR_SLATE}Configure persistent system background service, operational parameters & boot hooks.${CLR_RESET}\n"
 
     # --- STEP 1: Boot Mode & Root Activation ---
@@ -368,7 +368,7 @@ CMD_EXEC_LINE="$WRAITH_BIN start --daemon-worker ${DAEMON_ARGS[*]}"
 mkdir -p /etc/wraith
 cat <<EOF > /etc/wraith/daemon.conf
 # ==============================================================================
-# WRAITH DAEMON CONFIGURATION // SOVEREIGN ENGINE PARAMETERS
+# WRAITH DAEMON CONFIGURATION // PARAMETERS
 # Managed by install-daemon.sh
 # ==============================================================================
 BOOT_MODE="${OPT_BOOT_MODE}"
@@ -394,7 +394,7 @@ else
     # Standard Multi-User Background Daemon
     cat <<EOF > "$SERVICE_FILE"
 [Unit]
-Description=Wraith Sovereign Kernel Defense & Anonymization Engine (Daemon)
+Description=Wraith Kernel Privacy & Traffic Anonymization Engine (Daemon)
 Documentation=https://github.com/ByGh00st/wraith
 After=network.target network-online.target
 Wants=network-online.target

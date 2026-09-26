@@ -1,4 +1,4 @@
-.TH WRAITH 1 "September 2026" "wraith 1.4.7" "User Commands"
+.TH WRAITH 1 "September 2026" "wraith 1.5.0" "User Commands"
 .SH NAME
 wraith \- Kernel-grade network anonymization and anti-forensics framework
 .SH SYNOPSIS
@@ -6,12 +6,12 @@ wraith \- Kernel-grade network anonymization and anti-forensics framework
 [\fIOPTIONS\fR] [\fICOMMAND\fR]
 .SH DESCRIPTION
 .B wraith
-is a sovereign Linux network anonymization engine. It enforces transparent Tor routing,
+is an enterprise-grade Linux network privacy and traffic anonymization framework. It enforces transparent Tor routing,
 kernel-level Netfilter isolation, RFC 1035 wire-format DNS sinkholing, and cross-layer L4/L7 OS fingerprint normalization.
 .SH COMMANDS
 .TP
 \fBstart\fR [\fIOPTIONS\fR]
-Initiates the kernel network anonymization session, locks down Netfilter tables, starts the sovereign DNS resolver, and bootstraps Tor routing.
+Initiates the kernel network privacy session, configures Netfilter tables, starts the local DNSSEC resolver, and bootstraps Tor routing.
 .TP
 \fBstop\fR
 Gracefully terminates the active session, flushes TransPort redirects, restores original nameservers, and unlocks /etc/resolv.conf.

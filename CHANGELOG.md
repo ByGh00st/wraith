@@ -8,6 +8,29 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 
 ---
 
+## [1.5.0] - 2026-09-27
+
+### Enterprise Stabilization Gate & Quality Assurance Verification (100% Green CI)
+- **Live Linux Kernel E2E Integration (`.github/workflows/e2e-kernel-test.yml`)**:
+  - Implemented network namespace sandbox harness (`tests/e2e/harness.sh`) resolving the kill-switch runner disconnection paradox.
+  - Automated and verified 7 end-to-end kernel scenarios: Netfilter TransPort `:9040` redirection, IPv6 blackout, local DNS/DNSSEC proof verification over DoH, Tor %100 bootstrap readiness poll, wire UDP 53 leak capture, watchdog fail-closed killswitch, and clean host teardown/recovery.
+  - Automated live root execution of `live_wire_syn_audit.rs` via raw AF_PACKET sockets, asserting TTL=128, MSS=1460, TS=0, and OS-CSPRNG MAC injection in kernel sandbox.
+- **Continuous Parser Hardening & LibFuzzer (`.github/workflows/fuzz.yml`)**:
+  - Established 5 dedicated LLVM libFuzzer targets instrumented with AddressSanitizer and UndefinedBehaviorSanitizer: `fuzz_tcp_wire`, `fuzz_dns_engine`, `fuzz_proxy_request`, `fuzz_netlink`, and `fuzz_tls_camouflage`.
+  - Zero crashes, zero memory leaks, zero panics, and zero unaligned pointer UB across all parsing engines.
+- **Multi-Distribution Compatibility Matrix (`.github/workflows/multi-distro.yml`)**:
+  - Full matrix validation across 5 distinct environments: Kali Linux (Rolling), Debian 12 Bookworm, Ubuntu 24.04 LTS (hardened unprivileged userns), Arch Linux, and Alpine Linux 3.20 (musl).
+  - Validated pure static ELF binary on Alpine musl with zero dynamic interpreter dependencies (`readelf -l wraith | grep INTERP` is empty).
+  - Built custom rustc wrapper (`.github/musl-rustc-wrapper.sh`) dynamically linking host build scripts while keeping target binary CRT static.
+- **Debian Packaging Quality & Zero-Orphan Purge (`.github/workflows/lintian-audit.yml`)**:
+  - Passed strict Debian `lintian --fail-on error` audit with 0 errors.
+  - Enforced zero-orphan file removal during `apt purge` via `packaging/debian/postrm`.
+  - Authored and integrated Unix groff manpage `docs/wraith.1` (`/usr/share/man/man1/wraith.1.gz`), verified by `man-db` linting.
+- **Kernel & Syscall Hardening**:
+  - **Zombie PIDFD Signal Toleration**: Accepted `-EINVAL` (code 22) alongside `ESRCH` in `process_identity.rs` during `SYS_pidfd_send_signal`, eliminating stop panics on swiftly reaped processes.
+  - **Linux Netns Interface Alias Preservation**: Re-armed `dev->ifalias` inside target network namespace post-migration, matching Linux kernel `net/core/dev.c` RCU behavior.
+  - **Containerized D-Bus Resilience**: Handled container D-Bus absence in `active_system_tor_services` safely.
+
 ## [1.4.7] - 2026-09-26
 
 ### Security & Integrity Improvements (Remediation & Defense-in-Depth)

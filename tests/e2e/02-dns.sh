@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# SCENARIO 2: Sovereign DNS Engine & DNSSEC Validation Audit
+# SCENARIO 2: Local DNS Engine & DNSSEC Validation Audit
 # ==============================================================================
 set -euo pipefail
 

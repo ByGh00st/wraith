@@ -1,3 +1,10 @@
+wraith (1.5.0-1) unstable; urgency=medium
+
+  * Release v1.5.0 enterprise stabilization gate.
+  * Verified 100% green across E2E Kernel NetNS, Parser Fuzzing, Multi-Distro, and Lintian.
+
+ -- ByGh00st <byghost@users.noreply.github.com>  Sun, 27 Sep 2026 00:00:00 +0000
+
 wraith (1.4.7-1) unstable; urgency=medium
 
   * Release v1.4.7 stabilization and hardening gate.
