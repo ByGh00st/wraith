@@ -45,10 +45,14 @@ jobs:
             -e BORING_BSSL_RUST_CPPLIB="static=stdc++" \
             -e RUSTC_WRAPPER=/work/.github/musl-rustc-wrapper.sh \
             rust:alpine \
-            sh -c "apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils clang-dev clang-libs tar libstdc++-dev && \
+            sh -c 'set -eu; \
+                   apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils clang-dev clang-libs tar libstdc++-dev && \
                    git config --global --add safe.directory /work && \
+                   GCC_DIR=$(dirname $(find /usr/lib/gcc -name libstdc++.a | head -n 1)) && \
+                   ln -sf "$GCC_DIR/libstdc++.a" /usr/lib/libstdc++.a && \
+                   export RUSTFLAGS="-L native=$GCC_DIR -L native=/usr/lib" && \
                    cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl && \
-                   bash scripts/package-release.sh x86_64-unknown-linux-musl"
+                   bash scripts/package-release.sh x86_64-unknown-linux-musl'
 
       - name: Upload Dist Artifacts
         uses: actions/upload-artifact@v4
