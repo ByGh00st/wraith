@@ -358,7 +358,7 @@ help:
   shortcuts_header: 'Atajos operativos rápidos:'
   cmd_cleanup_full: Purga forense completa (RAM, swap y registros del sistema)
   sec_general_header: 'Opciones generales:'
-  opt_select_lang: Iniciar menú interactivo de configuración (75 idiomas)
+  opt_select_lang: Iniciar menú interactivo de configuración (17 idiomas)
   opt_help: Mostrar este mensaje de ayuda
   opt_version: Mostrar versión
   examples_header: 'Escenarios de uso operativo:'

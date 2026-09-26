@@ -130,8 +130,8 @@ Historical entries below describe earlier release announcements. Current support
 - **Tor Moat Circumvention Bridge Engine (`wraith bridge`)**:
   - Automated BridgeDB discovery via domain-fronted Moat JSON API and CAPTCHA challenge resolver.
   - First-class support for `obfs4`, `snowflake`, and `webtunnel` pluggable transports.
-- **Enterprise 75-Language Synchronization**:
-  - 100% synchronized dictionaries across all 75 native locales with zero missing translation keys.
+- **Enterprise 17-Language Synchronization**:
+  - 100% synchronized dictionaries across all 17 native locales with zero missing translation keys.
 
 ### Security & Hardening (Dual-Engine Audit Remediation)
 - **VULN-01 (RamFS Vault Directory Permissions & Path Traversal)**:
@@ -166,7 +166,7 @@ Historical entries below describe earlier release announcements. Current support
 - Five Eyes Intelligence Exclusion Profile (`-p stealth`): Excludes US, UK, CA, AU, NZ, FR, DE exit relays.
 - In-Flight Layer-4/Layer-7 DPI Sanitizer with initial 50+ tool signatures.
 - RFC 8701 GREASE & JA3/JA4 TLS ClientHello fingerprint mimicry.
-- Enterprise 75-language compile-time i18n architecture via `rust-i18n`.
+- Enterprise 17-language compile-time i18n architecture via `rust-i18n`.
 - Dynamic Profile Switching (`wraith profile <NAME>`).
 
 ---

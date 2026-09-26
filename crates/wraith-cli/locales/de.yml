@@ -358,7 +358,7 @@ help:
   shortcuts_header: 'Schnelle operative Tastenkürzel:'
   cmd_cleanup_full: Vollständige Bereinigung (RAM, Swap und Systemprotokolle)
   sec_general_header: 'Allgemeine Optionen:'
-  opt_select_lang: Interaktives 65-Sprachen-Terminalmenü starten
+  opt_select_lang: Interaktives 17-Sprachen-Terminalmenü starten
   opt_help: Diese Hilfemeldung anzeigen
   opt_version: Versionsinformationen anzeigen
   examples_header: 'Operative Anwendungsszenarien:'

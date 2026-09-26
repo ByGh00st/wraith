@@ -355,7 +355,7 @@ help:
   sec_general_header: 'خيارات عامة:'
   opt_verbose: Enable verbose debug logging
   opt_lang: Override system language (e.g. 'en', 'tr', 'ru', 'de')
-  opt_select_lang: فتح قائمة إعدادات الطرفية التفاعلية لـ 75 لغة
+  opt_select_lang: فتح قائمة إعدادات الطرفية التفاعلية لـ 17 لغة
   opt_help: عرض شاشة المساعدة هذه
   opt_version: عرض معلومات الإصدار
   examples_header: 'أمثلة على الاستخدام التشغيلي:'

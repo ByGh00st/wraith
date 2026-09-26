@@ -65,7 +65,7 @@ This release expands the in-flight Deep Packet Inspection (DPI) engine from 50 t
 * **Pure Rust LOC:** **13,493 lines of pure safe Rust** across 61 files.
 * **Test Suite:** **44/44 unit & integration tests passing (%100 PASS)**.
 * **Linter & Static Analysis:** **0 errors, 0 warnings** in `cargo clippy --workspace`.
-* **Internationalization:** **75 native locales** synchronized with zero missing keys.
+* **Internationalization:** **17 native locales** synchronized with zero missing keys.
 
 ---
 

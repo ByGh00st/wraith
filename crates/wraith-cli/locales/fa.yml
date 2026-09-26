@@ -356,7 +356,7 @@ help:
   sec_general_header: 'گزینه‌های عمومی:'
   opt_verbose: Enable verbose debug logging
   opt_lang: Override system language (e.g. 'en', 'tr', 'ru', 'de')
-  opt_select_lang: باز کردن منوی ترمینال پیکربندی 75 زبان
+  opt_select_lang: باز کردن منوی ترمینال پیکربندی 17 زبان
   opt_help: نمایش این صفحه راهنما
   opt_version: نمایش اطلاعات نسخه
   examples_header: 'نمونه‌های کاربرد عملیاتی:'
