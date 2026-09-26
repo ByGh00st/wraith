@@ -8,6 +8,11 @@ members = [
     "crates/wraith-forensic",
     "crates/wraith-cli",
 ]
+exclude = [
+    "crates/wraith-net/fuzz",
+    "crates/wraith-guard/fuzz",
+    "crates/wraith-tor/fuzz",
+]
 
 [workspace.package]
 version = "1.4.7"

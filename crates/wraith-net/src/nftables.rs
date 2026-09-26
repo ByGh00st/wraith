@@ -53,11 +53,33 @@ pub fn save_rules() -> Option<String> {
 }
 
 pub fn restore_rules(rules: &str) -> Result<()> {
-    restore_rules_with("iptables-restore", rules)
+    if rules.trim().is_empty() {
+        return flush_rules();
+    }
+    restore_rules_with("iptables-restore", rules)?;
+    // If the saved rules did not contain a *nat table, iptables-restore leaves the
+    // nat table untouched. Since Wraith installs nat redirection rules (9040, 5354),
+    // we must ensure the nat table is cleanly flushed if it had no pre-session rules.
+    if !rules.contains("*nat") {
+        let _ = Command::new("iptables").args(["-t", "nat", "-F"]).output();
+        let _ = Command::new("iptables").args(["-t", "nat", "-X"]).output();
+    }
+    Ok(())
 }
 
 pub fn restore_ipv6_rules(rules: &str) -> Result<()> {
-    restore_rules_with("ip6tables-restore", rules)
+    if rules.trim().is_empty() {
+        return crate::ipv6::flush_ipv6_block();
+    }
+    restore_rules_with("ip6tables-restore", rules)?;
+    if !rules.contains("*nat") {
+        let _ = Command::new("ip6tables").args(["-t", "nat", "-F"]).output();
+        let _ = Command::new("ip6tables").args(["-t", "nat", "-X"]).output();
+    }
+    if !rules.contains(":INPUT ACCEPT") && !rules.contains(":INPUT DROP") {
+        let _ = crate::ipv6::flush_ipv6_block();
+    }
+    Ok(())
 }
 
 fn restore_rules_with(program: &str, rules: &str) -> Result<()> {

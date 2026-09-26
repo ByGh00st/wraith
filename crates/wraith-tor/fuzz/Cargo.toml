@@ -23,3 +23,5 @@ name = "fuzz_tls_camouflage"
 path = "fuzz_targets/fuzz_tls_camouflage.rs"
 test = false
 doc = false
+
+[workspace]

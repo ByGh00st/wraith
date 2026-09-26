@@ -31,6 +31,7 @@ def validate(metadata, tag=""):
         "usr/share/bash-completion/completions/",
         "usr/share/zsh/vendor-completions/",
         "usr/share/fish/vendor_completions.d/",
+        "usr/share/man/man1/",
     )
     for source, destination, mode in deb["assets"]:
         if source.startswith("target/release/"):

@@ -23,3 +23,5 @@ name = "fuzz_netlink"
 path = "fuzz_targets/fuzz_netlink.rs"
 test = false
 doc = false
+
+[workspace]

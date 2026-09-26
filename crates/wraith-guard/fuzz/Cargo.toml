@@ -17,3 +17,5 @@ name = "fuzz_dns_engine"
 path = "fuzz_targets/fuzz_dns_engine.rs"
 test = false
 doc = false
+
+[workspace]
