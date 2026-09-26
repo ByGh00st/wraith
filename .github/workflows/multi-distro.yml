@@ -43,8 +43,8 @@ jobs:
             -e CARGO_HOST_RUSTFLAGS="-C target-feature=-crt-static" \
             -e CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C target-feature=+crt-static" \
             rust:alpine \
-            sh -c "git config --global --add safe.directory /work && \
-                   apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils clang-dev clang-libs tar && \
+            sh -c "apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils clang-dev clang-libs tar && \
+                   git config --global --add safe.directory /work && \
                    cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl && \
                    bash scripts/package-release.sh x86_64-unknown-linux-musl"
 

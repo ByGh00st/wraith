@@ -28,7 +28,7 @@ cleanup() {
     if [[ -n "$HOST_EGRESS" ]]; then
         iptables -t nat -D POSTROUTING -s "$SUBNET" -o "$HOST_EGRESS" -j MASQUERADE 2>/dev/null || true
         iptables -D FORWARD -i "$VETH_HOST" -o "$HOST_EGRESS" -j ACCEPT 2>/dev/null || true
-        iptables -D FORWARD -i "$HOST_EGRESS" -o "$VETH_HOST" -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
+        iptables -D FORWARD -i "$HOST_EGRESS" -o "$VETH_HOST" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
     fi
 
     # Interface & namespace teardown
@@ -54,8 +54,13 @@ ip netns exec "$NS_NAME" ip link set "$VETH_NS" up
 ip netns exec "$NS_NAME" ip link set lo up
 ip netns exec "$NS_NAME" ip route add default via "$HOST_IP" dev "$VETH_NS"
 
-# Enable IP forwarding and NAT on host
+# Enable IP forwarding and disable rp_filter on host
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
+sysctl -w net.ipv4.conf.all.forwarding=1 >/dev/null
+sysctl -w "net.ipv4.conf.$VETH_HOST.forwarding=1" >/dev/null
+sysctl -w "net.ipv4.conf.$VETH_HOST.rp_filter=0" >/dev/null
+sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null
+
 HOST_EGRESS=$(ip route show default | awk '/dev/ {print $5; exit}')
 if [[ -z "$HOST_EGRESS" ]]; then
     echo "[!] Failed to detect default host egress interface." >&2
@@ -65,7 +70,7 @@ fi
 # Insert FORWARD and NAT rules at head of chains (prioritized over container / firewall policies)
 iptables -t nat -I POSTROUTING 1 -s "$SUBNET" -o "$HOST_EGRESS" -j MASQUERADE
 iptables -I FORWARD 1 -i "$VETH_HOST" -o "$HOST_EGRESS" -j ACCEPT
-iptables -I FORWARD 2 -i "$HOST_EGRESS" -o "$VETH_HOST" -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -I FORWARD 2 -i "$HOST_EGRESS" -o "$VETH_HOST" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
 # Verify outbound ping from namespace to host gateway
 if ! ip netns exec "$NS_NAME" ping -c 1 -W 2 "$HOST_IP" >/dev/null; then
@@ -73,10 +78,12 @@ if ! ip netns exec "$NS_NAME" ping -c 1 -W 2 "$HOST_IP" >/dev/null; then
     exit 1
 fi
 
-# Verify outbound internet reachability from namespace via host gateway
-if ! ip netns exec "$NS_NAME" ping -c 1 -W 2 1.1.1.1 >/dev/null; then
-    echo "[!] Namespace internet egress check failed (1.1.1.1 unreachable)." >&2
-    exit 1
+# Verify outbound internet reachability from namespace via host gateway (TCP probe)
+if ! ip netns exec "$NS_NAME" curl -k -s --connect-timeout 5 -I https://1.1.1.1 >/dev/null 2>&1; then
+    if ! ip netns exec "$NS_NAME" curl -k -s --connect-timeout 5 -I https://8.8.8.8 >/dev/null 2>&1; then
+        echo "[!] Namespace internet egress check failed (outbound TCP unreachable)." >&2
+        exit 1
+    fi
 fi
 echo "[+] Network Namespace ($NS_NAME) online with verified gateway ($HOST_IP) and outbound route."
 
