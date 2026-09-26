@@ -34,6 +34,12 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 | Area | Current behavior |
 | :--- | :--- |
 | Release distribution | [v1.4.7 release](https://github.com/ByGh00st/wraith/releases/tag/v1.4.7): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
+| TOCTOU Key Shredding | `O_NOFOLLOW` / `O_NONBLOCK` descriptor checks (`nlink == 1`, matching inode/device) and pre-unlink verification |
+| DNS Normalization | FQDN trailing-dot normalization and case folding in `is_sinkhole_domain` and `is_onion_domain` |
+| Torrc Injection Guards | `OnionServiceConfig::validate()` blocking comments, CRLF, control characters and traversal |
+| L2 & Hostname Entropy | Kernel `OsRng` CSPRNG across physical/virtual MACs and natural high-entropy workstation hostnames |
+| Memory Syscall Jail | Seccomp-BPF denial of cross-process virtual memory inspection (`process_vm_readv` / `process_vm_writev`) |
+| Checked EDNS0 Math | Checked arithmetic and bounds enforcement preventing buffer sizing errors |
 | Emergency Reset HUD | `-R` and `-N` shortcuts with real-time subsystem recovery HUD telemetry |
 | Cryptographic Shredding | DoD 5220.22-M 7-pass random overwrite and zeroize for Onion v3 keys |
 | RAMFS WireGuard Keys | `/dev/shm` ephemeral key isolation with in-memory zeroize-on-drop |

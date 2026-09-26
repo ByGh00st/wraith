@@ -139,9 +139,9 @@ Start a session, inspect its status, and stop it to restore recorded settings. A
 ## 📊 Codebase Metrics & Language Breakdown
 
 <details open>
-<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-25</b></summary>
+<summary><b>Source snapshot · Tokei 12.1.2 · 2026-09-26</b></summary>
 
-Measured **2026-09-25** with Tokei 12.1.2. Scope: source crates, the native wire audit, manifests, Cargo configuration, installers and release scripts/workflow; standalone documentation and build output are excluded. The test path is explicit because of directory-ignore handling in this Tokei version. Embedded Rust documentation is reported under Markdown.
+Measured **2026-09-26** with Tokei 12.1.2. Scope: source crates, the native wire audit, manifests, Cargo configuration, installers and release scripts/workflow; standalone documentation and build output are excluded. The test path is explicit because of directory-ignore handling in this Tokei version. Embedded Rust documentation is reported under Markdown.
 
 ```sh
 tokei crates crates/wraith-net/tests/live_wire_syn_audit.rs Cargo.toml .cargo build.sh install.sh install-daemon.sh uninstall.sh scripts .github
@@ -156,11 +156,11 @@ tokei crates crates/wraith-net/tests/live_wire_syn_audit.rs Cargo.toml .cargo bu
  TOML                    8          254          237            0           17
  YAML                  344        12878        12862            1           15
 -------------------------------------------------------------------------------
- Rust                   80        26381        23106          756         2519
- |- Markdown            73          802            3          757           42
- (Total)                          27183        23109         1513         2561
+ Rust                   80        26594        23283          767         2544
+ |- Markdown            73          808            3          763           42
+ (Total)                          27402        23286         1530         2586
 ===============================================================================
- Total                 442        40700        37241          823         2636
+ Total                 442        40913        37418          834         2661
 ===============================================================================
 ```
 
