@@ -2,7 +2,6 @@
 //! L2 MAC Randomization with realistic manufacturer OUIs and generic hostname generation.
 
 use rand::seq::SliceRandom;
-use rand::Rng;
 use rand::RngCore;
 use std::process::Command;
 use tracing::info;
@@ -99,41 +98,40 @@ pub fn get_current_mac(interface: &str) -> Result<String> {
 }
 
 pub fn generate_random_mac(vendor_prefix: bool) -> String {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rngs::OsRng;
     if vendor_prefix {
         let oui = VENDOR_OUIS.choose(&mut rng).unwrap_or(&"00:24:D6");
-        let suffix = format!(
-            "{:02x}:{:02x}:{:02x}",
-            rng.gen::<u8>(),
-            rng.gen::<u8>(),
-            rng.gen::<u8>()
-        );
-        format!("{oui}:{suffix}")
+        let mut suffix = [0u8; 3];
+        rng.fill_bytes(&mut suffix);
+        format!(
+            "{oui}:{:02x}:{:02x}:{:02x}",
+            suffix[0],
+            suffix[1],
+            suffix[2]
+        )
     } else {
-        let first_byte = (rng.gen::<u8>() & 0xFE) | 0x02; // unicast + locally administered
+        let mut bytes = [0u8; 6];
+        rng.fill_bytes(&mut bytes);
+        bytes[0] = (bytes[0] & 0xFE) | 0x02; // unicast + locally administered
         format!(
             "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-            first_byte,
-            rng.gen::<u8>(),
-            rng.gen::<u8>(),
-            rng.gen::<u8>(),
-            rng.gen::<u8>(),
-            rng.gen::<u8>()
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]
         )
     }
 }
 
 /// Generates a randomized MAC with virtual hypervisor prefix (for VM-specific spoofing)
 pub fn generate_virtual_mac() -> String {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rngs::OsRng;
     let oui = VIRTUAL_VENDOR_OUIS.choose(&mut rng).unwrap_or(&"52:54:00");
-    let suffix = format!(
-        "{:02x}:{:02x}:{:02x}",
-        rng.gen::<u8>(),
-        rng.gen::<u8>(),
-        rng.gen::<u8>()
-    );
-    format!("{oui}:{suffix}")
+    let mut suffix = [0u8; 3];
+    rng.fill_bytes(&mut suffix);
+    format!(
+        "{oui}:{:02x}:{:02x}:{:02x}",
+        suffix[0],
+        suffix[1],
+        suffix[2]
+    )
 }
 
 pub fn change_mac(interface: Option<&str>, target_mac: Option<&str>) -> Result<(String, String, String)> {
@@ -193,6 +191,16 @@ pub fn restore_mac(interface: &str, original_mac: &str) -> Result<()> {
     Ok(())
 }
 
+/// Generates a randomized, realistic hostname with high cryptographic entropy
+pub fn generate_random_hostname() -> String {
+    let prefixes = ["desktop", "laptop", "host", "node", "pc", "station"];
+    let mut rng = rand::rngs::OsRng;
+    let prefix = prefixes.choose(&mut rng).copied().unwrap_or("desktop");
+    let mut suffix = [0u8; 3];
+    rng.fill_bytes(&mut suffix);
+    format!("{prefix}-{:02x}{:02x}{:02x}", suffix[0], suffix[1], suffix[2])
+}
+
 pub fn randomize_hostname() -> Result<(String, String)> {
     randomize_hostname_with_journal(|_| Ok(()))
 }
@@ -201,13 +209,7 @@ pub fn randomize_hostname_with_journal(journal: impl FnOnce(&str) -> Result<()>)
     let old_host = run_cmd("hostname", &[])?;
     journal(&old_host)?;
 
-    let adjectives = ["quiet", "swift", "dark", "silent", "deep", "cold", "thin", "pale", "shadow"];
-    let nouns = ["node", "host", "desk", "core", "unit", "base", "link", "port", "gate"];
-    let mut rng = rand::thread_rng();
-    let num: u16 = rng.gen_range(10..99);
-    let adj = adjectives.choose(&mut rng).copied().unwrap_or("shadow");
-    let noun = nouns.choose(&mut rng).copied().unwrap_or("node");
-    let new_host = format!("{adj}-{noun}-{num}");
+    let new_host = generate_random_hostname();
 
     run_cmd("hostname", &[&new_host])?;
     info!("Hostname randomized: {old_host} -> {new_host}");
@@ -245,6 +247,22 @@ mod namespace_mac_tests {
             let mac = super::generate_virtual_mac();
             let prefix = &mac[..8];
             assert!(super::VIRTUAL_VENDOR_OUIS.contains(&prefix));
+        }
+    }
+
+    #[test]
+    fn test_hostname_generator_entropy_and_format() {
+        let names: std::collections::HashSet<_> = (0..100)
+            .map(|_| super::generate_random_hostname())
+            .collect();
+        // High entropy should produce 100 distinct hostnames out of 100 runs
+        assert_eq!(names.len(), 100);
+        for name in names {
+            assert!(name.contains('-'));
+            let (prefix, hex) = name.split_once('-').unwrap();
+            assert!(["desktop", "laptop", "host", "node", "pc", "station"].contains(&prefix));
+            assert_eq!(hex.len(), 6);
+            assert!(hex.chars().all(|c| c.is_ascii_hexdigit()));
         }
     }
 }
