@@ -9,14 +9,13 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Use the first byte to pick a fingerprint profile flavor
-    let profile_kind = match data[0] % 4 {
-        0 => TcpProfileKind::Linux,
-        1 => TcpProfileKind::Windows,
-        2 => TcpProfileKind::MacOs,
-        _ => TcpProfileKind::Custom,
+    let profile_kind = match data[0] % 3 {
+        0 => TcpProfileKind::LinuxDefault,
+        1 => TcpProfileKind::Windows11,
+        _ => TcpProfileKind::MacOS,
     };
 
-    let mut profile = TcpFingerprintProfile::default_for(profile_kind);
+    let mut profile = TcpFingerprintProfile::from_kind(profile_kind);
     // Use second byte to toggle MSS clamping or timestamps
     if data[1] & 0x01 != 0 {
         profile.syn_mss = Some(1400);

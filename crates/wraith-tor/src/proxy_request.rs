@@ -9,7 +9,7 @@ pub struct Request {
 }
 
 /// Metadata that can disclose the client's pre-proxy address or proxy credentials.
-pub(crate) fn private_proxy_header(name: &str) -> bool {
+pub fn private_proxy_header(name: &str) -> bool {
     ["proxy-authorization", "proxy-connection", "forwarded", "x-forwarded-for",
         "x-real-ip", "via", "client-ip", "true-client-ip", "x-client-ip", "x-originating-ip"]
         .iter().any(|header| name.eq_ignore_ascii_case(header))
