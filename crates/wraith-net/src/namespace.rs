@@ -82,6 +82,7 @@ pub fn create_namespace_with_optional_l4_profile(profile: Option<&TcpFingerprint
 
         // 3. Move one end into the namespace
         run_cmd("ip", &["link", "set", VETH_NS, "netns", NAMESPACE_NAME])?;
+        run_cmd("ip", &["-n", NAMESPACE_NAME, "link", "set", "dev", VETH_NS, "alias", &lease.tag])?;
 
         // Set and read back the local-unicast address before either veth is UP.
         configure_namespace_mac(&lease.mac, |args| run_cmd("ip", args))?;

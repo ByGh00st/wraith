@@ -359,7 +359,7 @@ pub fn inspect_namespace_mac() -> Result<(String, String, bool)> {
         .as_str()
         .ok_or_else(|| failure("Missing L2 address"))?
         .to_string();
-    let matches = actual == lease.mac && links[0]["ifalias"].as_str() == Some(lease.tag.as_str());
+    let matches = actual.eq_ignore_ascii_case(&lease.mac) && links[0]["ifalias"].as_str() == Some(lease.tag.as_str());
     Ok((lease.mac.clone(), actual, matches))
 }
 

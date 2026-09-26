@@ -46,11 +46,11 @@ jobs:
             -e RUSTC_WRAPPER=/work/.github/musl-rustc-wrapper.sh \
             rust:alpine \
             sh -c 'set -eu; \
-                   apk add --no-cache bash python3 cmake make g++ musl-dev perl linux-headers git binutils clang-dev clang-libs tar libstdc++-dev && \
+                   apk add --no-cache bash python3 cmake make build-base gcc g++ musl-dev perl linux-headers git binutils clang-dev clang-libs tar libstdc++-dev && \
                    git config --global --add safe.directory /work && \
-                   GCC_DIR=$(dirname $(find /usr/lib/gcc -name libstdc++.a | head -n 1)) && \
-                   ln -sf "$GCC_DIR/libstdc++.a" /usr/lib/libstdc++.a && \
-                   export RUSTFLAGS="-L native=$GCC_DIR -L native=/usr/lib" && \
+                   LIBSTDCXX=$(find / -name "libstdc++.a" 2>/dev/null | head -n 1 || true) && \
+                   if [ -n "$LIBSTDCXX" ] && [ "$LIBSTDCXX" != "/usr/lib/libstdc++.a" ]; then ln -sf "$LIBSTDCXX" /usr/lib/libstdc++.a; fi && \
+                   export RUSTFLAGS="-L native=/usr/lib $([ -n "$LIBSTDCXX" ] && echo "-L native=$(dirname "$LIBSTDCXX")")" && \
                    cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl && \
                    bash scripts/package-release.sh x86_64-unknown-linux-musl'
 
