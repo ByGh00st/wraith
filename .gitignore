@@ -19,8 +19,8 @@
 *.lib
 
 # 2. Local State, Temporary Files & Test Suites / Residue
-tests/
-**/tests/
+/tests/*
+!/tests/e2e/
 crates/**/tests/
 !crates/wraith-net/tests/
 crates/wraith-net/tests/*

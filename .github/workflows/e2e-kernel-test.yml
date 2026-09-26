@@ -1,0 +1,58 @@
+name: E2E Kernel Integration Tests
+
+on:
+  push:
+    branches: [ "main", "stabilization/**" ]
+  pull_request:
+    branches: [ "main", "stabilization/**" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kernel-e2e:
+    name: Live Linux Netfilter & Tor Sandbox
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            tor \
+            iptables \
+            iproute2 \
+            tcpdump \
+            curl \
+            dnsutils \
+            jq \
+            e2fsprogs
+
+      - name: Compile Wraith Binary
+        run: |
+          cargo build --release -p wraith-cli
+          sudo cp target/release/wraith /usr/local/bin/wraith
+          sudo chmod 755 /usr/local/bin/wraith
+          wraith --version
+
+      - name: Initialize Environment Directories
+        run: |
+          sudo mkdir -p /var/lib/wraith/tor /run/wraith-tor
+          sudo chmod 700 /var/lib/wraith/tor
+          sudo chmod +x tests/e2e/*.sh
+
+      - name: Execute Network Namespace E2E Test Suite (7 Scenarios)
+        run: |
+          sudo bash tests/e2e/harness.sh
+
+      - name: Execute Native Wire SYN Audit (Kernel Namespace Isolated)
+        run: |
+          sudo -E cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocapture
