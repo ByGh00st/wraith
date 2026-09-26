@@ -74,7 +74,7 @@ echo "[+] Network Namespace ($NS_NAME) online with verified gateway ($HOST_IP)."
 # Execute targeted test scenario or all scenarios
 if [[ $# -eq 0 ]]; then
     echo "[*] No scenario specified. Running full E2E test suite inside $NS_NAME..."
-    ip netns exec "$NS_NAME" bash "$(dirname "$0")/run-all.sh"
+    ip netns exec "$NS_NAME" timeout 400 bash "$(dirname "$0")/run-all.sh"
 else
     echo "[*] Executing: $* inside $NS_NAME..."
     ip netns exec "$NS_NAME" "$@"

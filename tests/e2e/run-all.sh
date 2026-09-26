@@ -17,7 +17,7 @@ run_stage() {
     echo ""
     echo ">> [STAGE] $name ($script)"
     echo "------------------------------------------------------------------------"
-    bash "$SCRIPT_DIR/$script"
+    timeout 90 bash "$SCRIPT_DIR/$script"
     echo ">> [STAGE PASSED] $name"
 }
 
