@@ -124,6 +124,8 @@ fn chain_rules(snapshot: &TcpEgressSnapshot) -> Vec<Vec<String>> {
             "NFQUEUE",
             "--queue-num",
             &snapshot.queue_num.to_string(),
+            "--queue-maxlen",
+            "4096",
         ]
         .into_iter()
         .map(Into::into)
@@ -422,7 +424,7 @@ mod tests {
         assert!(calls.iter().any(|s| s.contains("-j TTL --ttl-set 128")));
         assert!(calls
             .iter()
-            .any(|s| s.contains("--tcp-flags SYN,ACK,RST,FIN SYN -j NFQUEUE --queue-num 41884")));
+            .any(|s| s.contains("--tcp-flags SYN,ACK,RST,FIN SYN -j NFQUEUE --queue-num 41884 --queue-maxlen 4096")));
         assert!(!calls
             .iter()
             .any(|s| s.contains("bypass") || s.contains("sysctl") || s.contains("ACCEPT")));

@@ -209,6 +209,28 @@ impl Queue {
         let peer_portid = getsockname::<NetlinkAddr>(socket.as_raw_fd())?.pid();
         setsockopt(&socket, sockopt::ReceiveTimeout, &TimeVal::new(5, 0))?;
         setsockopt(&socket, sockopt::SendTimeout, &TimeVal::new(5, 0))?;
+
+        // Scale Netlink receive buffer to 4 MB (SO_RCVBUFFORCE with SO_RCVBUF fallback)
+        let rcvbuf_bytes: libc::c_int = 4 * 1024 * 1024;
+        unsafe {
+            let res = libc::setsockopt(
+                socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_RCVBUFFORCE,
+                &rcvbuf_bytes as *const _ as *const libc::c_void,
+                std::mem::size_of_val(&rcvbuf_bytes) as libc::socklen_t,
+            );
+            if res != 0 {
+                let _ = libc::setsockopt(
+                    socket.as_raw_fd(),
+                    libc::SOL_SOCKET,
+                    libc::SO_RCVBUF,
+                    &rcvbuf_bytes as *const _ as *const libc::c_void,
+                    std::mem::size_of_val(&rcvbuf_bytes) as libc::socklen_t,
+                );
+            }
+        }
+
         let mut queue = Self {
             socket,
             peer_portid,
@@ -224,7 +246,7 @@ impl Queue {
             2,
             &[
                 attribute(2, &params)?,
-                attribute(3, &1024u32.to_be_bytes())?,
+                attribute(3, &4096u32.to_be_bytes())?,
                 attribute(4, &(1u32 | 4 | 8).to_be_bytes())?, // FAIL_OPEN, GSO, UID_GID
                 attribute(5, &8u32.to_be_bytes())?, // UID_GID only: fail-closed, complete checksums
             ],

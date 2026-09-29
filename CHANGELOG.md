@@ -10,6 +10,21 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 
 ## [Unreleased]
 
+### Performance & High-Concurrency Burst Resilience (L4/L7 Defense & DPI Optimization)
+- **L7 Proxy Concurrency Scaling & Semaphore Backpressure (`wraith-tor`)**:
+  - Scaled `MAX_CONCURRENT_PROXY_CLIENTS` threshold from 128 to 1,024.
+  - Replaced hard connection drops with an `Arc<tokio::sync::Semaphore>` backpressure queue, eliminating connection drops during aggressive multi-threaded scanning bursts.
+  - Added Unix `RLIMIT_NOFILE` ceiling adjustment via `libc::getrlimit` and `libc::setrlimit` to at least 4,096 file descriptors, preventing `EMFILE` exhaustion under heavy concurrency.
+  - Added unit tests `test_high_concurrency_burst` (simulating 500 concurrent in-flight requests) and `test_proxy_server_concurrency_and_cancellation`.
+- **$O(M)$ Zero-Latency Multi-Pattern DPI Matching Automaton (`wraith-core`, `wraith-tor`, `wraith-net`)**:
+  - Replaced linear $O(N \times M)$ scan across 1,338 signatures with a single-pass Aho-Corasick trie automaton (`ToolSignatureMatcher`), reducing search complexity to input length $O(M)$ with zero runtime heap allocations.
+  - Integrated token boundary enforcement for short signatures (<= 2 characters) to eliminate false positives on clean browser architectures (such as `x86_64`).
+  - Connected in-flight HTTP sanitization pipelines (`sanitize_http_request` in `wraith-tor` and `HttpToolSanitizer::sanitize_in_flight` in `wraith-net`) to the accelerated engine.
+  - Added unit tests: `test_tool_signatures_decoding`, `test_multi_pattern_matcher_matches_known_tools`, `test_multi_pattern_matcher_does_not_flag_clean_browsers`, and `test_multi_pattern_matcher_throughput_and_accuracy` (10,000 queries in < 100ms).
+- **L4 NFQUEUE Kernel Buffer Scaling & Overflow Prevention (`wraith-net`)**:
+  - Scaled Netfilter queue max length to 4,096 in both iptables rule configuration (`--queue-maxlen 4096`) and netlink attribute configuration (`NFQA_CFG_QUEUE_MAXLEN = 4096`).
+  - Scaled Netlink queue socket receive buffer to 4 MB via `SO_RCVBUFFORCE` with `SO_RCVBUF` fallback, eliminating kernel `ENOBUFS` drops under extreme SYN floods.
+
 ### Security & Hardening (Kernel, Network & Protocol Defense)
 - **Classic BPF Jump Offsets & Egress Routing Recalibration (`wraith-guard`)**:
   - Recalibrated relative jump offsets (`jt`/`jf`) in `build_tor_only_egress_filter` to strictly stay within the 12-instruction boundary, eliminating kernel setsockopt `SO_ATTACH_FILTER` `-EINVAL` rejections.

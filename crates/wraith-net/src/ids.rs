@@ -607,9 +607,7 @@ impl HttpToolSanitizer {
                 let raw_ua_str = String::from_utf8_lossy(raw_ua_slice).trim().to_string();
 
                 if !raw_ua_str.is_empty() {
-                    let raw_ua_lower = raw_ua_str.to_ascii_lowercase();
-                    let sigs = wraith_core::signatures::get_offensive_tool_signatures();
-                    let is_known_offensive = sigs.iter().any(|sig| raw_ua_lower.contains(sig.as_str()));
+                    let is_known_offensive = wraith_core::signatures::has_offensive_tool_signature(&raw_ua_str);
 
                     let is_standard_browser = raw_ua_str.starts_with("Mozilla/5.0");
 

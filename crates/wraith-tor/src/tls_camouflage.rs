@@ -1,8 +1,10 @@
 //! Local HTTP proxy: initial cleartext header normalization, CONNECT tunneling
 //! and transparent port-80 relay over Tor SOCKS. CONNECT preserves client TLS.
 
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 use wraith_core::config::TOR_SOCKS_PORT;
@@ -11,6 +13,7 @@ use wraith_core::error::{Result, WraithError};
 use crate::grease::{BrowserType, DynamicTlsFingerprint};
 
 pub const TLS_PROXY_PORT: u16 = 9055;
+pub const MAX_CONCURRENT_PROXY_CLIENTS: usize = 1024;
 
 pub const BROWSER_USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -91,9 +94,38 @@ impl TlsCamouflageServer {
     }
 
     pub async fn spawn_server(self) -> Result<tokio::task::JoinHandle<()>> {
+        #[cfg(unix)]
+        {
+            unsafe {
+                let mut rlim = libc::rlimit {
+                    rlim_cur: 0,
+                    rlim_max: 0,
+                };
+                if libc::getrlimit(libc::RLIMIT_NOFILE, &mut rlim) == 0 {
+                    let desired = 4096 as libc::rlim_t;
+                    if rlim.rlim_cur < desired {
+                        let original_cur = rlim.rlim_cur;
+                        rlim.rlim_cur = if rlim.rlim_max >= desired {
+                            desired
+                        } else {
+                            rlim.rlim_max
+                        };
+                        if libc::setrlimit(libc::RLIMIT_NOFILE, &rlim) != 0 && rlim.rlim_max < desired {
+                            rlim.rlim_max = desired;
+                            rlim.rlim_cur = desired;
+                            if libc::setrlimit(libc::RLIMIT_NOFILE, &rlim) != 0 {
+                                rlim.rlim_cur = original_cur;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let addr = format!("127.0.0.1:{}", self.port);
         let listener = TcpListener::bind(&addr).await?;
         info!("HTTP proxy listening on {addr}");
+        let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT_PROXY_CLIENTS));
         Ok(tokio::spawn(async move {
             let mut clients = tokio::task::JoinSet::new();
             loop {
@@ -108,8 +140,12 @@ impl TlsCamouflageServer {
                         match accept_res {
                             Ok((client_stream, client_addr)) => {
                                 debug!("Incoming HTTP/SOCKS connection from {client_addr}");
-                                if clients.len() >= 128 { continue; }
+                                let sem = semaphore.clone();
                                 clients.spawn(async move {
+                                    let _permit = match sem.acquire_owned().await {
+                                        Ok(p) => p,
+                                        Err(_) => return,
+                                    };
                                     if let Err(e) = handle_proxy_client(client_stream).await {
                                         debug!("Proxy client handler debug: {e}");
                                     }
@@ -146,8 +182,6 @@ pub fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
     let pool_idx = req_data.len() % pool.len();
     let target_ua = pool[pool_idx];
 
-    let full_sigs = wraith_core::signatures::get_offensive_tool_signatures();
-
     for line in req_str.split("\r\n") {
         if line.split_once(':').is_some_and(|(name, _)| crate::proxy_request::private_proxy_header(name)) {
             was_sanitized = true;
@@ -168,12 +202,9 @@ pub fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
             modified_lines.push(line.to_string());
         } else if line_lower.starts_with("user-agent:") {
             let current_ua = line[11..].trim();
-            let raw_ua_lower = current_ua.to_lowercase();
             
-            let is_audit_tool = AUDIT_TOOL_SIGNATURES
-                .iter()
-                .any(|&sig| raw_ua_lower.contains(sig))
-                || full_sigs.iter().any(|sig| raw_ua_lower.contains(sig.as_str()));
+            let is_audit_tool = wraith_core::signatures::has_offensive_tool_signature(current_ua)
+                || AUDIT_TOOL_SIGNATURES.iter().any(|&sig| line_lower[11..].contains(sig));
                 
             let is_browser = current_ua.starts_with("Mozilla/5.0");
 
@@ -658,6 +689,66 @@ mod tests {
         assert!(!sanitized_str.to_lowercase().contains("proxy-connection"));
         assert!(sanitized_str.contains("Connection: close"));
         assert!(sanitized_str.ends_with("\r\n\r\n"));
+    }
+
+    #[tokio::test]
+    async fn test_high_concurrency_burst() {
+        let offensive_payloads = [
+            b"GET /login HTTP/1.1\r\nHost: target.local\r\nUser-Agent: sqlmap/1.5#stable\r\nConnection: keep-alive\r\n\r\n".as_slice(),
+            b"GET /admin HTTP/1.1\r\nHost: target.local\r\nUser-Agent: Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)\r\n\r\n".as_slice(),
+            b"POST /api/v1 HTTP/1.1\r\nHost: target.local\r\nUser-Agent: Nikto/2.1.6\r\n\r\n".as_slice(),
+            b"GET /search HTTP/1.1\r\nHost: target.local\r\nUser-Agent: ffuf/v2.1.0\r\n\r\n".as_slice(),
+            b"GET /api HTTP/1.1\r\nHost: target.local\r\nUser-Agent: nuclei - v3.1.0\r\n\r\n".as_slice(),
+            b"GET /index HTTP/1.1\r\nHost: target.local\r\nUser-Agent: gobuster/3.6\r\n\r\n".as_slice(),
+            b"GET /status HTTP/1.1\r\nHost: target.local\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\r\n\r\n".as_slice(),
+        ];
+
+        let mut handles = Vec::with_capacity(500);
+        let start = std::time::Instant::now();
+
+        for i in 0..500 {
+            let req = offensive_payloads[i % offensive_payloads.len()].to_vec();
+            handles.push(tokio::spawn(async move {
+                let (sanitized, host, was_sanitized) = sanitize_http_request(&req);
+                (sanitized, host, was_sanitized, req)
+            }));
+        }
+
+        let mut sanitized_count = 0;
+        for handle in handles {
+            let (sanitized, host, was_sanitized, raw) = handle.await.expect("Task must not panic");
+            assert_eq!(host, "target.local");
+            let raw_str = String::from_utf8_lossy(&raw);
+            let sanitized_str = String::from_utf8_lossy(&sanitized);
+            if raw_str.contains("Chrome/131.0.0.0") {
+                assert!(!was_sanitized, "Clean browser UA must not be flagged");
+                assert!(sanitized_str.contains("Chrome/131.0.0.0"));
+            } else {
+                assert!(was_sanitized, "Offensive tool UA must be sanitized");
+                assert!(!sanitized_str.contains("sqlmap"));
+                assert!(!sanitized_str.contains("Nmap"));
+                assert!(!sanitized_str.contains("Nikto"));
+                assert!(!sanitized_str.contains("ffuf"));
+                assert!(!sanitized_str.contains("nuclei"));
+                assert!(!sanitized_str.contains("gobuster"));
+                assert!(sanitized_str.contains("Mozilla/5.0"));
+                sanitized_count += 1;
+            }
+        }
+
+        let elapsed = start.elapsed();
+        assert!(sanitized_count > 0);
+        assert!(elapsed.as_millis() < 1000, "500 concurrent requests must complete in under 1s, took {:?}", elapsed);
+    }
+
+    #[tokio::test]
+    async fn test_proxy_server_concurrency_and_cancellation() {
+        let (server, cancel_token) = TlsCamouflageServer::new(Some(0));
+        let handle = server.spawn_server().await.expect("Server spawn must succeed");
+        cancel_token.cancel();
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+            .await
+            .expect("Server must shutdown cleanly on cancellation");
     }
 }
 

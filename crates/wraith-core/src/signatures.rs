@@ -725,18 +725,151 @@ static ENCODED_TOOL_BLOB: &[u8] = &[
     0x1f,
 ];
 
+use std::collections::VecDeque;
 use std::sync::OnceLock;
+
 static DECODED_SIGNATURES: OnceLock<Vec<String>> = OnceLock::new();
+static MATCHER: OnceLock<ToolSignatureMatcher> = OnceLock::new();
+
+#[derive(Default, Clone, Debug)]
+struct TrieNode {
+    transitions: Vec<(u8, usize)>,
+    fail: usize,
+    matches: Vec<u16>,
+}
+
+/// Compact single-pass multi-pattern matcher (Aho-Corasick algorithm)
+/// Provides O(M) substring search across 1,338+ signatures with zero runtime allocations.
+#[derive(Debug)]
+pub struct ToolSignatureMatcher {
+    nodes: Vec<TrieNode>,
+}
+
+impl ToolSignatureMatcher {
+    pub fn build<I, S>(signatures: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut nodes = vec![TrieNode::default()]; // Root node 0
+
+        for sig in signatures {
+            let sig_ref = sig.as_ref().trim();
+            if sig_ref.is_empty() {
+                continue;
+            }
+            let mut curr = 0;
+            for &byte in sig_ref.as_bytes() {
+                let b = byte.to_ascii_lowercase();
+                if let Some(&(_, next_idx)) = nodes[curr].transitions.iter().find(|(tb, _)| *tb == b) {
+                    curr = next_idx;
+                } else {
+                    let next_idx = nodes.len();
+                    nodes.push(TrieNode::default());
+                    nodes[curr].transitions.push((b, next_idx));
+                    curr = next_idx;
+                }
+            }
+            let len = sig_ref.len() as u16;
+            if !nodes[curr].matches.contains(&len) {
+                nodes[curr].matches.push(len);
+            }
+        }
+
+        // BFS to build fail transitions
+        let mut queue = VecDeque::new();
+        let root_children: Vec<usize> = nodes[0].transitions.iter().map(|&(_, child)| child).collect();
+        for child in root_children {
+            nodes[child].fail = 0;
+            queue.push_back(child);
+        }
+
+        while let Some(curr) = queue.pop_front() {
+            let curr_fail = nodes[curr].fail;
+            let trans = nodes[curr].transitions.clone();
+            for (b, next_node) in trans {
+                let mut f = curr_fail;
+                let mut target_fail = 0;
+                loop {
+                    if let Some(&(_, nxt)) = nodes[f].transitions.iter().find(|(tb, _)| *tb == b) {
+                        target_fail = nxt;
+                        break;
+                    }
+                    if f == 0 {
+                        break;
+                    }
+                    f = nodes[f].fail;
+                }
+                nodes[next_node].fail = target_fail;
+                let target_matches = nodes[target_fail].matches.clone();
+                for m in target_matches {
+                    if !nodes[next_node].matches.contains(&m) {
+                        nodes[next_node].matches.push(m);
+                    }
+                }
+                queue.push_back(next_node);
+            }
+        }
+
+        Self { nodes }
+    }
+
+    /// Single-pass O(M) substring search without heap allocations
+    #[inline]
+    pub fn contains_any(&self, text: &str) -> bool {
+        let bytes = text.as_bytes();
+        let mut state = 0;
+
+        for (i, &byte) in bytes.iter().enumerate() {
+            let b = byte.to_ascii_lowercase();
+            loop {
+                if let Some(&(_, next_state)) = self.nodes[state].transitions.iter().find(|(tb, _)| *tb == b) {
+                    state = next_state;
+                    for &m_len in &self.nodes[state].matches {
+                        let m = m_len as usize;
+                        if m <= 2 {
+                            let start_idx = i + 1 - m;
+                            let prev_alnum = start_idx > 0 && bytes[start_idx - 1].is_ascii_alphanumeric();
+                            let next_alnum = i + 1 < bytes.len() && bytes[i + 1].is_ascii_alphanumeric();
+                            if !prev_alnum && !next_alnum {
+                                return true;
+                            }
+                        } else {
+                            return true;
+                        }
+                    }
+                    break;
+                }
+                if state == 0 {
+                    break;
+                }
+                state = self.nodes[state].fail;
+            }
+        }
+        false
+    }
+}
 
 pub fn get_offensive_tool_signatures() -> &'static [String] {
     DECODED_SIGNATURES.get_or_init(|| {
         let bytes: Vec<u8> = ENCODED_TOOL_BLOB.iter().map(|&b| b ^ XOR_KEY).collect();
         let s = String::from_utf8_lossy(&bytes);
-        s.split(' ')
+        s.split(|c| c == '\0' || c == '\n' || c == '\r')
+            .map(|line| line.trim())
             .filter(|line| !line.is_empty())
             .map(|line| line.to_string())
             .collect()
     })
+}
+
+/// Returns true if the given User-Agent string contains any known security auditing or offensive tool signature.
+/// Operates in O(M) time without runtime heap allocations.
+pub fn has_offensive_tool_signature(ua: &str) -> bool {
+    let matcher = MATCHER.get_or_init(|| {
+        let sigs = get_offensive_tool_signatures();
+        ToolSignatureMatcher::build(sigs)
+    });
+    matcher.contains_any(ua)
 }
 
 pub const BROWSER_USER_AGENT_POOL: &[&str] = &[
@@ -749,3 +882,58 @@ pub const BROWSER_USER_AGENT_POOL: &[&str] = &[
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tool_signatures_decoding() {
+        let sigs = get_offensive_tool_signatures();
+        assert!(!sigs.is_empty());
+        assert!(sigs.iter().any(|s| s == "sqlmap"));
+        assert!(sigs.iter().any(|s| s == "nmap"));
+        assert!(sigs.iter().any(|s| s == "nikto"));
+    }
+
+    #[test]
+    fn test_multi_pattern_matcher_matches_known_tools() {
+        assert!(has_offensive_tool_signature("sqlmap/1.5.2#stable"));
+        assert!(has_offensive_tool_signature("Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)"));
+        assert!(has_offensive_tool_signature("Nikto/2.1.6"));
+        assert!(has_offensive_tool_signature("nuclei - v3.1.0"));
+        assert!(has_offensive_tool_signature("Metasploit Pro Scanner/6.3.21"));
+        assert!(has_offensive_tool_signature("theHarvester/4.3.0"));
+        assert!(has_offensive_tool_signature("ffuf/v2.1.0"));
+    }
+
+    #[test]
+    fn test_multi_pattern_matcher_does_not_flag_clean_browsers() {
+        for &clean_ua in BROWSER_USER_AGENT_POOL {
+            assert!(!has_offensive_tool_signature(clean_ua), "Clean browser UA flagged incorrectly: {clean_ua}");
+        }
+    }
+
+    #[test]
+    fn test_multi_pattern_matcher_throughput_and_accuracy() {
+        let test_uas = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "sqlmap/1.6#stable (https://sqlmap.org)",
+            "Mozilla/5.0 (compatible; Nmap Scripting Engine)",
+            "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0",
+            "ffuf-runner/2.0",
+        ];
+
+        let start = std::time::Instant::now();
+        let mut matches = 0;
+        for i in 0..10_000 {
+            let ua = test_uas[i % test_uas.len()];
+            if has_offensive_tool_signature(ua) {
+                matches += 1;
+            }
+        }
+        let elapsed = start.elapsed();
+        assert_eq!(matches, 6_000); // 3 out of 5 are tool signatures * 2000
+        assert!(elapsed.as_millis() < 500, "10,000 matches must complete in under 500ms, took {:?}", elapsed);
+    }
+}
