@@ -48,7 +48,7 @@ The parser rejects invalid lengths, fragmented IPv4, non-initial SYNs, duplicate
 
 1. Save the original firewall through the existing session journal and stop recorded system Tor services.
 2. Bind an owned `SOCK_CLOEXEC` netlink socket and acquire the queue without unbinding anyone else's queue.
-3. Configure full packet copying, a maximum queue length of 1024 and UID metadata. Disable GSO delivery and fail-open. Validate configuration ACKs.
+3. Configure full packet copying, a maximum queue length of 4096 (via netlink attribute `NFQA_CFG_QUEUE_MAXLEN` and iptables `--queue-maxlen 4096`) and a 4 MB socket receive buffer (via `SO_RCVBUFFORCE` with `SO_RCVBUF` fallback) to eliminate `ENOBUFS` packet loss under heavy burst traffic, along with UID metadata. Disable GSO delivery and fail-open. Validate configuration ACKs.
 4. Verify queue peer identity through `/proc/net/netfilter/nfnetlink_queue`, then persist its profile, UID, number and peer port ID before attaching rules.
 5. Create the owned chain, add TTL and initial-SYN queue rules, attach its OUTPUT jump, and verify each rule with `iptables -C`.
 6. Start the worker before managed Tor bootstrap. Accept only kernel-origin netlink frames for the owned queue, IPv4 LOCAL_OUT hook and expected UID, with complete payload and ready checksums. Unsupported packets receive a DROP verdict; malformed queue messages terminate the worker.

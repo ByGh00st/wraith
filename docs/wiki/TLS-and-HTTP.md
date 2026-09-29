@@ -44,9 +44,9 @@ Other applications keep their TLS fingerprints when using CONNECT. Wraith does n
 
 The local relay listens on **127.0.0.1:9055** and forwards through Tor SOCKS. It supports CONNECT, absolute HTTP URLs, explicit destination ports, IPv6 authority parsing, fragmented headers and binary bodies. CONNECT preserves coalesced first TLS bytes and stream half-close.
 
-Normalization applies to the **initial cleartext HTTP request**. Tool/non-browser User-Agents are normalized. `Forwarded`, `X-Forwarded-For`, `X-Real-IP`, `Via`, `Client-IP`, `True-Client-IP`, `X-Client-IP` and `X-Originating-IP` are removed case-insensitively, along with `Proxy-Authorization` and `Proxy-Connection`. Origin authorization, cookies and binary body bytes are preserved.
+Normalization applies to the **initial cleartext HTTP request**. Tool and non-browser User-Agents are normalized using a single-pass $O(M)$ Aho-Corasick automaton across 1,338+ signatures with token-boundary isolation for short identifiers to prevent false positives. `Forwarded`, `X-Forwarded-For`, `X-Real-IP`, `Via`, `Client-IP`, `True-Client-IP`, `X-Client-IP` and `X-Originating-IP` are removed case-insensitively, along with `Proxy-Authorization` and `Proxy-Connection`. `Connection: close` is enforced to eliminate HTTP pipelining bypasses. Origin authorization, cookies and binary body bytes are preserved.
 
-Later requests on a persistent stream are relayed without reparsing; this is not a complete HTTP traffic anonymizer. CONNECT preserves application TLS. The relay allows at most 128 client tasks, bounds setup writes to 10 seconds and releases established relays after 120 seconds without transferred data.
+Later requests on a persistent stream are relayed without reparsing; this is not a complete HTTP traffic anonymizer. CONNECT preserves application TLS. The relay handles up to **1,024** concurrent client tasks regulated by an asynchronous `Arc<Semaphore>` backpressure queue, raises the host `RLIMIT_NOFILE` descriptor ceiling to at least 4,096 to prevent socket starvation, bounds setup writes to 10 seconds and releases established relays after 120 seconds without transferred data.
 
 ### Developer integration
 

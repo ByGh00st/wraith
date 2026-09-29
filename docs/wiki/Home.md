@@ -45,6 +45,13 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 | RAMFS WireGuard Keys | `/dev/shm` ephemeral key isolation with in-memory zeroize-on-drop |
 | Process Neutralization | `pidfd_open` race-proof rogue process containment with protected daemon whitelist |
 | Tor Bridge Sanitization | Strict CRLF, null byte and directive injection filtering for pluggable transports |
+| L7 Proxy Concurrency | 1,024 client capacity with `Arc<Semaphore>` backpressure and `RLIMIT_NOFILE >= 4096` EMFILE guard |
+| DPI Accelerator | Single-pass $O(M)$ Aho-Corasick automaton across 1,338+ signatures with token-boundary false-positive isolation |
+| L4 NFQUEUE Scaling | 4,096 queue max length (`--queue-maxlen 4096`) and 4 MB Netlink receive buffer (`SO_RCVBUFFORCE`) |
+| Classic BPF Egress | 12-instruction relative jump boundary validation eliminating kernel `SO_ATTACH_FILTER` `-EINVAL` |
+| DNS RFC 1035 Shield | Backward pointer verification (`ptr < offset`) and 10-jump recursion limit defeating compression loops |
+| Honeypot Fail-Closed | `libc::SYS_pidfd_open` race-free lifecycle pinning and unreadable comm fail-closed abort |
+| Interface & User Guards | CWE-20 `IFNAMSIZ - 1` interface name validation and POSIX username flag injection protection |
 | Full-security preset | Automatic namespace + Tor access-link L4/TLS pairing, required setup checks and recorded policy telemetry |
 | Local ISP / firewall scope | Tor UID TCP TTL, SYN option order and MSS normalization; shared Tor exits preserved |
 | Worker ownership | Boot/start-time/executable identity and pidfd-bound shutdown |
