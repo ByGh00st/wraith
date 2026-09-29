@@ -923,8 +923,13 @@ pub async fn main() -> Result<()> {
                 use std::io::Write;
                 let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
                 let mut activated = false;
-                for i in 0..60 {
-                    let frame = spinner_frames[i % spinner_frames.len()];
+                let max_wait_secs = std::env::var("WRAITH_TOR_BOOTSTRAP_TIMEOUT")
+                    .ok()
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .unwrap_or(90);
+                let poll_iterations = (max_wait_secs * 2).max(60);
+                for i in 0..poll_iterations {
+                    let frame = spinner_frames[(i as usize) % spinner_frames.len()];
                     let secs_val = (i / 2) + 1;
                     let spin_text = t!("daemon_cli.establishing_spinner", secs = secs_val);
                     print!("\r  \x1b[1;36m{frame}\x1b[0m \x1b[1;37m{spin_text}\x1b[0m");

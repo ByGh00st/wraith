@@ -52,8 +52,10 @@ jobs:
           sudo chmod +x tests/e2e/*.sh
 
       - name: Execute Network Namespace E2E Test Suite (7 Scenarios)
+        env:
+          WRAITH_TOR_BOOTSTRAP_TIMEOUT: "180"
         run: |
-          sudo bash tests/e2e/harness.sh
+          sudo -E bash tests/e2e/harness.sh
 
       - name: Execute Native Wire SYN Audit (Kernel Namespace Isolated)
         run: |

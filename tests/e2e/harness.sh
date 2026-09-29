@@ -19,6 +19,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # Benchmark range: outside Wraith's loopback/private-LAN exemptions.
 export WRAITH_EGRESS_ADDRESS=198.18.0.1
 export WRAITH_EGRESS_PORT=41885
+export WRAITH_TOR_BOOTSTRAP_TIMEOUT="${WRAITH_TOR_BOOTSTRAP_TIMEOUT:-180}"
 WRAITH_EGRESS_PID=""
 
 cleanup() {

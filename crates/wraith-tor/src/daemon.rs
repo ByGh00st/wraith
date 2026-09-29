@@ -250,7 +250,13 @@ pub async fn start_tor_daemon_with_timeout(timeout_secs: u64) -> Result<()> {
     Ok(())
 }
 
-pub async fn start_tor_daemon() -> Result<()> { start_tor_daemon_with_timeout(45).await }
+pub async fn start_tor_daemon() -> Result<()> {
+    let timeout_secs = std::env::var("WRAITH_TOR_BOOTSTRAP_TIMEOUT")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(120);
+    start_tor_daemon_with_timeout(timeout_secs).await
+}
 pub fn stop_tor_daemon() -> Result<()> { stop_existing_tor() }
 
 #[cfg(test)]

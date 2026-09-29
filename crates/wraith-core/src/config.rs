@@ -60,6 +60,8 @@ CookieAuthentication 1
 CookieAuthFile /run/wraith-tor/control.authcookie
 CookieAuthFileGroupReadable 1
 AvoidDiskWrites 1
+ClientUseIPv6 0
+Log notice file /var/lib/wraith/tor/notices.log
 ";
 
 pub const RESOLV_CONTENT: &str = "nameserver 127.0.0.1\n";

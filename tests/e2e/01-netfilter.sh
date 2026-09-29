@@ -4,6 +4,8 @@
 # ==============================================================================
 set -euo pipefail
 
+export WRAITH_TOR_BOOTSTRAP_TIMEOUT="${WRAITH_TOR_BOOTSTRAP_TIMEOUT:-180}"
+
 echo "[*] [Scenario 1] Launching Wraith session on veth-ns..."
 wraith --start -I veth-ns
 
@@ -63,6 +65,7 @@ if [[ "$READY" != "true" ]]; then
     else
         echo "[*] Tor PID: $TOR_PID (still bootstrapping)" >&2
         cat /var/log/wraith/daemon.log 2>/dev/null | tail -30 >&2 || true
+        cat /var/lib/wraith/tor/notices.log 2>/dev/null | tail -30 >&2 || true
     fi
     exit 1
 fi
