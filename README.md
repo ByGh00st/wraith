@@ -75,7 +75,7 @@ sudo wraith -x     # Stop and restore recorded settings
 ---
 
 <p align="center">
-  <a href="#installation">Installation</a> · <a href="#cli-reference">Commands</a> · <a href="#full-security">Setup &amp; recovery</a> · <a href="#browser-tls">TLS profiles</a> · <a href="#core-architecture">Architecture</a> · <a href="#privacy-matrix">Comparison</a> · <a href="#validation">Validation</a> · <a href="docs/wiki/Home.md">Wiki</a>
+  <a href="#installation">Installation</a> · <a href="#cli-reference">Commands</a> · <a href="#full-security">Setup &amp; recovery</a> · <a href="#browser-tls">TLS profiles</a> · <a href="#core-architecture">Architecture</a> · <a href="#privacy-matrix">Comparison</a> · <a href="#validation">Validation</a> · <a href="#legal-disclaimer">Legal notice</a> · <a href="docs/wiki/Home.md">Wiki</a>
 </p>
 
 Wraith manages sessions on an existing **Linux x86_64 or ARM64 host**. It requires elevated privileges for routing and host changes. Tor carries TCP; arbitrary UDP/QUIC is unsupported. Browser TLS profiles apply to Wraith's own clients, and a successful exit-IP check describes that request. See the [threat model](docs/THREAT_MODEL.md) for the protection scope.
@@ -634,10 +634,42 @@ Report failures with the command, distribution, interface, expected behavior and
 ---
 
 <a id="legal-disclaimer"></a>
+## ⚖️ STRICT LEGAL & AUTHORIZED-USE DISCLAIMER
 
-## Responsible use
+> [!CAUTION]
+> **READ CAREFULLY BEFORE USE. BY DOWNLOADING, COMPILING, OR EXECUTING THIS SOFTWARE, YOU ACKNOWLEDGE THE NOTICE BELOW AND ACCEPT RESPONSIBILITY FOR COMPLYING WITH APPLICABLE LAW.**
 
-Use Wraith only where you have authorization and comply with applicable laws and policies. Wraith does not guarantee anonymity, non-detection or protection from attribution. Its technical boundaries are documented in the [threat model](docs/THREAT_MODEL.md).
+Wraith is a dual-use Linux network privacy, auditing, and security toolkit. It is intended for authorized Red/Blue Team operations, academic and defensive security research, privacy engineering, and other lawful activities. **You are solely responsible for how you configure and use the software.**
+
+### 🛑 JURISDICTIONAL COMPLIANCE & AUTHORIZATION
+
+This software provides capabilities that can be abused. Unauthorized use against systems, networks, accounts, communications, or data may constitute a criminal offense and/or give rise to civil liability under applicable law. Users are responsible for determining and complying with all laws, regulations, contractual obligations, acceptable-use policies, and authorization requirements applicable to their activities.
+
+1. **Republic of Turkey (TCK):** Unauthorized access to or interference with information systems may fall within Articles **243 and 244** of the Turkish Penal Code (TCK), alongside other provisions depending on the conduct involved.
+2. **United States of America (USA):** Unauthorized access or interception may implicate laws including the **Computer Fraud and Abuse Act (CFAA, 18 U.S.C. § 1030)** and, depending on the conduct, the **Electronic Communications Privacy Act (ECPA)**.
+3. **European Union (EU):** Unauthorized attacks against information systems may implicate **Directive 2013/40/EU** and relevant national implementing laws. Processing personal data may also be subject to the **General Data Protection Regulation (GDPR)** and other applicable privacy rules.
+
+These references are illustrative and are **not legal advice or an exhaustive statement of applicable law**.
+
+### 🚫 PROHIBITED & UNAUTHORIZED USE
+
+Do not use Wraith to access, test, intercept, disrupt, monitor, alter, or obtain data from systems or networks unless you have the legal authority and any required permission to do so. Do not use it to facilitate credential theft, unlawful surveillance, malware operations, botnets, denial-of-service activity, or concealment of unlawful conduct.
+
+### ⚠️ OPERATIONAL RESPONSIBILITY & NO ANONYMITY GUARANTEE
+
+Wraith does not guarantee anonymity, non-detection, immunity from attribution, or protection from legal or regulatory consequences. Tor, traffic normalization, TLS profiles, DNS controls, host hardening, and other privacy mechanisms each have technical and operational limits documented in this repository.
+
+To the maximum extent permitted by applicable law, the developers and contributors disclaim liability for damages arising from the use or misuse of this software. Nothing in this notice excludes or limits liability where such exclusion or limitation is prohibited by applicable law.
+
+You use this software at your own technical and legal risk.
+
+### 📜 LICENSE & WARRANTY
+
+Distribution and modification rights are governed by the **GNU General Public License v3.0 (GPL-3.0)** in the repository's `LICENSE` file. The software is provided **WITHOUT ANY WARRANTY**, subject to the terms of that license and applicable law.
+
+This responsible-use notice is not intended to add restrictions to the rights granted by GPL-3.0. If any wording in this README conflicts with the license, the `LICENSE` file governs the licensing terms.
+
+---
 
 <a id="project-guides"></a>
 
