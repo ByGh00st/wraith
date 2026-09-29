@@ -109,35 +109,37 @@ impl BpfProgramBuilder {
     pub fn build_tor_only_egress_filter(tor_transport: u16, tor_dnsport: u16) -> Vec<SockFilter> {
         let mut builder = Self::new();
 
-        // 1. Load EtherType at offset 12 (2 bytes)
+        // 0. Load EtherType at offset 12 (2 bytes)
         builder.ld_abs(BPF_H, 12);
 
-        // 2. If EtherType == 0x86DD (IPv6), DROP immediately
-        builder.jmp_eq(0x86DD, 10, 0); // Drop if IPv6
+        // 1. If EtherType == 0x86DD (IPv6), DROP immediately (jump to index 11: jt=9, jf=0)
+        builder.jmp_eq(0x86DD, 9, 0);
 
-        // 3. If EtherType != 0x0800 (IPv4), PASS (Allow ARP / local broadcast)
-        builder.jmp_eq(0x0800, 0, 8);
+        // 2. If EtherType != 0x0800 (IPv4), PASS (Allow ARP / non-IP: jump to index 10: jt=0, jf=7)
+        builder.jmp_eq(0x0800, 0, 7);
 
-        // 4. Load IP Protocol at offset 23 (1 byte)
+        // 3. Load IP Protocol at offset 23 (1 byte)
         builder.ld_abs(BPF_B, 23);
 
-        // 5. If TCP (protocol 6), inspect destination port
-        builder.jmp_eq(6, 0, 3);
-        // Load TCP Dst Port at offset 36 (assuming 20B IPv4 header)
-        builder.ld_abs(BPF_H, 36);
-        // If TCP Dst Port == Tor TransPort, ALLOW, else DROP
-        builder.jmp_eq(tor_transport as u32, 4, 3);
+        // 4. If TCP (protocol 6), inspect TCP destination port (jt=0, jf=2 -> jump to index 7)
+        builder.jmp_eq(6, 0, 2);
 
-        // 6. If UDP (protocol 17), inspect destination port
-        builder.jmp_eq(17, 0, 2);
-        // Load UDP Dst Port at offset 36
+        // 5. Load TCP Dst Port at offset 36
         builder.ld_abs(BPF_H, 36);
-        // If UDP Dst Port == Tor DNSPort, ALLOW, else DROP
-        builder.jmp_eq(tor_dnsport as u32, 1, 0);
+        // 6. If TCP Dst Port == Tor TransPort, ALLOW (index 10), else DROP (index 11) (jt=3, jf=4)
+        builder.jmp_eq(tor_transport as u32, 3, 4);
 
-        // Return ACCEPT (65535 bytes)
+        // 7. If UDP (protocol 17), inspect UDP destination port (jt=0, jf=3 -> jump to index 11)
+        builder.jmp_eq(17, 0, 3);
+
+        // 8. Load UDP Dst Port at offset 36
+        builder.ld_abs(BPF_H, 36);
+        // 9. If UDP Dst Port == Tor DNSPort, ALLOW (index 10), else DROP (index 11) (jt=0, jf=1)
+        builder.jmp_eq(tor_dnsport as u32, 0, 1);
+
+        // 10. Return ACCEPT (65535 bytes)
         builder.ret(0xFFFF);
-        // Return DROP (0 bytes)
+        // 11. Return DROP (0 bytes)
         builder.ret(0x0000);
 
         builder.instructions
@@ -196,5 +198,34 @@ mod tests {
         assert!(!filter.is_empty());
         assert_eq!(filter.last().unwrap().code, BPF_RET | BPF_K);
         assert_eq!(filter.last().unwrap().k, 0);
+    }
+
+    #[test]
+    fn test_bpf_instruction_bounds() {
+        let filter = BpfProgramBuilder::build_tor_only_egress_filter(9040, 5353);
+        assert_eq!(filter.len(), 12);
+        let len = filter.len();
+
+        for (idx, inst) in filter.iter().enumerate() {
+            if (inst.code & BPF_JMP) != 0 && inst.code != (BPF_JMP | BPF_JA) {
+                let max_allowed = len - idx - 1;
+                assert!(
+                    (inst.jt as usize) <= max_allowed,
+                    "Instruction {idx} jt offset {} exceeds remaining filter bounds ({max_allowed})",
+                    inst.jt
+                );
+                assert!(
+                    (inst.jf as usize) <= max_allowed,
+                    "Instruction {idx} jf offset {} exceeds remaining filter bounds ({max_allowed})",
+                    inst.jf
+                );
+            }
+        }
+
+        // Verify terminal return instructions
+        assert_eq!(filter[len - 2].code, BPF_RET | BPF_K);
+        assert_eq!(filter[len - 2].k, 0xFFFF); // ACCEPT
+        assert_eq!(filter[len - 1].code, BPF_RET | BPF_K);
+        assert_eq!(filter[len - 1].k, 0x0000); // DROP
     }
 }

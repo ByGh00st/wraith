@@ -346,19 +346,24 @@ impl HoneyPortTrap {
         {
             // Verify process name against critical system daemon whitelist and expected_name
             let comm_path = format!("/proc/{pid}/comm");
-            if let Ok(comm) = std::fs::read_to_string(&comm_path) {
-                let comm_clean = comm.trim();
-                for &protected in PROTECTED_SYSTEM_DAEMONS {
-                    if comm_clean.eq_ignore_ascii_case(protected) {
-                        warn!("Refusing to neutralize protected system daemon PID {pid} ('{comm_clean}')");
-                        return false;
-                    }
+            let comm = match std::fs::read_to_string(&comm_path) {
+                Ok(c) => c,
+                Err(e) => {
+                    warn!("Fail-closed: Unable to verify comm for PID {pid}: {e}. Aborting neutralization.");
+                    return false;
                 }
-                if let Some(expected) = expected_name {
-                    if !comm_clean.eq_ignore_ascii_case(expected) {
-                        warn!("PID recycling detected: PID {pid} comm is '{comm_clean}', expected '{expected}'. Aborting neutralization.");
-                        return false;
-                    }
+            };
+            let comm_clean = comm.trim();
+            for &protected in PROTECTED_SYSTEM_DAEMONS {
+                if comm_clean.eq_ignore_ascii_case(protected) {
+                    warn!("Refusing to neutralize protected system daemon PID {pid} ('{comm_clean}')");
+                    return false;
+                }
+            }
+            if let Some(expected) = expected_name {
+                if !comm_clean.eq_ignore_ascii_case(expected) {
+                    warn!("PID recycling detected: PID {pid} comm is '{comm_clean}', expected '{expected}'. Aborting neutralization.");
+                    return false;
                 }
             }
 
@@ -478,6 +483,13 @@ mod tests {
         assert!(!HoneyPortTrap::neutralize_rogue_process(1, true));
         assert!(!HoneyPortTrap::neutralize_rogue_process(2, true));
         assert!(!HoneyPortTrap::neutralize_rogue_process(my_pid, true));
+    }
+
+    #[test]
+    fn test_neutralize_rogue_process_fails_closed_on_unreadable_comm() {
+        // Non-existent PID cannot read comm, must return false (fail-closed)
+        assert!(!HoneyPortTrap::neutralize_rogue_process_verified(999_999, None, false));
+        assert!(!HoneyPortTrap::neutralize_rogue_process_verified(999_999, Some("non_existent"), true));
     }
 
     #[tokio::test]

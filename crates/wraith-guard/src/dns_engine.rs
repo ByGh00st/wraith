@@ -343,6 +343,12 @@ impl DnsPacket {
                     return Err(WraithError::Custom("Truncated DNS pointer".into()));
                 }
                 let ptr_offset = ((len & 0x3F) << 8) | (buf[offset + 1] as usize);
+                // RFC 1035 §4.1.4: Pointers must strictly point backward to prior occurrences
+                if ptr_offset >= offset {
+                    return Err(WraithError::Custom(
+                        "Invalid forward or self-referential DNS pointer".into(),
+                    ));
+                }
                 if !jumped {
                     final_offset = offset + 2;
                     jumped = true;
@@ -1062,5 +1068,21 @@ mod protocol_regressions {
         let occupied = UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let (server, _) = SovereignDnsServer::new(Some(occupied.local_addr().unwrap().port()), None);
         assert!(server.spawn_server().await.is_err());
+    }
+
+    #[test]
+    fn test_parse_qname_rejects_forward_and_loop_pointers() {
+        // Self-referential loop pointer at offset 12 pointing to itself (0xC0, 0x0C)
+        let mut loop_pkt = vec![0u8; 12]; // DNS Header
+        loop_pkt.push(0xC0);
+        loop_pkt.push(12); // Points back to offset 12 -> ptr_offset (12) >= offset (12)
+        assert!(DnsPacket::parse_qname(&loop_pkt, 12).is_err());
+
+        // Forward pointer at offset 12 pointing ahead to offset 16 (0xC0, 0x10)
+        let mut forward_pkt = vec![0u8; 12];
+        forward_pkt.push(0xC0);
+        forward_pkt.push(16); // Points ahead to offset 16 -> ptr_offset (16) >= offset (12)
+        forward_pkt.extend_from_slice(&[3, b'f', b'o', b'o', 0]);
+        assert!(DnsPacket::parse_qname(&forward_pkt, 12).is_err());
     }
 }
