@@ -1472,6 +1472,28 @@ pub fn cmd_pentest() -> Result<()> {
     Ok(())
 }
 
+/// Validates that a resolved username complies with POSIX portable username standards:
+/// - Must not be empty and maximum 32 characters
+/// - Must not start with a hyphen '-' (to prevent CLI argument / flag injection)
+/// - Characters must be ASCII alphanumeric, '.', '_', or '-'
+pub fn validate_posix_username(username: &str) -> bool {
+    let u = username.trim();
+    if u.is_empty() || u.len() > 32 {
+        return false;
+    }
+    if u.starts_with('-') {
+        return false;
+    }
+    let first = match u.chars().next() {
+        Some(c) => c,
+        None => return false,
+    };
+    if !first.is_ascii_alphanumeric() && first != '_' {
+        return false;
+    }
+    u.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-')
+}
+
 pub fn spawn_monitor_terminal() -> bool {
     let display = std::env::var("DISPLAY").unwrap_or_else(|_| {
         #[cfg(target_os = "linux")]
@@ -1488,7 +1510,9 @@ pub fn spawn_monitor_terminal() -> bool {
         ":0".into()
     });
 
-    let mut desktop_user: Option<String> = std::env::var("SUDO_USER").ok();
+    let mut desktop_user: Option<String> = std::env::var("SUDO_USER")
+        .ok()
+        .filter(|u| validate_posix_username(u));
     let mut xauth = std::env::var("XAUTHORITY").unwrap_or_default();
 
     if xauth.is_empty() || !Path::new(&xauth).exists() {
@@ -1504,6 +1528,9 @@ pub fn spawn_monitor_terminal() -> bool {
         if let Ok(entries) = std::fs::read_dir("/home") {
             for entry in entries.flatten() {
                 let user_name = entry.file_name().to_string_lossy().to_string();
+                if !validate_posix_username(&user_name) {
+                    continue;
+                }
                 let candidate = entry.path().join(".Xauthority");
                 if candidate.exists() {
                     xauth = candidate.to_string_lossy().to_string();
@@ -2301,4 +2328,22 @@ mod lifecycle_tests {
         assert!(resolve_tcp_profile(&args).is_err());
     }
 
+    #[test]
+    fn test_validate_posix_username_rejects_flag_injection_and_invalid_chars() {
+        assert!(!validate_posix_username("-rf"));
+        assert!(!validate_posix_username("--help"));
+        assert!(!validate_posix_username("-u"));
+        assert!(!validate_posix_username(""));
+        assert!(!validate_posix_username("user;rm -rf /"));
+        assert!(!validate_posix_username("user name"));
+        assert!(!validate_posix_username("user\0name"));
+        assert!(!validate_posix_username(".hidden"));
+        assert!(!validate_posix_username(&"a".repeat(33)));
+
+        assert!(validate_posix_username("root"));
+        assert!(validate_posix_username("byghost"));
+        assert!(validate_posix_username("user1"));
+        assert!(validate_posix_username("_apt"));
+        assert!(validate_posix_username("user.name-1"));
+    }
 }

@@ -344,12 +344,19 @@ impl HoneyPortTrap {
 
         #[cfg(unix)]
         {
+            #[cfg(target_os = "linux")]
+            let pidfd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid as i32, 0) as libc::c_int };
+
             // Verify process name against critical system daemon whitelist and expected_name
             let comm_path = format!("/proc/{pid}/comm");
             let comm = match std::fs::read_to_string(&comm_path) {
                 Ok(c) => c,
                 Err(e) => {
                     warn!("Fail-closed: Unable to verify comm for PID {pid}: {e}. Aborting neutralization.");
+                    #[cfg(target_os = "linux")]
+                    if pidfd >= 0 {
+                        unsafe { libc::close(pidfd) };
+                    }
                     return false;
                 }
             };
@@ -357,12 +364,20 @@ impl HoneyPortTrap {
             for &protected in PROTECTED_SYSTEM_DAEMONS {
                 if comm_clean.eq_ignore_ascii_case(protected) {
                     warn!("Refusing to neutralize protected system daemon PID {pid} ('{comm_clean}')");
+                    #[cfg(target_os = "linux")]
+                    if pidfd >= 0 {
+                        unsafe { libc::close(pidfd) };
+                    }
                     return false;
                 }
             }
             if let Some(expected) = expected_name {
                 if !comm_clean.eq_ignore_ascii_case(expected) {
                     warn!("PID recycling detected: PID {pid} comm is '{comm_clean}', expected '{expected}'. Aborting neutralization.");
+                    #[cfg(target_os = "linux")]
+                    if pidfd >= 0 {
+                        unsafe { libc::close(pidfd) };
+                    }
                     return false;
                 }
             }
@@ -371,19 +386,17 @@ impl HoneyPortTrap {
 
             #[cfg(target_os = "linux")]
             {
-                // Open pidfd to race-proof signal delivery against PID recycling
-                let pidfd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid as i32, 0) };
                 if pidfd >= 0 {
                     let sig_res = unsafe {
                         libc::syscall(
                             libc::SYS_pidfd_send_signal,
-                            pidfd as i32,
+                            pidfd,
                             sig,
                             std::ptr::null::<libc::siginfo_t>(),
                             0,
                         )
                     };
-                    unsafe { libc::close(pidfd as i32) };
+                    unsafe { libc::close(pidfd) };
                     if sig_res == 0 {
                         tracing::info!(
                             "Rogue process PID: {} successfully {} via pidfd",

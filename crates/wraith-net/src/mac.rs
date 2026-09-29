@@ -81,7 +81,34 @@ pub fn get_default_interface() -> Result<String> {
     Err(WraithError::Hardware("No suitable network interface discovered".into()))
 }
 
+/// Validates network interface name against IFNAMSIZ limits and POSIX naming conventions (CWE-20)
+pub fn validate_interface_name(iface: &str) -> Result<&str> {
+    let trimmed = iface.trim();
+    if trimmed.is_empty() {
+        return Err(WraithError::Hardware("Interface name cannot be empty".into()));
+    }
+    // Linux IFNAMSIZ is 16 bytes (including null terminator), so max length is 15 characters
+    if trimmed.len() > 15 {
+        return Err(WraithError::Hardware(format!(
+            "Interface name '{trimmed}' exceeds maximum length of 15 characters"
+        )));
+    }
+    if trimmed.contains("..") || trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains('\0') {
+        return Err(WraithError::Hardware(format!(
+            "Interface name '{trimmed}' contains illegal characters or path traversal"
+        )));
+    }
+    // Must contain only ASCII alphanumeric, '_', '.', or '-'
+    if !trimmed.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.' || b == b'-') {
+        return Err(WraithError::Hardware(format!(
+            "Interface name '{trimmed}' contains invalid characters"
+        )));
+    }
+    Ok(trimmed)
+}
+
 pub fn get_current_mac(interface: &str) -> Result<String> {
+    validate_interface_name(interface)?;
     let output = run_cmd("ip", &["link", "show", interface])?;
     for line in output.lines() {
         if let Some(pos) = line.find("link/ether ") {
@@ -139,9 +166,16 @@ pub fn change_mac(interface: Option<&str>, target_mac: Option<&str>) -> Result<(
 }
 
 pub fn change_mac_with_journal(interface: Option<&str>, target_mac: Option<&str>, journal: impl FnOnce(&str, &str, &str) -> Result<()>) -> Result<(String, String, String)> {
+    if let Some(i) = interface {
+        validate_interface_name(i)?;
+    }
     let iface = match interface {
         Some(i) => i.to_string(),
-        None => get_default_interface()?,
+        None => {
+            let default_iface = get_default_interface()?;
+            validate_interface_name(&default_iface)?;
+            default_iface
+        }
     };
 
     let old_mac = get_current_mac(&iface)?;
@@ -179,6 +213,7 @@ pub fn change_mac_with_journal(interface: Option<&str>, target_mac: Option<&str>
 }
 
 pub fn restore_mac(interface: &str, original_mac: &str) -> Result<()> {
+    validate_interface_name(interface)?;
     info!("Restoring hardware MAC on {interface} to {original_mac}");
     run_cmd("ip", &["link", "set", interface, "down"])?;
     let address_result = run_cmd("ip", &["link", "set", interface, "address", original_mac]);
@@ -264,5 +299,29 @@ mod namespace_mac_tests {
             assert_eq!(hex.len(), 6);
             assert!(hex.chars().all(|c| c.is_ascii_hexdigit()));
         }
+    }
+
+    #[test]
+    fn test_validate_interface_name_rejects_invalid_inputs() {
+        assert!(super::validate_interface_name("").is_err());
+        assert!(super::validate_interface_name("   ").is_err());
+        assert!(super::validate_interface_name("eth0/../").is_err());
+        assert!(super::validate_interface_name("eth0;ls").is_err());
+        assert!(super::validate_interface_name("eth0 evil").is_err());
+        assert!(super::validate_interface_name("eth0\0evil").is_err());
+        assert!(super::validate_interface_name("eth0..1").is_err());
+        assert!(super::validate_interface_name("waytoolonginterfacename").is_err());
+
+        assert!(super::validate_interface_name("eth0").is_ok());
+        assert!(super::validate_interface_name("wlan0").is_ok());
+        assert!(super::validate_interface_name("enp0s3").is_ok());
+        assert!(super::validate_interface_name("br-1234").is_ok());
+    }
+
+    #[test]
+    fn test_change_mac_rejects_malformed_interface() {
+        assert!(super::change_mac(Some("eth0/../"), None).is_err());
+        assert!(super::change_mac(Some("eth0;ls"), None).is_err());
+        assert!(super::change_mac(Some(""), None).is_err());
     }
 }
