@@ -69,7 +69,7 @@ All automated continuous integration pipelines have achieved **100% green verifi
 | **Kernel Network Integration** | 7 NetNS scenarios + AF_PACKET audit | **COMPLIANT** (100% Green, zero host disruption) |
 | **Multi-Distribution Matrix** | 5 environments (Kali, Debian, Ubuntu, Arch, Alpine) | **COMPLIANT** (Verified deployment & teardown) |
 | **Debian Packaging Standards** | Lintian strict `--fail-on error` & `postrm purge` | **COMPLIANT** (0 errors, zero orphan files) |
-| **Unit & Regression Suites** | Multi-crate workspace unit tests | **COMPLIANT** (254 passed, 0 failures) |
+| **Unit & Regression Suites** | Multi-crate workspace unit tests | **COMPLIANT** (271 passed on Linux / 269 on Windows, 0 failures) |
 
 ---
 

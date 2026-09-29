@@ -15,6 +15,10 @@
 | `sudo wraith doctor` | Run diagnostics |
 | `sudo wraith -t` | Run the network-check suite |
 | `sudo wraith -u` | Update from the official GitHub repository |
+| `wraith monitor` / `-M` | Launch real-time dedicated DPI & IDS live interceptor monitor |
+| `wraith pentest` | Display authorized security auditing & pentest proxy configuration guide |
+| `wraith bridge moat` | Query Tor BridgeDB via Moat Protocol (JSON-API) |
+| `wraith doh -s` | Launch interactive DNS-over-HTTPS provider selector |
 
 NEWNYM does not move existing connections or erase cookies and logins. A successful exit-IP check describes that request, not every application or interface.
 
@@ -27,6 +31,15 @@ Choose one operation. Use `sudo wraith -Fs` or `sudo wraith start -F`; session f
 Interactive selection runs in the foreground. Without a terminal, provide `--interface` and `--doh` values instead. `--no-killswitch` / `--no-ks` is rejected in every mode because the watchdog is mandatory.
 
 For the required controls, host prerequisites and optional additions to `-Fs`, see the [full-security setup guide](Advanced-Configuration.md#full-security-preset). Change the matched pair with `sudo wraith -Fs --tls-profile safari`; L4 follows automatically.
+
+## Forensic & Evasive Operations
+
+| Option | Operation | Safety & Scope |
+| :--- | :--- | :--- |
+| `-K` / `--aggressive-masquerade` | Mask process name as `[kworker/u16:0]` in Linux kernel scheduler | Evasive; disguises worker thread |
+| `-A` / `--aggressive-anti-debug` | Enforce anti-debugging probe; emergency SIGKILL if ptrace detected | Fail-closed anti-tamper trap |
+| `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp, system logs and bash_history on exit | Irreversible system trace wipe |
+| `-d` / `--forensic-self-destruct` | Cryptographically shred binary and state files from disk on shutdown | Irreversible binary shredding |
 
 ## Choose an interface
 
@@ -43,9 +56,12 @@ Wraith ships **17 locales**:
 
 `ar` · `az` · `de` · `en` · `es` · `fa` · `fr` · `it` · `ja` · `ko` · `nl` · `pl` · `pt` · `ru` · `tr` · `uk` · `zh`
 
+The locale can be selected via TUI, `--lang` CLI flag, or the `WRAITH_LANG` environment variable:
+
 ```bash
 wraith --select-lang
 wraith --lang tr --help
+export WRAITH_LANG=tr
 ```
 
 ## Update source, then install

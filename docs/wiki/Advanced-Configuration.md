@@ -96,6 +96,9 @@ Only newly launched namespace applications get its sysctl/FIB settings. Tor's ou
 | `--shaper` | Apply owned netem delay settings | No demonstrated resistance to traffic correlation |
 | `--display-sandbox` | Create a private virtual display | Xvfb and xauth; applications must use that display |
 | `--honey-ports` / `--honey-lan` | Loopback decoys are included in strict mode; LAN binding is opt-in | Observational traps; not malware removal |
+| `-K` / `--aggressive-masquerade` | Mask process name as `[kworker/u16:0]` | Kernel process table disguise; does not alter `/proc/[pid]/exe` |
+| `-A` / `--aggressive-anti-debug` | Enforce anti-debugging ptrace probe | Emergency SIGKILL upon debugger attachment detection |
+| `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp and shell logs | Irreversible; multi-pass shred on common system log paths |
 
 Bridges, WireGuard, virtual display, circuit rotation, traffic shaping, cover requests and onion services need explicit CLI/configuration choices. Log/history wiping and self-destruction also remain explicit options. Full-security is a required control bundle, not a complete-anonymity or blocklist-avoidance guarantee.
 

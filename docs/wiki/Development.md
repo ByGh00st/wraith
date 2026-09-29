@@ -9,8 +9,8 @@ Release-preparation baseline: [`1cee183`](https://github.com/ByGh00st/wraith/com
 | Check | Result |
 | :--- | :--- |
 | Workspace check, all targets | Passed on Windows and both native GNU Linux architectures |
-| Windows workspace tests | **252 passed, 0 failed, 1 ignored** |
-| Native GNU Linux tests, x86_64 and ARM64 | **254 passed on each, 0 failed, 1 ignored** |
+| Windows workspace tests | **269 passed, 0 failed, 1 ignored** |
+| Native GNU Linux tests, x86_64 and ARM64 | **271 passed on each, 0 failed, 1 ignored** |
 | Windows all-target Clippy | Passed with warnings denied |
 | GNU Linux all-target Clippy | Passed natively on both architectures and by cross-compilation; warnings denied |
 | Installer preview regressions | 14 platform/failure scenarios passed on Windows and Ubuntu; no installation |
@@ -78,6 +78,24 @@ The [`live_wire_syn_audit.rs`](https://github.com/ByGh00st/wraith/blob/main/crat
 The trigger is a nonblocking TCP connect to the benchmark range `198.18.0.1:443` inside the isolated namespace. It never uses a real external route. A bounded capture waits for the initial SYN. Window 64240 is a controlled MTU 1500 / MSS 1460 / adequate receive-buffer / `initrwnd 44` fixture; a different kernel result fails the audit rather than being labeled a native Windows signature.
 
 In release v1.5.0, this audit and end-to-end network namespace kernel tests are verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). The test validates the host NFQUEUE worker, access-link normalization, MSS clamp invariants, and packet layout integrity under native Linux.
+
+## Codebase Metrics (Tokei)
+
+```text
+===============================================================================
+ Language            Files        Lines         Code     Comments       Blanks
+===============================================================================
+ Shell                  20         1644         1359          139          146
+ TOML                   10          333          303            0           30
+ YAML                  342        12543        12538            0            5
+ Markdown               33         2630            0         1814          816
+ Python                  3          276          247            5           24
+-------------------------------------------------------------------------------
+ Rust (6 Crates)        85        26959        23647          769         2543
+===============================================================================
+ Total                 499        44473        38179         2730         3564
+===============================================================================
+```
 
 ## Contributions
 

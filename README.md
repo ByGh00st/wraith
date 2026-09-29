@@ -252,6 +252,9 @@ sudo wraith -x
 | `--rotate-interval 120` | Periodically request new Tor identities |
 | `--browser-shield` | Apply preferences to supported browser profiles |
 | `--display-sandbox` | Create a private X11 display; requires Xvfb and xauth |
+| `-K` / `--aggressive-masquerade` | Cloak process name in Linux kernel scheduler as `[kworker/u16:0]` |
+| `-A` / `--aggressive-anti-debug` | Enforce anti-ptrace probe; emergency SIGKILL if debugger attached |
+| `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp and user shell history files on exit |
 
 WireGuard needs compatible configuration and system tools. Applications must use the selected browser profile or display for those controls to apply. Cleanup utilities and irreversible log/file removal options are documented separately from the session workflow; inspect command help before use. See [advanced configuration](docs/wiki/Advanced-Configuration.md) for prerequisites and the complete option scope.
 
@@ -259,11 +262,12 @@ WireGuard needs compatible configuration and system tools. Applications must use
 
 ### Language selection
 
-The interface ships 17 locales: `ar`, `az`, `de`, `en`, `es`, `fa`, `fr`, `it`, `ja`, `ko`, `nl`, `pl`, `pt`, `ru`, `tr`, `uk`, `zh`. Translation coverage can differ by message.
+The interface ships 17 locales: `ar`, `az`, `de`, `en`, `es`, `fa`, `fr`, `it`, `ja`, `ko`, `nl`, `pl`, `pt`, `ru`, `tr`, `uk`, `zh`. Translation coverage can differ by message. The locale can be configured via CLI flags or the `WRAITH_LANG` environment variable:
 
 ```bash
 wraith --select-lang
 wraith --lang tr --help
+export WRAITH_LANG=tr
 ```
 
 ---
@@ -627,6 +631,24 @@ sudo -E cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocap
 ```
 
 <a id="codebase-metrics"></a>
+
+### 📊 Codebase metrics (Tokei)
+
+```text
+===============================================================================
+ Language            Files        Lines         Code     Comments       Blanks
+===============================================================================
+ Shell                  20         1644         1359          139          146
+ TOML                   10          333          303            0           30
+ YAML                  342        12543        12538            0            5
+ Markdown               33         2630            0         1814          816
+ Python                  3          276          247            5           24
+-------------------------------------------------------------------------------
+ Rust (6 Crates)        85        26959        23647          769         2543
+===============================================================================
+ Total                 499        44473        38179         2730         3564
+===============================================================================
+```
 
 For source structure, use the [crate map](#crate-topology). Line counts and catalog size are inventory metrics, not validation results.
 
