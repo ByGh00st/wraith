@@ -8,6 +8,28 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 
 ---
 
+## [Unreleased]
+
+### Security & Hardening (Kernel, Network & Protocol Defense)
+- **Classic BPF Jump Offsets & Egress Routing Recalibration (`wraith-guard`)**:
+  - Recalibrated relative jump offsets (`jt`/`jf`) in `build_tor_only_egress_filter` to strictly stay within the 12-instruction boundary, eliminating kernel setsockopt `SO_ATTACH_FILTER` `-EINVAL` rejections.
+  - Hardened packet flow: routed IPv6 (`0x86DD`) directly to DROP (`ret(0)`), non-IPv4 traffic (ARP) to ACCEPT (`ret(0xFFFF)`), and enforced strict ACCEPT on matching Tor TransPort/DNSPort traffic with fail-closed DROP on unauthorized egress.
+  - Added unit test `test_bpf_instruction_bounds` asserting relative jump targets remain within filter slice bounds.
+- **Honeypot Atomic Pidfd Lifecycle Pinning & Fail-Closed Neutralization (`wraith-guard`)**:
+  - Pinned target process handles using `libc::SYS_pidfd_open` at the inception of the verification lifecycle, eliminating PID recycling TOCTOU race conditions.
+  - Enforced strict fail-closed policy (`return false`) when `/proc/{pid}/comm` is unreadable or process identity verification fails, preventing signals from being dispatched to recycled or protected system daemons.
+  - Added unit tests `test_neutralize_rogue_process_fails_closed_on_unreadable_comm` and `test_neutralize_rogue_process_guards_protected_pids`.
+- **DNS RFC 1035 Pointer Compression Loop & Forward Jump Shield (`wraith-guard`)**:
+  - Enforced RFC 1035 §4.1.4 backward pointer constraint (`ptr_offset < offset`), immediately rejecting self-referential pointer loops and forward pointer anomalies in `DnsPacket::parse_qname`.
+  - Enforced maximum pointer jump recursion depth limit of 10 to neutralize compression bomb attacks.
+  - Added unit test `test_parse_qname_rejects_forward_and_loop_pointers`.
+- **L2 MAC Spoofing Network Interface Sanitization (`wraith-net`, CWE-20)**:
+  - Added `validate_interface_name` verifying `IFNAMSIZ - 1` (15 characters) length bound, rejecting path traversal (`..`, `/`, `\`), spaces, null bytes, and non-alphanumeric characters (`^[a-zA-Z0-9_.\-]+$`) across `change_mac`, `change_mac_with_journal`, `get_current_mac`, and `restore_mac`.
+  - Added unit tests `test_validate_interface_name_rejects_invalid_inputs` and `test_change_mac_rejects_malformed_interface`.
+- **Desktop User Argument & Flag Injection Prevention (`wraith-cli`)**:
+  - Added `validate_posix_username` verifying that resolved `desktop_user` identifiers (from `SUDO_USER` or `/home` enumeration) conform to portable POSIX username standards and do not start with a hyphen (`-`), preventing command/flag injection into helper tools like `id` and `runuser`.
+  - Added unit test `test_validate_posix_username_rejects_flag_injection_and_invalid_chars`.
+
 ## [1.5.0] - 2026-09-27
 
 ### Enterprise Stabilization Gate & Quality Assurance Verification (100% Green CI)
