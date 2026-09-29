@@ -72,7 +72,7 @@ Reset scripts delegate to the installed `wraith stop` implementation when record
 
 ### Emergency Network Reset (`wraith reset` / `wraith --reset`)
 
-When external network failures, dropped connections, ungraceful kills, or conflicting firewall managers leave the host in an unreachable state, use the dedicated emergency reset engine:
+Use the reset aliases to retry recovery of an active or interrupted Wraith session:
 
 ```bash
 sudo wraith --reset
@@ -80,12 +80,9 @@ sudo wraith reset [network|dns|firewall|all]
 sudo wraith network reset
 ```
 
-This procedure performs a 5-tier teardown:
-1. Shuts down any active or orphaned Wraith workers and Tor daemons.
-2. Purges the `wraith-ns` namespace, orphan veth links, and WireGuard tunnels.
-3. Flushes iptables, ip6tables, and nftables rules back to clean `ACCEPT` policies.
-4. Restores `/etc/resolv.conf` from backup or installs clean default resolvers, restarting `systemd-resolved` / `NetworkManager`.
-5. Re-enables IP forwarding, flushes ARP cache, and brings physical interfaces UP.
+Every target, including the compatibility targets `dns` and `firewall`, restores the complete recorded session through the same path as `wraith stop`. Partial restoration would break the session's routing policy. Worker and resource ownership are verified before cleanup; unrelated interfaces are not deleted by name, and missing state never triggers a host-wide firewall flush or replacement DNS.
+
+With neither a journal nor owned leases, reset changes nothing. Cleanup failures return a nonzero exit status and retain recovery records for retry; a failed stop is not followed by forced cleanup. This command does not repair arbitrary changes made by other network managers.
 
 A live legacy session without process-lifetime identity cannot be signaled automatically. Stop its original foreground worker with Ctrl+C, or its owning systemd service, then retry recovery. Do not delete the journal as a workaround.
 

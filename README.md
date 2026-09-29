@@ -214,6 +214,7 @@ Default service ordering follows `network-online.target`; installation does not 
 | `sudo wraith -t` | Run bounded connectivity and leak checks |
 | `sudo wraith -r` | Request a new identity for eligible new Tor streams |
 | `sudo wraith -x` | Stop and restore recorded settings; retry incomplete recovery |
+| `sudo wraith reset` / `sudo wraith -R` | Recover the complete recorded session through the same path as stop |
 | `sudo wraith -Fs` | Start the strict preset in the foreground |
 | `sudo wraith doctor` | Inspect host and network prerequisites |
 | `sudo wraith exec -- PROGRAM ...` | Launch an application in the managed namespace |
@@ -310,7 +311,7 @@ Startup checks worker identity and recorded ownership under a lifecycle lock bef
 sudo wraith -x
 ```
 
-A failed managed-Tor stop or namespace teardown withholds firewall restoration. Missing state does not authorize a host-wide firewall flush. Snapshots preserve recorded file contents, modes/ownership, missing-file state and resolver symlink targets; they do not capture ACLs/xattrs or independent changes by other programs. Durable network leases do not replace the full `/var/run/wraith.state` journal, which may disappear on reboot.
+A failed managed-Tor stop or namespace teardown withholds firewall restoration. Reset aliases use the same ownership-checked recovery path as stop, including the compatibility targets `dns` and `firewall`. Failed cleanup returns an error and retains its record. Missing state does not authorize a host-wide firewall flush. Snapshots preserve recorded file contents, modes/ownership, missing-file state and resolver symlink targets; they do not capture ACLs/xattrs or independent changes by other programs. Durable network leases do not replace the full `/var/run/wraith.state` journal, which may disappear on reboot.
 
 See [troubleshooting and orphan recovery](docs/wiki/Troubleshooting.md) for DNS failures, Wi-Fi reconnection, namespace conflicts and incomplete cleanup.
 

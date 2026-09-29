@@ -32,7 +32,7 @@ use wraith_tor::{
 };
 
 use crate::display::{
-    print_banner, print_error, print_identity_rotated, print_reset_report, print_step, print_success, print_system_restored,
+    print_banner, print_error, print_identity_rotated, print_step, print_success, print_system_restored,
     show_circuit_telemetry, show_leak_report, show_status_dashboard, render_box, render_box_top,
     render_box_bottom, render_box_row, BoxCorner,
 };
@@ -1175,12 +1175,12 @@ async fn cmd_stop_inner(
                 return Err(WraithError::Configuration("Another worker is still performing cleanup".into()));
             }
             print_step(&format!("Stopping verified session worker (PID: {pid})..."), "info");
-            let _ = process.terminate();
+            process.terminate()?;
             let mut exited = false;
             for _ in 0..450 {
                 sleep(Duration::from_millis(100)).await;
                 if !state_mgr.exists() { return Ok(()); }
-                if process.has_exited().unwrap_or(true) { exited = true; break; }
+                if process.has_exited()? { exited = true; break; }
             }
             if !exited {
                 return Err(WraithError::Custom("Session has not stopped; recovery record retained. Inspect the worker before retrying.".into()));
@@ -1313,239 +1313,19 @@ async fn cmd_stop_inner(
     Ok(())
 }
 
+/// Reset aliases recover the complete recorded session, just like stop.
+/// Partial DNS/firewall resets would break an active session's fail-closed policy.
 pub async fn cmd_reset_network(target: &str) -> Result<()> {
-    print_banner(false);
-    let target = target.trim().to_lowercase();
-    let scope_display = if target == "dns" {
-        "DNS SUBSYSTEM"
-    } else if target == "firewall" {
-        "NETFILTER / FIREWALL"
-    } else {
-        "FULL NETWORK STACK & NAMESPACES"
-    };
-
-    print_step(
-        &format!("Initiating emergency host network teardown [Scope: {scope_display}]..."),
-        "warn",
-    );
-
-    let mut report_rows: Vec<(&'static str, String, &'static str)> = Vec::new();
-    let full_or_core = target.is_empty() || target == "network" || target == "net" || target == "all";
-
-    // 1. Terminate any active or recorded Wraith sessions
-    if full_or_core {
-        print_step("Terminating active Tor daemons & releasing session locks...", "info");
-        let state_mgr = StateManager::default();
-        if state_mgr.exists() {
-            let _ = cmd_stop_inner(false, false, false).await;
-            report_rows.push(("Wraith Session State", "Active session stopped & journals disarmed".to_string(), "DISARMED"));
-        } else {
-            report_rows.push(("Wraith Session State", "No active sessions; state clean".to_string(), "CLEAN"));
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            let _ = Command::new("systemctl")
-                .args(["stop", "wraith.service"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-        }
-
-        let _ = stop_tor_daemon();
-        report_rows.push(("Tor Core Daemons", "Killed & IPC control sockets detached".to_string(), "TERMINATED"));
+    let target = target.trim().to_ascii_lowercase();
+    if !matches!(target.as_str(), "" | "network" | "net" | "all" | "dns" | "firewall") {
+        return Err(WraithError::Configuration(format!("Unknown reset target: {target}")));
     }
-
-    // 2. Namespaces and Virtual Links Purge
-    if full_or_core {
-        #[cfg(target_os = "linux")]
-        {
-            print_step("Obliterating network namespaces (wraith-ns) and virtual interfaces...", "info");
-            if let Ok(true) = wraith_net::recovery::has_orphan_leases() {
-                let _ = wraith_net::recovery::recover_orphaned_state();
-            }
-
-            // Force destroy wraith-ns namespace if lingering
-            let _ = Command::new("ip")
-                .args(["netns", "del", wraith_net::namespace::NAMESPACE_NAME])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-
-            // Force destroy veth interfaces including veth-wr
-            for veth in &[wraith_net::namespace::VETH_HOST, wraith_net::namespace::VETH_NS, "veth-host", "veth-ns", "veth-wr-host", "veth-wr-ns"] {
-                let _ = Command::new("ip")
-                    .args(["link", "del", veth])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status();
-            }
-
-            // Force down and delete wireguard interfaces
-            for wg in &["wg-wraith", "wraith-wg", "wg0"] {
-                let _ = Command::new("ip")
-                    .args(["link", "del", wg])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status();
-            }
-
-            report_rows.push(("Kernel Namespaces", "wraith-ns destroyed & veth-wr unlinked".to_string(), "PURGED"));
-        }
+    if matches!(target.as_str(), "dns" | "firewall") {
+        print_step("Recovering the complete recorded session; DNS and firewall cannot be reset independently.", "info");
     }
-
-    // 3. Firewall & Netfilter Neutralization
-    if full_or_core || target == "firewall" {
-        #[cfg(target_os = "linux")]
-        {
-            print_step("Flushing Netfilter tables & restoring default ACCEPT policy...", "info");
-            // Reset iptables policies to ACCEPT and flush all tables
-            for table in &["filter", "nat", "mangle", "raw"] {
-                let _ = Command::new("iptables").args(["-t", table, "-F"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-                let _ = Command::new("iptables").args(["-t", table, "-X"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            }
-            let _ = Command::new("iptables").args(["-P", "INPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            let _ = Command::new("iptables").args(["-P", "FORWARD", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            let _ = Command::new("iptables").args(["-P", "OUTPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-
-            // Reset ip6tables policies to ACCEPT and flush all tables
-            for table in &["filter", "mangle", "raw"] {
-                let _ = Command::new("ip6tables").args(["-t", table, "-F"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-                let _ = Command::new("ip6tables").args(["-t", table, "-X"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            }
-            let _ = Command::new("ip6tables").args(["-t", "nat", "-F"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            let _ = Command::new("ip6tables").args(["-t", "nat", "-X"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            let _ = Command::new("ip6tables").args(["-P", "INPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            let _ = Command::new("ip6tables").args(["-P", "FORWARD", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            let _ = Command::new("ip6tables").args(["-P", "OUTPUT", "ACCEPT"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-
-            // Delete custom nftables tables
-            for family in &["inet", "ip", "ip6"] {
-                let _ = Command::new("nft").args(["delete", "table", family, "wraith"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            }
-
-            // Remove traffic shaping qdiscs on physical interfaces
-            if let Ok(interfaces) = wraith_net::list_all_interfaces() {
-                for iface in interfaces {
-                    let _ = Command::new("tc")
-                        .args(["qdisc", "del", "dev", &iface.name, "root"])
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status();
-                }
-            }
-
-            report_rows.push(("Netfilter Firewall", "iptables/ip6tables/nftables reset to ACCEPT".to_string(), "NEUTRALIZED"));
-        }
-    }
-
-    // 4. DNS Restoration
-    if full_or_core || target == "dns" {
-        #[cfg(target_os = "linux")]
-        {
-            print_step("Unlocking /etc/resolv.conf and setting clearnet Anycast DNS...", "info");
-            let resolv_path = Path::new(wraith_core::config::RESOLV_PATH);
-            let backup_path = Path::new(wraith_core::config::RESOLV_BACKUP);
-
-            // Remove immutable attribute if set by previous lock
-            let _ = Command::new("chattr")
-                .args(["-i", wraith_core::config::RESOLV_PATH])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-
-            let mut restored_from_backup = false;
-            if backup_path.exists() && std::fs::copy(backup_path, resolv_path).is_ok() {
-                restored_from_backup = true;
-            }
-
-            if !restored_from_backup {
-                let needs_fallback = match std::fs::read_to_string(resolv_path) {
-                    Ok(content) => {
-                        let trimmed = content.trim();
-                        trimmed.is_empty()
-                            || (trimmed.contains("127.0.0.1") && !trimmed.contains("nameserver 1.1.1.1"))
-                    }
-                    Err(_) => true,
-                };
-
-                if needs_fallback {
-                    let fallback_dns = "# Generated by Wraith Network Reset\nnameserver 1.1.1.1\nnameserver 9.9.9.9\nnameserver 8.8.8.8\n";
-                    let _ = std::fs::write(resolv_path, fallback_dns);
-                }
-            }
-
-            // Restart system resolvers
-            let _ = Command::new("systemctl")
-                .args(["restart", "systemd-resolved"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = Command::new("systemctl")
-                .args(["restart", "NetworkManager"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-
-            report_rows.push(("DNS Resolvers", "/etc/resolv.conf restored to Anycast upstream".to_string(), "RESOLVED"));
-        }
-    }
-
-    // 5. Routing, ARP & Link State Normalization
-    if full_or_core {
-        #[cfg(target_os = "linux")]
-        {
-            print_step("Flushing routing table 100, ARP cache and elevating links...", "info");
-            // Flush policy routing table 100
-            let _ = Command::new("ip")
-                .args(["rule", "del", "table", "100"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = Command::new("ip")
-                .args(["route", "flush", "table", "100"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-
-            // Re-enable IP forwarding & flush ARP table
-            let _ = Command::new("sysctl")
-                .args(["-w", "net.ipv4.ip_forward=1"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = Command::new("ip")
-                .args(["neigh", "flush", "all"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-
-            // Bring up all physical interfaces
-            if let Ok(interfaces) = wraith_net::list_physical_interfaces() {
-                for iface in interfaces {
-                    let _ = Command::new("ip")
-                        .args(["link", "set", &iface.name, "up"])
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status();
-                }
-            }
-
-            report_rows.push(("Routing & FIB State", "Default route UP & physical interfaces linked".to_string(), "ONLINE"));
-        }
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        report_rows.push(("Platform Compatibility", "Non-Linux Host Environment".to_string(), "SIMULATED"));
-    }
-
-    report_rows.push(("Clearnet Stack", "All fail-closed barriers dropped & traffic normalized".to_string(), "OPERATIONAL"));
-
-    let slice_rows: Vec<(&str, &str, &str)> = report_rows.iter().map(|(a, b, c)| (*a, b.as_str(), *c)).collect();
-    print_reset_report(&slice_rows);
-    print_step("Host network stack successfully restored to default clearnet state.", "ok");
-    Ok(())
+    // This path validates worker/resource ownership, preserves incomplete recovery
+    // records and propagates errors. With no journal or leases it changes nothing.
+    cmd_stop(false).await
 }
 
 pub async fn cmd_shred(target: &str, passes: u32) -> Result<()> {
@@ -2351,6 +2131,12 @@ pub async fn cmd_exec(command: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn invalid_reset_target_is_rejected_before_recovery() {
+        assert!(matches!(cmd_reset_network("unknown").await, Err(WraithError::Configuration(_))));
+    }
+
     #[test]
     fn failed_tor_shutdown_never_restores_firewalls_or_swallows_restore_errors() {
         let state = StateData::configured(|data| { data.saved_rules = Some("v4".into()); data.saved_ipv6_rules = Some("v6".into()); });

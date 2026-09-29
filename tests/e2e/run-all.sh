@@ -28,7 +28,7 @@ run_stage "03-tor-connectivity.sh" "Tor Circuit Readiness & TCP Egress Anonymity
 run_stage "04-dns-leak.sh"         "Wire-Level DNS Leak Audit (Zero UDP/53 Clearnet)"
 run_stage "05-kill-switch.sh"      "Tor Daemon SIGKILL & Fail-Closed Kill-Switch"
 run_stage "06-clean-shutdown.sh"   "Graceful Teardown & Netfilter Rollback"
-run_stage "07-emergency-reset.sh"  "Emergency Recovery Script (reset.sh) Verification"
+run_stage "07-emergency-reset.sh"  "CLI Reset Ownership, Failure & Retry" 180
 
 echo ""
 echo "========================================================================"

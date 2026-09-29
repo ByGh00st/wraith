@@ -1,37 +1,61 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# SCENARIO 5: Tor Daemon Catastrophic Failure & Fail-Closed Kill-Switch Audit
-# ==============================================================================
+# Tor failure must block numeric-IP TCP/UDP, with a live external fixture.
 set -euo pipefail
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+: "${WRAITH_EGRESS_ADDRESS:?Run through harness.sh}"
+: "${WRAITH_EGRESS_PORT:?Run through harness.sh}"
+: "${WRAITH_EGRESS_PID:?Run through harness.sh}"
+AUDIT_DIR=$(mktemp -d /tmp/wraith-killswitch-XXXXXX)
+CAPTURE_PID=""
+cleanup() {
+    if [[ -n "$CAPTURE_PID" ]]; then
+        kill -INT "$CAPTURE_PID" 2>/dev/null || true
+        wait "$CAPTURE_PID" 2>/dev/null || true
+    fi
+    rm -rf "$AUDIT_DIR"
+}
+trap cleanup EXIT
 
-echo "[*] [Scenario 5] Locating active Tor daemon process in namespace..."
-TOR_PID=$(pgrep -x tor || true)
-if [[ -z "$TOR_PID" ]]; then
-    echo "[!] Tor daemon not found running prior to kill-switch test." >&2
-    exit 1
-fi
+# Confirm both services are still responding from the fixture's network namespace.
+# This cannot pass merely because DNS, Tor or the external Internet is unavailable.
+check_fixture() {
+    kill -0 "$WRAITH_EGRESS_PID"
+    nsenter --net="/proc/$WRAITH_EGRESS_PID/ns/net" \
+        python3 "$SCRIPT_DIR/egress-probe.py" reachable \
+        --address "$WRAITH_EGRESS_ADDRESS" --port "$WRAITH_EGRESS_PORT"
+}
+check_fixture
 
-echo "[*] [Scenario 5] Injecting SIGKILL (kill -9) into Tor daemon..."
-pkill -9 -x tor || kill -9 $TOR_PID 2>/dev/null || true
+TOR_PIDS=$(pgrep -x tor)
+[[ -n "$TOR_PIDS" ]] || { echo "Tor missing before failure injection" >&2; exit 1; }
+echo "[*] [Scenario 5] Killing Tor and checking numeric-IP egress..."
+kill -KILL $TOR_PIDS
 sleep 2
 
-echo "[*] [Scenario 5] Verifying fail-closed firewall state (attempting clearnet HTTP request)..."
-# Request MUST fail. If it succeeds, traffic leaked onto clearnet without Tor!
-LEAKED=false
-if curl --max-time 5 --silent http://example.com >/dev/null 2>&1; then
-    LEAKED=true
-fi
-
-if [[ "$LEAKED" == "true" ]]; then
-    echo "[!] CRITICAL FAILURE: Fail-closed kill switch breached! Clearnet traffic allowed after Tor death!" >&2
+tcpdump -i veth-ns -nn -U -w "$AUDIT_DIR/egress.pcap" \
+    "dst host $WRAITH_EGRESS_ADDRESS and dst port $WRAITH_EGRESS_PORT and (tcp or udp)" \
+    2>"$AUDIT_DIR/capture.log" &
+CAPTURE_PID=$!
+for _ in $(seq 1 50); do
+    grep -q 'listening on' "$AUDIT_DIR/capture.log" && break
+    kill -0 "$CAPTURE_PID"
+    sleep 0.1
+done
+grep -q 'listening on' "$AUDIT_DIR/capture.log"
+python3 "$SCRIPT_DIR/egress-probe.py" blocked \
+    --address "$WRAITH_EGRESS_ADDRESS" --port "$WRAITH_EGRESS_PORT"
+sleep 1
+kill -0 "$CAPTURE_PID"
+kill -INT "$CAPTURE_PID"
+wait "$CAPTURE_PID"
+CAPTURE_PID=""
+# Parsing errors must fail the test rather than becoming an empty packet count.
+tcpdump -nn -r "$AUDIT_DIR/egress.pcap" >"$AUDIT_DIR/packets.txt"
+if [[ -s "$AUDIT_DIR/packets.txt" ]]; then
+    cat "$AUDIT_DIR/packets.txt" >&2
+    echo "FAIL: direct TCP/UDP packets escaped after Tor failure" >&2
     exit 1
 fi
-echo "[+] Clearnet traffic successfully blocked after daemon termination."
+check_fixture
 
-echo "[*] [Scenario 5] Confirming Netfilter rules remained locked..."
-if ! iptables -L -n | grep -qE "DROP|REJECT"; then
-    echo "[!] FAILED: Firewall rules were flushed unexpectedly upon Tor crash." >&2
-    exit 1
-fi
-
-echo "[+] [Scenario 5] Fail-closed kill-switch audit PASSED."
+echo "[+] [Scenario 5] Numeric-IP TCP/UDP blocked; zero matching egress packets."

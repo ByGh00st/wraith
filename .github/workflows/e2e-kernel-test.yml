@@ -35,7 +35,8 @@ jobs:
             dnsutils \
             jq \
             netcat-openbsd \
-            e2fsprogs
+            e2fsprogs \
+            python3
 
       - name: Compile Wraith Binary
         run: |

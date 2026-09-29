@@ -318,7 +318,7 @@ struct Cli {
     #[arg(short = 'x', long, conflicts_with = "start")]
     stop: bool,
 
-    /// Emergency reset and restore host network interfaces, firewall, DNS, and routes to clean default state
+    /// Recover the recorded Wraith session and restore saved settings
     #[arg(
         short = 'R',
         short_alias = 'N',
@@ -412,10 +412,10 @@ enum Commands {
         #[arg(short = 'd', long = "forensic-self-destruct", visible_aliases = ["self-destruct"])]
         self_destruct: bool,
     },
-    /// Emergency reset and restore host network interfaces, firewall, DNS, and routes to clean default state
+    /// Recover the recorded Wraith session and restore saved settings
     #[command(name = "reset", visible_aliases = ["reset-network", "net-reset", "network-reset", "ressert", "rn", "rN"])]
     Reset {
-        /// Target component to reset: network (default), dns, firewall, or all
+        /// Compatibility target; every target recovers the complete recorded session
         #[arg(default_value = "network", value_parser = ["network", "net", "dns", "firewall", "all"])]
         target: String,
     },
@@ -510,10 +510,10 @@ enum Commands {
 
 #[derive(Subcommand, Clone, Debug, PartialEq, Eq)]
 pub enum NetworkAction {
-    /// Emergency reset and restore host network interfaces, firewall, DNS, and routes
+    /// Recover the recorded Wraith session and restore saved settings
     #[command(name = "reset", visible_aliases = ["restore", "clean", "ressert", "rn", "rN"])]
     Reset {
-        /// Target component to reset: network (default), dns, firewall, or all
+        /// Compatibility target; every target recovers the complete recorded session
         #[arg(default_value = "network", value_parser = ["network", "net", "dns", "firewall", "all"])]
         target: String,
     },

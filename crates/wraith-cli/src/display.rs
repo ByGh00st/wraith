@@ -912,52 +912,6 @@ pub fn show_leak_report(report: &LeakReport) {
     for detail in &report.errors { println!("  {detail}"); }
 }
 
-pub fn print_reset_report(report_rows: &[(&str, &str, &str)]) {
-    println!();
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_content_arrangement(ContentArrangement::Dynamic);
-
-    table.set_header(vec![
-        Cell::new("Subsystem Target").add_attribute(Attribute::Bold).fg(Color::Cyan),
-        Cell::new("Purge & Recovery Telemetry").add_attribute(Attribute::Bold).fg(Color::Cyan),
-        Cell::new("Disposition").add_attribute(Attribute::Bold).fg(Color::Cyan),
-    ]);
-
-    for (target_name, detail, status_badge) in report_rows {
-        table.add_row(vec![
-            Cell::new(target_name).fg(Color::White).add_attribute(Attribute::Bold),
-            Cell::new(detail).fg(Color::Cyan),
-            Cell::new(status_badge).fg(Color::Green).add_attribute(Attribute::Bold),
-        ]);
-    }
-    println!("{table}\n");
-
-    let summary_lines = vec![
-        "HOST TELEMETRY : All Netfilter killswitches, cgroups, and queues dropped.".to_string(),
-        "NETWORK STATE  : Primary clearnet default routing and Anycast DNS restored.".to_string(),
-        "DISPOSITION    : SYSTEM RECOVERED & FULLY OPERATIONAL (CLEARNET)".bold().bright_green().to_string(),
-    ];
-    let reset_box = render_box(
-        "🔄 WRAITH-PRIME // EMERGENCY NETWORK RESET & HOST RECOVERY COMPLETE",
-        &summary_lines,
-        BoxCorner::Rounded,
-        78,
-    );
-    if let (Some(first), Some(last)) = (reset_box.first(), reset_box.last()) {
-        println!("{}", first.bright_green());
-        for row in reset_box.iter().take(reset_box.len().saturating_sub(1)).skip(1) {
-            println!("{row}");
-        }
-        if reset_box.len() > 1 {
-            println!("{}\n", last.bright_green());
-        }
-    }
-}
-
-
 pub fn show_circuit_telemetry(telemetry: &TorTelemetry) {
     let mut table = Table::new();
     table

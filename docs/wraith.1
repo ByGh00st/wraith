@@ -50,7 +50,7 @@ Enumerates host network interfaces and physical/virtual adapter attributes.
 Manages persistent configuration settings in /etc/wraith/config.toml.
 .TP
 \fBreset\fR [\fITARGET\fR]
-Emergency recovery tool. Forces cleanup of lingering iptables rules, unlocks immutable files, and restores default networking.
+Recover the complete recorded Wraith session using the same ownership-checked path as stop. All targets, including dns and firewall, restore the complete session. Missing state changes nothing; failed cleanup returns an error and retains recovery records.
 .SH OPTIONS
 .TP
 \fB\-s\fR, \fB\-\-start\fR
@@ -96,7 +96,7 @@ Pluggable transport mechanism: obfs4, snowflake, meek, or moat.
 Launches the dedicated real-time DPI & IDS live interceptor monitor.
 .TP
 \fB\-R\fR, \fB\-N\fR, \fB\-\-reset\fR
-Emergency recovery shortcut restoring network interfaces, firewall, DNS, and routing tables.
+Recovery shortcut for the complete recorded Wraith session. Preserves unrelated resources and reports incomplete cleanup.
 .TP
 \fB\-u\fR, \fB\-\-update\fR
 Fast-forwards source repository from official GitHub upstream.

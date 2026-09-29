@@ -15,12 +15,22 @@ HOST_IP="10.200.1.1"
 NS_IP="10.200.1.2"
 SUBNET="10.200.1.0/24"
 SANDBOX_DIR=$(mktemp -d /tmp/wraith-sandbox-XXXXXX)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# Benchmark range: outside Wraith's loopback/private-LAN exemptions.
+export WRAITH_EGRESS_ADDRESS=198.18.0.1
+export WRAITH_EGRESS_PORT=41885
+WRAITH_EGRESS_PID=""
 
 cleanup() {
     echo "[*] Cleaning up network namespace harness ($NS_NAME)..."
     # Kill any processes remaining in namespace
     if ip netns list 2>/dev/null | grep -qw "$NS_NAME"; then
         ip netns pids "$NS_NAME" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+    fi
+
+    if [[ -n "$WRAITH_EGRESS_PID" ]]; then
+        kill "$WRAITH_EGRESS_PID" 2>/dev/null || true
+        wait "$WRAITH_EGRESS_PID" 2>/dev/null || true
     fi
 
     # Host NAT cleanup
@@ -46,6 +56,7 @@ ip link set "$VETH_NS" netns "$NS_NAME"
 
 # Host-side configuration
 ip addr add "$HOST_IP/24" dev "$VETH_HOST"
+ip addr add "$WRAITH_EGRESS_ADDRESS/32" dev "$VETH_HOST"
 ip link set "$VETH_HOST" up
 
 # Namespace-side configuration
@@ -87,11 +98,23 @@ if ! ip netns exec "$NS_NAME" curl -k -s --connect-timeout 5 -I https://1.1.1.1 
 fi
 echo "[+] Network Namespace ($NS_NAME) online with verified gateway ($HOST_IP) and outbound route."
 
+# A controlled destination stays outside the protected namespace. Establish
+# positive TCP and UDP controls before Wraith changes any routing policy.
+python3 "$SCRIPT_DIR/egress-probe.py" serve --address "$WRAITH_EGRESS_ADDRESS" \
+    --port "$WRAITH_EGRESS_PORT" --ready "$SANDBOX_DIR/egress.ready" &
+export WRAITH_EGRESS_PID=$!
+for _ in $(seq 1 50); do
+    [[ -f "$SANDBOX_DIR/egress.ready" ]] && break
+    kill -0 "$WRAITH_EGRESS_PID"
+    sleep 0.1
+done
+[[ -f "$SANDBOX_DIR/egress.ready" ]] || { echo "Egress fixture did not start" >&2; exit 1; }
+ip netns exec "$NS_NAME" python3 "$SCRIPT_DIR/egress-probe.py" reachable \
+    --address "$WRAITH_EGRESS_ADDRESS" --port "$WRAITH_EGRESS_PORT"
+
 # Prepare isolated overlay directories for /etc and /run
 mkdir -p "$SANDBOX_DIR/etc-upper" "$SANDBOX_DIR/etc-work"
 mkdir -p "$SANDBOX_DIR/run-upper" "$SANDBOX_DIR/run-work"
-
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 # Execute test suite inside Network + Mount Namespace isolation
 if [[ $# -eq 0 ]]; then
