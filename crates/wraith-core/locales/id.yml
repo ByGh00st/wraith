@@ -9,7 +9,7 @@ err:
   tor: 'Kegagalan pengontrol Tor:'
   namespace: 'Kesalahan namespace jaringan kernel:'
   hardware: 'Kesalahan hardware MAC/Tautan:'
-  forensic: 'Kesalahan pembersihan anti-forensik:'
+  forensic: 'Kesalahan pembersihan sesi:'
   guard: 'Kegagalan watchdog / KillSwitch:'
   command: 'Kesalahan perintah jaringan:'
   custom: 'Kegagalan sistem umum:'

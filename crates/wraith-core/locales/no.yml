@@ -8,7 +8,7 @@ err:
   tor: 'Tor-kontrollerfeil:'
   namespace: 'Kernel-nettverksnavneromsfeil:'
   hardware: 'Maskinvare-MAC/Koblingsfeil:'
-  forensic: 'Anti-forensisk rensefeil:'
+  forensic: 'Feil ved opprydding av øktdata:'
   guard: 'Watchdog / KillSwitch-feil:'
   command: 'Nettverkskommandofeil:'
   custom: 'Generell systemfeil:'

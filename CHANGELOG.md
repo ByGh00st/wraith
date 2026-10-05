@@ -10,17 +10,12 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 
 ## [Unreleased]
 
-### Performance & High-Concurrency Burst Resilience (L4/L7 Defense & DPI Optimization)
+### HTTP Relay and TCP Normalization
 - **L7 Proxy Concurrency Scaling & Semaphore Backpressure (`wraith-tor`)**:
   - Scaled `MAX_CONCURRENT_PROXY_CLIENTS` threshold from 128 to 1,024.
   - Replaced hard connection drops with an `Arc<tokio::sync::Semaphore>` backpressure queue, eliminating connection drops during aggressive multi-threaded scanning bursts.
   - Added Unix `RLIMIT_NOFILE` ceiling adjustment via `libc::getrlimit` and `libc::setrlimit` to at least 4,096 file descriptors, preventing `EMFILE` exhaustion under heavy concurrency.
   - Added unit tests `test_high_concurrency_burst` (simulating 500 concurrent in-flight requests) and `test_proxy_server_concurrency_and_cancellation`.
-- **$O(M)$ Zero-Latency Multi-Pattern DPI Matching Automaton (`wraith-core`, `wraith-tor`, `wraith-net`)**:
-  - Replaced linear $O(N \times M)$ scan across 1,338 signatures with a single-pass Aho-Corasick trie automaton (`ToolSignatureMatcher`), reducing search complexity to input length $O(M)$ with zero runtime heap allocations.
-  - Integrated token boundary enforcement for short signatures (<= 2 characters) to eliminate false positives on clean browser architectures (such as `x86_64`).
-  - Connected in-flight HTTP sanitization pipelines (`sanitize_http_request` in `wraith-tor` and `HttpToolSanitizer::sanitize_in_flight` in `wraith-net`) to the accelerated engine.
-  - Added unit tests: `test_tool_signatures_decoding`, `test_multi_pattern_matcher_matches_known_tools`, `test_multi_pattern_matcher_does_not_flag_clean_browsers`, and `test_multi_pattern_matcher_throughput_and_accuracy` (10,000 queries in < 100ms).
 - **L4 NFQUEUE Kernel Buffer Scaling & Overflow Prevention (`wraith-net`)**:
   - Scaled Netfilter queue max length to 4,096 in both iptables rule configuration (`--queue-maxlen 4096`) and netlink attribute configuration (`NFQA_CFG_QUEUE_MAXLEN = 4096`).
   - Scaled Netlink queue socket receive buffer to 4 MB via `SO_RCVBUFFORCE` with `SO_RCVBUF` fallback, eliminating kernel `ENOBUFS` drops under extreme SYN floods.
@@ -44,6 +39,14 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 - **Desktop User Argument & Flag Injection Prevention (`wraith-cli`)**:
   - Added `validate_posix_username` verifying that resolved `desktop_user` identifiers (from `SUDO_USER` or `/home` enumeration) conform to portable POSIX username standards and do not start with a hyphen (`-`), preventing command/flag injection into helper tools like `id` and `runuser`.
   - Added unit test `test_validate_posix_username_rejects_flag_injection_and_invalid_chars`.
+
+## [1.5.1] - 2026-10-05
+
+### Changed
+- Recentered the architecture on L3/L4 TCP stack normalization, Netlink routing, and a standards-based HTTP privacy baseline.
+- Removed the tool-specific signature catalog, User-Agent substitution tables, XOR-obfuscated signature data, and L7 rewriting/detection code.
+- The local HTTP relay now preserves User-Agent values and applies general proxy-metadata and connection handling only.
+- Updated legal, usage, and release documentation to clarify authorized-use expectations and GPL-3.0 boundaries.
 
 ## [1.5.0] - 2026-09-27
 
@@ -95,13 +98,13 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 - **X11 Display Authorization Hardening**: Eliminated `xhost +local:` from `spawn_monitor_terminal` to prevent local unauthorized access to X11 sessions (keylogging/screengrab vectors). Enforced strict root-only authority (`+SI:localuser:root`).
 - **Root Context Configuration Isolation**: Forbid loading unprivileged user configurations (`~/.config/wraith/config.toml`) when running with root privileges (UID 0), eliminating Local Privilege Escalation (LPE) and malicious policy tampering. Enforced root ownership and non-world-writable permission validation.
 - **Cryptographic Ephemeral Key Shredding**: Integrated DoD 5220.22-M 7-pass random overwrite, in-memory zeroization, and physical disk sync (`shred_key_file` and `shred_onion_tree`) to securely purge Onion v3 private keys (`hs_ed25519_secret_key`) during service deactivation.
-- **Moat Bridge Egress Proxy Enforcement**: Routed BridgeDB Moat API requests through local Tor SOCKS5 proxy (`127.0.0.1:9050` with `--socks5-hostname`) to eliminate clearnet SNI and DNS leaks on deep packet inspection (DPI) firewalls.
-- **HTTP Keep-Alive / Pipelining Disablement**: Stripped client Keep-Alive headers in `tls_camouflage` and enforced mandatory `Connection: close` and `Proxy-Connection: close` to prevent HTTP pipelining bypasses of header sanitization.
+- **Moat Bridge Egress Proxy Enforcement**: Routed BridgeDB Moat API requests through local Tor SOCKS5 proxy (`127.0.0.1:9050` with `--socks5-hostname`) to eliminate clearnet SNI and DNS leaks on network filtering environments.
+- **HTTP Keep-Alive / Pipelining Disablement**: Stripped client Keep-Alive headers in `tls_camouflage` and enforced mandatory `Connection: close` and `Proxy-Connection: close` to keep each normalized request within a single connection lifecycle.
 - **RFC 2104 Section 2 HMAC-SHA256 Compliance**: Eliminated silent fallback to static zero-keys (`[0u8; 32]`) on initialization. Implemented standard RFC 2104 pre-hashing for keys exceeding 64 bytes.
 - **Daemon Logging Symlink Protection (CWE-59)**: Secured `/var/log/wraith/daemon.log` opening with `libc::O_NOFOLLOW` and mode `0o600`. Enforced `0o700` permissions on `/var/log/wraith` with symlink verification.
 - **RAMFS Ephemeral WireGuard Key Isolation**: Replaced disk-backed `/tmp` WireGuard key files with RAMFS (`/dev/shm`) `SecureTempKey` RAII containers enforced with `0o600` permissions and in-memory zeroize-on-drop.
-- **Honeypot Stealth Banner Normalization**: Neutralized `Wraith Enterprise` banner fingerprint in decoy HTTP 401 basic auth responses, standardizing on generic stealth administration banner.
-- **WIDS/WIPS Anomaly Prevention**: Segregated physical hardware OUIs (Intel, Apple, HP, Dell, Realtek) from virtual hypervisor OUIs (VMware, VirtualBox, QEMU) to prevent wireless intrusion detection system alerts on physical adapters.
+- **Honeypot response normalization**: Replaced the product-identifying text in decoy HTTP 401 responses with a generic administration banner.
+- **WIDS/WIPS Anomaly Prevention**: Segregated physical hardware OUIs (Intel, Apple, HP, Dell, Realtek) from virtual hypervisor OUIs (VMware, VirtualBox, QEMU) to report physical and virtual adapter OUI classifications separately in network diagnostics.
 - **Race-Proof Process Neutralization**: Implemented critical system daemon whitelist (`systemd`, `tor`, `wraith`, etc.) and Linux `SYS_pidfd_open` / `SYS_pidfd_send_signal` architecture to prevent PID recycling race conditions (TOCTOU).
 - **Tor Bridge Directive & CRLF Injection Prevention**: Implemented `sanitize_bridge_line` rejecting CRLF (`\r`, `\n`), control chars, and shell metachars, with whitelist filtering and `0o600` torrc file mode locking.
 - **Session State Arming Permission Lock**: Enforced `0o600` permissions on temporary and persistent state files in `StateManager::claim()` to prevent WireGuard private key disclosure during session arming.
@@ -171,13 +174,6 @@ Historical entries below describe earlier release announcements. Current support
 ## [1.3.0] - 2026-09-10
 
 ### Added
-- **1,338+ Tool In-Flight DPI Signature Sanitization Matrix**:
-  - Intercepts and rewrites Layer-4/Layer-7 HTTP and TLS signatures from 1,338+ security assessment, penetration testing, scanner, and exploitation tools across 10 major categories (Vulnerability Scanners, Web Discovery & Fuzzers, OSINT, C2 Frameworks, Active Directory, Network Scanners, Credential Testing, Interception Proxies, Reverse Engineering tools, and Scripting HTTP libraries).
-  - Normalizes headers on the fly to authentic, randomized modern browser signatures (`Chrome 131`, `Firefox 132`, `Safari 18`).
-- **Compile-Time XOR-0x7A EDR/AV Heuristic Avoidance**:
-  - All 1,338+ signature strings in `.rodata` are encrypted at compile time using byte-wise XOR `0x7A`.
-  - Blinds static antivirus scanners, YARA signatures, and EDR heuristics (preventing false-positive flags such as Windows Defender `OS Error 225`).
-  - Single-phase on-demand decryption using thread-safe `std::sync::OnceLock<Vec<String>>` for zero-allocation runtime performance.
 - **Automated Hardware Network Interface Selector (`wraith interfaces`)**:
   - Intelligent physical NIC enumeration via Linux `/sys/class/net` and Netlink.
   - Interactive full-screen terminal TUI (`wraith interfaces`) and automated fallback prioritizing active physical uplinks over loopback.
@@ -223,8 +219,7 @@ Historical entries below describe earlier release announcements. Current support
 
 ### Added
 - Multi-Hop Hybrid Tunneling: WireGuard-over-Tor encapsulation (`-W, --wireguard <CONF>`).
-- Five Eyes Intelligence Exclusion Profile (`-p stealth`): Excludes US, UK, CA, AU, NZ, FR, DE exit relays.
-- In-Flight Layer-4/Layer-7 DPI Sanitizer with initial 50+ tool signatures.
+- Geographic exit policy profile (`-p stealth`): Excludes selected relay regions (US, UK, CA, AU, NZ, FR, DE).
 - RFC 8701 GREASE & JA3/JA4 TLS ClientHello fingerprint mimicry.
 - Enterprise 17-language compile-time i18n architecture via `rust-i18n`.
 - Dynamic Profile Switching (`wraith profile <NAME>`).
@@ -236,7 +231,7 @@ Historical entries below describe earlier release announcements. Current support
 ### Added
 - Kernel-level Netlink FIB Table 52 routing engine.
 - WebRTC STUN request interceptor and public IP leak prevention.
-- Volatile RAMFS secret vault with `mlockall` page locking and `PR_SET_DUMPABLE=0`.
+- Ephemeral in-memory session secret storage with `mlockall` page locking and `PR_SET_DUMPABLE=0`.
 - Automated Netfilter fail-closed recovery and Panic Sentry.
 
 ---

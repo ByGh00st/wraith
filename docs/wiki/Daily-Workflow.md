@@ -15,8 +15,7 @@
 | `sudo wraith doctor` | Run diagnostics |
 | `sudo wraith -t` | Run the network-check suite |
 | `sudo wraith -u` | Update from the official GitHub repository |
-| `wraith monitor` / `-M` | Launch real-time dedicated DPI & IDS live interceptor monitor |
-| `wraith pentest` | Display authorized security auditing & pentest proxy configuration guide |
+| `wraith monitor` / `-M` | Launch the real-time packet telemetry monitor |
 | `wraith bridge moat` | Query Tor BridgeDB via Moat Protocol (JSON-API) |
 | `wraith doh -s` | Launch interactive DNS-over-HTTPS provider selector |
 
@@ -37,7 +36,7 @@ For the required controls, host prerequisites and optional additions to `-Fs`, s
 | Option | Operation | Safety & Scope |
 | :--- | :--- | :--- |
 | `-K` / `--aggressive-masquerade` | Mask process name as `[kworker/u16:0]` in Linux kernel scheduler | Evasive; disguises worker thread |
-| `-A` / `--aggressive-anti-debug` | Enforce anti-debugging probe; emergency SIGKILL if ptrace detected | Fail-closed anti-tamper trap |
+| `-A` / `--aggressive-anti-debug` | Check debugger attachment; terminate Wraith if ptrace is detected | Fail-closed process guard |
 | `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp, system logs and bash_history on exit | Irreversible system trace wipe |
 | `-d` / `--forensic-self-destruct` | Cryptographically shred binary and state files from disk on shutdown | Irreversible binary shredding |
 

@@ -7,7 +7,7 @@ use std::process::Command;
 use tracing::info;
 use wraith_core::error::Result;
 
-use crate::anti_forensic_stealth::{scrub_system_logs, wipe_all_user_histories};
+use crate::session_cleanup::{scrub_system_logs, wipe_all_user_histories};
 use crate::shred::secure_delete_file;
 
 pub fn clear_shell_histories() -> Result<usize> {

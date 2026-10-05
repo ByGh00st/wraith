@@ -9,7 +9,7 @@ err:
   tor: 'Échec du contrôleur Tor :'
   namespace: 'Erreur d''espace de noms réseau du noyau :'
   hardware: 'Erreur matérielle MAC/Liaison :'
-  forensic: 'Erreur de purge anti-forensique :'
+  forensic: 'Échec du nettoyage des données de session :'
   guard: 'Échec du chien de garde / KillSwitch :'
   command: 'Erreur de commande réseau :'
   custom: 'Défaillance générale du système :'

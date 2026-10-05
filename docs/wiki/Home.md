@@ -33,7 +33,7 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 
 | Area | Current behavior |
 | :--- | :--- |
-| Release distribution | [v1.5.0 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.0): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
+| Release distribution | [v1.5.1 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.1): native Debian packages and GNU/musl archives for x86_64 and ARM64 |
 | TOCTOU Key Shredding | `O_NOFOLLOW` / `O_NONBLOCK` descriptor checks (`nlink == 1`, matching inode/device) and pre-unlink verification |
 | DNS Normalization | FQDN trailing-dot normalization and case folding in `is_sinkhole_domain` and `is_onion_domain` |
 | Torrc Injection Guards | `OnionServiceConfig::validate()` blocking comments, CRLF, control characters and traversal |
@@ -46,7 +46,6 @@ Wraith brings Tor routing, local DNSSEC validation, browser-profile HTTPS reques
 | Process Neutralization | `pidfd_open` race-proof rogue process containment with protected daemon whitelist |
 | Tor Bridge Sanitization | Strict CRLF, null byte and directive injection filtering for pluggable transports |
 | L7 Proxy Concurrency | 1,024 client capacity with `Arc<Semaphore>` backpressure and `RLIMIT_NOFILE >= 4096` EMFILE guard |
-| DPI Accelerator | Single-pass $O(M)$ Aho-Corasick automaton across 1,338+ signatures with token-boundary false-positive isolation |
 | L4 NFQUEUE Scaling | 4,096 queue max length (`--queue-maxlen 4096`) and 4 MB Netlink receive buffer (`SO_RCVBUFFORCE`) |
 | Classic BPF Egress | 12-instruction relative jump boundary validation eliminating kernel `SO_ATTACH_FILTER` `-EINVAL` |
 | DNS RFC 1035 Shield | Backward pointer verification (`ptr < offset`) and 10-jump recursion limit defeating compression loops |

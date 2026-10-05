@@ -1,6 +1,6 @@
-.TH WRAITH 1 "September 2026" "wraith 1.5.0" "User Commands"
+.TH WRAITH 1 "September 2026" "wraith 1.5.1" "User Commands"
 .SH NAME
-wraith \- Kernel-grade network anonymization and anti-forensics framework
+wraith \- Kernel-grade network anonymization and session cleanups framework
 .SH SYNOPSIS
 .B wraith
 [\fIOPTIONS\fR] [\fICOMMAND\fR]
@@ -35,7 +35,7 @@ Executes an audit on kernel capabilities, netfilter modules, Tor binaries, and s
 Runs high-performance cryptographic cipher and kernel subsystem throughput benchmarks.
 .TP
 \fBcleanup\fR [\fB\-\-full\fR]
-Performs anti-forensic system sanitization, wiping RAM caches, system logs, and swap space.
+Performs session cleanup system sanitization, wiping RAM caches, system logs, and swap space.
 .TP
 \fBshred\fR \fIFILE\fR [\fB\-p\fR \fIPASSES\fR]
 Securely overwrites and deletes a file using DoD 5220.22-M multi-pass sanitization standard (default: 7 passes).
@@ -52,14 +52,11 @@ Randomizes network interface L2 MAC address using kernel CSPRNG and sets a rando
 \fBprofile\fR \fINAME\fR
 Applies a geographic Tor exit node profile: stealth, speed, journalists, research, or darkweb.
 .TP
-\fBpentest\fR
-Displays authorized security auditing and penetration testing proxy configuration guide (Nmap, Sqlmap, Ffuf).
-.TP
 \fBupdate\fR
 Fast-forwards the source repository from the official GitHub upstream.
 .TP
 \fBmonitor\fR
-Launches the dedicated real-time DPI and IDS live interceptor monitor.
+Launches the packet telemetry monitor.
 .TP
 \fBconfig\fR [\fBshow\fR|\fBget\fR|\fBset\fR]
 Manages persistent configuration settings in /etc/wraith/config.toml.
@@ -111,7 +108,7 @@ Layer 4 TCP normalization profile: auto (follows TLS profile), windows, windows1
 Browser TLS impersonation profile for session DoH and cover traffic: chrome, firefox, or safari.
 .TP
 \fB\-W\fR, \fB\-\-wireguard\fR \fICONFIG\fR
-Encapsulates Tor traffic inside a kernel WireGuard tunnel for multi-hop censorship evasion.
+Encapsulates Tor traffic inside a kernel WireGuard tunnel for multi-hop transport privacy and censorship resistance.
 .TP
 \fB\-b\fR, \fB\-\-bridge\fR
 Routes traffic through censorship-resistant Tor bridges.
@@ -165,7 +162,7 @@ Irreversibly eradicates system authentication logs, event logs, and user shell h
 Cryptographically shreds the binary from disk and wipes memory artifacts upon session shutdown.
 .TP
 \fB\-M\fR, \fB\-\-monitor\fR
-Launches the dedicated real-time DPI & IDS live interceptor monitor.
+Launches the real-time packet telemetry monitor.
 .TP
 \fB\-R\fR, \fB\-N\fR, \fB\-\-reset\fR
 Recovery shortcut for the complete recorded Wraith session. Preserves unrelated resources and reports incomplete cleanup.

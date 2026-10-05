@@ -44,10 +44,8 @@ tui:
   def_lockdown: '[i] Kernel Lockdown      : Observed at startup; never changed by Wraith'
   def_dns: '[✓] DNS Engine           : QNAME Minimized + EDNS0 468B Padded + Telemetry
     Sinkhole'
-  def_tls: '[✓] JA3/JA4 TLS Camo     : Google Chrome 131 / Win11 Profile + RFC 8701
-    GREASE'
-  def_ramfs: '[✓] RAMFS Crypto Vault   : In-Memory ChaCha20-Poly1305 Encrypted (/dev/shm
-    Locked)'
+  def_tls: '[✓] TLS client profile : Configured Wraith client profile + RFC 8701 GREASE'
+  def_ramfs: '[✓] Ephemeral session memory: In-memory encrypted session data (/dev/shm)'
   def_ids: '[✓] Zero-Copy IDS        : Real-Time L2/L3/L4 Sniffer & Egress Watchdog
     Active'
   circuits_box: ┌── [ ACTIVE TOR CIRCUITS & RELAY TOPOLOGY ] ────────────────────────────────────────────┐
@@ -57,7 +55,7 @@ tui:
   verified: ✓ VERIFIED (TransProxy Active)
   unverified: ✗ UNVERIFIED
   static: Hardware Static
-  rotated: ✓ Rotated (Anti-Forensic DMI)
+  rotated: ✓ Rotated (session hardware identifier update)
   original: Original
   win_profile: ✓ Windows Profile (TTL=128, TS=0)
   linux_std: Linux Standard
@@ -75,8 +73,8 @@ hud:
   rotate_policy: 🔄 Circuit Rotation Policy
   auto_rotate: ● AUTO-ROTATING (Every %{interval}s)
   manual_rotate: ○ MANUAL ON-DEMAND [Press 'R']
-  dpi_sanitizer: 🔍 In-Flight DPI Sanitizer
-  dpi_active: "HTTP :9055 + CONNECT → Tor; TLS: fetch / DoH"
+  http_relay: 'HTTP relay'
+  http_relay_active: 'HTTP :9055 + CONNECT to Tor; User-Agent preserved'
   keys: ┌── [ 🎮 INTERACTIVE KEYBOARD CONTROLS ] ────────────────────────────────────────────────────────┐
   k_rotate: '[R] Rotate Circuit'
   k_audit: '[T] Leak Audit'
@@ -97,7 +95,7 @@ commands:
   cmd_step_4: Tor configuration armed
   cmd_step_5: Bootstrapping Tor daemon...
   cmd_step_6: Tor daemon active & verified on ControlPort (9051)
-  cmd_step_7: Configuring local Tor transparent DNS...
+  cmd_step_7: 'Applying TCP protocol conformance and network fingerprint normalization...'
   cmd_step_8: DNS bound to 127.0.0.1 (Tor Port 5353)
   cmd_step_9: Enforcing Fail-Closed firewall rules...
   cmd_step_10: All system TCP/DNS forced into Tor
@@ -163,9 +161,9 @@ commands:
   cmd_step_68: Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...
   cmd_warn_anti_debug: 'Anti-debug probe warning: %{e}'
   cmd_step_69: 'Masking process name in kernel scheduler ([kworker/u16:0])...'
-  cmd_step_70: 'Process identity cloaked as kernel worker [ARMED]'
+  cmd_step_70: 'Applying configured process-management policy...'
   cmd_warn_masquerade: 'Process masquerade warning: %{e}'
-  cmd_step_71: Executing destructive system event log and history wipe...
+  cmd_step_71: 'Running selected system event log and history cleanup...'
   cmd_step_scrubbed_logs: 'Scrubbed %{count} system log file(s)'
   cmd_step_72: No physical network adapters discovered; listing all system interfaces...
   cmd_step_default_iface: 'Default network adapter locked: %{iface}'
@@ -176,7 +174,7 @@ commands:
   cmd_step_73: Rotating OS /etc/machine-id unique hardware identifier...
   cmd_step_machine_id_altered: 'Machine-ID altered: %{old_mid} ➔ %{new_mid}'
   cmd_warn_machine_id_skip: 'Machine-ID rotation skipped: %{e}'
-  cmd_step_74: Normalizing TCP/IP L4 Stack (p0f/TTL/Window Evasion)...
+  cmd_step_74: 'Applying TCP protocol conformance and network fingerprint normalization...'
   cmd_step_75: 'TCP/IP stack forged: TTL=128 (Windows Profile), timestamps=0'
   cmd_warn_tcp_mask: 'TCP/IP normalization warning: %{e}'
   cmd_err_multihop_wg: 'Multi-Hop WireGuard setup failed: %{e}'
@@ -191,8 +189,8 @@ commands:
   cmd_step_77: Injecting Linux Traffic Control (TC) / eBPF Egress Fastpath...
   cmd_warn_ebpf_attach: 'eBPF Fastpath attach warning: %{e}'
   cmd_warn_ebpf_init: 'eBPF Fastpath init error: %{e}'
-  cmd_step_78: Arming Zero-Copy IDS Raw Packet Sniffer & DPI Engine (AF_PACKET)...
-  cmd_step_79: Zero-Copy IDS Watchdog & DPI Engine active (Real-time leak & signature traps armed)
+  cmd_step_78: 'Starting AF_PACKET packet observation...'
+  cmd_step_79: 'Packet telemetry monitor active'
   cmd_step_80: Arming Seccomp-BPF Syscall Filter (SOCK_RAW / AF_PACKET hook trap)...
   cmd_step_81: 'Syscall filter active: Rogue raw sockets will trigger immediate SIGSYS'
   cmd_warn_seccomp: 'Seccomp-BPF jail warning: %{e}'
@@ -209,15 +207,15 @@ commands:
   cmd_step_85: Synthetic traffic padding active (200-1400ms Poisson jitter)
   cmd_warn_shaper_apply: 'Kernel Traffic Shaper apply warning: %{e}'
   cmd_warn_shaper_init: 'Kernel Traffic Shaper init error: %{e}'
-  cmd_step_86: Constructing In-Memory ChaCha20-Poly1305 Encrypted Vault (/dev/shm)...
-  cmd_step_87: Encrypted RAMFS Vault active (MADV_DONTDUMP memory locked)
+  cmd_step_86: 'Creating ephemeral encrypted session memory...'
+  cmd_step_87: 'Ephemeral in-memory session state active'
   cmd_warn_vault: 'Encrypted Vault memory lockdown warning: %{e}'
   cmd_step_88: Spawning RFC 1035 DNS Proxy Engine with EDNS0 Padding...
   cmd_step_89: 'DNS Engine active on 127.0.0.1:53 (EDNS0 468B Padded + Telemetry Sinkhole)'
   cmd_warn_dns_proxy: 'Internal DNS Proxy spawn failed: %{e}'
   cmd_step_90: Fail-Closed Watchdog armed & monitoring kernel egress
-  cmd_step_91: Executing anti-forensic memory & volatile state purge...
-  cmd_step_92: RAM caches, ARP tables, logs, and volatile state eradicated
+  cmd_step_91: 'Releasing session-owned volatile state...'
+  cmd_step_92: 'Session-owned transient state released'
   cmd_step_93: Overwriting old installations and deploying fresh binary across PATH...
   cmd_step_94: 'Automated circumvention mode: resolving Moat defaults...'
   cmd_step_95: Submitting provided challenge solution...
@@ -227,7 +225,7 @@ commands:
   cmd_warn_log_scrub_err: 'System log scrub failed: %{e}'
   cmd_step_history_wiped: 'Wiped %{count} shell history file(s) [EXPLICIT OPT-IN]'
   cmd_warn_history_wipe_err: 'History wipe failed: %{e}'
-  cmd_step_dpi_tls_gate: 'Armed In-Flight HTTP DPI & TLS Camouflage Gate on 127.0.0.1:9055 (%{name}, JA4: %{ja4})'
+  cmd_step_http_tls_gate: 'HTTP relay active on 127.0.0.1:9055; native TLS profiles are limited to Wraith clients'
   cmd_step_bridge_obfs4_enabled: 'Bridge mode enabled with %{count} obfs4 bridges'
   cmd_step_exit_prof_applying: 'Applying geographic exit profile: %{prof}...'
   cmd_step_exit_prof_active: 'Profile ''%{name}'' active (%{desc})'
@@ -241,7 +239,7 @@ commands:
   cmd_hotkey_identity_active: '✔ [ACTIVE IDENTITY] New Tor Exit Node ➔ %{geo}'
   cmd_hotkey_tor_ctrl_err: '✖ [ERROR] Failed to signal Tor ControlPort.'
   cmd_hotkey_leak_audit: '◈ [🧪 LEAK AUDIT] Executing comprehensive Ring-0 leak inspection suite...'
-  cmd_hotkey_popup_spawned: '◈ [🖥️ POP-UP MONITOR] Dedicated real-time DPI & IDS telemetry window spawned!'
+  cmd_hotkey_popup_spawned: 'Network telemetry window opened.'
   cmd_hotkey_popup_manual: '⚠️ [POP-UP MONITOR] To view dedicated monitor, run in a separate terminal: sudo wraith monitor'
   cmd_hotkey_memory_purge: '◈ [🧹 MEMORY PURGE] Purging volatile caches, RAMFS secrets, ARP tables & buffers (<10ms)...'
   cmd_hotkey_memory_eradicated: '✔ [ERADICATED] Kernel drop_caches, memory compaction, and ARP routing tables wiped.'
@@ -254,16 +252,16 @@ commands:
   cmd_step_cargo_compiling: 'Compiling optimized release binary with %{bin}...'
   cmd_warn_sha256_unverified: 'SHA-256: %{hash} (not verified against a trusted source — use at your own risk)'
   cmd_universal_bin: 'Universal binary: /usr/local/bin/wraith'
-  cmd_monitor_armed: '◈ [MONITOR ARMED] Listening for Layer-4 HTTP / Security Audit Tool Egress on wire...'
-  cmd_monitor_promisc_active: 'ℹ️  [DPI PROMISCUOUS MONITOR ACTIVE]'
+  cmd_monitor_armed: 'Monitor armed: observing network packet telemetry...'
+  cmd_monitor_promisc_active: 'Packet monitor active'
   cmd_monitor_seccomp_filtered: '[NOTE] AF_PACKET promiscuous sniffer filtered by Seccomp / Environment: %{err}'
-  cmd_monitor_in_flight_sanitizing: 'In-Flight HTTP DPI Sanitizer & TLS Proxy actively scrubbing on port 9055.'
-  cmd_monitor_interceptor_op: 'Live interceptor operating in transparent proxy mode.'
+  cmd_monitor_in_flight_sanitizing: 'Local HTTP relay forwards requests through Tor and preserves User-Agent values.'
+  cmd_monitor_interceptor_op: 'Monitor reports packet observations and counters only.'
   cmd_monitor_listening: 'Listening for in-flight traffic... (Press ''q'' or Enter to dismiss)'
   cmd_monitor_webrtc_intercepted: '◈ [⚠️ WEBRTC STUN LEAK INTERCEPTED // %{time}] Blocked at Netfilter Ring-0 Boundary (<1ms drop)'
   cmd_monitor_linux_req: 'Real-time packet monitor requires Linux AF_PACKET raw sockets.'
   cmd_monitor_closed: '◈ [MONITOR DISMISSED] Returning to shell...'
-  cmd_bridge_pool_header: 'Built-In Resilient Anti-Censorship Bridge Pools:'
+  cmd_bridge_pool_header: 'Available Tor pluggable transports:'
   cmd_bridge_pool_obfs4: '[obfs4] (Traffic Scrambling / Elliptic-Curve Handshake):'
   cmd_bridge_pool_snowflake: '[snowflake] (WebRTC Ephemeral Broker Proxies):'
   cmd_bridge_pool_meek: '[meek-azure] (Domain Fronting via Microsoft Azure CDN):'
@@ -285,7 +283,7 @@ commands:
   demo_step_5_ok: 'Hardware MAC randomized (e2:4a:91:bc:55:18) & Hostname [dark-core-42]'
   demo_step_6_info: 'Rotating Operating System /etc/machine-id Unique Hardware Identifier...'
   demo_step_6_ok: 'Machine-ID rotated: unknown ➔ 9f928f32d42299fb1bdfde337e014b3d'
-  demo_step_8_ok: '1,338+ Security auditing tools (Kali Linux, Metasploit, TheHarvester, Nuclei, Ffuf...) sanitized to modern Chrome/131 User-Agents'
+  demo_step_8_ok: 'General HTTP header privacy baseline applied; User-Agent preserved'
   demo_step_9_info: 'Establishing Multi-Hop WireGuard Cryptographic Encapsulation...'
   demo_step_9_ok: 'WireGuard tunnel [ChaCha20-Poly1305] active over Tor 3-Hop Circuit'
   demo_step_10_info: 'Applying Geographic Exit Node Profile [stealth]...'
@@ -317,16 +315,13 @@ help:
   cmd_dashboard: Launch interactive terminal telemetry dashboard (TUI)
   cmd_doctor: Run deep multi-tier kernel diagnostics auditor
   cmd_benchmark: Run high-performance cryptographic and kernel benchmarks
-  cmd_cleanup: Perform anti-forensic RAM and state purge
-  cmd_cleanup_full: Thorough anti-forensic purge (wipes RAM, swap, and system auth
-    logs)
+  cmd_cleanup: 'Release session-owned transient memory and restore settings'
+  cmd_cleanup_full: 'Run selected system cleanup operations'
   cmd_mac: Randomize network interface MAC address and hostname
   cmd_profile: Apply geographic Tor exit node profile
-  cmd_pentest: Display DPI tool signature sanitization & Tor isolation guide (Nmap,
-    Sqlmap, Ffuf)
   cmd_update: Fetch latest upstream updates and recompile binary in-place
   cmd_shred: Securely shred and overwrite a file using DoD 5220.22-M 7-pass standard
-  cmd_monitor: Launch real-time AF_PACKET DPI signature interceptor & IDS monitor
+  cmd_monitor: 'Launch packet telemetry monitor'
   cmd_config: Manage persistent configuration settings (/etc/wraith/config.toml)
   cmd_bridge: Manage censorship circumvention bridges via Tor Moat Protocol
   cmd_doh: Inspect or select DNS-over-HTTPS (DoH) encrypted resolver providers
@@ -346,10 +341,8 @@ help:
   opt_rotate: Automatically rotate Tor exit node identity every N seconds (e.g. --rotate
     60)
   opt_no_ks: Disable the Fail-Closed KillSwitch watchdog monitor
-  opt_wg: Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP
-    bypass)
-  opt_spawn_monitor: Automatically spawn a dedicated real-time DPI & IDS monitor terminal
-    window on startup
+  opt_wg: 'Encapsulate Tor traffic in a kernel WireGuard tunnel for multi-hop transport privacy'
+  opt_spawn_monitor: 'Automatically open a network telemetry monitor terminal on startup'
   sec_harden_header: 'System Hardening & Anti-Fingerprinting:'
   opt_browser_shield: Inject WebGL, Canvas, Audio, GPU, Font and Resolution anti-fingerprint
     profiles into browsers
@@ -374,9 +367,9 @@ help:
   opt_help: Print this help screen
   opt_version: Print version
   examples_header: 'Operational Usage Scenarios:'
-  ex_fs: Launch with maximum 16-layer defense & DPI sanitization
+  ex_fs: 'Launch with configured network privacy and isolation controls'
   ex_stealth: Randomize MAC + Enforce stealth geographic exit nodes
-  ex_wipe: Full defense + Eradicate all session & auth logs on exit
+  ex_wipe: 'Run selected cleanup actions on exit'
   ex_destruct: Full defense + Cryptographically shred binary on exit
   ex_stop: Terminate isolation & Restore clean clearnet
   ex_update: Pull latest release from GitHub & Hot-rebuild in-place
@@ -538,8 +531,8 @@ daemon_cli:
   run_info_shortly: 'Run ''wraith -i'' shortly to verify live gateway metrics.'
   arming_or_running_reset: 'Wraith is currently arming or running; use ''wraith -x'' to reset state.'
   shred_success: 'Target permanently obliterated from disk: %{target}'
-  executing_purge: 'Executing %{mode} anti-forensic purge...'
-  purge_complete: 'Anti-forensic purge complete (%{count} operations executed)'
+  executing_purge: 'Executing %{mode} session cleanup...'
+  purge_complete: 'Session cleanup complete (%{count} operations executed)'
   moat_unreachable_fallback: 'Moat challenge unreachable: %{err}. Falling back to resilient pools.'
   bridges_configured: 'Successfully configured %{count} %{pt} bridges in /etc/tor/wraithrc'
   doh_selected: 'Selected DoH Provider: %{name} [%{url}]'

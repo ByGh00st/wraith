@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# WRAITH AUTOMATED BUILD ENGINE v1.5.0
+# WRAITH AUTOMATED BUILD ENGINE v1.5.1
 # High-Assurance Linux Network Privacy & Traffic Anonymization Engine
 # Absolute Precision. Zero Telemetry. Pure Technical Execution.
 # ==============================================================================
@@ -47,7 +47,7 @@ print_box_line() {
     echo -e "  ${CLR_AMBER}│${CLR_RESET}  ${CLR_SLATE}${prefix}${CLR_RESET} ${color}${value}${CLR_RESET}${pad} ${CLR_AMBER}│${CLR_RESET}"
 }
 
-print_box_line "CORE ENGINE :" "WRAITH v1.5.0 // ENTERPRISE RELEASE GATE" "${CLR_RED}${CLR_BOLD}"
+print_box_line "CORE ENGINE :" "WRAITH v1.5.1 // ENTERPRISE RELEASE GATE" "${CLR_RED}${CLR_BOLD}"
 print_box_line "TARGET HOST :" "${TARGET_OS} [${ARCH}]" "${CLR_EMERALD}"
 print_box_line "KERNEL SPEC :" "Linux ${KERNEL_REL}" "${CLR_WHITE}"
 print_box_line "BUILD MODE  :" "LOCKED RELEASE BUILD // SYSTEM COMPILATION" "${CLR_RED}${CLR_BOLD}"

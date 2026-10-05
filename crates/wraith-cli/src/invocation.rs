@@ -25,7 +25,7 @@ pub fn parse(args: impl IntoIterator<Item = impl Into<OsString> + Clone>) -> Res
 
 fn validate(cli: &Cli) -> Result<(), &'static str> {
     let actions = [cli.command.is_some(), cli.start, cli.stop, cli.reset, cli.monitor, cli.switch,
-        cli.test, cli.info, cli.doctor, cli.bench, cli.pentest, cli.update,
+        cli.test, cli.info, cli.doctor, cli.bench, cli.update,
         cli.cleanup || cli.cleanup_full, cli.shred.is_some(), cli.select_lang,
         cli.completions.is_some(), cli.demo, cli.interfaces];
     let count = actions.into_iter().filter(|active| *active).count();
@@ -73,7 +73,7 @@ pub fn worker_is_ready(state: &wraith_core::StateData, child: u32, running: bool
 
 pub fn requires_root(command: &crate::Commands) -> bool {
     use crate::{BridgeAction, Commands};
-    !matches!(command, Commands::Pentest | Commands::Interfaces { .. } | Commands::Config { .. }
+    !matches!(command, Commands::Interfaces { .. } | Commands::Config { .. }
         | Commands::Fetch { .. } | Commands::Update { .. } | Commands::Doh { select: false }
         | Commands::Bridge { action: None | Some(BridgeAction::List) })
 }
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn competing_shortcuts_and_subcommands_never_choose_by_precedence() {
-        let selectors = ["-s", "-x", "--reset", "-r", "-i", "-t", "-c", "-u", "-M", "--doctor", "--bench", "--pentest", "--interfaces", "--demo", "--select-lang"];
+        let selectors = ["-s", "-x", "--reset", "-r", "-i", "-t", "-c", "-u", "-M", "--doctor", "--bench", "--interfaces", "--demo", "--select-lang"];
         for (i, first) in selectors.iter().enumerate() {
             for second in selectors.iter().skip(i + 1) {
                 assert!(parse(["wraith", *first, *second]).is_err(), "{first} {second}");

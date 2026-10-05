@@ -44,10 +44,8 @@ tui:
   def_lockdown: '[i] Çekirdek Kilitleme   : Başlangıçta gözlemlenir; Wraith değiştirmez'
   def_dns: '[✓] DNS Motoru           : QNAME Küçültülmüş + EDNS0 468B Dolgulu + Telemetri
     Tuzağı'
-  def_tls: '[✓] JA3/JA4 TLS Kamuflaj : Google Chrome 131 / Win11 Profili + RFC 8701
-    GREASE'
-  def_ramfs: '[✓] RAMFS Kripto Kasası  : Bellek İçi ChaCha20-Poly1305 Şifreli (/dev/shm
-    Kilitli)'
+  def_tls: '[✓] TLS client profile : Configured Wraith client profile + RFC 8701 GREASE'
+  def_ramfs: '[✓] Ephemeral session memory: In-memory encrypted session data (/dev/shm)'
   def_ids: '[✓] Sıfır-Kopya IDS      : Gerçek Zamanlı L2/L3/L4 Sniffer & Çıkış Bekçisi
     Aktif'
   circuits_box: ┌── [ AKTİF TOR DEVRELERİ & RÖLE TOPOLOJİSİ ] ───────────────────────────────────────────┐
@@ -75,8 +73,8 @@ hud:
   rotate_policy: 🔄 Devre Döndürme Kuralı
   auto_rotate: ● OTOMATİK-DÖNDÜRME (Her %{interval}sn)
   manual_rotate: ○ İSTEĞE BAĞLI MANUEL [Devre için 'R'ye basın]
-  dpi_sanitizer: 🔍 Canlı DPI Temizleyici
-  dpi_active: "HTTP :9055 + CONNECT → Tor; TLS: fetch / DoH"
+  http_relay: 'HTTP relay'
+  http_relay_active: 'HTTP :9055 + CONNECT to Tor; User-Agent preserved'
   keys: ┌── [ 🎮 İNTERAKTİF KLAVYE KONTROLLERİ ] ────────────────────────────────────────────────────────┐
   k_rotate: '[R] Devreyi Döndür'
   k_audit: '[T] Sızıntı Denetimi'
@@ -97,7 +95,7 @@ commands:
   cmd_step_4: Tor yapılandırması devrede
   cmd_step_5: Tor motoru başlatılıyor...
   cmd_step_6: Tor motoru aktif & ControlPort (9051) üzerinde doğrulandı
-  cmd_step_7: Yerel Tor şeffaf DNS (transparent DNS) yapılandırılıyor...
+  cmd_step_7: 'Applying TCP protocol conformance and network fingerprint normalization...'
   cmd_step_8: DNS 127.0.0.1 adresine bağlandı (Tor Port 5353)
   cmd_step_9: Hata-Kapalı (Fail-Closed) güvenlik duvarı kuralları zorlanıyor...
   cmd_step_10: Tüm sistem TCP/DNS trafiği Tor ağına zorlandı
@@ -164,9 +162,9 @@ commands:
   cmd_step_68: Agresif Hata Ayıklama Tuzağı Silahlanıyor (TracerPid / ptrace üzerinde SIGKILL)...
   cmd_warn_anti_debug: 'Hata ayıklama tuzağı uyarısı: %{e}'
   cmd_step_69: 'Süreç adı çekirdek zamanlayıcısında maskeleniyor ([kworker/u16:0])...'
-  cmd_step_70: 'Süreç kimliği çekirdek çalışanı olarak gizlendi [SİLAHLANDI]'
+  cmd_step_70: 'Applying configured process-management policy...'
   cmd_warn_masquerade: 'Süreç maskeleme uyarısı: %{e}'
-  cmd_step_71: Yıkıcı sistem olay günlüğü ve geçmiş temizliği yürütülüyor...
+  cmd_step_71: 'Running selected system event log and history cleanup...'
   cmd_step_scrubbed_logs: '%{count} sistem günlüğü dosyası temizlendi'
   cmd_step_72: Fiziksel ağ adaptörü bulunamadı; tüm sistem arayüzleri listeleniyor...
   cmd_step_default_iface: 'Varsayılan ağ adaptörü kilitlendi: %{iface}'
@@ -177,7 +175,7 @@ commands:
   cmd_step_73: İşletim sistemi benzersiz /etc/machine-id donanım kimliği döndürülüyor...
   cmd_step_machine_id_altered: 'Machine-ID değiştirildi: %{old_mid} ➔ %{new_mid}'
   cmd_warn_machine_id_skip: 'Machine-ID döndürme atlandı: %{e}'
-  cmd_step_74: TCP/IP L4 Yığını Normalize Ediliyor (p0f/TTL/Window Atlatma)...
+  cmd_step_74: 'Applying TCP protocol conformance and network fingerprint normalization...'
   cmd_step_75: 'TCP/IP yığını taklit edildi: TTL=128 (Windows Profili), timestamps=0'
   cmd_warn_tcp_mask: 'TCP/IP normalizasyon uyarısı: %{e}'
   cmd_err_multihop_wg: 'Multi-Hop WireGuard kurulumu başarısız: %{e}'
@@ -192,8 +190,8 @@ commands:
   cmd_step_77: Linux Trafik Kontrolü (TC) / eBPF Çıkış Hızlı Yolu Enjekte Ediliyor...
   cmd_warn_ebpf_attach: 'eBPF Hızlı Yol bağlama uyarısı: %{e}'
   cmd_warn_ebpf_init: 'eBPF Hızlı Yol başlatma hatası: %{e}'
-  cmd_step_78: Sıfır-Kopya IDS Ham Paket Dinleyici & DPI Motoru Silahlanıyor (AF_PACKET)...
-  cmd_step_79: Sıfır-Kopya IDS Bekçisi & DPI Motoru aktif (Gerçek zamanlı sızıntı & imza tuzakları devrede)
+  cmd_step_78: 'Starting AF_PACKET packet observation...'
+  cmd_step_79: 'Packet telemetry monitor active'
   cmd_step_80: Seccomp-BPF Sistem Çağrısı Filtresi Silahlanıyor (SOCK_RAW / AF_PACKET kanca tuzağı)...
   cmd_step_81: 'Sistem çağrısı filtresi aktif: Yetkisiz ham soketler anında SIGSYS tetikler'
   cmd_warn_seccomp: 'Seccomp-BPF kum havuzu uyarısı: %{e}'
@@ -210,15 +208,15 @@ commands:
   cmd_step_85: Sentetik trafik dolgusu aktif (200-1400ms Poisson dalgalanması)
   cmd_warn_shaper_apply: 'Çekirdek Trafik Şekillendirici uygulama uyarısı: %{e}'
   cmd_warn_shaper_init: 'Çekirdek Trafik Şekillendirici başlatma hatası: %{e}'
-  cmd_step_86: Bellek İçi ChaCha20-Poly1305 Şifreli Kasa İnşa Ediliyor (/dev/shm)...
-  cmd_step_87: Şifreli RAMFS Kasası aktif (MADV_DONTDUMP bellek kilitlendi)
+  cmd_step_86: 'Creating ephemeral encrypted session memory...'
+  cmd_step_87: 'Ephemeral in-memory session state active'
   cmd_warn_vault: 'Şifreli Kasa bellek kilitleme uyarısı: %{e}'
   cmd_step_88: EDNS0 Dolgulu RFC 1035 DNS Proxy Motoru Başlatılıyor...
   cmd_step_89: 'DNS Motoru 127.0.0.1:53 üzerinde aktif (EDNS0 468B Dolgulu + Telemetri Sinkhole)'
   cmd_warn_dns_proxy: 'Dahili DNS Proxy başlatma başarısız: %{e}'
   cmd_step_90: Fail-Closed Bekçi devrede & çekirdek çıkış trafiğini izliyor
-  cmd_step_91: Adli bilişim karşıtı bellek & geçici durum temizliği yürütülüyor...
-  cmd_step_92: RAM önbellekleri, ARP tabloları, günlükler ve geçici durumlar yok edildi
+  cmd_step_91: 'Releasing session-owned volatile state...'
+  cmd_step_92: 'Session-owned transient state released'
   cmd_step_93: Eski kurulumların üzerine yazılıyor ve yeni ikili dosya PATH geneline dağıtılıyor...
   cmd_step_94: 'Otomatik atlatma modu: Moat varsayılanları çözümleniyor...'
   cmd_step_95: Verilen meydan okuma çözümü sunuluyor...
@@ -228,7 +226,7 @@ commands:
   cmd_warn_log_scrub_err: 'Sistem günlük temizliği başarısız: %{e}'
   cmd_step_history_wiped: '%{count} adet kabuk geçmiş dosyası kalıcı olarak temizlendi [AÇIK ONAYLI]'
   cmd_warn_history_wipe_err: 'Geçmiş temizleme başarısız: %{e}'
-  cmd_step_dpi_tls_gate: 'Uçuş-İçi HTTP DPI & TLS Kamuflaj Geçidi 127.0.0.1:9055 üzerinde devreye alındı (%{name}, JA4: %{ja4})'
+  cmd_step_http_tls_gate: 'HTTP relay active on 127.0.0.1:9055; native TLS profiles are limited to Wraith clients'
   cmd_step_bridge_obfs4_enabled: 'Köprü modu %{count} obfs4 köprüsüyle aktif edildi'
   cmd_step_exit_prof_applying: 'Coğrafi çıkış profili uygulanıyor: %{prof}...'
   cmd_step_exit_prof_active: '''%{name}'' profili etkin (%{desc})'
@@ -242,7 +240,7 @@ commands:
   cmd_hotkey_identity_active: '✔ [AKTİF KİMLİK] Yeni Tor Çıkış Düğümü ➔ %{geo}'
   cmd_hotkey_tor_ctrl_err: '✖ [HATA] Tor ControlPort sinyali başarısız.'
   cmd_hotkey_leak_audit: '◈ [🧪 SIZINTI DENETİMİ] Kapsamlı Ring-0 sızıntı denetim paketi yürütülüyor...'
-  cmd_hotkey_popup_spawned: '◈ [🖥️ POP-UP İZLEYİCİ] Gerçek zamanlı DPI & IDS telemetri penceresi başlatıldı!'
+  cmd_hotkey_popup_spawned: 'Network telemetry window opened.'
   cmd_hotkey_popup_manual: '⚠️ [POP-UP İZLEYİCİ] Ayrı izleyici penceresi açmak için ayrı terminalde çalıştırın: sudo wraith monitor'
   cmd_hotkey_memory_purge: '◈ [🧹 BELLEK İMHA] Uçucu önbellekler, RAMFS sırları, ARP tabloları ve tamponlar temizleniyor (<10ms)...'
   cmd_hotkey_memory_eradicated: '✔ [İMHA EDİLDİ] Çekirdek drop_caches, bellek sıkıştırma ve ARP yönlendirme tabloları silindi.'
@@ -255,16 +253,16 @@ commands:
   cmd_step_cargo_compiling: '%{bin} ile optimize edilmiş yayın derlemesi derleniyor...'
   cmd_warn_sha256_unverified: 'SHA-256: %{hash} (güvenilir kaynakla doğrulanmadı — risk size aittir)'
   cmd_universal_bin: 'Evrensel ikili dosya: /usr/local/bin/wraith'
-  cmd_monitor_armed: '◈ [İZLEYİCİ DEVREDE] Ağ üzerinde Katman-4 HTTP / Güvenlik Denetim Aracı Çıkışları dinleniyor...'
-  cmd_monitor_promisc_active: 'ℹ️  [DPI PROMISCUOUS İZLEYİCİ AKTİF]'
+  cmd_monitor_armed: 'Monitor armed: observing network packet telemetry...'
+  cmd_monitor_promisc_active: 'Packet monitor active'
   cmd_monitor_seccomp_filtered: '[NOT] AF_PACKET promiscuous dinleyici Seccomp / Ortam tarafından filtrelendi: %{err}'
-  cmd_monitor_in_flight_sanitizing: 'Uçuş-İçi HTTP DPI Yeniden Yazıcı & TLS Proxy 9055 portunda hattı aktif olarak temizliyor.'
-  cmd_monitor_interceptor_op: 'Canlı önleyici şeffaf proxy modunda çalışıyor.'
+  cmd_monitor_in_flight_sanitizing: 'Local HTTP relay forwards requests through Tor and preserves User-Agent values.'
+  cmd_monitor_interceptor_op: 'Monitor reports packet observations and counters only.'
   cmd_monitor_listening: 'Uçuş sırasındaki trafik dinleniyor... (Kapatmak için ''q'' veya Enter)'
   cmd_monitor_webrtc_intercepted: '◈ [⚠️ WEBRTC STUN SIZINTISI YAKALANDI // %{time}] Netfilter Ring-0 Sınırında Engellendi (<1ms düşürme)'
   cmd_monitor_linux_req: 'Gerçek zamanlı paket izleyici Linux AF_PACKET ham soketleri gerektirir.'
   cmd_monitor_closed: '◈ [İZLEYİCİ KAPATILDI] Kabuğa dönülüyor...'
-  cmd_bridge_pool_header: 'Dahili Güçlendirilmiş Sansür Aşma Köprü Havuzları:'
+  cmd_bridge_pool_header: 'Available Tor pluggable transports:'
   cmd_bridge_pool_obfs4: '[obfs4] (Trafik Karartma / Eliptik Eğri El Sıkışması):'
   cmd_bridge_pool_snowflake: '[snowflake] (WebRTC Geçici Aracı Vekil Sunucular):'
   cmd_bridge_pool_meek: '[meek-azure] (Microsoft Azure CDN ile Alan Adı Öne Çıkarma):'
@@ -288,8 +286,8 @@ commands:
   demo_step_6_ok: 'Machine-ID döndürüldü: unknown ➔ 9f928f32d42299fb1bdfde337e014b3d'
   demo_step_7_info: 'TCP/IP L4 Yığını Normalize Ediliyor (p0f/TTL/Pencere Atlatma)...'
   demo_step_7_ok: 'TCP/IP yığını taklit edildi: TTL=128 (Windows 11 Profili), timestamps=0'
-  demo_step_8_info: 'Uçuş-İçi DPI Temizleme Motoru ve AF_PACKET Sıfır-Kopya Dinleyici Başlatılıyor...'
-  demo_step_8_ok: '1.338+ Güvenlik denetim aracı (Kali Linux, Metasploit, TheHarvester, Nuclei, Ffuf...) modern Chrome/131 User-Agent''larına dönüştürüldü'
+  demo_step_8_info: 'Applying general HTTP request header privacy baseline...'
+  demo_step_8_ok: 'General HTTP header privacy baseline applied; User-Agent preserved'
   demo_step_9_info: 'Çok-Atlamalı WireGuard Kriptografik Kapsülleme Kuruluyor...'
   demo_step_9_ok: 'WireGuard tüneli [ChaCha20-Poly1305] Tor 3-Atlamalı Devre üzerinde aktif'
   demo_step_10_info: 'Coğrafi Çıkış Düğümü Profili [stealth] Uygulanıyor...'
@@ -321,17 +319,14 @@ help:
   cmd_dashboard: İnteraktif terminal telemetri kontrol panelini (TUI) başlatır
   cmd_doctor: Derin çekirdek ve ağ bütünlüğü tanılama testlerini çalıştırır
   cmd_benchmark: Yüksek performanslı kriptografik ve çekirdek hız testlerini çalıştırır
-  cmd_cleanup: Adli bilişim karşıtı RAM ve geçici durum temizliği yapar
-  cmd_cleanup_full: Kapsamlı temizlik (RAM, swap ve tüm sistem oturum logları)
+  cmd_cleanup: 'Release session-owned transient memory and restore settings'
+  cmd_cleanup_full: 'Run selected system cleanup operations'
   cmd_mac: Ağ kartı MAC adresini ve sistem hostname değerini rastgeleleştirir
   cmd_profile: 'Coğrafi Tor çıkış profili uygular (örn: stealth, speed, research,
     darkweb)'
-  cmd_pentest: Pentest araçları için DPI imza temizleme ve izolasyon rehberini gösterir
-    (Nmap, Sqlmap, Ffuf)
   cmd_update: En son güncellemeleri GitHub'dan çeker ve yerinde yeniden derler
   cmd_shred: Bir dosyayı DoD 5220.22-M 7-geçişli standart ile güvenle parçalar
-  cmd_monitor: Gerçek zamanlı AF_PACKET DPI imza temizleme ve IDS ağ izleme panelini
-    açar
+  cmd_monitor: 'Launch packet telemetry monitor'
   cmd_config: Kalıcı yapılandırma ayarlarını yönetir (/etc/wraith/config.toml)
   cmd_bridge: Tor Moat Protokolü ile sansür atlatma köprülerini yönetir
   cmd_doh: DNS-over-HTTPS (DoH) şifreli çözücü sağlayıcılarını inceler veya seçer
@@ -350,9 +345,8 @@ help:
   opt_rotate: 'Tor çıkış kimliğini her N saniyede bir otomatik döndürür (örn: --rotate
     60)'
   opt_no_ks: Sızıntı geçirmez KillSwitch bekçisini devre dışı bırakır
-  opt_wg: Tor trafiğini WireGuard tüneli içine kapsüller (Çok Katmanlı Hibrit Tünel)
-  opt_spawn_monitor: Başlangıçta otomatik gerçek zamanlı DPI/IDS izleme penceresi
-    açar
+  opt_wg: 'Encapsulate Tor traffic in a kernel WireGuard tunnel for multi-hop transport privacy'
+  opt_spawn_monitor: 'Automatically open a network telemetry monitor terminal on startup'
   sec_harden_header: 'Sistem ve Parmak İzi Sıkılaştırma:'
   opt_browser_shield: WebGL, Canvas, Audio, GPU, Font ve Çözünürlük parmak izi korumasını
     tarayıcılara enjekte eder
@@ -378,9 +372,9 @@ help:
   opt_help: Bu yardım ekranını gösterir
   opt_version: Sürüm bilgisini gösterir
   examples_header: 'Operasyonel Kullanım Örnekleri:'
-  ex_fs: Maksimum 16 katmanlı tam koruma ile başlat
+  ex_fs: 'Launch with configured network privacy and isolation controls'
   ex_stealth: MAC değiştir + Stealth çıkış düğümleri ile bağlan
-  ex_wipe: Tam koruma + çıkışta tüm oturum loglarını temizle
+  ex_wipe: 'Run selected cleanup actions on exit'
   ex_destruct: Tam koruma + çıkışta kendini diskten tamamen imha et
   ex_stop: Anonimleştirmeyi durdur ve normal ağı geri yükle
   ex_update: En son sürümü GitHub'dan çek ve yerinde yeniden derle
@@ -543,8 +537,8 @@ daemon_cli:
   run_info_shortly: 'Canlı ağ geçidi metriklerini doğrulamak için kısa süre sonra ''wraith -i'' çalıştırın.'
   arming_or_running_reset: 'Wraith şu anda başlatılıyor veya çalışıyor; durumu sıfırlamak için ''wraith -x'' kullanın.'
   shred_success: 'Hedef diskten kalıcı olarak imha edildi: %{target}'
-  executing_purge: '%{mode} adli bilişim karşıtı temizlik yürütülüyor...'
-  purge_complete: 'Adli bilişim karşıtı temizlik tamamlandı (%{count} işlem yürütüldü)'
+  executing_purge: 'Executing %{mode} session cleanup...'
+  purge_complete: 'Session cleanup complete (%{count} operations executed)'
   moat_unreachable_fallback: 'Moat sorgusuna ulaşılamadı: %{err}. Yedek havuzlara geçiliyor.'
   bridges_configured: '/etc/tor/wraithrc içine %{count} adet %{pt} köprüsü başarıyla yapılandırıldı'
   doh_selected: 'Seçilen DoH Sağlayıcısı: %{name} [%{url}]'

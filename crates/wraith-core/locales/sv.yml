@@ -7,7 +7,7 @@ err:
   tor: 'Tor-kontrollerfel:'
   namespace: 'Kernel-nätverksnamnrymdsfel:'
   hardware: 'Hårdvaru-MAC/Länkfel:'
-  forensic: 'Anti-forensiskt rensningsfel:'
+  forensic: 'Fel vid rensning av sessionsdata:'
   guard: 'Watchdog / KillSwitch-fel:'
   command: 'Nätverkskommandofel:'
   custom: 'Allmänt systemfel:'

@@ -30,7 +30,7 @@ sudo wraith -Fs -I eth0 --tls-profile firefox
 | Namespace L2 | Fresh CSPRNG local-unicast veth MAC, verified before link activation |
 | Browser / fonts | Apply supported discovered browser profiles and Fontconfig restrictions |
 | Process / RAM | Require memory lockdown, seccomp and successful encrypted session-copy storage |
-| Local process checks | Existing anti-debug probe and process label; no remote fingerprint protection |
+| Local process checks | Local debugger-attachment check and process label; no remote fingerprint protection |
 | Host prerequisites / observers | Verify the settings below; acquire the IDS socket and start loopback decoys |
 | Exit profile | `stealth` unless another geographic exit policy is configured |
 
@@ -97,7 +97,7 @@ Only newly launched namespace applications get its sysctl/FIB settings. Tor's ou
 | `--display-sandbox` | Create a private virtual display | Xvfb and xauth; applications must use that display |
 | `--honey-ports` / `--honey-lan` | Loopback decoys are included in strict mode; LAN binding is opt-in | Observational traps; not malware removal |
 | `-K` / `--aggressive-masquerade` | Mask process name as `[kworker/u16:0]` | Kernel process table disguise; does not alter `/proc/[pid]/exe` |
-| `-A` / `--aggressive-anti-debug` | Enforce anti-debugging ptrace probe | Emergency SIGKILL upon debugger attachment detection |
+| `-A` / `--aggressive-anti-debug` | Check ptrace status | Terminates Wraith if a debugger is detected |
 | `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp and shell logs | Irreversible; multi-pass shred on common system log paths |
 
 Bridges, WireGuard, virtual display, circuit rotation, traffic shaping, cover requests and onion services need explicit CLI/configuration choices. Log/history wiping and self-destruction also remain explicit options. Full-security is a required control bundle, not a complete-anonymity or blocklist-avoidance guarantee.

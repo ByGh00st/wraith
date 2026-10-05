@@ -332,8 +332,8 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
     ]);
 
     table.add_row(vec![
-        Cell::new(t!("hud.dpi_sanitizer")),
-        Cell::new(t!("hud.dpi_active")).fg(Color::Cyan),
+        Cell::new(t!("hud.http_relay")),
+        Cell::new(t!("hud.http_relay_active")).fg(Color::Cyan),
     ]);
 
     if state_data.multihop_enabled {
@@ -988,7 +988,6 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("info", |a| a.help(t!("help.cmd_info").into_owned()))
         .mut_arg("doctor", |a| a.help(t!("help.cmd_doctor").into_owned()))
         .mut_arg("bench", |a| a.help(t!("help.cmd_benchmark").into_owned()))
-        .mut_arg("pentest", |a| a.help(t!("help.cmd_pentest").into_owned()))
         .mut_arg("update", |a| a.help(t!("help.cmd_update").into_owned()))
         .mut_arg("cleanup", |a| a.help(t!("help.cmd_cleanup").into_owned()))
         .mut_arg("cleanup_full", |a| a.help(t!("help.cmd_cleanup_full").into_owned()))
@@ -1009,7 +1008,6 @@ pub fn build_localized_command() -> clap::Command {
         .mut_subcommand("cleanup", |s| s.about(t!("help.cmd_cleanup").into_owned()))
         .mut_subcommand("mac", |s| s.about(t!("help.cmd_mac").into_owned()))
         .mut_subcommand("profile", |s| s.about(t!("help.cmd_profile").into_owned()))
-        .mut_subcommand("pentest", |s| s.about(t!("help.cmd_pentest").into_owned()))
         .mut_subcommand("update", |s| s.about(t!("help.cmd_update").into_owned()))
         .mut_subcommand("shred", |s| s.about(t!("help.cmd_shred").into_owned()))
         .mut_subcommand("monitor", |s| s.about(t!("help.cmd_monitor").into_owned()))

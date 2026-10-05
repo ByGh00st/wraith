@@ -1,6 +1,6 @@
 //! Wraith Multi-Hop & Hybrid Overlay Tunnel Engine
 //! Implements WireGuard (Kernel Native) ➔ Tor (3-Hop Onion) Dual-Layer Tunneling.
-//! Guarantees ISP/DPI bypass by encapsulating all outbound Tor traffic inside a WireGuard tunnel.
+//! Guarantees ISP/Transport Layer Privacy & Censorship Resistance by encapsulating all outbound Tor traffic inside a WireGuard tunnel.
 
 use std::fs;
 use std::path::Path;

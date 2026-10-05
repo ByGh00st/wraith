@@ -2,7 +2,7 @@
 
 > **PROFILES** · Namespace TCP controls + Tor access-link normalization, with shared Tor exits.
 
-Wraith's local L4 target is the **ISP, enterprise firewall or DPI observer between the machine and its Tor Guard/TCP bridge**. No external VPS is required. Destination websites still see the TCP stack of the shared Tor exit.
+Wraith's local L4 controls apply to the TCP path between the machine and its Tor Guard or bridge, including networks that filter traffic. No external VPS is required. Destination websites still see the TCP stack of the shared Tor exit.
 
 ## What applies where?
 
@@ -109,7 +109,7 @@ The dedicated Tor UID's non-loopback IPv4 TCP enters the owned `WRAITH_L4_EGRESS
 
 Shutdown stops managed Tor before removing the rules and restoring the pre-session firewall. A failed Tor stop or namespace teardown withholds firewall restoration and retains recovery state. A panic leaves policy and the journal for recovery. `exec` refuses application entry during Arming.
 
-Session IPv6 remains blocked. UDP bridge paths are outside this TCP engine. With WireGuard, the ISP sees outer tunnel packets; the normalized Tor TCP remains inside. Tor's own Guard TLS handshake is unchanged, so this feature does not make Tor indistinguishable from Chrome or guarantee DPI non-detection.
+Session IPv6 remains blocked. UDP bridge paths are outside this TCP engine. With WireGuard, the ISP sees outer tunnel packets; the normalized Tor TCP remains inside. Tor's own Guard TLS handshake is unchanged. TCP normalization does not alter that handshake or guarantee a particular network outcome.
 
 [Access-link architecture and failure handling](https://github.com/ByGh00st/wraith/blob/main/docs/L4-EGRESS-DESIGN.md)
 

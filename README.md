@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.5.0-8172b3?style=flat-square" alt="Workspace version 1.5.0">
+  <img src="https://img.shields.io/badge/version-1.5.1-8172b3?style=flat-square" alt="Workspace version 1.5.1">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-547d85?style=flat-square" alt="GPL 3.0"></a>
@@ -90,7 +90,7 @@ Wraith manages sessions on an existing **Linux x86_64 or ARM64 host**. It requir
 
 ### Quick install · signed APT repository and official release assets
 
-> **[Wraith v1.5.0](https://github.com/ByGh00st/wraith/releases/tag/v1.5.0)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
+> **[Wraith v1.5.1](https://github.com/ByGh00st/wraith/releases/tag/v1.5.1)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
 
 ```bash
 # Debian / Ubuntu / Kali: configure the signed Wraith APT repository once.
@@ -120,10 +120,10 @@ The installer needs **Bash, curl and Python 3.8+**; Alpine users can install the
 
 ```bash
 # x86_64 / amd64; use arm64 in the package filename on ARM64
-wget https://github.com/ByGh00st/wraith/releases/download/v1.5.0/wraith_1.5.0_amd64.deb
-wget https://github.com/ByGh00st/wraith/releases/download/v1.5.0/SHA256SUMS.txt
+wget https://github.com/ByGh00st/wraith/releases/download/v1.5.1/wraith_1.5.1_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.5.1/SHA256SUMS.txt
 sha256sum --ignore-missing --check SHA256SUMS.txt
-sudo apt install ./wraith_1.5.0_amd64.deb
+sudo apt install ./wraith_1.5.1_amd64.deb
 wraith --version
 ```
 
@@ -253,7 +253,7 @@ sudo wraith -x
 | `--browser-shield` | Apply preferences to supported browser profiles |
 | `--display-sandbox` | Create a private X11 display; requires Xvfb and xauth |
 | `-K` / `--aggressive-masquerade` | Cloak process name in Linux kernel scheduler as `[kworker/u16:0]` |
-| `-A` / `--aggressive-anti-debug` | Enforce anti-ptrace probe; emergency SIGKILL if debugger attached |
+| `-A` / `--aggressive-anti-debug` | Check for debugger attachment; terminate Wraith if process tracing is detected |
 | `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp and user shell history files on exit |
 
 WireGuard needs compatible configuration and system tools. Applications must use the selected browser profile or display for those controls to apply. Cleanup utilities and irreversible log/file removal options are documented separately from the session workflow; inspect command help before use. See [advanced configuration](docs/wiki/Advanced-Configuration.md) for prerequisites and the complete option scope.
@@ -321,13 +321,11 @@ See [troubleshooting and orphan recovery](docs/wiki/Troubleshooting.md) for DNS 
 
 ---
 
-<a id="dpi-sanitization"></a>
+<a id="http-relay"></a>
 
 ## HTTP relay and browser TLS profiles
 
-The source contains **1,338 signature entries** spanning HTTP clients and security tools. Matching text does not prove every named tool is proxied or indistinguishable from a browser.
-
-The HTTP relay on port 9055 handles redirected port-80 traffic and performs initial-request User-Agent sanitization against the 1,338+ signature catalog using a single-pass $O(M)$ Aho-Corasick automaton with token-boundary isolation, before forwarding through Tor SOCKS. It handles up to 1,024 concurrent client tasks regulated by an asynchronous semaphore backpressure queue and raises the host `RLIMIT_NOFILE` limit to at least 4,096 descriptors to prevent socket exhaustion. It removes `Forwarded`, `X-Forwarded-For`, `X-Real-IP`, `Via`, `Client-IP`, `True-Client-IP`, `X-Client-IP`, `X-Originating-IP` and proxy-only authentication/connection headers. `Connection: close` is enforced to eliminate HTTP pipelining bypasses. Origin authorization, cookies and binary bodies are preserved. Later requests on a persistent stream are not reparsed. HTTPS CONNECT tunnels preserve the application's original TLS stream. The `AF_PACKET` packet monitor inspects copies for detection and alerting; wire sanitization is handled by the L7 proxy.
+The local HTTP relay on port 9055 forwards cleartext HTTP through Tor SOCKS and supports HTTPS CONNECT tunnels. It preserves the caller's User-Agent and TLS handshake; it does not rewrite requests to resemble a browser. The relay removes proxy-only address and authentication headers, applies connection limits, and closes each HTTP connection after its request. CONNECT tunnels carry the application's original TLS stream. The `AF_PACKET` monitor observes packet copies for telemetry and does not modify network traffic.
 
 ```text
 Cleartext HTTP → HTTP relay :9055 → Tor SOCKS :9050 → destination
@@ -371,14 +369,11 @@ sudo wraith -s --jitter --jitter-endpoint https://your-domain.example/cover
 
 The worker performs a real HTTPS GET through Tor after each randomized **15–45 second** pause, caps each response at **16 KiB**, and cancels on session shutdown. It requires an explicit endpoint and is not automatically enabled by `-Fs`. This creates application traffic; it does not establish resistance to timing correlation.
 
-The encoded catalog is an implementation detail, not encryption or an antivirus exclusion mechanism. Normalization does not guarantee non-detection or exemption from Tor-exit blocklists.
+HTTP normalization is limited to proxy metadata and connection handling. It does not guarantee anonymity, confidentiality, or acceptance by destination services.
 
 ---
 
-<a id="supported-tool-matrix"></a>
-<a id="diversified-ua-pool"></a>
-
-The signature catalog and browser-shaped User-Agent templates support initial HTTP normalization. Catalog entries do not establish coverage of every named tool, and a User-Agent template is not a browser implementation. See the [TLS and HTTP guide](docs/wiki/TLS-and-HTTP.md) for request handling, limits and integrations.
+The relay does not impersonate a browser or alter application User-Agent values. See the [TLS and HTTP guide](docs/wiki/TLS-and-HTTP.md) for request handling, limits and integrations.
 
 ---
 
@@ -650,47 +645,24 @@ sudo -E cargo test -p wraith-net --test live_wire_syn_audit -- --ignored --nocap
 ===============================================================================
 ```
 
-For source structure, use the [crate map](#crate-topology). Line counts and catalog size are inventory metrics, not validation results.
+For source structure, use the [crate map](#crate-topology). Line counts are inventory metrics, not validation results.
 
 Report failures with the command, distribution, interface, expected behavior and sanitized logs. Omit passwords, private keys and tokens.
 
 ---
 
 <a id="legal-disclaimer"></a>
-## ⚖️ STRICT LEGAL & AUTHORIZED-USE DISCLAIMER
+## Legal Notice & Dual-Use Compliance
 
-> [!CAUTION]
-> **READ CAREFULLY BEFORE USE. BY DOWNLOADING, COMPILING, OR EXECUTING THIS SOFTWARE, YOU ACKNOWLEDGE THE NOTICE BELOW AND ACCEPT RESPONSIBILITY FOR COMPLYING WITH APPLICABLE LAW.**
+Wraith is an open-source Linux system and network library intended to support network-security research, RFC-conformance testing, system administration, and user privacy, including privacy where network access is restricted. Its capabilities are dual-use. This description states the project's intended purposes; it is not a legal classification, export-control determination, or assurance that every use or transfer is lawful.
 
-Wraith is a dual-use Linux network privacy, auditing, and security toolkit. It is intended for authorized Red/Blue Team operations, academic and defensive security research, privacy engineering, and other lawful activities. **You are solely responsible for how you configure and use the software.**
+Use Wraith only on systems and networks for which you have authority and any required consent. Use for unauthorized access, interception, disruption, alteration, surveillance, or acquisition of data is prohibited by project policy. Users must define and observe the limits of their authorization and comply with applicable law, contract terms, and organizational rules. In Türkiye, conduct involving purpose-built devices or programs may, depending on the facts and intent, raise issues under Article 245/A of Turkish Penal Code No. 5237. International transfers, exports, brokering, or technical assistance may also be subject to applicable dual-use controls, including Regulation (EU) 2021/821 where it applies. These references are general and non-exhaustive; they do not determine whether a particular program, transaction, or user is covered. Consult qualified counsel or the relevant authority for a specific assessment.
 
-### 🛑 JURISDICTIONAL COMPLIANCE & AUTHORIZATION
+The software is licensed under the GNU General Public License, version 3.0 (GPL-3.0); see [LICENSE](LICENSE). This notice does not add conditions to, reduce, or replace rights granted by GPL-3.0. The software is provided “AS IS”, without warranty to the extent permitted by law and subject to GPL-3.0. Nothing in this notice excludes or limits liability, warranty, or other rights that applicable law does not permit to be excluded or limited. To the extent permitted by applicable law, project contributors disclaim liability for claims and damages arising from use of the software. Users remain responsible for evaluating its suitability, operation, and legal compliance in their environment.
 
-This software provides capabilities that can be abused. Unauthorized use against systems, networks, accounts, communications, or data may constitute a criminal offense and/or give rise to civil liability under applicable law. Users are responsible for determining and complying with all laws, regulations, contractual obligations, acceptable-use policies, and authorization requirements applicable to their activities.
+Wraith does not guarantee anonymity, confidentiality, uninterrupted operation, non-detection, or any particular security outcome. Network routing, Tor, DNS validation, TLS profiles, and host controls have technical and operational limits described in this repository.
 
-1. **Republic of Turkey (TCK):** Unauthorized access to or interference with information systems may fall within Articles **243 and 244** of the Turkish Penal Code (TCK), alongside other provisions depending on the conduct involved.
-2. **United States of America (USA):** Unauthorized access or interception may implicate laws including the **Computer Fraud and Abuse Act (CFAA, 18 U.S.C. § 1030)** and, depending on the conduct, the **Electronic Communications Privacy Act (ECPA)**.
-3. **European Union (EU):** Unauthorized attacks against information systems may implicate **Directive 2013/40/EU** and relevant national implementing laws. Processing personal data may also be subject to the **General Data Protection Regulation (GDPR)** and other applicable privacy rules.
-
-These references are illustrative and are **not legal advice or an exhaustive statement of applicable law**.
-
-### 🚫 PROHIBITED & UNAUTHORIZED USE
-
-Do not use Wraith to access, test, intercept, disrupt, monitor, alter, or obtain data from systems or networks unless you have the legal authority and any required permission to do so. Do not use it to facilitate credential theft, unlawful surveillance, malware operations, botnets, denial-of-service activity, or concealment of unlawful conduct.
-
-### ⚠️ OPERATIONAL RESPONSIBILITY & NO ANONYMITY GUARANTEE
-
-Wraith does not guarantee anonymity, non-detection, immunity from attribution, or protection from legal or regulatory consequences. Tor, traffic normalization, TLS profiles, DNS controls, host hardening, and other privacy mechanisms each have technical and operational limits documented in this repository.
-
-To the maximum extent permitted by applicable law, the developers and contributors disclaim liability for damages arising from the use or misuse of this software. Nothing in this notice excludes or limits liability where such exclusion or limitation is prohibited by applicable law.
-
-You use this software at your own technical and legal risk.
-
-### 📜 LICENSE & WARRANTY
-
-Distribution and modification rights are governed by the **GNU General Public License v3.0 (GPL-3.0)** in the repository's `LICENSE` file. The software is provided **WITHOUT ANY WARRANTY**, subject to the terms of that license and applicable law.
-
-This responsible-use notice is not intended to add restrictions to the rights granted by GPL-3.0. If any wording in this README conflicts with the license, the `LICENSE` file governs the licensing terms.
+Applicable references: [Turkish Penal Code No. 5237 (Justice Ministry legislation portal)](https://mevzuat.adalet.gov.tr/mevzuat/103228) · [Regulation (EU) 2021/821 (EUR-Lex)](https://eur-lex.europa.eu/eli/reg/2021/821/2022-05-05/eng).
 
 ---
 

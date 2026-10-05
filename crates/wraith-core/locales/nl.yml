@@ -8,7 +8,7 @@ err:
   tor: 'Tor-controller mislukt:'
   namespace: 'Kernel-netwerknamespacefout:'
   hardware: 'Hardware MAC/Link-fout:'
-  forensic: 'Anti-forensische opschoningsfout:'
+  forensic: 'Fout bij het opschonen van sessiegegevens:'
   guard: 'Watchdog / KillSwitch-fout:'
   command: 'Netwerkopdrachtfout:'
   custom: 'Algemene systeemfout:'

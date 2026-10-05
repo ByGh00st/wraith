@@ -9,7 +9,7 @@ err:
   tor: 'Eșec controler Tor:'
   namespace: 'Eroare spațiu de nume rețea kernel:'
   hardware: 'Eroare MAC/Link hardware:'
-  forensic: 'Eroare de curățare antiforensic:'
+  forensic: 'Eroare la curățarea sesiunii:'
   guard: 'Eșec câine de pază / KillSwitch:'
   command: 'Eroare comandă rețea:'
   custom: 'Eșec general al sistemului:'

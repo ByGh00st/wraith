@@ -117,7 +117,7 @@ pub struct StartArgs {
     #[arg(long = "no-killswitch", visible_aliases = ["no-ks"], help_heading = "Network Isolation")]
     pub no_ks: bool,
 
-    /// Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop DPI/ISP bypass)
+    /// Encapsulate Tor traffic inside a kernel WireGuard tunnel (Multi-Hop transport privacy for ISP-observed connections)
     #[arg(
         short = 'W',
         long = "wireguard",
@@ -206,7 +206,7 @@ pub struct StartArgs {
     )]
     pub strict_hardening: bool,
 
-    /// Automatically spawn a dedicated real-time DPI & IDS monitor terminal window on startup
+    /// Automatically spawn a dedicated real-time network and IDS monitor terminal window on startup
     #[arg(
         long = "spawn-monitor", 
         visible_aliases = ["popup", "live-window", "monitor-window"], 
@@ -327,7 +327,7 @@ struct Cli {
     )]
     reset: bool,
 
-    /// Launch real-time dedicated DPI & IDS live interceptor monitor
+    /// Launch the real-time packet telemetry monitor
     #[arg(short = 'M', long = "monitor", visible_aliases = ["live", "ids-monitor"])]
     monitor: bool,
 
@@ -351,19 +351,16 @@ struct Cli {
     #[arg(long)]
     bench: bool,
 
-    /// Display authorized security auditing & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
-    #[arg(long)]
-    pentest: bool,
 
     /// Fast-forward source from official GitHub; run build.sh separately to install
     #[arg(short = 'u', long)]
     update: bool,
 
-    /// Anti-forensic cleanup
+    /// Ephemeral session cleanup
     #[arg(short = 'c', long)]
     cleanup: bool,
 
-    /// Thorough anti-forensic purge (wipes swap, RAM caches, logs)
+    /// Run selected system cleanup operations
     #[arg(long)]
     cleanup_full: bool,
 
@@ -443,7 +440,7 @@ enum Commands {
     Doctor,
     /// Run high-performance cryptographic and kernel subsystem benchmarks
     Benchmark,
-    /// Perform anti-forensic purge
+    /// Run session cleanup operations
     Cleanup {
         #[arg(long)]
         full: bool,
@@ -456,8 +453,6 @@ enum Commands {
         #[arg(value_parser = ["stealth", "speed", "journalists", "research", "darkweb"])]
         name: String,
     },
-    /// Display authorized security auditing & pentest tool sanitization guide (Nmap, Sqlmap, Ffuf)
-    Pentest,
     /// Fetch HTTPS over Tor with a real browser-profile TLS/HTTP2 handshake
     Fetch {
         url: String,
@@ -484,7 +479,7 @@ enum Commands {
         #[arg(short = 'p', long, default_value_t = 7, value_parser = clap::value_parser!(u32).range(1..=255))]
         passes: u32,
     },
-    /// Launch real-time dedicated DPI & IDS live interceptor monitor
+    /// Launch the real-time packet telemetry monitor
     #[command(name = "monitor", visible_aliases = ["live", "ids-monitor"])]
     Monitor,
     /// Manage persistent configuration settings (/etc/wraith/config.toml)
@@ -533,7 +528,7 @@ pub enum BridgeAction {
         #[arg(short = 'a', long)]
         auto: bool,
     },
-    /// List built-in censorship evasion bridge pools
+    /// List available Tor pluggable transports
     List,
 }
 
@@ -655,8 +650,6 @@ pub(crate) fn resolve_command(cli: &Cli) -> Option<Commands> {
         Some(Commands::Cleanup {
             full: cli.cleanup_full,
         })
-    } else if cli.pentest {
-        Some(Commands::Pentest)
     } else if cli.update {
         Some(Commands::Update {
             artifact: None,
@@ -1037,9 +1030,6 @@ pub async fn main() -> Result<()> {
             let _ = wraith_tor::apply_exit_profile(&name).await?;
             display::print_success(&format!("{}", rust_i18n::t!("runtime.profile_applied", name = name.as_str())));
         }
-        Commands::Pentest => {
-            commands::cmd_pentest()?;
-        }
         Commands::Update { artifact, manifest, signature } => {
             commands::cmd_update(artifact, manifest, signature).await?;
         }
@@ -1314,8 +1304,6 @@ mod tests {
         let cli_bench = Cli::try_parse_from(["wraith", "--bench"]).unwrap();
         assert_eq!(resolve_command(&cli_bench), Some(Commands::Benchmark));
 
-        let cli_pentest = Cli::try_parse_from(["wraith", "--pentest"]).unwrap();
-        assert_eq!(resolve_command(&cli_pentest), Some(Commands::Pentest));
 
         let cli_update = Cli::try_parse_from(["wraith", "-u"]).unwrap();
         assert_eq!(resolve_command(&cli_update), Some(Commands::Update { artifact: None, manifest: None, signature: None }));
@@ -1368,4 +1356,3 @@ mod tests {
         assert!(Cli::try_parse_from(["wraith", "--start", "--stop"]).is_err());
     }
 }
-

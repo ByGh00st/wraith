@@ -253,7 +253,7 @@ impl DynamicTlsFingerprint {
 
                 Self {
                     browser,
-                    name: "Google Chrome v131 (Windows 11 x86_64)",
+                    name: "Chrome v131 (Windows 11 x86_64)",
                     ja3_raw,
                     ja3_hash,
                     ja4_hash: "t13d1516h2_8daaf6152771_b186095e22b6",

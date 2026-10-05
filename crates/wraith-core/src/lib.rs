@@ -27,8 +27,6 @@ pub mod signed_update;
 
 pub mod file_snapshot;
 
-pub mod signatures;
-pub use signatures::*;
 
 pub mod tcp_fingerprint;
 pub use tcp_fingerprint::*;

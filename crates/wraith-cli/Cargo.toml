@@ -11,11 +11,11 @@ name = "wraith"
 path = "src/main.rs"
 
 [dependencies]
-wraith-core = { version = "1.5.0", path = "../wraith-core" }
-wraith-net = { version = "1.5.0", path = "../wraith-net" }
-wraith-tor = { version = "1.5.0", path = "../wraith-tor" }
-wraith-guard = { version = "1.5.0", path = "../wraith-guard" }
-wraith-forensic = { version = "1.5.0", path = "../wraith-forensic" }
+wraith-core = { version = "1.5.1", path = "../wraith-core" }
+wraith-net = { version = "1.5.1", path = "../wraith-net" }
+wraith-tor = { version = "1.5.1", path = "../wraith-tor" }
+wraith-guard = { version = "1.5.1", path = "../wraith-guard" }
+wraith-forensic = { version = "1.5.1", path = "../wraith-forensic" }
 tokio.workspace = true
 tokio-util.workspace = true
 clap.workspace = true
@@ -46,7 +46,7 @@ priority = "optional"
 revision = ""
 depends = "$auto, iptables, iproute2, tor, procps, psmisc, ca-certificates"
 recommends = "obfs4proxy, fontconfig, e2fsprogs, curl"
-extended-description = "Kernel-Level Network Anonymization & Anti-Forensics Engine in Pure Rust"
+extended-description = "Linux network privacy and session-management toolkit in Rust"
 maintainer-scripts = "../../packaging/debian"
 changelog = "../../packaging/debian/changelog"
 assets = [

@@ -33,7 +33,7 @@ use wraith_tor::{
 
 use crate::display::{
     print_banner, print_error, print_identity_rotated, print_step, print_success, print_system_restored,
-    show_circuit_telemetry, show_leak_report, show_status_dashboard, render_box, render_box_top,
+    show_circuit_telemetry, show_leak_report, show_status_dashboard, render_box_top,
     render_box_bottom, render_box_row, BoxCorner,
 };
 use owo_colors::OwoColorize;
@@ -1428,50 +1428,6 @@ pub async fn cmd_cleanup(full: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_pentest() -> Result<()> {
-    print_banner(false);
-    let p_rows1 = vec![
-        "SOCKS5 PROXY      : 127.0.0.1:9050 (Tor Native SOCKS5 Transport)".to_string(),
-        "HTTP RELAY       : 127.0.0.1:9055 (Cleartext headers / HTTPS CONNECT)".to_string(),
-        "DNS RELAY        : 127.0.0.1:5354 (UDP/TCP, local DNSSEC over Tor DoH)".to_string(),
-    ];
-    let p_box1 = render_box("🛡️ WRAITH-PRIME // AUTHORIZED SECURITY AUDITING & PENTEST SANITIZATION", &p_rows1, BoxCorner::Rounded, 78);
-    println!("{}", p_box1[0].bright_yellow());
-    for row in &p_box1[1..p_box1.len() - 1] {
-        println!("{row}");
-    }
-    println!("{}\n", p_box1.last().unwrap().bright_yellow());
-
-    let p_rows2 = vec![
-        "".to_string(),
-        "[NMAP AUTHORIZED TCP SYN AUDIT OVER SOCKS5]:".to_string(),
-        "  nmap -sT -Pn -n --proxy socks5://127.0.0.1:9050 <target_ip>".to_string(),
-        "".to_string(),
-        "[CURL THROUGH THE HTTP CONNECT RELAY]:".to_string(),
-        "  curl -x http://127.0.0.1:9055 https://target.com/login".to_string(),
-        "       -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64)\"".to_string(),
-        "".to_string(),
-        "[SQLMAP VULNERABILITY AUDITING OVER TOR SOCKS5]:".to_string(),
-        "  sqlmap -u \"http://<target>/id=1\" \\".to_string(),
-        "         --proxy=\"socks5://127.0.0.1:9050\" --random-agent".to_string(),
-        "".to_string(),
-        "[METASPLOIT FRAMEWORK SOCKS5 TUNNELING]:".to_string(),
-        "  set Proxies socks5:127.0.0.1:9050".to_string(),
-        "  set HTTP_USER_AGENT Mozilla/5.0 (Windows NT 10.0; Win64)".to_string(),
-        "".to_string(),
-        "[HYDRA / AUTHENTICATION RESILIENCE AUDIT OVER TOR]:".to_string(),
-        "  hydra -s 22 -l root -P pass.txt -t 4 <target_ip> ssh".to_string(),
-    ];
-    let p_box2 = render_box("🎯 RECOMMENDED AUTHORIZED SECURITY AUDIT COMMAND WRAPPERS", &p_rows2, BoxCorner::Square, 78);
-    println!("{}", p_box2[0].bright_cyan());
-    for row in &p_box2[1..p_box2.len() - 1] {
-        println!("{row}");
-    }
-    println!("{}\n", p_box2.last().unwrap().bright_cyan());
-
-    Ok(())
-}
-
 /// Validates that a resolved username complies with POSIX portable username standards:
 /// - Must not be empty and maximum 32 characters
 /// - Must not start with a hyphen '-' (to prevent CLI argument / flag injection)
@@ -1632,7 +1588,7 @@ pub fn spawn_monitor_terminal() -> bool {
 
     let term_cmds: Vec<(&str, Vec<String>)> = vec![
         ("xfce4-terminal", {
-            let mut v = vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-x".into()];
+            let mut v = vec!["--title=WRAITH // PACKET TELEMETRY".into(), "-x".into()];
             v.extend(runner_prefix.clone());
             v.push(exe_path.clone());
             v.push("monitor".into());
@@ -1654,10 +1610,10 @@ pub fn spawn_monitor_terminal() -> bool {
         }),
         ("mate-terminal", {
             let cmd_str = if is_root { format!("{exe_path} monitor") } else { format!("sudo {exe_path} monitor") };
-            vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), cmd_str]
+            vec!["--title=WRAITH // PACKET TELEMETRY".into(), "-e".into(), cmd_str]
         }),
         ("konsole", {
-            let mut v = vec!["--title".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into()];
+            let mut v = vec!["--title".into(), "WRAITH // PACKET TELEMETRY".into(), "-e".into()];
             v.extend(runner_prefix.clone());
             v.push(exe_path.clone());
             v.push("monitor".into());
@@ -1665,31 +1621,31 @@ pub fn spawn_monitor_terminal() -> bool {
         }),
         ("tilix", {
             let cmd_str = if is_root { format!("{exe_path} monitor") } else { format!("sudo {exe_path} monitor") };
-            vec!["-t".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into(), cmd_str]
+            vec!["-t".into(), "WRAITH // PACKET TELEMETRY".into(), "-e".into(), cmd_str]
         }),
         ("xterm", {
-            let mut v = vec!["-title".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into()];
+            let mut v = vec!["-title".into(), "WRAITH // PACKET TELEMETRY".into(), "-e".into()];
             v.extend(runner_prefix.clone());
             v.push(exe_path.clone());
             v.push("monitor".into());
             v
         }),
         ("kitty", {
-            let mut v = vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into()];
+            let mut v = vec!["-T".into(), "WRAITH // PACKET TELEMETRY".into()];
             v.extend(runner_prefix.clone());
             v.push(exe_path.clone());
             v.push("monitor".into());
             v
         }),
         ("alacritty", {
-            let mut v = vec!["-T".into(), "WRAITH // LIVE DPI & IDS TELEMETRY".into(), "-e".into()];
+            let mut v = vec!["-T".into(), "WRAITH // PACKET TELEMETRY".into(), "-e".into()];
             v.extend(runner_prefix.clone());
             v.push(exe_path.clone());
             v.push("monitor".into());
             v
         }),
         ("gnome-terminal", {
-            let mut v = vec!["--title=WRAITH // LIVE DPI & IDS TELEMETRY".into(), "--".into()];
+            let mut v = vec!["--title=WRAITH // PACKET TELEMETRY".into(), "--".into()];
             v.extend(runner_prefix);
             v.push(exe_path.clone());
             v.push("monitor".into());
@@ -1758,7 +1714,7 @@ pub fn spawn_monitor_terminal() -> bool {
 
 pub async fn cmd_monitor() -> Result<()> {
     print_banner(false);
-    println!("{}", render_box_top("🛡️ WRAITH-PRIME // REAL-TIME DPI & IDS PACKET INTERCEPTOR", 78, BoxCorner::Rounded).bright_cyan());
+    println!("{}", render_box_top("🛡️ WRAITH-PRIME // PACKET TELEMETRY MONITOR", 78, BoxCorner::Rounded).bright_cyan());
     println!("{}", render_box_row("ENGINE STATUS : LIVE PROMISCUOUS SNIFFER (AF_PACKET Zero-Copy Ring-0)", 78));
     println!("{}", render_box_row("HOTKEYS       : Press [Q] or [Ctrl+C] to close this monitor window", 78));
     println!("{}\n", render_box_bottom(78, BoxCorner::Rounded).bright_cyan());
@@ -1791,8 +1747,6 @@ pub async fn cmd_monitor() -> Result<()> {
         }
 
         let mut buf = vec![0u8; 65535];
-        let mut packets_count: u64 = 0;
-        let mut sanitized_count: u64 = 0;
 
         let _ = crossterm::terminal::enable_raw_mode();
 
@@ -1821,40 +1775,6 @@ pub async fn cmd_monitor() -> Result<()> {
 
             if res > 0 {
                 let n = res as usize;
-                packets_count += 1;
-
-                let dpi_res = wraith_net::HttpToolSanitizer::sanitize_in_flight(&mut buf[..n]);
-                if dpi_res.sanitized_count > 0 {
-                    sanitized_count += dpi_res.sanitized_count as u64;
-                    let d = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or(Duration::from_secs(0));
-                    let secs = d.as_secs();
-                    let time_str = format!(
-                        "{:02}:{:02}:{:02}.{:03}",
-                        (secs / 3600) % 24,
-                        (secs / 60) % 60,
-                        secs % 60,
-                        d.subsec_millis()
-                    );
-                    let orig = dpi_res
-                        .original_signature
-                        .unwrap_or_else(|| "Unknown Tool".to_string());
-                    let repl = dpi_res
-                        .sanitized_replacement
-                        .unwrap_or_else(|| "Genuine Browser".to_string());
-
-                    println!("\r  ┌── [ 🔍 DPI SIGNATURE DETECTED (L7 Proxy Active) // {} ] ────────", time_str.bold().cyan());
-                    println!("\r  │  ⚠️ Intercepted Signature : {}", orig.bold().yellow());
-                    println!("\r  │  🛡️ L7 Proxy Replacement  : {}", repl.bold().green());
-                    println!(
-                        "\r  │  📊 Streamed Packets      : {} | Total Traps: {}",
-                        packets_count.to_string().bold().cyan(),
-                        sanitized_count.to_string().bold().magenta()
-                    );
-                    println!("\r  └─────────────────────────────────────────────────────────────────────────────\r\n");
-                }
-
                 if let Some(pkt) = wraith_net::PacketDissector::dissect(&buf[..n]) {
                     if pkt.is_stun_leak {
                         let d = std::time::SystemTime::now()

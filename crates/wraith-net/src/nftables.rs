@@ -4,7 +4,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 use tracing::{debug, error, info};
-use wraith_core::config::{DPI_HTTP_PORT, LOCAL_NETWORKS, LOOPBACK_NETWORKS, WRAITH_DNS_PORT, TOR_TRANS_PORT, TOR_USER};
+use wraith_core::config::{HTTP_PROXY_PORT, LOCAL_NETWORKS, LOOPBACK_NETWORKS, WRAITH_DNS_PORT, TOR_TRANS_PORT, TOR_USER};
 use wraith_core::error::{Result, WraithError};
 
 fn execute_command(cmd: &str, args: &[&str]) -> Result<String> {
@@ -155,7 +155,7 @@ fn install_tor_rules_with(
 
     let dns_port_str = WRAITH_DNS_PORT.to_string();
     let trans_port_str = TOR_TRANS_PORT.to_string();
-    let dpi_port_str = DPI_HTTP_PORT.to_string();
+    let http_proxy_port_str = HTTP_PROXY_PORT.to_string();
 
     // Hold fail-closed policies throughout incremental replacement.
     execute_command("iptables", &["-P", "OUTPUT", "DROP"])?;
@@ -185,9 +185,9 @@ fn install_tor_rules_with(
         execute_command("iptables", &["-t", "nat", "-A", "OUTPUT", "-d", net, "-j", "RETURN"])?;
     }
 
-    // 4. Redirect cleartext HTTP (port 80) to In-Flight DPI Sanitizer Proxy (DPI_HTTP_PORT)
+    // 4. Redirect cleartext HTTP (port 80) to the local HTTP relay.
     execute_command("iptables", &[
-        "-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--dport", "80", "--syn", "-j", "REDIRECT", "--to-ports", &dpi_port_str
+        "-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--dport", "80", "--syn", "-j", "REDIRECT", "--to-ports", &http_proxy_port_str
     ])?;
 
     // 5. Redirect all remaining SYN TCP traffic to Tor TransPort (9040)
@@ -195,7 +195,7 @@ fn install_tor_rules_with(
         "-t", "nat", "-A", "OUTPUT", "-p", "tcp", "--syn", "-j", "REDIRECT", "--to-ports", &trans_port_str
     ])?;
 
-    // ─── FILTER Table: Anti-Nmap & Stealth Inbound Protection (Ghost Mode) ───
+    // ─── FILTER Table: Inbound Probe Filtering and Default-Deny Policy ───
     // 1. Set default drop policies for inbound and forward traffic
     execute_command("iptables", &["-P", "INPUT", "DROP"])?;
     execute_command("iptables", &["-P", "FORWARD", "DROP"])?;
@@ -208,10 +208,10 @@ fn install_tor_rules_with(
     // 3. Allow loopback interface traffic explicitly (for local honeypot & proxy)
     execute_command("iptables", &["-A", "INPUT", "-i", "lo", "-j", "ACCEPT"])?;
 
-    // 4. Drop all invalid packets (Nmap Stealth NULL, XMAS, FIN scan probes)
+    // 4. Drop packets classified as invalid by the kernel conntrack state machine.
     execute_command("iptables", &["-A", "INPUT", "-m", "state", "--state", "INVALID", "-j", "DROP"])?;
 
-    // 5. Drop ICMP Echo Requests (Ping blackout - defeats Nmap ping sweeps)
+    // 5. Drop inbound ICMP echo requests.
     execute_command("iptables", &["-A", "INPUT", "-p", "icmp", "--icmp-type", "echo-request", "-j", "DROP"])?;
 
     // 6. Drop all inbound TCP SYN port scans on external interfaces
@@ -242,7 +242,7 @@ fn install_tor_rules_with(
     execute_command("iptables", &["-A", "OUTPUT", "-p", "udp", "-j", "REJECT", "--reject-with", "icmp-port-unreachable"])?;
     execute_command("iptables", &["-A", "OUTPUT", "-j", "DROP"])?;
 
-    info!("IPv4 Fail-Closed Tor & Anti-Nmap Stealth firewall rules successfully armed");
+    info!("IPv4 fail-closed Tor firewall policy successfully armed");
     Ok(())
 }
 

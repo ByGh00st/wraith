@@ -1,4 +1,4 @@
-//! Wraith Sovereign Anti-Forensic Stealth & Deep Memory Sanitation Engine
+//! Wraith Sovereign Session Cleanup and Ephemeral Memory Management
 //! Implements DoD 5220.22-M (7-pass) / Gutmann (35-pass) sanitization,
 //! Linux process masquerading ([kworker/u16:2]), and utmp/wtmp/journal log scrubbing.
 
@@ -100,7 +100,7 @@ pub fn wipe_all_user_histories() -> Result<usize> {
         }
     }
 
-    info!("Anti-forensic shell history sanitization: {shredded_count} histories shredded");
+    info!("Session cleanup shell history sanitization: {shredded_count} histories shredded");
     Ok(shredded_count)
 }
 

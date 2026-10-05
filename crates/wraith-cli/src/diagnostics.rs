@@ -92,7 +92,7 @@ impl DiagnosticsRunner {
 
         DiagnosticCheck {
             category: "KERNEL",
-            name: "TCP Timestamp Evasion (RFC 7323)",
+            name: "TCP Timestamp Protocol Conformance (RFC 7323)",
             passed,
             latency_ms: None,
             detail,

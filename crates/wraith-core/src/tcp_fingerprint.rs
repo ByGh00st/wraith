@@ -829,7 +829,7 @@ impl CrossLayerProfile {
                 severity: AnomalySeverity::Critical,
                 risk_description: format!(
                     "TTL mismatch: L7 implies {} (TTL={}) but L4 has TTL={}. \
-                     p0f/Nmap will classify this as a different OS family, \
+                     network fingerprint classifiers may report a different OS family, \
                      creating an instant deanonymisation signal.",
                     expected_os, expected_profile.default_ttl, self.l4_profile.default_ttl
                 ),
@@ -1050,7 +1050,7 @@ mod tests {
     #[test]
     fn test_from_tls_profile_mapping() {
         assert_eq!(
-            TcpFingerprintProfile::from_tls_profile("Google Chrome 131 / Win11").kind,
+            TcpFingerprintProfile::from_tls_profile("Chrome 131 / Win11").kind,
             TcpProfileKind::Windows11
         );
         assert_eq!(
@@ -1277,7 +1277,7 @@ mod tests {
 
     #[test]
     fn test_from_tls_name_inference() {
-        assert_eq!(L7BrowserHint::from_tls_name("Google Chrome v131 (Windows 11 x86_64)"), L7BrowserHint::ChromeWindows);
+        assert_eq!(L7BrowserHint::from_tls_name("Chrome v131 (Windows 11 x86_64)"), L7BrowserHint::ChromeWindows);
         assert_eq!(L7BrowserHint::from_tls_name("Microsoft Edge v131 (Windows 11 x86_64)"), L7BrowserHint::EdgeWindows);
         assert_eq!(L7BrowserHint::from_tls_name("Apple Safari v18.0 (macOS Sonoma ARM64)"), L7BrowserHint::SafariMacOS);
         assert_eq!(L7BrowserHint::from_tls_name("Mozilla Firefox v132 (Linux x86_64)"), L7BrowserHint::FirefoxLinux);

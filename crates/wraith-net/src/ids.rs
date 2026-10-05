@@ -1,6 +1,6 @@
 //! Wraith Sovereign Zero-Copy Packet Dissector & Real-Time Egress Intrusion Detection Engine (IDS)
 //! Deep L2/L3/L4 frame analysis, TCP stateful flow tracking, Shannon payload entropy calculation,
-//! STUN leak trap, and real-time clearnet evasion detector reading from Linux AF_PACKET raw sockets.
+//! STUN leak trap, and real-time cleartext traffic observer using Linux AF_PACKET raw sockets.
 
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -550,108 +550,8 @@ impl PacketDissector {
 
 // ==============================================================================
 // ==============================================================================
-// 7. REAL-TIME DPI HTTP TOOL SIGNATURE SANITIZER (1,338+ AUTHORIZED AUDITING & PENETRATION TESTING MATRIX)
-// XOR-Encoded Static Payload (Key 0x7A) to prevent host Antivirus heuristic false-positives
-// ==============================================================================
+// 7. REAL-TIME IDS SNIFFER ENGINE
 
-
-#[derive(Debug, Clone, Default)]
-pub struct DpiSanitizeResult {
-    pub sanitized_count: usize,
-    pub original_signature: Option<String>,
-    pub sanitized_replacement: Option<String>,
-    pub unrecognized_alert: Option<String>,
-    /// True when operating on a read-only packet copy (AF_PACKET monitor mode).
-    /// The original wire packet is NOT modified; real sanitization happens at the L7 proxy.
-    pub monitor_only: bool,
-}
-
-pub struct HttpToolSanitizer;
-
-impl HttpToolSanitizer {
-    /// Inspects a **copy** of captured packet data for offensive tool signatures.
-    /// Rewrites the buffer in-place for display/logging purposes only.
-    /// Actual wire-level sanitization is performed by the HTTP proxy on port 9055.
-    pub fn sanitize_in_flight(payload: &mut [u8]) -> DpiSanitizeResult {
-        let mut result = DpiSanitizeResult {
-            monitor_only: true,
-            ..Default::default()
-        };
-
-        // Check for HTTP User-Agent header line (case-insensitive)
-        let ua_prefix = b"user-agent:";
-        let mut idx = 0;
-
-        while idx + 12 < payload.len() {
-            let mut matches_prefix = true;
-            for k in 0..11 {
-                if payload[idx + k].to_ascii_lowercase() != ua_prefix[k] {
-                    matches_prefix = false;
-                    break;
-                }
-            }
-
-            if matches_prefix {
-                // Find line terminator \r\n
-                let mut start_val = idx + 11;
-                while start_val < payload.len() && payload[start_val] == b' ' {
-                    start_val += 1;
-                }
-
-                let mut end_val = start_val;
-                while end_val < payload.len() && payload[end_val] != b'\r' && payload[end_val] != b'\n' {
-                    end_val += 1;
-                }
-
-                let raw_ua_slice = &payload[start_val..end_val];
-                let raw_ua_str = String::from_utf8_lossy(raw_ua_slice).trim().to_string();
-
-                if !raw_ua_str.is_empty() {
-                    let is_known_offensive = wraith_core::signatures::has_offensive_tool_signature(&raw_ua_str);
-
-                    let is_standard_browser = raw_ua_str.starts_with("Mozilla/5.0");
-
-                    if is_known_offensive || !is_standard_browser {
-                        // Select a random authentic User-Agent from diversified pool
-                        let pool_idx = (raw_ua_slice.len() + payload.len()) % wraith_core::signatures::BROWSER_USER_AGENT_POOL.len();
-                        let target_ua = wraith_core::signatures::BROWSER_USER_AGENT_POOL[pool_idx];
-                        let target_bytes = target_ua.as_bytes();
-
-                        // In-place rewrite: copy target bytes up to available length or pad with RFC 7230 spaces
-                        let available_len = end_val - start_val;
-                        let copy_len = target_bytes.len().min(available_len);
-
-                        payload[start_val..start_val + copy_len].copy_from_slice(&target_bytes[..copy_len]);
-
-                        // If original was longer, pad trailing bytes with harmless spaces before \r\n
-                        if available_len > copy_len {
-                            for b in &mut payload[start_val + copy_len..end_val] {
-                                *b = b' ';
-                            }
-                        }
-
-                        result.sanitized_count += 1;
-                        result.original_signature = Some(raw_ua_str.clone());
-                        result.sanitized_replacement = Some(target_ua.to_string());
-
-                        if !is_known_offensive && !is_standard_browser {
-                            result.unrecognized_alert = Some(raw_ua_str.clone());
-                        }
-                    }
-                }
-
-                idx = end_val;
-            } else {
-                idx += 1;
-            }
-        }
-
-        result
-    }
-}
-
-// ==============================================================================
-// 8. REAL-TIME IDS SNIFFER ENGINE
 // ==============================================================================
 
 pub struct IdsTelemetry {
@@ -761,39 +661,4 @@ mod tests {
             Err(wraith_core::error::WraithError::UnsupportedPlatform)));
     }
 
-    #[test]
-    fn test_offensive_tool_signatures_count() {
-        let sigs = wraith_core::signatures::get_offensive_tool_signatures();
-        assert_eq!(sigs.len(), wraith_core::signatures::TOOL_SIGNATURES_COUNT);
-    }
-
-    #[test]
-    fn test_sanitize_in_flight_rewrites_theharvester_signature() {
-        let mut packet = b"GET /search HTTP/1.1\r\nHost: api.shodan.io\r\nUser-Agent: theHarvester/4.3.0\r\n\r\n".to_vec();
-        let res = HttpToolSanitizer::sanitize_in_flight(&mut packet);
-        assert_eq!(res.sanitized_count, 1);
-        let packet_str = String::from_utf8_lossy(&packet);
-        assert!(!packet_str.to_lowercase().contains("theharvester"));
-        assert!(packet_str.contains("Mozilla/5.0"));
-    }
-
-    #[test]
-    fn test_sanitize_in_flight_rewrites_metasploit_signature() {
-        let mut packet = b"POST /api/login HTTP/1.1\r\nHost: victim.corp\r\nUser-Agent: Metasploit Pro Scanner/6.3.21\r\n\r\n".to_vec();
-        let res = HttpToolSanitizer::sanitize_in_flight(&mut packet);
-        assert_eq!(res.sanitized_count, 1);
-        let packet_str = String::from_utf8_lossy(&packet);
-        assert!(!packet_str.to_lowercase().contains("metasploit"));
-        assert!(packet_str.contains("Mozilla/5.0"));
-    }
-
-    #[test]
-    fn test_sanitize_in_flight_rewrites_nuclei_signature() {
-        let mut packet = b"GET /api/v1 HTTP/1.1\r\nHost: target.org\r\nUser-Agent: nuclei/v3.1.0 (projectdiscovery)\r\n\r\n".to_vec();
-        let res = HttpToolSanitizer::sanitize_in_flight(&mut packet);
-        assert_eq!(res.sanitized_count, 1);
-        let packet_str = String::from_utf8_lossy(&packet);
-        assert!(!packet_str.to_lowercase().contains("nuclei"));
-        assert!(packet_str.contains("Mozilla/5.0"));
-    }
 }

@@ -15,38 +15,6 @@ use crate::grease::{BrowserType, DynamicTlsFingerprint};
 pub const TLS_PROXY_PORT: u16 = 9055;
 pub const MAX_CONCURRENT_PROXY_CLIENTS: usize = 1024;
 
-pub const BROWSER_USER_AGENTS: &[&str] = &[
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
-];
-
-pub const AUDIT_TOOL_SIGNATURES: &[&str] = &[
-    "sqlmap",
-    "nikto",
-    "nmap",
-    "masscan",
-    "curl",
-    "wget",
-    "python-requests",
-    "python-urllib",
-    "gobuster",
-    "dirbuster",
-    "wfuzz",
-    "ffuf",
-    "hydra",
-    "medusa",
-    "burpsuite",
-    "owasp zap",
-    "zap",
-    "metasploit",
-    "postman",
-];
-
-pub const OFFENSIVE_SIGNATURES: &[&str] = AUDIT_TOOL_SIGNATURES;
-
 /// Returns the active TLS profile with cross-layer L4 validation
 pub fn get_active_tls_profile() -> DynamicTlsFingerprint {
     let fp = DynamicTlsFingerprint::generate(BrowserType::ChromeWin11);
@@ -75,7 +43,7 @@ pub fn validate_tls_with_l4(
     cl.validate()
 }
 
-/// Spawns the async TLS Camouflage & HTTP DPI Sanitizer Proxy server
+/// Spawns the local HTTP relay and HTTPS CONNECT proxy.
 pub struct TlsCamouflageServer {
     port: u16,
     cancel_token: CancellationToken,
@@ -133,7 +101,7 @@ impl TlsCamouflageServer {
                     biased;
                     _ = clients.join_next(), if !clients.is_empty() => {},
                     _ = self.cancel_token.cancelled() => {
-                        info!("HTTP DPI Sanitizer Proxy received shutdown signal");
+                        info!("HTTP relay received shutdown signal");
                         break;
                     }
                     accept_res = listener.accept() => {
@@ -163,7 +131,7 @@ impl TlsCamouflageServer {
     }
 }
 
-/// Rewrites security auditing or custom User-Agents in-flight in the HTTP header
+/// Removes proxy-only headers and enforces connection close without changing the User-Agent.
 pub fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
     let header_end = match req_data.windows(4).position(|w| w == b"\r\n\r\n") {
         Some(pos) => pos + 4,
@@ -177,18 +145,13 @@ pub fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
     let mut modified_lines = Vec::new();
     let mut was_sanitized = false;
 
-    // Diversified UA pool
-    let pool = wraith_core::signatures::BROWSER_USER_AGENT_POOL;
-    let pool_idx = req_data.len() % pool.len();
-    let target_ua = pool[pool_idx];
-
     for line in req_str.split("\r\n") {
         if line.split_once(':').is_some_and(|(name, _)| crate::proxy_request::private_proxy_header(name)) {
             was_sanitized = true;
             continue;
         }
         let line_lower = line.to_lowercase();
-        // Strip client Keep-Alive headers to eliminate HTTP pipelining bypasses and enforce close
+        // Strip client Keep-Alive headers and enforce connection close
         if let Some((header_name, _)) = line_lower.split_once(':') {
             let header_trimmed = header_name.trim();
             if header_trimmed == "connection" {
@@ -200,20 +163,6 @@ pub fn sanitize_http_request(req_data: &[u8]) -> (Vec<u8>, String, bool) {
         if line_lower.starts_with("host:") {
             target_host = line[5..].trim().to_string();
             modified_lines.push(line.to_string());
-        } else if line_lower.starts_with("user-agent:") {
-            let current_ua = line[11..].trim();
-            
-            let is_audit_tool = wraith_core::signatures::has_offensive_tool_signature(current_ua)
-                || AUDIT_TOOL_SIGNATURES.iter().any(|&sig| line_lower[11..].contains(sig));
-                
-            let is_browser = current_ua.starts_with("Mozilla/5.0");
-
-            if is_audit_tool || !is_browser {
-                was_sanitized = true;
-                modified_lines.push(format!("User-Agent: {target_ua}"));
-            } else {
-                modified_lines.push(line.to_string());
-            }
         } else {
             modified_lines.push(line.to_string());
         }
@@ -292,7 +241,7 @@ async fn handle_proxy_client_with_port(mut client: TcpStream, socks_port: u16) -
     } else {
         let (sanitized, host, was_sanitized) = sanitize_http_request(&request.payload);
         if was_sanitized {
-            tracing::info!("DPI Proxy: Sanitized offensive UA in cleartext HTTP to {host}");
+            tracing::info!("HTTP relay forwarded request in cleartext HTTP to {host}");
         }
         write_initial(&mut tor_stream, &sanitized).await?;
     }
@@ -446,11 +395,11 @@ mod tests {
 
     #[test]
     fn sanitizer_removes_address_metadata_without_modifying_payload() {
-        let request = b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: Mozilla/5.0\r\nx-ReAl-Ip: 192.0.2.1\r\n\r\n\xffVia: body";
+        let request = b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: ExampleClient/1.0\r\nx-ReAl-Ip: 192.0.2.1\r\n\r\n\xffVia: body";
         let (sanitized, host, changed) = sanitize_http_request(request);
         assert!(changed);
         assert_eq!(host, "example.org");
-        assert_eq!(sanitized, b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: Mozilla/5.0\r\n\r\n\xffVia: body");
+        assert_eq!(sanitized, b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: ExampleClient/1.0\r\n\r\n\xffVia: body");
     }
 
     #[tokio::test]
@@ -487,7 +436,7 @@ mod tests {
     fn preserves_binary_body_and_does_not_parse_body_as_headers() {
         let body = b"\xff\x00\r\nHost: wrong.example\r\nUser-Agent: body-data";
         let mut request =
-            b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: Mozilla/5.0\r\n\r\n".to_vec();
+            b"POST / HTTP/1.1\r\nHost: example.org\r\nUser-Agent: ExampleClient/1.0\r\n\r\n".to_vec();
         request.extend_from_slice(body);
         let (result, host, changed) = sanitize_http_request(&request);
         assert_eq!(host, "example.org");
@@ -677,14 +626,14 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_http_request_enforces_connection_close() {
-        let raw_req = b"GET /index.html HTTP/1.1\r\nHost: target.org\r\nUser-Agent: sqlmap/1.5\r\nConnection: keep-alive\r\nProxy-Connection: keep-alive\r\n\r\n";
+    fn request_normalization_preserves_user_agent_and_enforces_connection_close() {
+        let raw_req = b"GET /index.html HTTP/1.1\r\nHost: target.org\r\nUser-Agent: custom-client/1.5\r\nConnection: keep-alive\r\nProxy-Connection: keep-alive\r\n\r\n";
         let (sanitized, host, was_sanitized) = sanitize_http_request(raw_req);
         assert!(was_sanitized);
         assert_eq!(host, "target.org");
 
         let sanitized_str = String::from_utf8_lossy(&sanitized);
-        assert!(!sanitized_str.contains("sqlmap"));
+        assert!(sanitized_str.contains("User-Agent: custom-client/1.5"));
         assert!(!sanitized_str.to_lowercase().contains("connection: keep-alive"));
         assert!(!sanitized_str.to_lowercase().contains("proxy-connection"));
         assert!(sanitized_str.contains("Connection: close"));
@@ -692,52 +641,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_high_concurrency_burst() {
-        let offensive_payloads = [
-            b"GET /login HTTP/1.1\r\nHost: target.local\r\nUser-Agent: sqlmap/1.5#stable\r\nConnection: keep-alive\r\n\r\n".as_slice(),
-            b"GET /admin HTTP/1.1\r\nHost: target.local\r\nUser-Agent: Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)\r\n\r\n".as_slice(),
-            b"POST /api/v1 HTTP/1.1\r\nHost: target.local\r\nUser-Agent: Nikto/2.1.6\r\n\r\n".as_slice(),
-            b"GET /search HTTP/1.1\r\nHost: target.local\r\nUser-Agent: ffuf/v2.1.0\r\n\r\n".as_slice(),
-            b"GET /api HTTP/1.1\r\nHost: target.local\r\nUser-Agent: nuclei - v3.1.0\r\n\r\n".as_slice(),
-            b"GET /index HTTP/1.1\r\nHost: target.local\r\nUser-Agent: gobuster/3.6\r\n\r\n".as_slice(),
-            b"GET /status HTTP/1.1\r\nHost: target.local\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\r\n\r\n".as_slice(),
+    async fn http_request_normalization_handles_concurrent_clients() {
+        let requests = [
+            b"GET /status HTTP/1.1\r\nHost: target.local\r\nUser-Agent: custom-client/1.0\r\nConnection: keep-alive\r\n\r\n".as_slice(),
+            b"GET /status HTTP/1.1\r\nHost: target.local\r\nUser-Agent: ExampleClient/1.0 (compatible; ExampleClient/1.0)\r\n\r\n".as_slice(),
         ];
 
         let mut handles = Vec::with_capacity(500);
         let start = std::time::Instant::now();
 
         for i in 0..500 {
-            let req = offensive_payloads[i % offensive_payloads.len()].to_vec();
+            let req = requests[i % requests.len()].to_vec();
             handles.push(tokio::spawn(async move {
                 let (sanitized, host, was_sanitized) = sanitize_http_request(&req);
                 (sanitized, host, was_sanitized, req)
             }));
         }
 
-        let mut sanitized_count = 0;
         for handle in handles {
             let (sanitized, host, was_sanitized, raw) = handle.await.expect("Task must not panic");
             assert_eq!(host, "target.local");
             let raw_str = String::from_utf8_lossy(&raw);
             let sanitized_str = String::from_utf8_lossy(&sanitized);
-            if raw_str.contains("Chrome/131.0.0.0") {
-                assert!(!was_sanitized, "Clean browser UA must not be flagged");
-                assert!(sanitized_str.contains("Chrome/131.0.0.0"));
-            } else {
-                assert!(was_sanitized, "Offensive tool UA must be sanitized");
-                assert!(!sanitized_str.contains("sqlmap"));
-                assert!(!sanitized_str.contains("Nmap"));
-                assert!(!sanitized_str.contains("Nikto"));
-                assert!(!sanitized_str.contains("ffuf"));
-                assert!(!sanitized_str.contains("nuclei"));
-                assert!(!sanitized_str.contains("gobuster"));
-                assert!(sanitized_str.contains("Mozilla/5.0"));
-                sanitized_count += 1;
-            }
+            assert!(sanitized_str.contains(raw_str.lines().find(|line| line.to_ascii_lowercase().starts_with("user-agent:")).unwrap()));
+            assert_eq!(was_sanitized, raw_str.contains("Connection: keep-alive"));
         }
 
         let elapsed = start.elapsed();
-        assert!(sanitized_count > 0);
         assert!(elapsed.as_millis() < 1000, "500 concurrent requests must complete in under 1s, took {:?}", elapsed);
     }
 
@@ -751,4 +681,3 @@ mod tests {
             .expect("Server must shutdown cleanly on cancellation");
     }
 }
-

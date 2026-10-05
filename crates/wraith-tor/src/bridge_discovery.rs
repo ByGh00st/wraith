@@ -51,7 +51,7 @@ impl std::str::FromStr for PluggableTransportType {
     }
 }
 
-// Built-in censorship evasion bridge pools
+// Built-in bridges for censorship-resistant transport
 pub const BUILTIN_OBFS4_BRIDGES: &[&str] = &[
     "obfs4 192.95.36.142:443 CDF2E852BF539B82BD10E27E9115A31734E378C2 cert=qUVQ0srL1JI/vO6V6m/24anYXiJD3QP2HgTAKQxQ3AX2Fwn2ccJq6SnvnmSAlp77e4Efg iat-mode=0",
     "obfs4 38.229.1.78:80 C8CBDB2464FC9804A69531437BCF2BE31FDD2EE4 cert=Hmyfd2ev46gGY7NoVxA9ngrPF2zCZtzskRTzoWXbxNkzeVnGFPWmrTtILRyqCTjHR+s9dg iat-mode=0",

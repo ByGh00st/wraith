@@ -9,7 +9,7 @@ err:
   tor: 'Tor-Controller-Fehler:'
   namespace: 'Kernel-Namespace-Fehler:'
   hardware: 'Hardware-MAC/Link-Fehler:'
-  forensic: 'Anti-Forensik-Bereinigungsfehler:'
+  forensic: 'Fehler bei der Sitzungsspeicher-Bereinigung:'
   guard: 'Watchdog / KillSwitch-Fehler:'
   command: 'Netzwerkbefehlsfehler:'
   custom: 'Allgemeiner Systemfehler:'

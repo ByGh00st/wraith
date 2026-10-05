@@ -8,7 +8,7 @@ err:
   tor: 'Tor-controllerfejl:'
   namespace: 'Kernel-netværksnavnerumsfejl:'
   hardware: 'Hardware-MAC/Linkfejl:'
-  forensic: 'Anti-forensisk rensningsfejl:'
+  forensic: 'Fejl ved oprydning af sessionsdata:'
   guard: 'Watchdog / KillSwitch-fejl:'
   command: 'Netværkskommandofejl:'
   custom: 'Generel systemfejl:'

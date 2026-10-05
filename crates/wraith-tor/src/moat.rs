@@ -246,7 +246,7 @@ impl MoatClient {
             "-H".into(), format!("Accept: {MOAT_CONTENT_TYPE}"),
         ];
 
-        // SOCKS5 Egress routing check: prevents clearnet SNI/DNS leaks on DPI
+        // SOCKS5 Egress routing check: prevents clearnet SNI/DNS leaks on filtered networks
         let mut effective_proxy = self.socks_proxy.clone();
         if effective_proxy.is_none() {
             // Check if local Tor SOCKS port 9050 is active and accepting connections
@@ -263,7 +263,7 @@ impl MoatClient {
             curl_args.push("--socks5-hostname".into());
             curl_args.push(proxy.clone());
         } else {
-            tracing::warn!("⚠️ Moat: Direct clearnet egress engaged (no active SOCKS proxy). SNI bridges.torproject.org is visible to DPI.");
+            tracing::warn!("⚠️ Moat: Direct clearnet egress engaged (no active SOCKS proxy). SNI bridges.torproject.org is visible to network observers.");
         }
 
         curl_args.extend(["--data-binary".into(), "@-".into(), "--".into(), url.to_string()]);

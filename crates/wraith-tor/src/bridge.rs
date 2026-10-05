@@ -1,5 +1,5 @@
-//! Wraith Tor Bridge & Obfs4 Censorship Evasion
-//! Bypasses Deep Packet Inspection (DPI) via pluggable transports.
+//! Wraith Tor bridge and pluggable transport support
+//! Provides transport privacy and censorship resistance through pluggable transports.
 
 use std::fs;
 use std::path::Path;
