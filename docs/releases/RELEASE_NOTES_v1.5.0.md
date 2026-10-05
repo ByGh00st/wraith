@@ -13,4 +13,4 @@ This historical release added Linux namespace integration checks, parser fuzz ta
 
 Passing an automated check does not establish that every packet is routed as intended, that the host is isolated in all environments, or that all runtime artifacts are removed. Review the [threat model](../THREAT_MODEL.md), verify the active system state, and test on the target distribution before deployment.
 
-This release is superseded. Its historical binaries and source tag are not the maintained distribution. Use the [v1.5.2 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.2) for current packages and source.
+This release is superseded. Its binaries have been withdrawn because this source snapshot predates the removal of tool-specific HTTP request rewriting. The immutable source tag remains available for historical review. Use the [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) for maintained packages and source.

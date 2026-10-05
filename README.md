@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.5.2-8172b3?style=flat-square" alt="Workspace version 1.5.2">
+  <img src="https://img.shields.io/badge/version-1.5.3-8172b3?style=flat-square" alt="Workspace version 1.5.3">
   <img src="https://img.shields.io/badge/Rust-2021-8172b3?style=flat-square&amp;logo=rust" alt="Rust 2021">
   <img src="https://img.shields.io/badge/locales-17-8172b3?style=flat-square" alt="17 locales">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-547d85?style=flat-square" alt="GPL 3.0"></a>
@@ -90,7 +90,7 @@ Wraith manages sessions on an existing **Linux x86_64 or ARM64 host**. It requir
 
 ### Quick install · signed APT repository and official release assets
 
-> **[Wraith v1.5.2](https://github.com/ByGh00st/wraith/releases/tag/v1.5.2)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
+> **[Wraith v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3)** · Native Debian packages and GNU/musl archives for x86_64 and ARM64, with `SHA256SUMS.txt`. Prefer compiling locally? Follow [source installation](#1-clone--automated-system-deployment).
 
 ```bash
 # Debian / Ubuntu / Kali: configure the signed Wraith APT repository once.
@@ -120,10 +120,10 @@ The installer needs **Bash, curl and Python 3.8+**; Alpine users can install the
 
 ```bash
 # x86_64 / amd64; use arm64 in the package filename on ARM64
-wget https://github.com/ByGh00st/wraith/releases/download/v1.5.2/wraith_1.5.2_amd64.deb
-wget https://github.com/ByGh00st/wraith/releases/download/v1.5.2/SHA256SUMS.txt
+wget https://github.com/ByGh00st/wraith/releases/download/v1.5.3/wraith_1.5.3_amd64.deb
+wget https://github.com/ByGh00st/wraith/releases/download/v1.5.3/SHA256SUMS.txt
 sha256sum --ignore-missing --check SHA256SUMS.txt
-sudo apt install ./wraith_1.5.2_amd64.deb
+sudo apt install ./wraith_1.5.3_amd64.deb
 wraith --version
 ```
 
@@ -252,7 +252,7 @@ sudo wraith -x
 | `--rotate-interval 120` | Periodically request new Tor identities |
 | `--browser-shield` | Apply preferences to supported browser profiles |
 | `--display-sandbox` | Create a private X11 display; requires Xvfb and xauth |
-| `-K` / `--aggressive-masquerade` | Cloak process name in Linux kernel scheduler as `[kworker/u16:0]` |
+| `-K` / `--aggressive-masquerade` | Set `/proc/self/comm` to `[kworker/u16:0]`; this does not rename the executable |
 | `-A` / `--aggressive-anti-debug` | Check for debugger attachment; terminate Wraith if process tracing is detected |
 | `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp and user shell history files on exit |
 

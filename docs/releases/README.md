@@ -10,8 +10,7 @@ For a chronological overview of all changes, please refer to the primary project
 
 | Version | Release Type | Key Highlights | Document |
 | :--- | :--- | :--- | :--- |
-| **v1.5.2** | Repository-wide documentation and release workflow maintenance | Archived descriptions clarified; automatic APT publication consolidated | [RELEASE_NOTES_v1.5.2.md](./RELEASE_NOTES_v1.5.2.md) |
-| **v1.5.1** | TCP normalization and HTTP privacy baseline | Removed tool-specific L7 request matching and User-Agent rewriting paths | [RELEASE_NOTES_v1.5.1.md](./RELEASE_NOTES_v1.5.1.md) |
+| **v1.5.3** | Network handling and release maintenance | Tool-specific HTTP request rewriting removed; current relay preserves application User-Agent values; CI and APT publication updates | [RELEASE_NOTES_v1.5.3.md](./RELEASE_NOTES_v1.5.3.md) |
 | **v1.5.0** | Stabilization Gate | Namespace integration checks, five parser fuzz targets, distribution builds, and Debian packaging checks | [RELEASE_NOTES_v1.5.0.md](./RELEASE_NOTES_v1.5.0.md) |
 | **v1.4.7** | Security & Maintenance | TOCTOU key shredding protection, FQDN trailing-dot normalization, torrc directive injection guards, OsRng L2 MAC entropy, Seccomp memory inspection filter | [RELEASE_NOTES_v1.4.7.md](./RELEASE_NOTES_v1.4.7.md) |
 | **v1.4.6** | Security & Hardening | Emergency Reset HUD, DoD 5220.22-M key shredding, RAMFS ephemeral WireGuard keys, pidfd rogue process containment | [RELEASE_NOTES_v1.4.6.md](./RELEASE_NOTES_v1.4.6.md) |

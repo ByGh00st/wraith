@@ -1,16 +1,9 @@
-wraith (1.5.2-1) unstable; urgency=medium
+wraith (1.5.3-1) unstable; urgency=medium
 
-  * Clarify archived release documentation and process-control descriptions.
-  * Publish v1.5.2 signed APT metadata once through the release workflow.
+  * Center network handling on generic L3/L4 normalization, Netlink routing, and an RFC-aligned HTTP privacy baseline.
+  * Remove tool-specific request rewriting and publish the corrected release notes and signed APT metadata.
 
- -- ByGh00st <byghost@users.noreply.github.com>  Mon, 05 Oct 2026 15:30:00 +0300
-
-wraith (1.5.1-1) unstable; urgency=medium
-
-  * Shift the architecture to L3/L4 TCP stack normalization, Netlink routing, and a standards-based general HTTP privacy baseline.
-  * Remove tool-specific L7 signature matching, User-Agent rewriting, and encoded signature data.
-
- -- ByGh00st <byghost@users.noreply.github.com>  Mon, 05 Oct 2026 12:00:00 +0300
+ -- ByGh00st <byghost@users.noreply.github.com>  Mon, 05 Oct 2026 16:00:00 +0300
 
 wraith (1.5.0-1) unstable; urgency=medium
 

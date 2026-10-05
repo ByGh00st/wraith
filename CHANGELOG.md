@@ -40,19 +40,11 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
   - Added `validate_posix_username` verifying that resolved `desktop_user` identifiers (from `SUDO_USER` or `/home` enumeration) conform to portable POSIX username standards and do not start with a hyphen (`-`), preventing command/flag injection into helper tools like `id` and `runuser`.
   - Added unit test `test_validate_posix_username_rejects_flag_injection_and_invalid_chars`.
 
-## [1.5.2] - 2026-10-05
+## [1.5.3] - 2026-10-05
 
 - Reword archived release notes, wiki pages, and command documentation in neutral, technically descriptive language while preserving explicit descriptions of cleanup and process-control behavior.
-- Make the release pipeline the sole automatic APT publisher; the standalone APT workflow remains available for scheduled refresh and manual recovery.
-- Preserve the v1.5.1 architecture update: L3/L4 TCP normalization, Netlink routing, and the RFC-aligned general HTTP privacy baseline; tool-specific L7 rewriting paths remain removed.
-
-## [1.5.1] - 2026-10-05
-
-### Changed
-- Recentered the architecture on L3/L4 TCP stack normalization, Netlink routing, and a standards-based HTTP privacy baseline.
-- Removed HTTP client matching rules, User-Agent rewriting, their encoded data, and the associated request-alteration paths.
-- The local HTTP relay now preserves User-Agent values and applies general proxy-metadata and connection handling only.
-- Updated legal, usage, and release documentation to clarify authorized-use expectations and GPL-3.0 boundaries.
+- Make the release pipeline the sole automatic APT publisher; the standalone APT workflow remains available for scheduled refresh and manual recovery. Fix Linux-only test configuration that caused the native GNU release Clippy job to stop early.
+- Center the release on L3/L4 TCP normalization, Netlink routing, and the RFC-aligned general HTTP privacy baseline; remove tool-specific L7 rewriting paths and preserve application User-Agent values.
 
 ## [1.5.0] - 2026-09-27
 

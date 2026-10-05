@@ -45,7 +45,7 @@ Cross-compilation needs the Linux Rust target, compatible C/C++ tools and header
 
 ## Release packaging
 
-Follow the [release guide](https://github.com/ByGh00st/wraith/blob/main/docs/RELEASING.md) for version checks, native Debian packaging, musl builders and tag publication. The manual GitHub workflow builds artifacts without publishing a release. The [v1.5.2 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.2) uses the matching version tag and the same artifact validation steps.
+Follow the [release guide](https://github.com/ByGh00st/wraith/blob/main/docs/RELEASING.md) for version checks, native Debian packaging, musl builders and tag publication. The manual GitHub workflow builds artifacts without publishing a release. The [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) uses the matching version tag and the same artifact validation steps.
 
 ```bash
 bash -n install.sh build.sh scripts/package-release.sh .github/musl-rustc-wrapper.sh
@@ -77,7 +77,7 @@ The [`live_wire_syn_audit.rs`](https://github.com/ByGh00st/wraith/blob/main/crat
 
 The trigger is a nonblocking TCP connect to the benchmark range `198.18.0.1:443` inside the isolated namespace. It never uses a real external route. A bounded capture waits for the initial SYN. Window 64240 is a controlled MTU 1500 / MSS 1460 / adequate receive-buffer / `initrwnd 44` fixture; a different kernel result fails the audit rather than being labeled a native Windows signature.
 
-In release v1.5.2, this audit and end-to-end network namespace kernel tests are verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). The test validates the host NFQUEUE worker, access-link normalization, MSS clamp invariants, and packet layout integrity under native Linux.
+In release v1.5.3, this audit and end-to-end network namespace kernel tests are verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). The test validates the host NFQUEUE worker, access-link normalization, MSS clamp invariants, and packet layout integrity under native Linux.
 
 ## Codebase Metrics (Tokei)
 

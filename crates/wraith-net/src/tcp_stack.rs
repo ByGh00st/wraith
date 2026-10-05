@@ -1,4 +1,4 @@
-//! Wraith Layer 4 TCP Stack Morphing & p0f Evasion Engine
+//! Wraith Layer 4 TCP Stack Profile Normalization
 //!
 //! Normalizes Linux kernel TCP/IP stack signatures within isolated Network Namespaces
 //! toward reference profiles. Configuration does not prove on-wire L4/L7 equivalence.

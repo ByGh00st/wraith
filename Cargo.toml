@@ -15,7 +15,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "1.5.2"
+version = "1.5.3"
 edition = "2021"
 authors = ["WRAITH-PRIME / ByGhost"]
 license = "GPL-3.0"
