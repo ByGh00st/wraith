@@ -1,7 +1,7 @@
 # Wraith v1.4.0
 
 
-> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.4](https://github.com/ByGh00st/wraith/releases/tag/v1.5.4).
 
 **Native Linux packages, verified installation and stronger session recovery.**
 
@@ -16,7 +16,7 @@ wraith --version
 
 The installer requires Bash, curl and Python 3.8+. If already root, use `bash` instead of `sudo bash`. Debian-family systems use APT and `/usr/bin/wraith`; archive installations use `/usr/local/bin/wraith`.
 
-The v1.4.0 binary links and checksums have been withdrawn. Use the current [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) for maintained packages.
+The v1.4.0 binary links and checksums have been withdrawn. Use the current [v1.5.4 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.4) for maintained packages.
 
 ## Changes
 

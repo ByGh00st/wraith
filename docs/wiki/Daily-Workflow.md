@@ -23,7 +23,7 @@ NEWNYM does not move existing connections or erase cookies and logins. A success
 
 ## Flags and shortcuts
 
-Choose one operation. Use `sudo wraith -Fs` or `sudo wraith start -F`; session flags written before a subcommand, such as `wraith -F start`, are rejected. Combining `-s -i`, or attaching session flags to update/status/stop, no longer silently drops options. The explicit `-x -d` and `-c --cleanup-full` combinations remain supported.
+Choose one operation. Use `sudo wraith -Fs` or `sudo wraith start -F`; session flags written before a subcommand, such as `wraith -F start`, are rejected. Combining `-s -i`, or attaching session flags to update/status/stop, no longer silently drops options. The explicit `-x -d` combination remains supported.
 
 `-v` and `--lang` are global: `sudo wraith info -v --lang tr` is valid. `exec -- PROGRAM ...` preserves the application's own `--help`, `--lang` and other flags. Help and completions come from the same parser; aliases such as `wraith nics --help` show their own command options.
 
@@ -31,14 +31,13 @@ Interactive selection runs in the foreground. Without a terminal, provide `--int
 
 For the required controls, host prerequisites and optional additions to `-Fs`, see the [full-security setup guide](Advanced-Configuration.md#full-security-preset). Change the matched pair with `sudo wraith -Fs --tls-profile safari`; L4 follows automatically.
 
-## Optional Process Controls & Session Cleanup
+## Explicit Binary Removal
 
 | Option | Operation | Safety & Scope |
 | :--- | :--- | :--- |
-| `-K` / `--aggressive-masquerade` | Set the process communication label to `[kworker/u16:0]` | Does not change the executable path or grant authorization |
-| `-A` / `--aggressive-anti-debug` | Check debugger attachment; terminate Wraith if ptrace is detected | Process tracing guard |
-| `-L` / `--forensic-wipe-logs` | Delete the configured wtmp, utmp, btmp, system-log and shell-history files on exit | Destructive; review paths and retain required records before use |
-| `-d` / `--forensic-self-destruct` | Run the configured binary and state-file cleanup on shutdown | Destructive; verify the selected paths and keep required backups |
+| `-d` / `--forensic-self-destruct` | Remove the Wraith executable during shutdown | Destructive; use only when you intend to remove that executable |
+
+Session teardown restores recorded Wraith-managed settings. It does not erase operating-system logs, shell histories, swap, or kernel caches. Wraith's in-memory vault is released with its owning session object.
 
 ## Choose an interface
 

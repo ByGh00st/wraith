@@ -350,10 +350,7 @@ pub fn print_session_hud(geo: &wraith_guard::IpGeoInfo, is_strict: bool, interva
         t!("hud.k_audit").bold().bright_green(),
         t!("hud.k_monitor").bold().bright_purple(),
     );
-    let row2 = format!("{} │ {}", 
-        t!("hud.k_purge").bold().bright_yellow(),
-        t!("hud.k_quit").bold().bright_red(),
-    );
+    let row2 = format!("{}", t!("hud.k_quit").bold().bright_red());
     let hud_box = render_box(&t!("hud.keys"), &[row1, row2], BoxCorner::Square, 80);
     println!("{}", hud_box[0].bright_cyan());
     for row in &hud_box[1..hud_box.len() - 1] {
@@ -776,10 +773,9 @@ pub fn show_status_dashboard(state: &StateData, geo: &IpGeoInfo, circuits: usize
         t!("dashboard.quick_rotate").bold().bright_cyan()
     );
     let r2 = format!(
-        "{} │ {} │ {}",
+        "{} │ {}",
         t!("dashboard.quick_audit").bold().bright_yellow(),
-        t!("dashboard.quick_monitor").bold().bright_purple(),
-        t!("dashboard.quick_purge").bold().bright_blue()
+        t!("dashboard.quick_monitor").bold().bright_purple()
     );
     let info_box = render_box(
         &t!("dashboard.quick_commands"),
@@ -974,10 +970,7 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("machine_id_rotation", |a| a.help(t!("help.opt_machine_id").into_owned()))
         .mut_arg("strict_hardening", |a| a.help(t!("help.opt_full_security").into_owned()))
         .mut_arg("monitor_window", |a| a.help(t!("help.opt_spawn_monitor").into_owned()))
-        .mut_arg("forensic_wipe_logs", |a| a.help(t!("help.opt_wipe_logs").into_owned()))
         .mut_arg("forensic_self_destruct", |a| a.help(t!("help.opt_self_destruct").into_owned()))
-        .mut_arg("aggressive_masquerade", |a| a.help(t!("help.opt_masquerade").into_owned()))
-        .mut_arg("aggressive_anti_debug", |a| a.help(t!("help.opt_anti_debug").into_owned()))
         .mut_arg("verbose", |a| a.help(t!("help.opt_verbose").into_owned()))
         .mut_arg("lang", |a| a.help(t!("help.opt_lang").into_owned()))
         .mut_arg("select_lang", |a| a.help(t!("help.opt_select_lang").into_owned()))
@@ -989,8 +982,6 @@ pub fn build_localized_command() -> clap::Command {
         .mut_arg("doctor", |a| a.help(t!("help.cmd_doctor").into_owned()))
         .mut_arg("bench", |a| a.help(t!("help.cmd_benchmark").into_owned()))
         .mut_arg("update", |a| a.help(t!("help.cmd_update").into_owned()))
-        .mut_arg("cleanup", |a| a.help(t!("help.cmd_cleanup").into_owned()))
-        .mut_arg("cleanup_full", |a| a.help(t!("help.cmd_cleanup_full").into_owned()))
         .mut_arg("shred", |a| a.help(t!("help.cmd_shred").into_owned()))
         .mut_arg("monitor", |a| a.help(t!("help.cmd_monitor").into_owned()))
         .mut_arg("interfaces", |a| a.help(t!("help.cmd_interfaces").into_owned()))
@@ -1005,7 +996,6 @@ pub fn build_localized_command() -> clap::Command {
         .mut_subcommand("info", |s| s.about(t!("help.cmd_info").into_owned()))
         .mut_subcommand("doctor", |s| s.about(t!("help.cmd_doctor").into_owned()))
         .mut_subcommand("benchmark", |s| s.about(t!("help.cmd_benchmark").into_owned()))
-        .mut_subcommand("cleanup", |s| s.about(t!("help.cmd_cleanup").into_owned()))
         .mut_subcommand("mac", |s| s.about(t!("help.cmd_mac").into_owned()))
         .mut_subcommand("profile", |s| s.about(t!("help.cmd_profile").into_owned()))
         .mut_subcommand("update", |s| s.about(t!("help.cmd_update").into_owned()))
@@ -1027,12 +1017,6 @@ pub fn print_demo_showcase() {
 
     print_step(&t!("commands.demo_step_2_info"), "info");
     print_step(&t!("commands.demo_step_2_ok"), "ok");
-
-    print_step(&t!("commands.demo_step_3_info"), "info");
-    print_step(&t!("commands.demo_step_3_ok"), "ok");
-
-    print_step(&t!("commands.demo_step_4_info"), "info");
-    print_step(&t!("commands.demo_step_4_ok"), "ok");
 
     print_step(&t!("commands.demo_step_5_info"), "info");
     print_step(&t!("commands.demo_step_5_ok"), "ok");

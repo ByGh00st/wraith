@@ -30,7 +30,7 @@ sudo wraith -Fs -I eth0 --tls-profile firefox
 | Namespace L2 | Fresh CSPRNG local-unicast veth MAC, verified before link activation |
 | Browser / fonts | Apply supported discovered browser profiles and Fontconfig restrictions |
 | Process / RAM | Require memory lockdown, seccomp and successful encrypted session-copy storage |
-| Local process checks | Local debugger-attachment check and process label; no remote fingerprint protection |
+| Process lifecycle | No process-name spoofing or debugger-triggered termination |
 | Host prerequisites / observers | Verify the settings below; acquire the IDS socket and start loopback decoys |
 | Exit profile | `stealth` unless another geographic exit policy is configured |
 
@@ -96,9 +96,6 @@ Only newly launched namespace applications get its sysctl/FIB settings. Tor's ou
 | `--shaper` | Apply owned netem delay settings | No demonstrated resistance to traffic correlation |
 | `--display-sandbox` | Create a private virtual display | Xvfb and xauth; applications must use that display |
 | `--honey-ports` / `--honey-lan` | Loopback decoys are included in strict mode; LAN binding is opt-in | Observational traps; not malware removal |
-| `-K` / `--aggressive-masquerade` | Set the process communication label to `[kworker/u16:0]` | Does not alter `/proc/[pid]/exe` |
-| `-A` / `--aggressive-anti-debug` | Check ptrace status | Terminates Wraith if a debugger is detected |
-| `-L` / `--forensic-wipe-logs` | Delete configured wtmp, utmp, btmp and shell-log paths | Destructive; review the selected paths and retain required records |
 
 Bridges, WireGuard, virtual display, circuit rotation, traffic shaping, cover requests and onion services need explicit CLI/configuration choices. Log-file deletion and binary/state cleanup remain explicit options with destructive effects. Full-security is a required control bundle; it does not guarantee anonymity or destination reachability.
 

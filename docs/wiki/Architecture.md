@@ -25,7 +25,7 @@ flowchart LR
 | `wraith-net` | Network policy, interfaces, namespace TCP, Tor access-link NFQUEUE and optional shaping |
 | `wraith-tor` | Tor transport, HTTP CONNECT and the verified browser TLS client |
 | `wraith-guard` | DNS, DNSSEC, watchdog, observations and optional cover requests |
-| `wraith-forensic` | Managed browser/host controls and explicit cleanup utilities |
+| `wraith-forensic` | Managed browser/host controls and ephemeral session-vault support |
 | `wraith-cli` | Session orchestration, commands and terminal presentation |
 
 ## Choose by deployment scope

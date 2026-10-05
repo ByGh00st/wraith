@@ -70,8 +70,6 @@ OPT_BRIDGE="none"
 OPT_BOOT_MODE="standard" # standard, manual; early mode is rejected
 OPT_ROTATE="0"
 OPT_STRICT=true
-OPT_ANTI_DEBUG=true
-OPT_MASQUERADE=true
 OPT_TCP_MASK=true
 OPT_MAC=true
 OPT_MACHINE_ID=true
@@ -352,8 +350,6 @@ if [ "$OPT_BRIDGE" != "none" ]; then
     DAEMON_ARGS+=("--bridge" "--bridge-type" "$OPT_BRIDGE")
 fi
 
-[ "$OPT_ANTI_DEBUG" = true ] && DAEMON_ARGS+=("--aggressive-anti-debug")
-[ "$OPT_MASQUERADE" = true ] && DAEMON_ARGS+=("--aggressive-masquerade")
 [ "$OPT_TCP_MASK" = true ] && DAEMON_ARGS+=("--tcp-mask")
 [ "$OPT_MAC" = true ] && DAEMON_ARGS+=("--mac")
 [ "$OPT_MACHINE_ID" = true ] && DAEMON_ARGS+=("--machine-id")

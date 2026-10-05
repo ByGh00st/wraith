@@ -10,7 +10,7 @@ use wraith_core::vault::EncryptedRamVault;
 use wraith_forensic::{
     deploy_hardware_and_font_shield, enforce_font_jail,
     remove_hardware_and_font_shield, restore_font_jail, restore_machine_id,
-    run_full_cleanup, VirtualDisplay,
+    VirtualDisplay,
 };
 use wraith_guard::{
     enforce_seccomp_socket_jail, get_current_ip_geo, run_full_leak_test,
@@ -343,44 +343,6 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
             ),
             Err(e) if is_strict => return Err(e),
             Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_kernel_lockdown", e = e.to_string())), "warn"),
-        }
-    }
-
-    // 0a. Anti-Debug Abort Trap (Armed under strict hardening -Fs OR explicit -A)
-    if args.aggressive_anti_debug || is_strict {
-        print_step(&t!("commands.cmd_step_68"), "info");
-        match wraith_forensic::AntiDebugProbe::enforce_anti_debug_trap(is_strict) {
-            Ok(()) => print_step(&t!("commands.cmd_step_0"), "ok"),
-            Err(e) if is_strict => return Err(e),
-            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_anti_debug", e = e.to_string())), "warn"),
-        }
-    }
-
-    // 0b. Process Masquerading (Armed under strict hardening -Fs OR explicit -K)
-    if args.aggressive_masquerade || is_strict {
-        print_step(&t!("commands.cmd_step_69"), "info");
-        match wraith_forensic::cloaked_process_masquerade("[kworker/u16:0]") {
-            Ok(()) => print_step(&t!("commands.cmd_step_70"), "ok"),
-            Err(e) if is_strict => return Err(e),
-            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_masquerade", e = e.to_string())), "warn"),
-        }
-    }
-
-    // 0c. Explicit Destructive Log & History Wipe (Destructive Cleanup Opt-In)
-    if args.forensic_wipe_logs {
-        print_step(&t!("commands.cmd_step_71"), "warn");
-        match wraith_forensic::scrub_system_logs() {
-            Ok(count) => print_step(&format!("{}", t!("commands.cmd_step_scrubbed_logs", count = count)), "ok"),
-            Err(e) if is_strict => return Err(e),
-            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_log_scrub_err", e = e.to_string())), "warn"),
-        }
-        match wraith_forensic::wipe_all_user_histories() {
-            Ok(count) => print_step(
-                &format!("{}", t!("commands.cmd_step_history_wiped", count = count)),
-                "ok",
-            ),
-            Err(e) if is_strict => return Err(e),
-            Err(e) => print_step(&format!("{}", t!("commands.cmd_warn_history_wipe_err", e = e.to_string())), "warn"),
         }
     }
 
@@ -1089,13 +1051,6 @@ async fn cmd_start_inner(prepared: PreparedStart) -> Result<()> {
                                         print!("\r\n  {}\r\n\r\n", t!("commands.cmd_hotkey_popup_manual"));
                                     }
                                 }
-                                crossterm::event::KeyCode::Char('c') | crossterm::event::KeyCode::Char('C') => {
-                                    print!("\r\n  {}\r\n", t!("commands.cmd_hotkey_memory_purge"));
-                                    match wraith_forensic::logs::fast_ram_and_arp_purge() {
-                                        Ok(()) => print!("  {}\r\n\r\n", t!("commands.cmd_hotkey_memory_eradicated")),
-                                        Err(error) => print!("  Cleanup failed: {error}\r\n\r\n"),
-                                    }
-                                }
                                 _ => {}
                             }
                         }
@@ -1408,23 +1363,6 @@ pub async fn cmd_info() -> Result<()> {
         show_circuit_telemetry(&telemetry);
     }
 
-    Ok(())
-}
-
-pub async fn cmd_cleanup(full: bool) -> Result<()> {
-    print_banner(false);
-    let mode = if full {
-        "FULL (Thorough RAM + Swap + Logs)"
-    } else {
-        "Quick (Logs + Caches)"
-    };
-    print_step(&format!("{}", t!("daemon_cli.executing_purge", mode = mode)), "info");
-
-    let count = run_full_cleanup(full, false)?;
-    print_success(&format!(
-        "{}",
-        t!("daemon_cli.purge_complete", count = count)
-    ));
     Ok(())
 }
 
@@ -2126,7 +2064,7 @@ mod lifecycle_tests {
             assert_eq!(args.tls_profile.as_deref(), Some("chrome"));
             assert_eq!(args.profile.as_deref(), Some("stealth"));
             assert!(!crate::invocation::should_background(args));
-            assert!(!args.forensic_wipe_logs && !args.forensic_self_destruct && !args.honey_lan);
+            assert!(!args.forensic_self_destruct && !args.honey_lan);
             assert!(!args.jitter && !args.traffic_shaper && !args.display_sandbox && !args.bridge);
             assert!(args.wireguard.is_none() && args.onion_service.is_none() && args.rotate_interval.is_none());
         }

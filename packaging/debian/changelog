@@ -1,3 +1,10 @@
+wraith (1.5.4-1) unstable; urgency=medium
+
+  * Remove host log/history erasure, swap and kernel/network cache purges, process-name spoofing, and debugger-triggered termination.
+  * Limit ephemeral session cleanup to Wraith-owned in-memory vault lifecycle; update CLI, installer, docs and release metadata.
+
+ -- ByGhost <byghost@users.noreply.github.com>  Mon, 05 Oct 2026 23:20:38 +0300
+
 wraith (1.5.3-1) unstable; urgency=medium
 
   * Center network handling on generic L3/L4 normalization, Netlink routing, and an RFC-aligned HTTP privacy baseline.

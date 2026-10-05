@@ -1,7 +1,7 @@
 # Wraith v1.4.7 — Enterprise Security Advisory & Maintenance Release
 
 
-> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.4](https://github.com/ByGh00st/wraith/releases/tag/v1.5.4).
 
 **A formal security remediation and platform stability update across all six workspace components.**
 
@@ -46,8 +46,8 @@ The release test suites covered the listed remediation cases. Their results do n
 - **Mitigation:** Replaced direct length arithmetic in `apply_edns0_padding` with checked operations (`checked_add`, `checked_sub`) and verified range bounds (`u16::try_from`), preventing integer underflow or buffer sizing errors on anomalous packet inputs.
 
 ### SEC-08: Path Integrity Verification for Swap Sanitization (CWE-78)
-- **Component:** `wraith-forensic::memory`
-- **Mitigation:** Enhanced swap path verification in `overwrite_swap` to validate that target paths exist on the filesystem and contain no control characters, whitespace, or path traversal sequences before executing sanitization procedures.
+- **Historical component (removed after v1.4.7):** `wraith-forensic::memory`
+- **Historical note:** This mitigation applied to the v1.4.7 swap sanitization path. That path has since been removed; current session cleanup does not modify swap devices.
 
 ---
 
@@ -79,4 +79,4 @@ wraith --version
 
 ### Current packages
 
-The v1.4.7 binary assets have been withdrawn. Use the maintained [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+The v1.4.7 binary assets have been withdrawn. Use the maintained [v1.5.4 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.4).

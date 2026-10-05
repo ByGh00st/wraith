@@ -65,7 +65,6 @@ hud:
   k_rotate: '[R] Rotate Circuit'
   k_audit: '[T] Leak Audit'
   k_monitor: '[M] Pop-up Monitor'
-  k_purge: '[C] RAM Purge'
   k_quit: '[Q] Clean Disconnect'
   status_banner: SYSTÈME WRAITH ACTIF & VERROUILLÉ ANTI-FUITE
 status:
@@ -75,7 +74,6 @@ status:
   info: ❯ [STAGE]
 commands:
   cmd_err_prof_parse: 'Failed to parse profile configuration: %{e}'
-  cmd_step_0: Anti-debug trap armed [EXPLICIT OPT-IN]
   cmd_step_1: Randomizing hardware L2 MAC address...
   cmd_step_2: Configuring censorship-resistant obfs4 bridges...
   cmd_step_3: Generating optimized torrc...
@@ -145,13 +143,6 @@ commands:
   cmd_warn_mem_lockdown: 'Process memory lockdown warning: %{e}'
   cmd_step_67: Enforcing Linux Kernel Lockdown & DMA Hardware Defense...
   cmd_warn_kernel_lockdown: 'Kernel Lockdown warning: %{e}'
-  cmd_step_68: Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...
-  cmd_warn_anti_debug: 'Anti-debug probe warning: %{e}'
-  cmd_step_69: 'Masking process name in kernel scheduler ([kworker/u16:0])...'
-  cmd_step_70: 'Applying configured process-management policy...'
-  cmd_warn_masquerade: 'Process masquerade warning: %{e}'
-  cmd_step_71: 'Running selected system event log and history cleanup...'
-  cmd_step_scrubbed_logs: 'Scrubbed %{count} system log file(s)'
   cmd_step_72: No physical network adapters discovered; listing all system interfaces...
   cmd_step_default_iface: 'Default network adapter locked: %{iface}'
   cmd_step_mac_altered: 'MAC altered: %{old_m} ➔ %{new_m} on %{iface}'
@@ -209,9 +200,6 @@ commands:
   cmd_step_96: No solution entered, using hardened circumvention pool
 
   cmd_step_kernel_lockdown_eval: 'Kernel Lockdown evaluated (%{lockdown}, /dev/mem & DMA IOMMU verified)'
-  cmd_warn_log_scrub_err: 'System log scrub failed: %{e}'
-  cmd_step_history_wiped: 'Wiped %{count} shell history file(s) [EXPLICIT OPT-IN]'
-  cmd_warn_history_wipe_err: 'History wipe failed: %{e}'
   cmd_step_http_tls_gate: 'HTTP relay active on 127.0.0.1:9055; native TLS profiles are limited to Wraith clients'
   cmd_step_bridge_obfs4_enabled: 'Bridge mode enabled with %{count} obfs4 bridges'
   cmd_step_exit_prof_applying: 'Applying geographic exit profile: %{prof}...'
@@ -228,8 +216,6 @@ commands:
   cmd_hotkey_leak_audit: '◈ [🧪 LEAK AUDIT] Executing comprehensive Ring-0 leak inspection suite...'
   cmd_hotkey_popup_spawned: 'Network telemetry window opened.'
   cmd_hotkey_popup_manual: '⚠️ [POP-UP MONITOR] To view dedicated monitor, run in a separate terminal: sudo wraith monitor'
-  cmd_hotkey_memory_purge: '◈ [🧹 MEMORY PURGE] Purging volatile caches, RAMFS secrets, ARP tables & buffers (<10ms)...'
-  cmd_hotkey_memory_eradicated: '✔ [ERADICATED] Kernel drop_caches, memory compaction, and ARP routing tables wiped.'
   cmd_stop_restore_hint: 'Run ''sudo wraith stop'' to restore network.'
   cmd_step_shred_start: 'Executing DoD 5220.22-M shredding (%{passes} passes) on %{target}...'
   cmd_err_target_not_found: 'Target file does not exist: %{target}'
@@ -262,10 +248,6 @@ commands:
   demo_step_1_ok: 'Process memory secured against dumpers (PR_SET_DUMPABLE=0, mlockall)'
   demo_step_2_info: 'Enforcing Linux Kernel Lockdown & DMA Hardware Defense...'
   demo_step_2_ok: 'Kernel Lockdown integrity verified (Confidentiality mode active, DMA protected)'
-  demo_step_3_info: 'Arming Aggressive Anti-Debug Trap (SIGKILL on TracerPid / ptrace)...'
-  demo_step_3_ok: 'Anti-debug trap armed [CONFIRMED]'
-  demo_step_4_info: 'Masking process name in kernel scheduler ([kworker/u16:0])...'
-  demo_step_4_ok: 'Process identity cloaked as kernel worker [ARMED]'
   demo_step_5_info: 'Randomizing hardware L2 MAC address and Hostname...'
   demo_step_5_ok: 'Hardware MAC randomized (e2:4a:91:bc:55:18) & Hostname set to [dark-core-42]'
   demo_step_6_info: 'Rotating OS /etc/machine-id unique hardware identifier...'
@@ -304,7 +286,6 @@ help:
   cmd_dashboard: Launch interactive terminal telemetry dashboard (TUI)
   cmd_doctor: Run deep multi-tier kernel diagnostics auditor
   cmd_benchmark: Run high-performance cryptographic and kernel benchmarks
-  cmd_cleanup: 'Release session-owned transient memory and restore settings'
   cmd_mac: Randomize network interface MAC address and hostname
   cmd_profile: Apply geographic Tor exit node profile
   cmd_update: Fetch latest upstream updates and recompile binary in-place
@@ -340,18 +321,11 @@ help:
   opt_machine_id: Rotate unique OS /etc/machine-id and system hardware identifiers
   opt_full_security: "-Fs → Tor / DNSSEC / L4 auto + TLS / Browser + Fonts / Seccomp; README: #full-security"
   sec_forensic_header: 'High-Risk & Forensic Operations:'
-  opt_wipe_logs: '⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs,
-    and user shell history files'
   opt_self_destruct: '⚠ IRREVERSIBLE: Cryptographically shred binary from disk and
     wipe memory artifacts on exit (SIGINT)'
-  opt_masquerade: '⚠ EVASIVE: Spoof process name in Linux kernel scheduler as kernel
-    worker thread ([kworker/u16:0])'
-  opt_anti_debug: '⚠ EMERGENCY ABORT: Enforce anti-debugging probe; immediately triggers
-    SIGKILL if attached to a debugger'
   opt_verbose: Enable verbose debug logging
   opt_lang: Override system language (e.g. 'en', 'tr', 'ru', 'de')
   shortcuts_header: 'Raccourcis opérationnels rapides :'
-  cmd_cleanup_full: 'Run selected system cleanup operations'
   sec_general_header: 'Options générales :'
   opt_select_lang: Lancer le menu interactif de configuration (17 langues)
   opt_help: Afficher ce message d'aide
@@ -463,8 +437,6 @@ daemon_cli:
   run_info_shortly: 'Run ''wraith -i'' shortly to verify live gateway metrics.'
   arming_or_running_reset: 'Wraith is currently arming or running; use ''wraith -x'' to reset state.'
   shred_success: 'Target permanently obliterated from disk: %{target}'
-  executing_purge: 'Executing %{mode} session cleanup...'
-  purge_complete: 'Session cleanup complete (%{count} operations executed)'
   moat_unreachable_fallback: 'Moat challenge unreachable: %{err}. Falling back to resilient pools.'
   bridges_configured: 'Successfully configured %{count} %{pt} bridges in /etc/tor/wraithrc'
   doh_selected: 'Selected DoH Provider: %{name} [%{url}]'

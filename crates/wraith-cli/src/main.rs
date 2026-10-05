@@ -214,16 +214,6 @@ pub struct StartArgs {
     )]
     pub monitor_window: bool,
 
-    // ─── [3. HIGH-RISK & FORENSIC OPERATIONS] ──────────────────────────────────────────
-    /// ⚠ IRREVERSIBLE: Eradicate system authentication logs, event logs, and user shell history files
-    #[arg(
-        short = 'L',
-        long = "forensic-wipe-logs", 
-        visible_aliases = ["destructive-cleanup", "wipe-logs", "wipe"],
-        help_heading = "High-Risk & Forensic Operations"
-    )]
-    pub forensic_wipe_logs: bool,
-
     /// ⚠ IRREVERSIBLE: Cryptographically shred binary from disk and wipe memory artifacts on exit (SIGINT)
     #[arg(
         short = 'd', 
@@ -232,24 +222,6 @@ pub struct StartArgs {
         help_heading = "High-Risk & Forensic Operations"
     )]
     pub forensic_self_destruct: bool,
-
-    /// ⚠ EVASIVE: Spoof process name in Linux kernel scheduler as kernel worker thread ([kworker/u16:0])
-    #[arg(
-        short = 'K',
-        long = "aggressive-masquerade", 
-        visible_aliases = ["process-masquerade", "cloaked-process", "masquerade", "kworker"],
-        help_heading = "High-Risk & Forensic Operations"
-    )]
-    pub aggressive_masquerade: bool,
-
-    /// ⚠ EMERGENCY ABORT: Enforce anti-debugging probe; immediately triggers SIGKILL if attached to a debugger
-    #[arg(
-        short = 'A',
-        long = "aggressive-anti-debug", 
-        visible_aliases = ["anti-debug", "anti-ptrace"], 
-        help_heading = "High-Risk & Forensic Operations"
-    )]
-    pub aggressive_anti_debug: bool,
 
     /// ⚠ INTERNAL: Run as a background daemon worker
     #[arg(long = "daemon-worker", hide = true)]
@@ -286,10 +258,7 @@ impl StartArgs {
             || self.machine_id_rotation
             || self.strict_hardening
             || self.monitor_window
-            || self.forensic_wipe_logs
             || self.forensic_self_destruct
-            || self.aggressive_masquerade
-            || self.aggressive_anti_debug
             || self.daemon_worker
     }
 }
@@ -355,14 +324,6 @@ struct Cli {
     /// Fast-forward source from official GitHub; run build.sh separately to install
     #[arg(short = 'u', long)]
     update: bool,
-
-    /// Ephemeral session cleanup
-    #[arg(short = 'c', long)]
-    cleanup: bool,
-
-    /// Run selected system cleanup operations
-    #[arg(long)]
-    cleanup_full: bool,
 
     /// Securely shred a target file using DoD 5220.22-M 7-pass standard
     #[arg(long)]
@@ -440,11 +401,6 @@ enum Commands {
     Doctor,
     /// Run high-performance cryptographic and kernel subsystem benchmarks
     Benchmark,
-    /// Run session cleanup operations
-    Cleanup {
-        #[arg(long)]
-        full: bool,
-    },
     /// Randomize MAC address and hostname
     Mac,
     /// Apply geographic exit profile
@@ -646,10 +602,6 @@ pub(crate) fn resolve_command(cli: &Cli) -> Option<Commands> {
         Some(Commands::Doctor)
     } else if cli.bench {
         Some(Commands::Benchmark)
-    } else if cli.cleanup || cli.cleanup_full {
-        Some(Commands::Cleanup {
-            full: cli.cleanup_full,
-        })
     } else if cli.update {
         Some(Commands::Update {
             artifact: None,
@@ -1014,9 +966,6 @@ pub async fn main() -> Result<()> {
             let results = benchmark::BenchmarkSuite::run_all();
             benchmark::BenchmarkSuite::print_report(&results);
         }
-        Commands::Cleanup { full } => {
-            commands::cmd_cleanup(full).await?;
-        }
         Commands::Mac => {
             let (interface, original, _) = wraith_net::change_mac(None, None)?;
             if let Err(error) = wraith_net::randomize_hostname() {
@@ -1279,14 +1228,9 @@ mod tests {
         let cli_smon = Cli::try_parse_from(["wraith", "--spawn-monitor"]).unwrap();
         assert!(matches!(resolve_command(&cli_smon), Some(Commands::Start(args)) if args.monitor_window));
 
-        let cli_wipe = Cli::try_parse_from(["wraith", "-L"]).unwrap();
-        assert!(matches!(resolve_command(&cli_wipe), Some(Commands::Start(args)) if args.forensic_wipe_logs));
-
-        let cli_masq = Cli::try_parse_from(["wraith", "-K"]).unwrap();
-        assert!(matches!(resolve_command(&cli_masq), Some(Commands::Start(args)) if args.aggressive_masquerade));
-
-        let cli_antid = Cli::try_parse_from(["wraith", "-A"]).unwrap();
-        assert!(matches!(resolve_command(&cli_antid), Some(Commands::Start(args)) if args.aggressive_anti_debug));
+        for removed_flag in ["--forensic-wipe-logs", "--aggressive-masquerade", "--aggressive-anti-debug", "-L", "-K", "-A"] {
+            assert!(Cli::try_parse_from(["wraith", removed_flag]).is_err(), "removed flag still parses: {removed_flag}");
+        }
 
         // Core operational shortcuts
         let cli_switch = Cli::try_parse_from(["wraith", "-r"]).unwrap();
@@ -1307,12 +1251,6 @@ mod tests {
 
         let cli_update = Cli::try_parse_from(["wraith", "-u"]).unwrap();
         assert_eq!(resolve_command(&cli_update), Some(Commands::Update { artifact: None, manifest: None, signature: None }));
-
-        let cli_cleanup = Cli::try_parse_from(["wraith", "-c"]).unwrap();
-        assert_eq!(resolve_command(&cli_cleanup), Some(Commands::Cleanup { full: false }));
-
-        let cli_cleanup_full = Cli::try_parse_from(["wraith", "--cleanup-full"]).unwrap();
-        assert_eq!(resolve_command(&cli_cleanup_full), Some(Commands::Cleanup { full: true }));
 
         let cli_shred = Cli::try_parse_from(["wraith", "--shred", "/tmp/victim.log"]).unwrap();
         assert_eq!(resolve_command(&cli_shred), Some(Commands::Shred { target: "/tmp/victim.log".to_string(), passes: 7 }));

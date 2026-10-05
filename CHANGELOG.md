@@ -10,6 +10,11 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-10-05
+
+### Cleanup Scope & Process Lifecycle
+- Removed host-log and shell-history erasure, swap/kernel/network cache purges, process-name spoofing, and debugger-triggered process termination. Wraith-owned in-memory vault data remains scoped to its owning session object; session teardown does not erase operating-system logs, history, swap, or kernel caches.
+
 ### HTTP Relay and TCP Normalization
 - **L7 Proxy Concurrency Scaling & Semaphore Backpressure (`wraith-tor`)**:
   - Scaled `MAX_CONCURRENT_PROXY_CLIENTS` threshold from 128 to 1,024.
@@ -79,7 +84,7 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 - **High-Entropy Natural Hostname Generation (CWE-330)**: Replaced low-entropy dictionary adjective-noun combinations with high-entropy cryptographic hex tokens ($>10^8$ entropy) formatted as authentic corporate endpoints (`desktop-xxxxxx`, `laptop-xxxxxx`, `station-xxxxxx`), defeating DHCP log correlation and device fingerprinting.
 - **Seccomp-BPF Memory Inspection Syscall Sandboxing (CWE-269)**: Extended BPF filter to actively reject cross-process virtual memory dumping syscalls `process_vm_readv` (x86_64: 310, ARM64: 270) and `process_vm_writev` (x86_64: 311, ARM64: 271) alongside `ptrace` and invalid ABI invocations with `EPERM`.
 - **EDNS0 Padding Integer Underflow Hardening (CWE-190)**: Protected `apply_edns0_padding` with checked arithmetic (`checked_add`, `checked_sub`) and bounds conversion (`u16::try_from`), checking arithmetic and output bounds before generating padding.
-- **Temporary swap cleanup path validation (CWE-78)**: Enforced strict swap path validation in `overwrite_swap`, checking path existence via `Path::exists()` and rejecting control characters, traversal sequences (`..`), and non-canonical identifiers prior to disk sanitization.
+- **Temporary swap cleanup path validation (CWE-78)**: This historical v1.4.7 change applied to the then-existing swap sanitization path. That path has since been removed; current session cleanup does not modify swap devices.
 
 ## [1.4.6] - 2026-09-25
 

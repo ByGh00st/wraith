@@ -1,7 +1,7 @@
 # Wraith v1.4.6 — Network Security and Kernel Hardening
 
 
-> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.4](https://github.com/ByGh00st/wraith/releases/tag/v1.5.4).
 
 **Kernel hardening, cryptographic controls, and reliability updates across the six workspace crates.**
 

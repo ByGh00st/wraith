@@ -16,7 +16,7 @@
 | Recover owned orphans | Lifecycle lock, namespace/egress leases and checked teardown | Ambiguous resources are refused; leases are not a full reboot-safe host backup |
 | Reduce local virtual-link identifiers | CSPRNG local-unicast namespace MAC before activation | Does not replace the physical MAC or remote Tor exit identity |
 | Clear owned memory | Zeroize-on-drop state, snapshots and protected serialization/secret buffers | SIGKILL, abort, power loss, allocator copies and third-party allocations are outside the guarantee |
-| Reduce selected local traces | Optional cache, file and swap operations | SSD remapping, snapshots and backups can retain data |
+| Session teardown | Restore recorded Wraith-managed settings and release Wraith-owned in-memory vault data | Does not erase operating-system logs, shell histories, swap, or kernel caches |
 
 The project does not guarantee anonymity, immunity to destination blocking, resistance to global traffic correlation or protection against a compromised kernel/firmware. Tor is not an arbitrary UDP/ICMP transport.
 

@@ -4,7 +4,7 @@ This directory contains detailed technical release notes and security advisories
 
 For a chronological overview of all changes, please refer to the primary project [CHANGELOG.md](../../CHANGELOG.md).
 
-Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history, so existing clones and forks may still contain older code. See the current [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) for packages.
+Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history, so existing clones and forks may still contain older code. See the current [v1.5.4 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.4) for packages.
 
 ---
 
@@ -12,6 +12,7 @@ Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have b
 
 | Version | Release Type | Key Highlights | Document |
 | :--- | :--- | :--- | :--- |
+| **v1.5.4** | Session cleanup scope | Removes host log/history erasure, swap/cache purges, process masquerading, and debugger-triggered termination | [RELEASE_NOTES_v1.5.4.md](./RELEASE_NOTES_v1.5.4.md) |
 | **v1.5.3** | Network handling and release maintenance | Tool-specific HTTP request rewriting removed; current relay preserves application User-Agent values; CI and APT publication updates | [RELEASE_NOTES_v1.5.3.md](./RELEASE_NOTES_v1.5.3.md) |
 | **v1.5.0** | Stabilization Gate | Namespace integration checks, five parser fuzz targets, distribution builds, and Debian packaging checks | [RELEASE_NOTES_v1.5.0.md](./RELEASE_NOTES_v1.5.0.md) |
 | **v1.4.7** | Security & Maintenance | TOCTOU key shredding protection, FQDN trailing-dot normalization, torrc directive injection guards, OsRng L2 MAC entropy, Seccomp memory inspection filter | [RELEASE_NOTES_v1.4.7.md](./RELEASE_NOTES_v1.4.7.md) |

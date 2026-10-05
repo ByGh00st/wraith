@@ -1,4 +1,4 @@
-.TH WRAITH 1 "October 2026" "wraith 1.5.3" "User Commands"
+.TH WRAITH 1 "October 2026" "wraith 1.5.4" "User Commands"
 .SH NAME
 wraith \- Kernel-grade network anonymization and session cleanups framework
 .SH SYNOPSIS
@@ -33,9 +33,6 @@ Executes an audit on kernel capabilities, netfilter modules, Tor binaries, and s
 .TP
 \fBbenchmark\fR
 Runs high-performance cryptographic cipher and kernel subsystem throughput benchmarks.
-.TP
-\fBcleanup\fR [\fB\-\-full\fR]
-Performs session cleanup system sanitization, wiping RAM caches, system logs, and swap space.
 .TP
 \fBshred\fR \fIFILE\fR [\fB\-p\fR \fIPASSES\fR]
 Securely overwrites and deletes a file using DoD 5220.22-M multi-pass sanitization standard (default: 7 passes).
@@ -148,15 +145,6 @@ Normalizes namespace TCP and Tor access-link initial SYNs.
 .TP
 \fB\-\-machine\-id\fR
 Rotates unique OS /etc/machine-id and system hardware identifiers.
-.TP
-\fB\-K\fR, \fB\-\-aggressive\-masquerade\fR
-Sets the process communication label to [kworker/u16:0]; the executable path is unchanged.
-.TP
-\fB\-A\fR, \fB\-\-aggressive\-anti\-debug\fR
-Enforces an aggressive anti-debugging probe; immediately triggers SIGKILL if attached to a debugger.
-.TP
-\fB\-L\fR, \fB\-\-forensic\-wipe\-logs\fR
-Irreversibly eradicates system authentication logs, event logs, and user shell history files upon exit.
 .TP
 \fB\-d\fR, \fB\-\-forensic\-self\-destruct\fR
 Cryptographically shreds the binary from disk and wipes memory artifacts upon session shutdown.

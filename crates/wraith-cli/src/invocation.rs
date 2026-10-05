@@ -26,7 +26,7 @@ pub fn parse(args: impl IntoIterator<Item = impl Into<OsString> + Clone>) -> Res
 fn validate(cli: &Cli) -> Result<(), &'static str> {
     let actions = [cli.command.is_some(), cli.start, cli.stop, cli.reset, cli.monitor, cli.switch,
         cli.test, cli.info, cli.doctor, cli.bench, cli.update,
-        cli.cleanup || cli.cleanup_full, cli.shred.is_some(), cli.select_lang,
+        cli.shred.is_some(), cli.select_lang,
         cli.completions.is_some(), cli.demo, cli.interfaces];
     let count = actions.into_iter().filter(|active| *active).count();
     if count > 1 { return Err("Choose one operation; command shortcuts and subcommands cannot be combined"); }
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn competing_shortcuts_and_subcommands_never_choose_by_precedence() {
-        let selectors = ["-s", "-x", "--reset", "-r", "-i", "-t", "-c", "-u", "-M", "--doctor", "--bench", "--interfaces", "--demo", "--select-lang"];
+        let selectors = ["-s", "-x", "--reset", "-r", "-i", "-t", "-u", "-M", "--doctor", "--bench", "--interfaces", "--demo", "--select-lang"];
         for (i, first) in selectors.iter().enumerate() {
             for second in selectors.iter().skip(i + 1) {
                 assert!(parse(["wraith", *first, *second]).is_err(), "{first} {second}");
@@ -99,14 +99,13 @@ mod tests {
     #[test]
     fn session_options_cannot_silently_disappear() {
         for args in [vec!["wraith", "-F", "start"], vec!["wraith", "-F", "-i"],
-            vec!["wraith", "-x", "-L"], vec!["wraith", "--morph-l4", "off", "info"],
+            vec!["wraith", "-x", "-A"], vec!["wraith", "--morph-l4", "off", "info"],
             vec!["wraith", "--rotate", "60", "info"], vec!["wraith", "--no-ks", "-i"],
             vec!["wraith", "--tls-profile", "safari", "fetch", "https://example.org", "-o", "page"]] {
             assert!(parse(args).is_err());
         }
         for args in [vec!["wraith", "-Fs"], vec!["wraith", "-x", "-d"],
-            vec!["wraith", "stop", "-d"], vec!["wraith", "start", "-F"],
-            vec!["wraith", "-c", "--cleanup-full"]] { assert!(parse(args).is_ok()); }
+            vec!["wraith", "stop", "-d"], vec!["wraith", "start", "-F"]] { assert!(parse(args).is_ok()); }
     }
 
     #[test]

@@ -31,7 +31,7 @@ The project aims to protect intended Tor routing, DNS integrity, sensitive runti
 - Erasing all copies of data on SSDs, snapshots, backups or remote systems.
 - Treating cgroup bookkeeping or experimental physical-interface fastpath helpers as active eBPF protection.
 
-Strict mode checks irreversible kernel prerequisites instead of applying them for a temporary session. Destructive cleanup options are separate from ordinary privacy sessions.
+Strict mode checks irreversible kernel prerequisites instead of applying them for a temporary session. Session teardown restores recorded Wraith-owned settings; temporary vault files are released by their owning session object. Cleanup does not erase operating-system logs, shell history, swap, or kernel caches.
 
 ## Evidence and changes
 
