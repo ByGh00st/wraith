@@ -598,11 +598,11 @@ The workflow badges above show GitHub Actions status for `main`. A passing run d
 | [Distribution matrix](.github/workflows/multi-distro.yml) | Package installation and `--version`/`--help` on Kali, Debian, Ubuntu, Arch and Alpine; doctor output is informational and does not fail the job |
 | [Debian audit](.github/workflows/lintian-audit.yml) | Package quality and removal/purge checks |
 
-### Recorded v1.5.0 results
+### Recorded v1.5.4 validation
 
-The **2026-09-27** stabilization record reports 252 passed, 0 failed and 1 ignored on Windows; native GNU Linux reports 254 passed, 0 failed and 1 ignored on each architecture. These are historical counts, separate from current workflow status.
+The v1.5.4 source was validated with `cargo test --workspace --locked` (**260 passed, 0 failed, 1 ignored**) and `cargo clippy --workspace --all-targets --locked -- -D warnings` on the development checkout. On commit [`7f34a14`](https://github.com/ByGh00st/wraith/commit/7f34a14377323de05655864a54769d2e6e839244), the [kernel integration run](https://github.com/ByGh00st/wraith/actions/runs/37369837834), [distribution matrix](https://github.com/ByGh00st/wraith/actions/runs/37369837760), and [Debian package audit](https://github.com/ByGh00st/wraith/actions/runs/37369837719) completed successfully. These results describe only the checks and fixtures in those runs.
 
-The [native package run at `1cee183`](https://github.com/ByGh00st/wraith/actions/runs/35992818793) records the four GNU/musl targets, two Debian packages and four archives; release publication was skipped. See [development](docs/wiki/Development.md) and [releasing](docs/RELEASING.md) for commands and release scope.
+The tagged release build separately validates GNU and musl artifacts for x86_64 and ARM64, Debian packages, checksums, and APT metadata. See [development](docs/wiki/Development.md) and [releasing](docs/RELEASING.md) for the validation commands and release scope.
 
 ```bash
 cargo check --workspace --all-targets --locked

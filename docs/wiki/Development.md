@@ -2,25 +2,19 @@
 
 > **08 / CONTRIBUTE** · Separate executed tests from unmeasured properties.
 
-## Recorded checks — 2026-09-25
+## Recorded checks — v1.5.4, 2026-10-05
 
-Release-preparation baseline: [`1cee183`](https://github.com/ByGh00st/wraith/commit/1cee183). The [native build matrix](https://github.com/ByGh00st/wraith/actions/runs/35992818793) passed on all four x86_64/ARM64 GNU/musl targets and produced two Debian packages plus four archives. Manual validation skipped release publication.
+On commit [`7f34a14`](https://github.com/ByGh00st/wraith/commit/7f34a14377323de05655864a54769d2e6e839244), the [kernel integration run](https://github.com/ByGh00st/wraith/actions/runs/37369837834), [distribution matrix](https://github.com/ByGh00st/wraith/actions/runs/37369837760), and [Debian package audit](https://github.com/ByGh00st/wraith/actions/runs/37369837719) completed successfully. The local workspace test run recorded 260 passed, 0 failed and 1 ignored; all-target Clippy passed with warnings denied. The release workflow separately builds and validates the four GNU/musl targets and package assets before publication.
 
 | Check | Result |
 | :--- | :--- |
-| Workspace check, all targets | Passed on Windows and both native GNU Linux architectures |
-| Windows workspace tests | **269 passed, 0 failed, 1 ignored** |
-| Native GNU Linux tests, x86_64 and ARM64 | **271 passed on each, 0 failed, 1 ignored** |
-| Windows all-target Clippy | Passed with warnings denied |
-| GNU Linux all-target Clippy | Passed natively on both architectures and by cross-compilation; warnings denied |
-| Installer preview regressions | 14 platform/failure scenarios passed on Windows and Ubuntu; no installation |
-| Native Debian packages | Both architectures built; extraction, identity, permissions, version and APT simulation passed |
-| Static musl archives, x86_64 and ARM64 | Native builds, `--version` / `--help` and no-interpreter ELF checks passed |
-| Native Linux SYN audit | **Executed live in CI via AF_PACKET raw socket sandbox; passed** |
-| Privileged live Linux networking | **CI runs 7 configured NetNS scenarios (`e2e-kernel-test.yml`)** |
-| Continuous Parser Fuzzing | **5 LibFuzzer targets + ASan/UBSan (0 crashes, 0 memory leaks)** |
-| Multi-Distribution Compatibility | **5 distributions verified in CI (Kali, Debian 12, Ubuntu 24.04, Arch, Alpine)** |
-| Debian Package Quality & Purge Audit | **Lintian 0 errors, zero-orphan postrm verified** |
+| Workspace check, all targets | Passed on the v1.5.4 development checkout |
+| Workspace tests | **260 passed, 0 failed, 1 ignored** |
+| All-target Clippy | Passed with warnings denied |
+| Kernel integration | Seven namespace scenarios and the native SYN audit passed in CI |
+| Distribution matrix | Kali, Debian 12, Ubuntu 24.04, Arch and Alpine jobs passed |
+| Debian package audit | Lintian and package purge/orphan checks passed |
+| Release artifacts | GNU/musl x86_64 and ARM64 targets are built and checked by the release workflow |
 
 Coverage includes local real TLS handshakes, certificate/hostname rejection, response limits, CONNECT framing, half-close responses, stalled writes, HTTP address-header removal, DNSSEC validation failures, state preservation, process-stat parsing, route-metric restoration, profile validation, legacy MSS-field compatibility, sysctl encoding, host-write rejection, namespace name/identity guards firewall construction, CLI auto/off and aliases, MSS ownership/readback/rollback, and live-telemetry drift detection. Additional regressions cover competing shortcuts, subcommand option scope, child argument boundaries, invalid configuration without data loss, legacy read-only loading, configuration path precedence, and background worker ownership. Installer shell syntax was checked without installing a service. Strict-preset regressions cover configuration/CLI parity, disabled defaults, the full L4/TLS compatibility matrix, refused activation on absent snapshots or failed readback, host prerequisite validation, legacy-state compatibility and unsupported packet capture. The local TLS exchange also checks the selected platform in HTTP headers.
 
@@ -77,7 +71,7 @@ The [`live_wire_syn_audit.rs`](https://github.com/ByGh00st/wraith/blob/main/crat
 
 The trigger is a nonblocking TCP connect to the benchmark range `198.18.0.1:443` inside the isolated namespace. It never uses a real external route. A bounded capture waits for the initial SYN. Window 64240 is a controlled MTU 1500 / MSS 1460 / adequate receive-buffer / `initrwnd 44` fixture; a different kernel result fails the audit rather than being labeled a native Windows signature.
 
-In release v1.5.3, this audit and end-to-end network namespace kernel tests are verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). The test validates the host NFQUEUE worker, access-link normalization, MSS clamp invariants, and packet layout integrity under native Linux.
+In the v1.5.4 validation run, this audit and end-to-end network namespace kernel tests were verified live under an isolated network namespace sandbox in automated CI (`e2e-kernel-test.yml`). The test validates the host NFQUEUE worker, access-link normalization, MSS clamp invariants, and packet layout integrity under native Linux.
 
 ## Codebase Metrics (Tokei)
 
