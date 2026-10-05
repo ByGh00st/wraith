@@ -4,6 +4,8 @@ This directory contains detailed technical release notes and security advisories
 
 For a chronological overview of all changes, please refer to the primary project [CHANGELOG.md](../../CHANGELOG.md).
 
+Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history, so existing clones and forks may still contain older code. See the current [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) for packages.
+
 ---
 
 ## Releases Index

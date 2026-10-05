@@ -8,4 +8,4 @@ The release workflow now publishes the detailed release notes, runs locked works
 
 The native Linux CI run also exposed a test-only import that was unused on Linux. The test module is now compiled only on the non-Linux targets where its unsupported-platform assertion applies.
 
-See the [v1.5.3 GitHub release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) for package assets and checksums after publication.
+The published [v1.5.3 GitHub release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) includes the package assets and checksums.

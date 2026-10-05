@@ -1,5 +1,8 @@
 # Wraith v1.4.0
 
+
+> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+
 **Native Linux packages, verified installation and stronger session recovery.**
 
 Wraith 1.4.0 ships Debian packages and GNU/musl archives for both x86_64 and ARM64. The installer selects the matching CPU and libc, verifies SHA-256, and checks the installed version and command path.
@@ -13,16 +16,7 @@ wraith --version
 
 The installer requires Bash, curl and Python 3.8+. If already root, use `bash` instead of `sudo bash`. Debian-family systems use APT and `/usr/bin/wraith`; archive installations use `/usr/local/bin/wraith`.
 
-| Platform | Package |
-| :--- | :--- |
-| Debian / Ubuntu / Kali · x86_64 | [amd64 .deb](https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith_1.4.0_amd64.deb) |
-| Debian / Ubuntu / Kali · ARM64 | [arm64 .deb](https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith_1.4.0_arm64.deb) |
-| GNU Linux · x86_64 | [GNU archive](https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith-1.4.0-x86_64-unknown-linux-gnu.tar.gz) |
-| GNU Linux · ARM64 | [GNU archive](https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith-1.4.0-aarch64-unknown-linux-gnu.tar.gz) |
-| Alpine / musl · x86_64 | [Static musl archive](https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith-1.4.0-x86_64-unknown-linux-musl.tar.gz) |
-| Alpine / musl · ARM64 | [Static musl archive](https://github.com/ByGh00st/wraith/releases/download/v1.4.0/wraith-1.4.0-aarch64-unknown-linux-musl.tar.gz) |
-
-[SHA256SUMS.txt](https://github.com/ByGh00st/wraith/releases/download/v1.4.0/SHA256SUMS.txt) covers all six packages. `bash install.sh --dry-run` downloads and validates without installing or executing the binary.
+The v1.4.0 binary links and checksums have been withdrawn. Use the current [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3) for maintained packages.
 
 ## Changes
 
@@ -48,4 +42,4 @@ The release profile uses `panic = "abort"`: normal exits and ordinary errors run
 
 Validation includes **240 tests on each native GNU Linux architecture**, **238 Windows tests**, all-target Clippy with warnings denied, **14 installer scenarios**, actual Debian packaging and static musl executable checks. Privileged live network integration and full installed-system updates remain outside these checks.
 
-[Getting started](https://github.com/ByGh00st/wraith/wiki/Getting-Started) · [Full changelog](https://github.com/ByGh00st/wraith/blob/v1.4.0/CHANGELOG.md) · [Protection scope](https://github.com/ByGh00st/wraith/wiki/Threat-Model)
+[Getting started](https://github.com/ByGh00st/wraith/wiki/Getting-Started) · [Full changelog](https://github.com/ByGh00st/wraith/blob/main/CHANGELOG.md) · [Protection scope](https://github.com/ByGh00st/wraith/wiki/Threat-Model)

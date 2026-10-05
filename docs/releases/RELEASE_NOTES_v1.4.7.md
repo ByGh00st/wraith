@@ -1,5 +1,8 @@
 # Wraith v1.4.7 — Enterprise Security Advisory & Maintenance Release
 
+
+> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+
 **A formal security remediation and platform stability update across all six workspace components.**
 
 ---
@@ -74,14 +77,6 @@ sudo apt install --only-upgrade wraith
 wraith --version
 ```
 
-### Direct Package Download & Verification
+### Current packages
 
-Official release assets and checksums can be downloaded and verified as follows:
-
-```bash
-# Architecture: amd64 (x86_64)
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.7/wraith_1.4.7_amd64.deb
-wget https://github.com/ByGh00st/wraith/releases/download/v1.4.7/SHA256SUMS.txt
-sha256sum --ignore-missing --check SHA256SUMS.txt
-sudo apt install ./wraith_1.4.7_amd64.deb
-```
+The v1.4.7 binary assets have been withdrawn. Use the maintained [v1.5.3 release](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).

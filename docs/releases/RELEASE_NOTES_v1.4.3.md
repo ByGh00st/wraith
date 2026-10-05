@@ -1,5 +1,8 @@
 # Wraith v1.4.3 — DNS Validation and Tor-Routed DoH Fixes
 
+
+> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+
 ## Fixed
 
 - **DNSSEC Indeterminate Proof Handling**: In `wraith-guard`, the DNSSEC validation layer previously rejected `Proof::Indeterminate` as an error alongside `Proof::Bogus`. Because public recursive DoH resolvers (e.g., Quad9, Cloudflare) do not forward full NSEC3 denial-of-existence chains to stub resolvers, queries for unsigned domains (including `http.kali.org`, `google.com`, `github.com`) failed, causing network isolation and `apt update` failures under strict isolation (`-s`/`-Fs`). `Proof::Indeterminate` and `Proof::Insecure` are now accepted without marking `authentic_data`, and strict rejection is strictly reserved for `Proof::Bogus`.

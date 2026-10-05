@@ -1,5 +1,8 @@
 # Wraith v1.3.0 — Network Interface Selection & Kernel Hardening
 
+
+> **Historical release notice:** Legacy release pages, binary assets, and version tags for v1.0.0–v1.5.2 have been removed. Their source commits remain in Git history and may contain earlier network request handling. Maintained source and packages are published in [v1.5.3](https://github.com/ByGh00st/wraith/releases/tag/v1.5.3).
+
 Wraith v1.3.0 introduced network interface selection, kernel hardening, and Tor connectivity features for Linux systems.
 
 This release introduced an automated physical network interface selector (`wraith interfaces`), an early-boot systemd installer (`install-daemon.sh`), and kernel hardening updates. The notes below have been revised to describe supported behavior without implying browser impersonation or endpoint concealment.
