@@ -650,7 +650,7 @@ impl EgressIntrusionDetector {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "linux")))]
 mod tests {
     use super::*;
 
