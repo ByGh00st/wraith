@@ -1,6 +1,6 @@
 # Wraith v1.5.1 — TCP Normalization and HTTP Privacy Baseline
 
-Wraith v1.5.1 updates the architecture around L3/L4 TCP stack normalization, Netlink routing, and RFC-aligned general network privacy handling. Tool-specific L7 signature matching, User-Agent substitution tables, obfuscated signature payloads, and the corresponding packet rewrite/detection paths have been removed.
+Wraith v1.5.1 updates the architecture around L3/L4 TCP stack normalization, Netlink routing, and RFC-aligned general network privacy handling. Tool-specific L7 request matching, User-Agent rewriting, and the associated request-alteration paths have been removed.
 
 The local HTTP relay now removes proxy-only address and authentication metadata and applies connection handling to the initial cleartext request. It preserves User-Agent values and does not rewrite HTTPS or claim browser impersonation. Browser-profile TLS remains scoped to Wraith-owned client requests and does not change third-party applications' CONNECT traffic.
 

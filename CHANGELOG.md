@@ -33,24 +33,30 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
   - Enforced RFC 1035 §4.1.4 backward pointer constraint (`ptr_offset < offset`), immediately rejecting self-referential pointer loops and forward pointer anomalies in `DnsPacket::parse_qname`.
   - Enforced maximum pointer jump recursion depth limit of 10 to neutralize compression bomb attacks.
   - Added unit test `test_parse_qname_rejects_forward_and_loop_pointers`.
-- **L2 MAC Spoofing Network Interface Sanitization (`wraith-net`, CWE-20)**:
+- **L2 MAC address randomization input validation (`wraith-net`, CWE-20)**:
   - Added `validate_interface_name` verifying `IFNAMSIZ - 1` (15 characters) length bound, rejecting path traversal (`..`, `/`, `\`), spaces, null bytes, and non-alphanumeric characters (`^[a-zA-Z0-9_.\-]+$`) across `change_mac`, `change_mac_with_journal`, `get_current_mac`, and `restore_mac`.
   - Added unit tests `test_validate_interface_name_rejects_invalid_inputs` and `test_change_mac_rejects_malformed_interface`.
 - **Desktop User Argument & Flag Injection Prevention (`wraith-cli`)**:
   - Added `validate_posix_username` verifying that resolved `desktop_user` identifiers (from `SUDO_USER` or `/home` enumeration) conform to portable POSIX username standards and do not start with a hyphen (`-`), preventing command/flag injection into helper tools like `id` and `runuser`.
   - Added unit test `test_validate_posix_username_rejects_flag_injection_and_invalid_chars`.
 
+## [1.5.2] - 2026-10-05
+
+- Reword archived release notes, wiki pages, and command documentation in neutral, technically descriptive language while preserving explicit descriptions of cleanup and process-control behavior.
+- Make the release pipeline the sole automatic APT publisher; the standalone APT workflow remains available for scheduled refresh and manual recovery.
+- Preserve the v1.5.1 architecture update: L3/L4 TCP normalization, Netlink routing, and the RFC-aligned general HTTP privacy baseline; tool-specific L7 rewriting paths remain removed.
+
 ## [1.5.1] - 2026-10-05
 
 ### Changed
 - Recentered the architecture on L3/L4 TCP stack normalization, Netlink routing, and a standards-based HTTP privacy baseline.
-- Removed the tool-specific signature catalog, User-Agent substitution tables, XOR-obfuscated signature data, and L7 rewriting/detection code.
+- Removed HTTP client matching rules, User-Agent rewriting, their encoded data, and the associated request-alteration paths.
 - The local HTTP relay now preserves User-Agent values and applies general proxy-metadata and connection handling only.
 - Updated legal, usage, and release documentation to clarify authorized-use expectations and GPL-3.0 boundaries.
 
 ## [1.5.0] - 2026-09-27
 
-### Enterprise Stabilization Gate & Quality Assurance Verification (100% Green CI)
+### Stabilization and Quality Assurance Verification
 - **Live Linux Kernel E2E Integration (`.github/workflows/e2e-kernel-test.yml`)**:
   - Implemented network namespace sandbox harness (`tests/e2e/harness.sh`) resolving the kill-switch runner disconnection paradox.
   - Automated and verified 7 end-to-end kernel scenarios: Netfilter TransPort `:9040` redirection, IPv6 blackout, local DNS/DNSSEC proof verification over DoH, Tor %100 bootstrap readiness poll, wire UDP 53 leak capture, watchdog fail-closed killswitch, and clean host teardown/recovery.
@@ -75,13 +81,13 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 
 ### Security & Integrity Improvements (Remediation & Defense-in-Depth)
 - **Onion v3 Ephemeral Key Shredding TOCTOU Protection (CWE-59)**: Secured `shred_key_file` with `libc::O_NOFOLLOW | libc::O_NONBLOCK` and mandatory post-open descriptor validation (`nlink == 1`, matching inode/device). Enforced post-overwrite verification prior to unlink, eliminating symlink swap race attacks on ephemeral keys.
-- **DNS Sinkhole & Onion FQDN Trailing Dot Normalization (CWE-178)**: Implemented `is_sinkhole_domain` and `is_onion_domain` stripping trailing FQDN dots (`.`) and normalizing case, preventing telemetry probes (e.g. `telemetry.mozilla.org.`) from bypassing sinkhole interception and guaranteeing correct loopback handling for fully qualified `.onion.` names.
+- **DNS Sinkhole & Onion FQDN Trailing Dot Normalization (CWE-178)**: Implemented `is_sinkhole_domain` and `is_onion_domain` to strip trailing FQDN dots (`.`) and normalize case before sinkhole and `.onion` route comparisons; added regression coverage for both variations.
 - **Torrc Directive & Comment Injection Prevention (CWE-93)**: Introduced `OnionServiceConfig::validate()` rejecting comment tokens (`#`), CRLF injection (`\r`, `\n`), ASCII control characters, whitespace, identifiers over 64 chars, and path traversal sequences (`..`) in Unix socket targets.
-- **L2 MAC Spoofing CSPRNG Standardization (CWE-330)**: Replaced PRNG `thread_rng` in physical and virtual MAC generation with kernel CSPRNG `rand::rngs::OsRng`.
+- **L2 MAC address randomization CSPRNG standardization (CWE-330)**: Replaced PRNG `thread_rng` in physical and virtual MAC generation with kernel CSPRNG `rand::rngs::OsRng`.
 - **High-Entropy Natural Hostname Generation (CWE-330)**: Replaced low-entropy dictionary adjective-noun combinations with high-entropy cryptographic hex tokens ($>10^8$ entropy) formatted as authentic corporate endpoints (`desktop-xxxxxx`, `laptop-xxxxxx`, `station-xxxxxx`), defeating DHCP log correlation and device fingerprinting.
 - **Seccomp-BPF Memory Inspection Syscall Sandboxing (CWE-269)**: Extended BPF filter to actively reject cross-process virtual memory dumping syscalls `process_vm_readv` (x86_64: 310, ARM64: 270) and `process_vm_writev` (x86_64: 311, ARM64: 271) alongside `ptrace` and invalid ABI invocations with `EPERM`.
-- **EDNS0 Padding Integer Underflow Hardening (CWE-190)**: Protected `apply_edns0_padding` with checked arithmetic (`checked_add`, `checked_sub`) and bounds conversion (`u16::try_from`), guaranteeing safe padding generation against arbitrary packet payloads.
-- **Forensic Swap Scrubbing Device Path Enforcement (CWE-78)**: Enforced strict swap path validation in `overwrite_swap`, checking path existence via `Path::exists()` and rejecting control characters, traversal sequences (`..`), and non-canonical identifiers prior to disk sanitization.
+- **EDNS0 Padding Integer Underflow Hardening (CWE-190)**: Protected `apply_edns0_padding` with checked arithmetic (`checked_add`, `checked_sub`) and bounds conversion (`u16::try_from`), checking arithmetic and output bounds before generating padding.
+- **Temporary swap cleanup path validation (CWE-78)**: Enforced strict swap path validation in `overwrite_swap`, checking path existence via `Path::exists()` and rejecting control characters, traversal sequences (`..`), and non-canonical identifiers prior to disk sanitization.
 
 ## [1.4.6] - 2026-09-25
 
@@ -97,7 +103,7 @@ Detailed release advisories are archived in [docs/releases/](docs/releases/READM
 ### Security & Hardening (Zero-Tolerance Kernel Defense)
 - **X11 Display Authorization Hardening**: Eliminated `xhost +local:` from `spawn_monitor_terminal` to prevent local unauthorized access to X11 sessions (keylogging/screengrab vectors). Enforced strict root-only authority (`+SI:localuser:root`).
 - **Root Context Configuration Isolation**: Forbid loading unprivileged user configurations (`~/.config/wraith/config.toml`) when running with root privileges (UID 0), eliminating Local Privilege Escalation (LPE) and malicious policy tampering. Enforced root ownership and non-world-writable permission validation.
-- **Cryptographic Ephemeral Key Shredding**: Integrated DoD 5220.22-M 7-pass random overwrite, in-memory zeroization, and physical disk sync (`shred_key_file` and `shred_onion_tree`) to securely purge Onion v3 private keys (`hs_ed25519_secret_key`) during service deactivation.
+- **Ephemeral Onion-key cleanup**: Added the configured seven-pass overwrite, in-memory zeroization and disk synchronization steps (`shred_key_file` and `shred_onion_tree`) during service deactivation.
 - **Moat Bridge Egress Proxy Enforcement**: Routed BridgeDB Moat API requests through local Tor SOCKS5 proxy (`127.0.0.1:9050` with `--socks5-hostname`) to eliminate clearnet SNI and DNS leaks on network filtering environments.
 - **HTTP Keep-Alive / Pipelining Disablement**: Stripped client Keep-Alive headers in `tls_camouflage` and enforced mandatory `Connection: close` and `Proxy-Connection: close` to keep each normalized request within a single connection lifecycle.
 - **RFC 2104 Section 2 HMAC-SHA256 Compliance**: Eliminated silent fallback to static zero-keys (`[0u8; 32]`) on initialization. Implemented standard RFC 2104 pre-hashing for keys exceeding 64 bytes.
@@ -187,7 +193,7 @@ Historical entries below describe earlier release announcements. Current support
   - Automated BridgeDB discovery via domain-fronted Moat JSON API and CAPTCHA challenge resolver.
   - First-class support for `obfs4`, `snowflake`, and `webtunnel` pluggable transports.
 - **Enterprise 17-Language Synchronization**:
-  - 100% synchronized dictionaries across all 17 native locales with zero missing translation keys.
+  - Synchronized the translation keys across all 17 bundled locales.
 
 ### Security & Hardening (Dual-Engine Audit Remediation)
 - **VULN-01 (RamFS Vault Directory Permissions & Path Traversal)**:

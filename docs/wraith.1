@@ -1,4 +1,4 @@
-.TH WRAITH 1 "September 2026" "wraith 1.5.1" "User Commands"
+.TH WRAITH 1 "October 2026" "wraith 1.5.2" "User Commands"
 .SH NAME
 wraith \- Kernel-grade network anonymization and session cleanups framework
 .SH SYNOPSIS
@@ -150,7 +150,7 @@ Normalizes namespace TCP and Tor access-link initial SYNs.
 Rotates unique OS /etc/machine-id and system hardware identifiers.
 .TP
 \fB\-K\fR, \fB\-\-aggressive\-masquerade\fR
-Spoofs process name in the Linux kernel scheduler as a kernel worker thread ([kworker/u16:0]).
+Sets the process communication label to [kworker/u16:0]; the executable path is unchanged.
 .TP
 \fB\-A\fR, \fB\-\-aggressive\-anti\-debug\fR
 Enforces an aggressive anti-debugging probe; immediately triggers SIGKILL if attached to a debugger.

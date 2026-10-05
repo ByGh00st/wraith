@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust Toolchain & Musl Target
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl
 
@@ -27,11 +27,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
-          cargo install cargo-deb --locked
+          cargo install cargo-deb --version 3.8.0 --locked
 
       - name: Build GNU Release Binary & .deb Package
         run: |
-          cargo build --release -p wraith-cli --target x86_64-unknown-linux-gnu
+          cargo build --locked --release -p wraith-cli --target x86_64-unknown-linux-gnu
           bash scripts/package-release.sh x86_64-unknown-linux-gnu
 
       - name: Build Static Musl Release Binary
@@ -51,11 +51,11 @@ jobs:
                    LIBSTDCXX=$(find / -name "libstdc++.a" 2>/dev/null | head -n 1 || true) && \
                    if [ -n "$LIBSTDCXX" ] && [ "$LIBSTDCXX" != "/usr/lib/libstdc++.a" ]; then ln -sf "$LIBSTDCXX" /usr/lib/libstdc++.a; fi && \
                    export RUSTFLAGS="-L native=/usr/lib $([ -n "$LIBSTDCXX" ] && echo "-L native=$(dirname "$LIBSTDCXX")")" && \
-                   cargo build --release -p wraith-cli --target x86_64-unknown-linux-musl && \
+                   cargo build --locked --release -p wraith-cli --target x86_64-unknown-linux-musl && \
                    bash scripts/package-release.sh x86_64-unknown-linux-musl'
 
       - name: Upload Dist Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-artifacts
           path: dist/*
@@ -95,7 +95,7 @@ jobs:
 
     steps:
       - name: Download Built Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-artifacts
           path: dist

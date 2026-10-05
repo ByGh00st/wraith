@@ -72,7 +72,6 @@ impl TlsCamouflageServer {
                 if libc::getrlimit(libc::RLIMIT_NOFILE, &mut rlim) == 0 {
                     let desired = 4096 as libc::rlim_t;
                     if rlim.rlim_cur < desired {
-                        let original_cur = rlim.rlim_cur;
                         rlim.rlim_cur = if rlim.rlim_max >= desired {
                             desired
                         } else {
@@ -81,9 +80,7 @@ impl TlsCamouflageServer {
                         if libc::setrlimit(libc::RLIMIT_NOFILE, &rlim) != 0 && rlim.rlim_max < desired {
                             rlim.rlim_max = desired;
                             rlim.rlim_cur = desired;
-                            if libc::setrlimit(libc::RLIMIT_NOFILE, &rlim) != 0 {
-                                rlim.rlim_cur = original_cur;
-                            }
+                            let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &rlim);
                         }
                     }
                 }

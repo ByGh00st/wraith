@@ -17,20 +17,20 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust Toolchain & cargo-deb
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       - name: Install Lintian & Debian Packaging Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y lintian man-db e2fsprogs tor iptables iproute2
-          cargo install cargo-deb --locked
+          cargo install cargo-deb --version 3.8.0 --locked
 
       - name: Build Native Release Binary
         run: |
-          cargo build --release -p wraith-cli --target x86_64-unknown-linux-gnu
+          cargo build --locked --release -p wraith-cli --target x86_64-unknown-linux-gnu
           bash scripts/package-release.sh x86_64-unknown-linux-gnu
 
       - name: Run Lintian Strict Quality Audit

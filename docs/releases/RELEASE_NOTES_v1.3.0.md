@@ -12,21 +12,21 @@ The historical implementation normalized selected cleartext HTTP request headers
 
 ## 2. Hardware Network Interface Selector (`wraith interfaces`)
 * **Physical NIC Auto-Discovery**: Automatically enumerates physical Ethernet and Wi-Fi adapters via Linux `/sys/class/net`, discarding virtual tunnels, loopback, and inactive links.
-* **Automatic Fallback Routing**: If the primary interface drops, Wraith autonomously rebinds routing to secondary active physical uplinks without exposing clearnet leaks.
+* **Automatic Fallback Routing**: If the primary interface drops, Wraith autonomously rebinds routing to secondary active physical uplinks according to the active fallback-route policy.
 * **Interactive Terminal TUI**: Run `sudo wraith interfaces` to launch a full-screen interactive selector with real-time MAC, IP, state, and carrier speed display.
 
 ---
 
 ## 3. Systemd Early-Boot Fail-Closed Daemon (`install-daemon.sh`)
-* **Zero Clearnet Leak at Boot**: Hooks into systemd `network-pre.target` to establish Netfilter routing and KillSwitch barriers before root login, NetworkManager, or background daemons initialize.
+* **Early network policy setup**: Uses systemd `network-pre.target` to configure the selected Netfilter routing policy before ordinary user services start. Actual behavior depends on systemd ordering and host configuration.
 * **Interactive 6-Step Wizard**: Configure routing profiles, DoH resolver, Tor bridges, and early-boot preferences.
-* **Full CLI Non-Interactive Automation**: Deploy in CI/CD or headless environments with `sudo ./install-daemon.sh --non-interactive --boot-mode early --profile stealth`.
+* **CLI Non-Interactive Mode**: Configure the systemd service from a headless environment with the documented command-line options.
 
 ---
 
 ## 4. Kernel and application hardening (Audited & Remediated)
 * **VULN-01 (RamFS Vault Directory Permissions & Path Traversal)**: `0o700` mode lock on vault path, strict traversal sanitization (`..`, `/`, `\`, `\0`), and `libc::O_NOFOLLOW` open flags.
-* **VULN-02 (Cryptographic Shredder Symlink Hijacking)**: `fs::symlink_metadata()` check safely unlinks symlinks without overwriting or following into target files; all write handles enforce `O_NOFOLLOW`.
+* **VULN-02 (Secure file cleanup symlink handling)**: `fs::symlink_metadata()` check checks symlink metadata so cleanup does not follow a link to a different target; all write handles enforce `O_NOFOLLOW`.
 * **VULN-03 (Netlink NlMsgErr Struct Offset Alignment)**: Recalibrated Netlink error payload offset to 16 bytes (past outer `NlMsgHdr`) in both ACK and dump request loops.
 * **VULN-04 (Honeypot Loopback Isolation & Protected PID Immunity)**: Restricted peer process inspection strictly to loopback IP addresses (`is_loopback()`); added inviolable immunity for PID 0, PID 1, and the Wraith process.
 * **VULN-05 (State Persistence File Permission Lockdown)**: Enforced Unix `0o600` permissions on temporary and permanent state files.
@@ -36,16 +36,16 @@ The historical implementation normalized selected cleartext HTTP request headers
 ---
 
 ## 5. RFC 8484 DoH and Tor bridge support
-* **Sovereign DNS-over-HTTPS (`wraith doh`)**: Native RFC 8484 wire-format query generation with Quad9, Cloudflare, Mullvad, and AdGuard presets, plus interactive TUI.
-* **Tor Moat Bridge Discovery (`wraith bridge`)**: Automated BridgeDB retrieval via domain-fronted Moat JSON API and built-in CAPTCHA solving protocol.
+* **DNS-over-HTTPS (`wraith doh`)**: Native RFC 8484 wire-format query generation with Quad9, Cloudflare, Mullvad, and AdGuard presets, plus interactive TUI.
+* **Tor Moat Bridge Discovery (`wraith bridge`)**: BridgeDB retrieval through the configured Moat API flow.
 
 ---
 
 ## 6. Historical validation metrics
 * **Total Lines:** **52,846 lines** (49,652 lines of code across 473 files).
 * **Pure Rust LOC:** **13,493 lines of pure safe Rust** across 61 files.
-* **Test Suite:** **44/44 unit & integration tests passing (%100 PASS)**.
-* **Linter & Static Analysis:** **0 errors, 0 warnings** in `cargo clippy --workspace`.
+* **Test Suite:** The release notes recorded 44 passing unit and integration tests for that source snapshot; this is not a result for current releases.
+* **Linter & Static Analysis:** The release notes recorded a clean `cargo clippy --workspace` run for that source snapshot.
 * **Internationalization:** **17 native locales** synchronized with zero missing keys.
 
 ---

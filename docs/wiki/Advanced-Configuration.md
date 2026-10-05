@@ -96,11 +96,11 @@ Only newly launched namespace applications get its sysctl/FIB settings. Tor's ou
 | `--shaper` | Apply owned netem delay settings | No demonstrated resistance to traffic correlation |
 | `--display-sandbox` | Create a private virtual display | Xvfb and xauth; applications must use that display |
 | `--honey-ports` / `--honey-lan` | Loopback decoys are included in strict mode; LAN binding is opt-in | Observational traps; not malware removal |
-| `-K` / `--aggressive-masquerade` | Mask process name as `[kworker/u16:0]` | Kernel process table disguise; does not alter `/proc/[pid]/exe` |
+| `-K` / `--aggressive-masquerade` | Set the process communication label to `[kworker/u16:0]` | Does not alter `/proc/[pid]/exe` |
 | `-A` / `--aggressive-anti-debug` | Check ptrace status | Terminates Wraith if a debugger is detected |
-| `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp and shell logs | Irreversible; multi-pass shred on common system log paths |
+| `-L` / `--forensic-wipe-logs` | Delete configured wtmp, utmp, btmp and shell-log paths | Destructive; review the selected paths and retain required records |
 
-Bridges, WireGuard, virtual display, circuit rotation, traffic shaping, cover requests and onion services need explicit CLI/configuration choices. Log/history wiping and self-destruction also remain explicit options. Full-security is a required control bundle, not a complete-anonymity or blocklist-avoidance guarantee.
+Bridges, WireGuard, virtual display, circuit rotation, traffic shaping, cover requests and onion services need explicit CLI/configuration choices. Log-file deletion and binary/state cleanup remain explicit options with destructive effects. Full-security is a required control bundle; it does not guarantee anonymity or destination reachability.
 
 Use separate sessions to evaluate different configurations. Consult `wraith start --help` and the [full command reference](https://github.com/ByGh00st/wraith#cli-reference).
 
@@ -114,6 +114,6 @@ Use an endpoint you control or are authorized to use. The worker makes a real HT
 
 ## Scope of host controls
 
-Browser preferences apply to managed profiles; confirm which profile an application uses. Fontconfig restrictions do not guarantee a universal font count. Seccomp restricts ptrace and alternate-ABI bypasses, but is not a general syscall allowlist. Cgroup membership is bookkeeping; netfilter enforces egress. The experimental physical-interface fastpath is not an active protection layer.
+Browser preferences apply to managed profiles; confirm which profile an application uses. Fontconfig restrictions do not guarantee a universal font count. Seccomp restricts ptrace and some alternate-ABI syscall paths, but is not a general syscall allowlist. Cgroup membership is bookkeeping; netfilter enforces egress. The experimental physical-interface fastpath is not an active protection layer.
 
 **Next:** [Troubleshooting and recovery →](Troubleshooting.md)

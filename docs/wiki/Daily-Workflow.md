@@ -31,14 +31,14 @@ Interactive selection runs in the foreground. Without a terminal, provide `--int
 
 For the required controls, host prerequisites and optional additions to `-Fs`, see the [full-security setup guide](Advanced-Configuration.md#full-security-preset). Change the matched pair with `sudo wraith -Fs --tls-profile safari`; L4 follows automatically.
 
-## Forensic & Evasive Operations
+## Optional Process Controls & Session Cleanup
 
 | Option | Operation | Safety & Scope |
 | :--- | :--- | :--- |
-| `-K` / `--aggressive-masquerade` | Mask process name as `[kworker/u16:0]` in Linux kernel scheduler | Evasive; disguises worker thread |
-| `-A` / `--aggressive-anti-debug` | Check debugger attachment; terminate Wraith if ptrace is detected | Fail-closed process guard |
-| `-L` / `--forensic-wipe-logs` | Eradicate wtmp, utmp, btmp, system logs and bash_history on exit | Irreversible system trace wipe |
-| `-d` / `--forensic-self-destruct` | Cryptographically shred binary and state files from disk on shutdown | Irreversible binary shredding |
+| `-K` / `--aggressive-masquerade` | Set the process communication label to `[kworker/u16:0]` | Does not change the executable path or grant authorization |
+| `-A` / `--aggressive-anti-debug` | Check debugger attachment; terminate Wraith if ptrace is detected | Process tracing guard |
+| `-L` / `--forensic-wipe-logs` | Delete the configured wtmp, utmp, btmp, system-log and shell-history files on exit | Destructive; review paths and retain required records before use |
+| `-d` / `--forensic-self-destruct` | Run the configured binary and state-file cleanup on shutdown | Destructive; verify the selected paths and keep required backups |
 
 ## Choose an interface
 

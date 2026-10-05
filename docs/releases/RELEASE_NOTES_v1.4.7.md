@@ -8,7 +8,7 @@
 
 Wraith version **1.4.7** is an official maintenance and security release. Following a structured internal security assessment and threat modeling review, this update remediates eight (8) potential edge-case vulnerabilities, reinforces file descriptor handling during cryptographic asset cleanup, hardens process memory isolation against unauthorized inspection, and implements strict input validation for configuration parameters.
 
-All remediations have been verified with dedicated automated regression test suites, ensuring complete backward compatibility, zero regression in core networking functionality, and adherence to safe memory management practices.
+The release test suites covered the listed remediation cases. Their results do not establish complete compatibility or absence of regressions on all supported systems.
 
 ---
 
@@ -26,13 +26,13 @@ All remediations have been verified with dedicated automated regression test sui
 - **Component:** `wraith-tor::onion_service`
 - **Mitigation:** Added a formal validation method `OnionServiceConfig::validate()` that enforces strict alphanumeric and hyphen/underscore constraints on service names, restricts identifier lengths to 64 characters, and validates Unix domain socket paths against path traversal sequences (`..`), whitespace, and control characters before rendering configuration files.
 
-### SEC-04: Migration to OS Cryptographic Entropy for Hardware Identifier Spoofing (CWE-330)
+### SEC-04: OS Cryptographic Entropy for MAC Address Randomization (CWE-330)
 - **Component:** `wraith-net::mac`
 - **Mitigation:** Standardized physical and virtual L2 MAC address randomization on `rand::rngs::OsRng`, ensuring direct derivation from the operating system's cryptographic entropy source across all interface modification routines.
 
 ### SEC-05: Entropy Expansion for Generated Hostnames (CWE-330)
 - **Component:** `wraith-net::mac`
-- **Mitigation:** Replaced static dictionary combinations with high-entropy hex-encoded identifiers derived from `OsRng` and formatted under standard workstation naming conventions (`desktop-xxxxxx`, `laptop-xxxxxx`, `station-xxxxxx`), significantly expanding entropy space and eliminating tracking vectors in network device logs.
+- **Mitigation:** Replaced static dictionary combinations with high-entropy hex-encoded identifiers derived from `OsRng` and formatted under standard workstation naming conventions (`desktop-xxxxxx`, `laptop-xxxxxx`, `station-xxxxxx`), increasing the identifier search space in generated hostnames.
 
 ### SEC-06: Seccomp-BPF Syscall Filter Extension for Process Memory Inspection (CWE-269)
 - **Component:** `wraith-guard::seccomp_jail`

@@ -29,7 +29,7 @@
 | Latest release lacks matching assets | Use the source installer until a complete release is published; do not substitute another CPU/libc binary. |
 | APT refuses a dependency | Check distribution/library compatibility. Do not force-install the package while skipping dependencies. |
 | Version check reports PATH conflict | Run `type -a wraith`; explicitly reconcile an earlier `/usr/local/bin` install with the APT-owned `/usr/bin/wraith`. |
-| SHA-256, metadata or archive validation fails | Installation is refused. Check the selected official release and download again; do not bypass verification. |
+| SHA-256, metadata or archive validation fails | Installation is refused. Check the selected official release and download again; do not skip verification. |
 
 ```bash
 CMAKE_BUILD_PARALLEL_LEVEL=2 cargo build --release --locked -j 2 -p wraith-cli
@@ -106,7 +106,7 @@ A reboot may discard `/var/run/wraith.state`; network ownership leases do not re
 
 - Missing `nsenter`: install the distribution's util-linux package and retry setup.
 - Host alias or unmanaged namespace: use the namespace created by Wraith; arbitrary namespace paths are rejected.
-- Unapproved sysctl or invalid profile value: correct the profile rather than bypassing validation.
+- Unapproved sysctl or invalid profile value: correct the profile to satisfy validation.
 - Namespace replaced during recovery: keep the recovery record and resolve ownership; the engine refuses to write into a different namespace lifetime.
 - Unknown `--morph-l4`: update the source and rebuild/install the binary. `--tcp-profile` remains a compatible alias.
 - `--morph-l4 off` conflicts with full-security or `--tcp-mask`: choose an explicit profile, or remove those enabling options. Use `--namespace --morph-l4 off` for isolation with untouched TCP defaults.
